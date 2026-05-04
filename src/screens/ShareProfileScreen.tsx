@@ -106,8 +106,7 @@ export default function ShareProfileScreen({ route, navigation }: any) {
       if (Platform.OS === 'web') {
         await navigator.clipboard.writeText(shareLink);
       } else {
-        const { default: Clipboard } = await import('@react-native-clipboard/clipboard');
-        Clipboard.setString(shareLink);
+        await Clipboard.setString(shareLink);
       }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
