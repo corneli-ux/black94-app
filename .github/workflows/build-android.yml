@@ -8,6 +8,9 @@ on:
 env:
   JAVA_VERSION: '17'
   NODE_VERSION: '22'
+  KEYSTORE_PASSWORD: 'black94real'
+  KEY_ALIAS: 'black94'
+  KEY_PASSWORD: 'black94real'
 
 jobs:
   build-apk:
@@ -37,9 +40,14 @@ jobs:
       - name: Expo prebuild (generate android/)
         run: npx expo prebuild --platform android --clean
 
-      - name: Decode release keystore
+      - name: Copy release keystore into prebuilt android/
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/black94-release.jks
+          cp ci/black94-release.jks android/app/black94-release.jks
+          echo "Copied keystore from ci/ to android/app/"
+          # Verify keystore SHA-1 matches google-services.json
+          keytool -list -v -keystore android/app/black94-release.jks \
+            -storepass 'black94real' \
+            -alias 'black94' 2>&1 | grep SHA1
 
       - name: Patch build.gradle for release signing + device-only ABIs
         run: |
@@ -50,42 +58,41 @@ jobs:
           with open(filepath, 'r') as f:
               content = f.read()
 
-          # 1) Add signing config if not present
+          # 1) Add release signing config with HARDCODED credentials (no secrets dependency)
+          # Replace the entire signingConfigs block to ensure it's correct
           signing_config = '''
           signingConfigs {
               release {
                   storeFile file('black94-release.jks')
-                  storePassword System.getenv("KEYSTORE_PASSWORD")
-                  keyAlias System.getenv("KEY_ALIAS")
-                  keyPassword System.getenv("KEY_PASSWORD")
+                  storePassword 'black94real'
+                  keyAlias 'black94'
+                  keyPassword 'black94real'
               }
           }
           '''
 
-          if 'signingConfigs' not in content:
-              # Insert before defaultConfig or buildTypes
-              if 'defaultConfig' in content:
-                  content = content.replace('defaultConfig', signing_config.strip() + '\n\ndefaultConfig', 1)
-                  print('Added signingConfigs')
-              else:
-                  print('WARNING: Could not find defaultConfig to insert signingConfigs')
+          # Remove existing signingConfigs block if present, then add ours
+          if 'signingConfigs' in content:
+              content = re.sub(r'signingConfigs\s*\{[^}]*release\s*\{[^}]*\}[^}]*\}', '', content)
+
+          # Insert before defaultConfig
+          if 'defaultConfig' in content:
+              content = content.replace('defaultConfig', signing_config.strip() + '\n\ndefaultConfig', 1)
+              print('Added signingConfigs with hardcoded credentials')
           else:
-              print('signingConfigs already present')
+              print('WARNING: Could not find defaultConfig')
 
           # 2) Wire release buildType to use the signing config
-          if 'buildTypes' in content and 'release {' in content:
-              if 'signingConfig' not in content.split('buildTypes')[1].split('}')[0]:
-                  content = re.sub(
-                      r'(buildTypes\s*\{[^}]*?release\s*\{)',
-                      r'\1\n            signingConfig signingConfigs.release',
-                      content,
-                      count=1
-                  )
-                  print('Wired release signingConfig')
-              else:
-                  print('Release signingConfig already wired')
-          else:
-              print('WARNING: Could not find buildTypes release block')
+          # Remove existing signingConfig line from release block and add ours
+          content = re.sub(r'(buildTypes\s*\{[^}]*?release\s*\{)\s*signingConfig\s+[^\n]+\n?', r'\1\n            ', content)
+          # Now add the correct one
+          content = re.sub(
+              r'(buildTypes\s*\{[^}]*?release\s*\{)',
+              r'\1\n            signingConfig signingConfigs.release',
+              content,
+              count=1
+          )
+          print('Wired release signingConfig')
 
           # 3) Add ndk abiFilters to defaultConfig
           pattern = r'(defaultConfig\s*\{[^}]*?versionName\s+"[^"]+"\s*\n)'
@@ -95,7 +102,6 @@ jobs:
               }
           """
           new_content = re.sub(pattern, r'\1' + ndk_block, content)
-
           if new_content != content:
               content = new_content
               print('Added ABI filters')
@@ -109,9 +115,9 @@ jobs:
 
       - name: Build Release APK
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: 'black94real'
+          KEY_ALIAS: 'black94'
+          KEY_PASSWORD: 'black94real'
         run: |
           cd android
           chmod +x gradlew
@@ -153,9 +159,13 @@ jobs:
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
 
-      - name: Decode release keystore
+      - name: Copy release keystore into prebuilt android/
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/black94-release.jks
+          cp ci/black94-release.jks android/app/black94-release.jks
+          echo "Copied keystore from ci/ to android/app/"
+          keytool -list -v -keystore android/app/black94-release.jks \
+            -storepass 'black94real' \
+            -alias 'black94' 2>&1 | grep SHA1
 
       - name: Patch build.gradle for release signing + device-only ABIs
         run: |
@@ -170,29 +180,28 @@ jobs:
           signingConfigs {
               release {
                   storeFile file('black94-release.jks')
-                  storePassword System.getenv("KEYSTORE_PASSWORD")
-                  keyAlias System.getenv("KEY_ALIAS")
-                  keyPassword System.getenv("KEY_PASSWORD")
+                  storePassword 'black94real'
+                  keyAlias 'black94'
+                  keyPassword 'black94real'
               }
           }
           '''
 
-          if 'signingConfigs' not in content:
-              if 'defaultConfig' in content:
-                  content = content.replace('defaultConfig', signing_config.strip() + '\n\ndefaultConfig', 1)
-                  print('Added signingConfigs')
-          else:
-              print('signingConfigs already present')
+          if 'signingConfigs' in content:
+              content = re.sub(r'signingConfigs\s*\{[^}]*release\s*\{[^}]*\}[^}]*\}', '', content)
 
-          if 'buildTypes' in content and 'release {' in content:
-              if 'signingConfig' not in content.split('buildTypes')[1].split('}')[0]:
-                  content = re.sub(
-                      r'(buildTypes\s*\{[^}]*?release\s*\{)',
-                      r'\1\n            signingConfig signingConfigs.release',
-                      content,
-                      count=1
-                  )
-                  print('Wired release signingConfig')
+          if 'defaultConfig' in content:
+              content = content.replace('defaultConfig', signing_config.strip() + '\n\ndefaultConfig', 1)
+              print('Added signingConfigs')
+
+          content = re.sub(r'(buildTypes\s*\{[^}]*?release\s*\{)\s*signingConfig\s+[^\n]+\n?', r'\1\n            ', content)
+          content = re.sub(
+              r'(buildTypes\s*\{[^}]*?release\s*\{)',
+              r'\1\n            signingConfig signingConfigs.release',
+              content,
+              count=1
+          )
+          print('Wired release signingConfig')
 
           pattern = r'(defaultConfig\s*\{[^}]*?versionName\s+"[^"]+"\s*\n)'
           ndk_block = """
@@ -212,9 +221,9 @@ jobs:
 
       - name: Build Release AAB
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: 'black94real'
+          KEY_ALIAS: 'black94'
+          KEY_PASSWORD: 'black94real'
         run: |
           cd android
           chmod +x gradlew
