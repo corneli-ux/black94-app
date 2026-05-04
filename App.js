@@ -2,6 +2,10 @@ import React, { useEffect, useState, Component } from 'react';
 import { StatusBar, Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
+import * as WebBrowser from 'expo-web-browser';
+
+// Initialize WebBrowser for OAuth callback handling
+WebBrowser.maybeCompleteAuthSession();
 import { onAuthStateChanged, auth } from './src/lib/firebase';
 import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';

@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { signInWithGoogle } from '../lib/api';
+import { signInWithGoogleWeb } from '../lib/google-web-auth';
 
 /**
  * AuthScreen — Login screen matching black94.web.app exactly.
@@ -40,42 +41,52 @@ export default function AuthScreen() {
   const handleGoogleSignIn = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
-
-      GoogleSignin.configure({
-        scopes: ['email', 'profile'],
-        webClientId: '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
-        offlineAccess: true,
-      });
-
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      let idToken = userInfo.data?.idToken;
-      if (!idToken) {
-        try {
-          const tokens = await GoogleSignin.getTokens();
-          idToken = tokens.idToken;
-        } catch (e) {
-          console.warn('[AuthScreen] getTokens failed:', e);
-        }
-      }
-      if (!idToken) throw new Error('Failed to obtain Google ID token');
+      // ── Primary: Web-based OAuth (no SHA-1 required, no Google Play Services) ──
+      console.log('[AuthScreen] Using web-based Google OAuth...');
+      const idToken = await signInWithGoogleWeb();
 
       const user = await signInWithGoogle(idToken);
       if (user) {
         setUser(user);
         setToken(user.id);
       }
-    } catch (error: any) {
-      console.error('Google sign-in error:', error);
-      if (error.code !== '12501') {
-        let msg = error.message || 'Something went wrong.';
-        if (error.code === 'DEVELOPER_ERROR') {
-          msg = 'Google Sign-In configuration error (DEVELOPER_ERROR). ' +
-                'The app signing certificate SHA-1 must be registered in ' +
-                'Firebase Console > Project Settings > Android App > SHA certificates.';
+    } catch (webError: any) {
+      console.warn('[AuthScreen] Web OAuth failed, trying native fallback:', webError.message);
+
+      // ── Fallback: Native Google Sign-In (requires SHA-1 registered) ──
+      try {
+        const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+
+        GoogleSignin.configure({
+          scopes: ['email', 'profile'],
+          webClientId: '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
+          offlineAccess: true,
+        });
+
+        await GoogleSignin.hasPlayServices();
+        const userInfo = await GoogleSignin.signIn();
+        let idToken = userInfo.data?.idToken;
+        if (!idToken) {
+          try {
+            const tokens = await GoogleSignin.getTokens();
+            idToken = tokens.idToken;
+          } catch (e) {
+            console.warn('[AuthScreen] getTokens failed:', e);
+          }
         }
-        Alert.alert('Sign In Error', msg);
+        if (!idToken) throw new Error('Failed to obtain Google ID token');
+
+        const user = await signInWithGoogle(idToken);
+        if (user) {
+          setUser(user);
+          setToken(user.id);
+        }
+      } catch (error: any) {
+        console.error('Google sign-in error (all methods):', error);
+        if (error.code !== '12501') {
+          let msg = error.message || 'Something went wrong.';
+          Alert.alert('Sign In Error', msg);
+        }
       }
     } finally {
       setIsLoading(false);
