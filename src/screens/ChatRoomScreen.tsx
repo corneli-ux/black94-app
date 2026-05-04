@@ -2,20 +2,13 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator,
+  SafeAreaView,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, Message } from '../lib/api';
-import { auth } from '../lib/firebase';
-
-function Avatar({ uri, size = 36 }: { uri?: string | null; size?: number }) {
-  return uri ? (
-    <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />
-  ) : (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: '#fff', fontSize: size * 0.38, fontWeight: '700' }}>?</Text>
-    </View>
-  );
-}
+import { auth, firestore } from '../lib/firebase';
+import { Avatar } from '../components/Avatar';
+import { timeAgo } from '../utils/timeAgo';
 
 export default function ChatRoomScreen({ route, navigation }: any) {
   const { chat } = route.params;
@@ -40,8 +33,18 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   }, [chat.id]);
 
   useEffect(() => {
+    // Reset unread count when opening chat
+    const resetUnread = async () => {
+      try {
+        const isUser1 = chat.user1Id === currentUser?.uid;
+        const field = isUser1 ? 'unreadUser1' : 'unreadUser2';
+        await firestore().collection('chats').doc(chat.id).update({ [field]: 0 });
+      } catch (e) {
+        console.warn('Failed to reset unread:', e);
+      }
+    };
+    resetUnread();
     load();
-    // Poll every 5s for new messages
     pollRef.current = setInterval(() => load(true), 5000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
@@ -51,7 +54,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     const content = text.trim();
     setText('');
     setSending(true);
-    // Optimistic update
     const tempMsg: Message = {
       id: `tmp-${Date.now()}`, chatId: chat.id,
       senderId: currentUser?.uid || '', receiverId: chat.otherUser?.id || '',
@@ -76,88 +78,102 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         {!isMine && <Avatar uri={chat.otherUser?.profileImage} size={28} />}
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
           <Text style={[styles.bubbleText, isMine && { color: '#fff' }]}>{item.content}</Text>
+          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(255,255,255,0.5)' } : { color: colors.textMuted }]}>
+            {timeAgo(item.createdAt)}
+          </Text>
         </View>
       </View>
     );
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <Avatar uri={chat.otherUser?.profileImage} size={36} />
-        <View style={{ marginLeft: 10, flex: 1 }}>
-          <Text style={styles.headerName} numberOfLines={1}>
-            {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
-          </Text>
-          <Text style={styles.headerHandle}>@{chat.otherUser?.username}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Text style={styles.backArrow}>←</Text>
+          </TouchableOpacity>
+          <Avatar uri={chat.otherUser?.profileImage} size={36} />
+          <View style={{ marginLeft: 10, flex: 1 }}>
+            <Text style={styles.headerName} numberOfLines={1}>
+              {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
+            </Text>
+            <Text style={styles.headerHandle}>@{chat.otherUser?.username}</Text>
+          </View>
         </View>
-      </View>
 
-      {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.accent} />
+        {/* Messages */}
+        {loading ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : (
+          <FlatList
+            ref={flatRef}
+            data={messages}
+            keyExtractor={item => item.id}
+            renderItem={renderMessage}
+            contentContainerStyle={{ padding: 16, gap: 6 }}
+            ListEmptyComponent={
+              <View style={{ alignItems: 'center', paddingTop: 80 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No messages yet. Say hi! 👋</Text>
+              </View>
+            }
+            onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
+          />
+        )}
+
+        {/* Input */}
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            placeholder="Type a message..."
+            placeholderTextColor={colors.textSecondary}
+            value={text}
+            onChangeText={setText}
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, !text.trim() && { opacity: 0.4 }]}
+            onPress={handleSend}
+            disabled={!text.trim() || sending}
+          >
+            {sending
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={styles.sendIcon}>↑</Text>
+            }
+          </TouchableOpacity>
         </View>
-      ) : (
-        <FlatList
-          ref={flatRef}
-          data={messages}
-          keyExtractor={item => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={{ padding: 16, gap: 8 }}
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', paddingTop: 80 }}>
-              <Text style={{ color: colors.textSecondary }}>No messages yet. Say hi! 👋</Text>
-            </View>
-          }
-        />
-      )}
-
-      {/* Input */}
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="Type a message..."
-          placeholderTextColor={colors.textSecondary}
-          value={text}
-          onChangeText={setText}
-          multiline
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, !text.trim() && { opacity: 0.4 }]}
-          onPress={handleSend}
-          disabled={!text.trim() || sending}
-        >
-          {sending
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={styles.sendIcon}>↑</Text>}
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.bg },
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
   backArrow: { color: colors.text, fontSize: 22 },
   headerName: { color: colors.text, fontWeight: '700', fontSize: 15 },
   headerHandle: { color: colors.textSecondary, fontSize: 13 },
-  msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginVertical: 3 },
+  msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginVertical: 2 },
   msgRowRight: { justifyContent: 'flex-end' },
   msgRowLeft: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '75%', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18 },
   bubbleMine: { backgroundColor: colors.accent, borderBottomRightRadius: 4 },
   bubbleTheirs: { backgroundColor: '#1e1e1e', borderBottomLeftRadius: 4 },
   bubbleText: { color: colors.text, fontSize: 15, lineHeight: 21 },
+  bubbleTime: { fontSize: 10, marginTop: 3 },
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 10,
     paddingHorizontal: 16, paddingVertical: 10,

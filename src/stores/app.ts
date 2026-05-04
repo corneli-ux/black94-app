@@ -10,6 +10,8 @@ interface AppState {
   setLoading: (loading: boolean) => void;
   isReady: boolean;
   setIsReady: (ready: boolean) => void;
+  unreadNotificationCount: number;
+  setUnreadNotificationCount: (count: number) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -17,8 +19,10 @@ export const useAppStore = create<AppState>((set) => ({
   setUser: (user) => set({ user }),
   token: null,
   setToken: (token) => set({ token }),
-  loading: true,
+  loading: false, // Start as false — App.js handles readiness via isReady
   setLoading: (loading) => set({ loading }),
   isReady: false,
   setIsReady: (isReady) => set({ isReady }),
+  unreadNotificationCount: 0,
+  setUnreadNotificationCount: (count) => set({ unreadNotificationCount: count }),
 }));

@@ -3,121 +3,137 @@ import {
   View, Text, FlatList, Image, TouchableOpacity,
   StyleSheet, RefreshControl, TextInput, Modal,
   KeyboardAvoidingView, Platform, ActivityIndicator,
-  Alert, Dimensions,
+  Alert, Dimensions, SafeAreaView,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { fetchFeed, createPost, toggleLike, toggleBookmark, Post } from '../lib/api';
-import { auth } from '../lib/firebase';
+import { auth, firestore } from '../lib/firebase';
+import { Avatar, VerifiedBadge } from '../components/Avatar';
+import { timeAgo } from '../utils/timeAgo';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const TAB_BAR_HEIGHT = 60;
+const FAB_BOTTOM = TAB_BAR_HEIGHT + 20; // Position above tab bar
 
-function timeAgo(ms: number): string {
-  const diff = Date.now() - ms;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d`;
-  const months = Math.floor(days / 30);
-  return `${months}mo`;
-}
-
-function Avatar({ uri, size = 44 }: { uri?: string | null; size?: number }) {
-  return uri ? (
-    <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#222' }} />
-  ) : (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: '#fff', fontSize: size * 0.4, fontWeight: '700' }}>?</Text>
-    </View>
-  );
-}
-
-function VerifiedBadge({ badge }: { badge?: string }) {
-  if (!badge && badge !== 'gold') return (
-    <View style={styles.badge}>
-      <Text style={{ color: colors.verified, fontSize: 10, fontWeight: '900' }}>✓</Text>
-    </View>
-  );
-  if (badge === 'gold') return (
-    <View style={[styles.badge, { backgroundColor: colors.verifiedGold }]}>
-      <Text style={{ color: '#000', fontSize: 10, fontWeight: '900' }}>✓</Text>
-    </View>
-  );
-  return (
-    <View style={styles.badge}>
-      <Text style={{ color: colors.verified, fontSize: 10, fontWeight: '900' }}>✓</Text>
-    </View>
-  );
-}
-
-function PostCard({ post, onLike, onBookmark }: {
+function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
   post: Post;
   onLike: (id: string, liked: boolean) => void;
   onBookmark: (id: string, bookmarked: boolean) => void;
+  onDelete: (id: string) => void;
+  navigation: any;
 }) {
+  const currentUser = auth()?.currentUser;
+
   return (
     <View style={styles.postCard}>
+      {/* Header */}
       <View style={styles.postHeader}>
-        <Avatar uri={post.authorProfileImage} size={44} />
+        <TouchableOpacity
+          onPress={() => {
+            if (post.authorId !== currentUser?.uid) {
+              navigation.navigate('Profile', { userId: post.authorId });
+            }
+          }}
+        >
+          <Avatar uri={post.authorProfileImage} size={44} />
+        </TouchableOpacity>
         <View style={styles.postMeta}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Text style={styles.displayName}>{post.authorDisplayName}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+            <Text style={styles.displayName} numberOfLines={1}>{post.authorDisplayName}</Text>
             <VerifiedBadge badge={post.authorBadge} />
             <Text style={styles.handle}>@{post.authorUsername}</Text>
             <Text style={styles.dot}>·</Text>
             <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.moreBtn}>
-          <Text style={styles.moreText}>⋮</Text>
-        </TouchableOpacity>
+        {post.authorId === currentUser?.uid && (
+          <TouchableOpacity
+            style={styles.moreBtn}
+            onPress={() => {
+              Alert.alert('Post', 'Delete this post?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+              ]);
+            }}
+          >
+            <Text style={styles.moreText}>⋮</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {post.caption ? <Text style={styles.caption}>{post.caption}</Text> : null}
+      {/* Caption */}
+      {post.caption ? (
+        <Text style={styles.caption} numberOfLines={4}>
+          {post.caption}
+        </Text>
+      ) : null}
 
+      {/* Media */}
       {post.mediaUrls?.length > 0 && (
-        <View style={styles.mediaContainer}>
-          <Image
-            source={{ uri: post.mediaUrls[0] }}
-            style={styles.media}
-            resizeMode="cover"
-          />
-        </View>
+        <TouchableOpacity
+          activeOpacity={0.95}
+          onLongPress={() => onLike(post.id, post.liked)}
+        >
+          <View style={styles.mediaContainer}>
+            <Image
+              source={{ uri: post.mediaUrls[0] }}
+              style={styles.media}
+              resizeMode="cover"
+            />
+          </View>
+        </TouchableOpacity>
       )}
 
+      {/* Actions */}
       <View style={styles.actions}>
-        <ActionBtn icon="💬" count={post.commentCount} />
-        <ActionBtn icon="🔁" count={post.repostCount} active={post.reposted} activeColor={colors.accentGreen} />
+        <TouchableOpacity style={styles.actionBtn} disabled>
+          <Text style={{ fontSize: 16, color: colors.textSecondary }}>💬</Text>
+          {post.commentCount > 0 && (
+            <Text style={styles.actionCount}>{post.commentCount}</Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn} disabled>
+          <Text style={{ fontSize: 16, color: post.reposted ? colors.accentGreen : colors.textSecondary }}>
+            🔁
+          </Text>
+          {post.repostCount > 0 && (
+            <Text style={[styles.actionCount, post.reposted && { color: colors.accentGreen }]}>
+              {post.repostCount}
+            </Text>
+          )}
+        </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
           <Text style={{ fontSize: 16, color: post.liked ? colors.accentRed : colors.textSecondary }}>
             {post.liked ? '❤️' : '🤍'}
           </Text>
           {post.likeCount > 0 && (
-            <Text style={[styles.actionCount, post.liked && { color: colors.accentRed }]}>{post.likeCount}</Text>
+            <Text style={[styles.actionCount, post.liked && { color: colors.accentRed }]}>
+              {post.likeCount}
+            </Text>
           )}
         </TouchableOpacity>
-        <ActionBtn icon="📈" />
+        <TouchableOpacity style={styles.actionBtn} disabled>
+          <Text style={{ fontSize: 16, color: colors.textSecondary }}>📈</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
           <Text style={{ fontSize: 16, color: post.bookmarked ? colors.accent : colors.textSecondary }}>
             {post.bookmarked ? '🔖' : '🏷️'}
           </Text>
         </TouchableOpacity>
-        <ActionBtn icon="↑" />
       </View>
     </View>
   );
 }
 
-function ActionBtn({ icon, count, active, activeColor }: {
+function ActionBtn({ icon, count, active, activeColor, onPress, disabled }: {
   icon: string; count?: number; active?: boolean; activeColor?: string;
+  onPress?: () => void; disabled?: boolean;
 }) {
   return (
-    <TouchableOpacity style={styles.actionBtn}>
+    <TouchableOpacity style={styles.actionBtn} onPress={onPress} disabled={disabled}>
       <Text style={{ fontSize: 16, color: active ? activeColor : colors.textSecondary }}>{icon}</Text>
       {count !== undefined && count > 0 && (
-        <Text style={[styles.actionCount, active && { color: activeColor }]}>{count}</Text>
+        <Text style={[styles.actionCount, active && activeColor && { color: activeColor }]}>{count}</Text>
       )}
     </TouchableOpacity>
   );
@@ -131,6 +147,8 @@ export default function FeedScreen({ navigation }: any) {
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
   const currentUser = auth()?.currentUser;
+  const flatListRef = useRef<FlatList>(null);
+  const [canRefresh, setCanRefresh] = useState(true);
 
   const loadFeed = useCallback(async () => {
     try {
@@ -158,6 +176,15 @@ export default function FeedScreen({ navigation }: any) {
     await toggleBookmark(postId, bookmarked);
   };
 
+  const handleDelete = async (postId: string) => {
+    try {
+      await firestore().collection('posts').doc(postId).delete();
+      setPosts(prev => prev.filter(p => p.id !== postId));
+    } catch (e) {
+      Alert.alert('Error', 'Failed to delete post');
+    }
+  };
+
   const handlePost = async () => {
     if (!composeText.trim()) return;
     setPosting(true);
@@ -173,6 +200,12 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
+  // Only allow pull-to-refresh when scrolled to top
+  const handleScroll = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    setCanRefresh(offset <= 0);
+  }, []);
+
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -183,37 +216,69 @@ export default function FeedScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.openDrawer()}>
-          <Avatar uri={currentUser?.photoURL} size={34} />
-        </TouchableOpacity>
-        <Text style={styles.logo}>Black94</Text>
-        <View style={{ width: 34 }} />
-      </View>
+      {/* Header */}
+      <SafeAreaView edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.openDrawer()}>
+            <Avatar uri={currentUser?.photoURL} size={34} />
+          </TouchableOpacity>
+          <Text style={styles.logo}>Black94</Text>
+          <View style={{ width: 34 }} />
+        </View>
+      </SafeAreaView>
 
+      {/* Feed */}
       <FlatList
+        ref={flatListRef}
         data={posts}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <PostCard post={item} onLike={handleLike} onBookmark={handleBookmark} />
+          <PostCard
+            post={item}
+            onLike={handleLike}
+            onBookmark={handleBookmark}
+            onDelete={handleDelete}
+            navigation={navigation}
+          />
         )}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadFeed(); }} tintColor={colors.accent} />
+          <RefreshControl
+            refreshing={refreshing && canRefresh}
+            onRefresh={() => {
+              if (canRefresh) {
+                setRefreshing(true);
+                loadFeed();
+              }
+            }}
+            tintColor={colors.accent}
+            enabled={canRefresh}
+          />
         }
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', paddingTop: 80 }}>
             <Text style={{ color: colors.textSecondary, fontSize: 16 }}>No posts yet</Text>
           </View>
         }
+        contentContainerStyle={{ paddingBottom: TAB_BAR_HEIGHT + 80 }}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setComposeVisible(true)}>
+      {/* FAB — positioned above tab bar */}
+      <TouchableOpacity
+        style={[styles.fab, { bottom: FAB_BOTTOM }]}
+        onPress={() => setComposeVisible(true)}
+      >
         <Text style={styles.fabText}>✏️</Text>
       </TouchableOpacity>
 
+      {/* Compose Modal */}
       <Modal visible={composeVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={styles.composeSheet}>
             <View style={styles.composeHeader}>
               <TouchableOpacity onPress={() => setComposeVisible(false)}>
@@ -225,7 +290,10 @@ export default function FeedScreen({ navigation }: any) {
                 onPress={handlePost}
                 disabled={posting || !composeText.trim()}
               >
-                {posting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.postBtnText}>Post</Text>}
+                {posting
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.postBtnText}>Post</Text>
+                }
               </TouchableOpacity>
             </View>
             <View style={styles.composeBody}>
@@ -238,8 +306,10 @@ export default function FeedScreen({ navigation }: any) {
                 onChangeText={setComposeText}
                 multiline
                 autoFocus
+                maxLength={4000}
               />
             </View>
+            <Text style={styles.charCount}>{composeText.length}/4000</Text>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -251,7 +321,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
   logo: { color: colors.text, fontSize: 18, fontWeight: '800' },
@@ -262,11 +332,7 @@ const styles = StyleSheet.create({
   handle: { color: colors.textSecondary, fontSize: 14 },
   dot: { color: colors.textSecondary, fontSize: 14 },
   time: { color: colors.textSecondary, fontSize: 14 },
-  badge: {
-    width: 16, height: 16, borderRadius: 8, backgroundColor: colors.verified,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  moreBtn: { padding: 4 },
+  moreBtn: { padding: 4, marginLeft: 'auto' },
   moreText: { color: colors.textSecondary, fontSize: 20 },
   caption: { color: colors.text, fontSize: 15, lineHeight: 22, marginBottom: 10, marginLeft: 54 },
   mediaContainer: { marginLeft: 54, borderRadius: 14, overflow: 'hidden', marginBottom: 4 },
@@ -276,20 +342,22 @@ const styles = StyleSheet.create({
   actionCount: { color: colors.textSecondary, fontSize: 13 },
   separator: { height: 0.5, backgroundColor: colors.border },
   fab: {
-    position: 'absolute', bottom: 20, right: 20,
+    position: 'absolute', right: 20,
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
-    elevation: 6,
+    elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4, shadowRadius: 6,
   },
   fabText: { fontSize: 22 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   composeSheet: {
     backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 16, minHeight: 200,
+    padding: 16, minHeight: 220,
   },
   composeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   composeBody: { flexDirection: 'row', gap: 12 },
-  composeInput: { flex: 1, color: colors.text, fontSize: 16, minHeight: 80 },
+  composeInput: { flex: 1, color: colors.text, fontSize: 16, minHeight: 100, textAlignVertical: 'top' },
+  charCount: { color: colors.textMuted, fontSize: 12, textAlign: 'right', marginTop: 8 },
   postBtn: { backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20 },
   postBtnText: { color: '#fff', fontWeight: '700' },
 });

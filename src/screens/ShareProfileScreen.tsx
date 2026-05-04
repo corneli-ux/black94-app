@@ -1,0 +1,304 @@
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import {
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
+  ScrollView, SafeAreaView, Share, Clipboard, Alert, Platform,
+} from 'react-native';
+import { colors } from '../theme/colors';
+import { Avatar, VerifiedBadge } from '../components/Avatar';
+import { timeAgo } from '../utils/timeAgo';
+import { auth, firestore } from '../lib/firebase';
+import { tsToMillis } from '../lib/api';
+import { User } from '../lib/api';
+
+const LINK_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
+export default function ShareProfileScreen({ route, navigation }: any) {
+  const currentUser = auth()?.currentUser;
+  const targetUserId = route?.params?.userId || currentUser?.uid;
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [shareLink, setShareLink] = useState('');
+  const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
+  const [linkGenerated, setLinkGenerated] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<any>(null);
+
+  const generateLink = useCallback(() => {
+    const token = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    const link = `https://black94.app/u/${user?.username || targetUserId}?ref=${token}`;
+    setShareLink(link);
+    setLinkGenerated(true);
+    setCountdown(300);
+  }, [user, targetUserId]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const docSnap = await firestore().collection('users').doc(targetUserId).get();
+        if (docSnap.exists) {
+          const data = docSnap.data();
+          setUser({
+            id: targetUserId,
+            email: data?.email || '',
+            username: data?.username || '',
+            displayName: data?.displayName || '',
+            bio: data?.bio || '',
+            profileImage: data?.profileImage || null,
+            coverImage: data?.coverImage || null,
+            role: data?.role || 'personal',
+            badge: data?.badge || '',
+            subscription: data?.subscription || 'free',
+            isVerified: data?.isVerified || false,
+            createdAt: tsToMillis(data?.createdAt),
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [targetUserId]);
+
+  useEffect(() => {
+    if (user) generateLink();
+  }, [user]);
+
+  useEffect(() => {
+    if (!linkGenerated) return;
+
+    timerRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          setLinkGenerated(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timerRef.current);
+  }, [linkGenerated]);
+
+  const formatCountdown = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const handleShare = async () => {
+    if (!shareLink) return;
+    try {
+      await Share.share({
+        message: `Check out ${user?.displayName || 'this profile'} on Black94!\n${shareLink}`,
+        url: shareLink,
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!shareLink) return;
+    try {
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(shareLink);
+      } else {
+        const { default: Clipboard } = await import('@react-native-clipboard/clipboard');
+        Clipboard.setString(shareLink);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      Alert.alert('Copied!', shareLink);
+    }
+  };
+
+  const handleRegenerate = () => {
+    generateLink();
+  };
+
+  const initial = user?.displayName?.charAt(0)?.toUpperCase() || '?';
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={colors.accent} size="large" />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: colors.textSecondary, fontSize: 15 }}>User not found</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Text style={{ color: colors.accent, fontSize: 15, fontWeight: '600' }}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.container}>
+      <SafeAreaView edges={['top']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Share Profile</Text>
+          <View style={{ width: 32 }} />
+        </View>
+      </SafeAreaView>
+
+      {/* Profile Summary */}
+      <View style={styles.profileCard}>
+        <View style={styles.profileTop}>
+          <Avatar uri={user.profileImage} size={72} borderWidth={2} borderColor={colors.border} />
+          <View style={styles.profileInfo}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.displayName}>{user.displayName}</Text>
+              <VerifiedBadge badge={user.badge} />
+            </View>
+            <Text style={styles.handle}>@{user.username}</Text>
+          </View>
+        </View>
+        {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+        <Text style={styles.joinedText}>
+          Joined {timeAgo(user.createdAt)} ago
+        </Text>
+      </View>
+
+      {/* QR Code Placeholder */}
+      <View style={styles.qrSection}>
+        <Text style={styles.sectionLabel}>QR Code</Text>
+        <View style={styles.qrPlaceholder}>
+          <Text style={styles.qrInitial}>{initial}</Text>
+          <Text style={styles.qrSubtext}>@{user.username}</Text>
+        </View>
+      </View>
+
+      {/* Link Section */}
+      <View style={styles.linkSection}>
+        <Text style={styles.sectionLabel}>Shareable Link</Text>
+
+        {linkGenerated ? (
+          <>
+            <View style={styles.linkRow}>
+              <View style={styles.linkBox}>
+                <Text style={styles.linkText} numberOfLines={1}>{shareLink}</Text>
+              </View>
+              <TouchableOpacity onPress={handleCopyLink} style={styles.copyBtn}>
+                <Text style={styles.copyBtnText}>{copied ? '✓ Copied' : 'Copy'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Countdown */}
+            <View style={styles.countdownRow}>
+              <View style={[styles.countdownDot, countdown > 60 && styles.dotActive]} />
+              <Text style={styles.countdownText}>
+                Link expires in {formatCountdown(countdown)}
+              </Text>
+              <TouchableOpacity onPress={handleRegenerate}>
+                <Text style={styles.regenerateText}>Regenerate</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <View style={styles.expiredBox}>
+            <Text style={styles.expiredText}>Link expired</Text>
+            <TouchableOpacity onPress={handleRegenerate} style={styles.regenerateBtn}>
+              <Text style={styles.regenerateBtnText}>Generate New Link</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* Share Button */}
+      <TouchableOpacity
+        style={[styles.shareBtn, !linkGenerated && styles.shareBtnDisabled]}
+        onPress={handleShare}
+        disabled={!linkGenerated}
+      >
+        <Text style={styles.shareBtnText}>Share Link</Text>
+      </TouchableOpacity>
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12,
+    borderBottomWidth: 0.5, borderBottomColor: colors.border,
+  },
+  backBtn: { padding: 4 },
+  backIcon: { color: colors.text, fontSize: 24 },
+  headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  profileCard: {
+    marginHorizontal: 16, marginTop: 20, padding: 20,
+    backgroundColor: colors.surface, borderRadius: 16,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  profileTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  profileInfo: { flex: 1 },
+  displayName: { color: colors.text, fontSize: 20, fontWeight: '800' },
+  handle: { color: colors.textSecondary, fontSize: 15, marginTop: 2 },
+  bio: { color: colors.text, fontSize: 14, lineHeight: 20, marginTop: 12 },
+  joinedText: { color: colors.textSecondary, fontSize: 13, marginTop: 8 },
+  qrSection: { paddingHorizontal: 16, marginTop: 24 },
+  sectionLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 10, textTransform: 'uppercase' },
+  qrPlaceholder: {
+    width: 160, height: 160, borderRadius: 16, backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
+  },
+  qrInitial: { color: colors.accent, fontSize: 48, fontWeight: '800' },
+  qrSubtext: { color: colors.textSecondary, fontSize: 13, marginTop: 6 },
+  linkSection: { paddingHorizontal: 16, marginTop: 28 },
+  linkRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  linkBox: {
+    flex: 1, backgroundColor: colors.surface, borderRadius: 10,
+    borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 12, paddingVertical: 12,
+  },
+  linkText: { color: colors.text, fontSize: 13, flex: 1 },
+  copyBtn: {
+    backgroundColor: colors.surface, borderRadius: 10,
+    borderWidth: 1, borderColor: colors.accent,
+    paddingHorizontal: 16, paddingVertical: 12,
+  },
+  copyBtnText: { color: colors.accent, fontSize: 14, fontWeight: '600' },
+  countdownRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10,
+  },
+  countdownDot: {
+    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accentRed,
+  },
+  dotActive: { backgroundColor: colors.accentGreen },
+  countdownText: { color: colors.textSecondary, fontSize: 13, flex: 1 },
+  regenerateText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+  expiredBox: {
+    backgroundColor: colors.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: colors.border,
+    padding: 24, alignItems: 'center',
+  },
+  expiredText: { color: colors.textSecondary, fontSize: 15, marginBottom: 14 },
+  regenerateBtn: {
+    backgroundColor: colors.accent, borderRadius: 10,
+    paddingHorizontal: 20, paddingVertical: 10,
+  },
+  regenerateBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  shareBtn: {
+    marginHorizontal: 16, marginTop: 24, borderRadius: 12,
+    backgroundColor: colors.accent, paddingVertical: 16, alignItems: 'center',
+  },
+  shareBtnDisabled: { opacity: 0.4 },
+  shareBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+});

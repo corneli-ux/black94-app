@@ -2,11 +2,14 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
   StyleSheet, Dimensions, ActivityIndicator, RefreshControl,
+  Modal, SafeAreaView, TextInput, Alert,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
 import { auth } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
+import { Avatar } from '../components/Avatar';
+import { timeAgo } from '../utils/timeAgo';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const STORY_CARD_W = (SCREEN_W - 48) / 2;
@@ -34,38 +37,15 @@ interface Story {
   category?: string;
 }
 
-function timeAgo(ms: number): string {
-  const diff = Date.now() - ms;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
-}
-
-function Avatar({ uri, size = 48, withGradientBorder = false }: { uri?: string | null; size?: number; withGradientBorder?: boolean }) {
-  return (
-    <View style={withGradientBorder ? {
-      width: size + 4, height: size + 4, borderRadius: (size + 4) / 2,
-      borderWidth: 2, borderColor: '#f09433', alignItems: 'center', justifyContent: 'center',
-    } : {}}>
-      {uri ? (
-        <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#222' }} />
-      ) : (
-        <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: '#fff', fontSize: size * 0.38, fontWeight: '700' }}>?</Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
 export default function StoriesScreen({ navigation }: any) {
   const [stories, setStories] = useState<Story[]>([]);
   const [filtered, setFiltered] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [viewingStory, setViewingStory] = useState<Story | null>(null);
+  const [storyIndex, setStoryIndex] = useState(0);
+  const [authorStories, setAuthorStories] = useState<Story[]>([]);
   const currentUser = auth()?.currentUser;
 
   const load = useCallback(async () => {
@@ -115,7 +95,6 @@ export default function StoriesScreen({ navigation }: any) {
     else setFiltered(stories.filter(s => s.category === cat));
   };
 
-  // Group stories by author for the top bubble row
   const authorBubbles = React.useMemo(() => {
     const seen = new Set<string>();
     const result: Story[] = [];
@@ -128,18 +107,42 @@ export default function StoriesScreen({ navigation }: any) {
     return result;
   }, [stories]);
 
+  const openStoryViewer = (authorId: string) => {
+    const authorStoryList = stories.filter(s => s.authorId === authorId);
+    if (authorStoryList.length > 0) {
+      setAuthorStories(authorStoryList);
+      setStoryIndex(0);
+      setViewingStory(authorStoryList[0]);
+    }
+  };
+
+  const goToNextStory = () => {
+    if (storyIndex < authorStories.length - 1) {
+      const next = storyIndex + 1;
+      setStoryIndex(next);
+      setViewingStory(authorStories[next]);
+    } else {
+      setViewingStory(null);
+    }
+  };
+
+  const goToPrevStory = () => {
+    if (storyIndex > 0) {
+      const prev = storyIndex - 1;
+      setStoryIndex(prev);
+      setViewingStory(authorStories[prev]);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Stories</Text>
-        <TouchableOpacity>
-          <Text style={{ color: colors.text, fontSize: 20 }}>⚙️</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Stories</Text>
+          <View style={{ width: 36 }} />
+        </View>
+      </SafeAreaView>
 
       {loading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -147,9 +150,11 @@ export default function StoriesScreen({ navigation }: any) {
         </View>
       ) : (
         <ScrollView
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />
+          }
         >
-          {/* Stories + count */}
+          {/* Stories count */}
           <View style={styles.storiesCountRow}>
             <Text style={styles.storiesTitle}>Stories</Text>
             {stories.length > 0 && (
@@ -162,16 +167,18 @@ export default function StoriesScreen({ navigation }: any) {
           {/* Story Bubbles */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bubblesRow} contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}>
             {/* Your Story */}
-            <TouchableOpacity style={styles.bubbleItem}>
+            <TouchableOpacity style={styles.bubbleItem} onPress={() => {
+              Alert.alert('Create Story', 'Story creation coming soon!');
+            }}>
               <View style={styles.addStoryCircle}>
                 <Text style={styles.addStoryPlus}>+</Text>
               </View>
               <Text style={styles.bubbleLabel}>Your Story</Text>
             </TouchableOpacity>
 
-            {/* Others */}
+            {/* Author bubbles */}
             {authorBubbles.map(s => (
-              <TouchableOpacity key={s.authorId} style={styles.bubbleItem}>
+              <TouchableOpacity key={s.authorId} style={styles.bubbleItem} onPress={() => openStoryViewer(s.authorId)}>
                 <View style={styles.gradientBorder}>
                   <Avatar uri={s.authorProfileImage} size={58} />
                 </View>
@@ -206,7 +213,16 @@ export default function StoriesScreen({ navigation }: any) {
           {/* Story Cards Grid */}
           <View style={styles.grid}>
             {filtered.map(story => (
-              <TouchableOpacity key={story.id} style={styles.storyCard}>
+              <TouchableOpacity
+                key={story.id}
+                style={styles.storyCard}
+                onPress={() => {
+                  const authorStoryList = stories.filter(s => s.authorId === story.authorId);
+                  setAuthorStories(authorStoryList);
+                  setStoryIndex(authorStoryList.findIndex(s => s.id === story.id) || 0);
+                  setViewingStory(story);
+                }}
+              >
                 {story.mediaUrl ? (
                   <Image source={{ uri: story.mediaUrl }} style={styles.storyCardBg} resizeMode="cover" />
                 ) : (
@@ -234,12 +250,68 @@ export default function StoriesScreen({ navigation }: any) {
           </View>
 
           {filtered.length === 0 && (
-            <View style={{ alignItems: 'center', paddingTop: 40 }}>
+            <View style={{ alignItems: 'center', paddingTop: 40, paddingBottom: 40 }}>
               <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No stories yet</Text>
             </View>
           )}
         </ScrollView>
       )}
+
+      {/* Story Viewer Modal */}
+      <Modal visible={!!viewingStory} animationType="fade" transparent statusBarTranslucent>
+        {viewingStory && (
+          <View style={styles.viewerContainer}>
+            {/* Progress bars */}
+            <SafeAreaView style={styles.viewerSafeArea}>
+              <View style={styles.progressBars}>
+                {authorStories.map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.progressBarBg,
+                      i <= storyIndex && styles.progressBarFilled,
+                      i === storyIndex && styles.progressBarActive,
+                    ]}
+                  />
+                ))}
+              </View>
+
+              {/* Viewer header */}
+              <View style={styles.viewerHeader}>
+                <Avatar uri={viewingStory.authorProfileImage} size={32} />
+                <Text style={styles.viewerName}>{viewingStory.authorDisplayName}</Text>
+                <Text style={styles.viewerTime}>{timeAgo(viewingStory.createdAt)}</Text>
+                <TouchableOpacity onPress={() => setViewingStory(null)} style={{ marginLeft: 'auto' }}>
+                  <Text style={{ color: '#fff', fontSize: 22 }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Story content */}
+              <TouchableOpacity
+                style={styles.viewerContent}
+                onPress={goToNextStory}
+                activeOpacity={0.95}
+              >
+                {viewingStory.mediaUrl ? (
+                  <Image source={{ uri: viewingStory.mediaUrl }} style={styles.viewerImage} resizeMode="contain" />
+                ) : (
+                  <View style={styles.viewerTextBg}>
+                    <Text style={styles.viewerText}>{viewingStory.content}</Text>
+                  </View>
+                )}
+
+                {/* Tap zones for prev/next */}
+                <View style={styles.tapZoneLeft} pointerEvents="box-none">
+                  <TouchableOpacity style={styles.tapZone} onPress={goToPrevStory} />
+                </View>
+                <View style={styles.tapZoneRight} pointerEvents="box-none">
+                  <TouchableOpacity style={styles.tapZone} onPress={goToNextStory} />
+                </View>
+              </TouchableOpacity>
+            </SafeAreaView>
+          </View>
+        )}
+      </Modal>
     </View>
   );
 }
@@ -248,11 +320,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { color: colors.text, fontSize: 22 },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   storiesCountRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, gap: 10 },
   storiesTitle: { color: colors.text, fontSize: 20, fontWeight: '800' },
@@ -281,7 +351,7 @@ const styles = StyleSheet.create({
   discoverHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 20, marginBottom: 12 },
   discoverTitle: { color: colors.accentGreen, fontSize: 16, fontWeight: '700' },
   discoverCount: { color: colors.textSecondary, fontSize: 14 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 12, paddingBottom: 40 },
   storyCard: { width: STORY_CARD_W, height: STORY_CARD_W * 1.4, borderRadius: 16, overflow: 'hidden', backgroundColor: '#111' },
   storyCardBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   storyCardGradient: { backgroundColor: '#4a2080', alignItems: 'center', justifyContent: 'center', padding: 16 },
@@ -296,4 +366,22 @@ const styles = StyleSheet.create({
   storyAuthor: { color: '#fff', fontWeight: '700', fontSize: 13, flex: 1 },
   storyStat: { color: 'rgba(255,255,255,0.75)', fontSize: 12 },
   storyTime: { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
+
+  // Story Viewer
+  viewerContainer: { flex: 1, backgroundColor: '#000' },
+  viewerSafeArea: { flex: 1 },
+  progressBars: { flexDirection: 'row', gap: 3, paddingHorizontal: 8, paddingVertical: 4 },
+  progressBarBg: { flex: 1, height: 2, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 1 },
+  progressBarFilled: { backgroundColor: 'rgba(255,255,255,0.8)' },
+  progressBarActive: { backgroundColor: '#fff' },
+  viewerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  viewerName: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  viewerTime: { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
+  viewerContent: { flex: 1, position: 'relative' },
+  viewerImage: { width: '100%', height: '100%' },
+  viewerTextBg: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  viewerText: { color: '#fff', fontSize: 24, fontWeight: '700', textAlign: 'center' },
+  tapZoneLeft: { position: 'absolute', top: 0, left: 0, bottom: 0, width: '30%' },
+  tapZoneRight: { position: 'absolute', top: 0, right: 0, bottom: 0, width: '30%' },
+  tapZone: { flex: 1 },
 });

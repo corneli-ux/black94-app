@@ -1,6 +1,5 @@
 import React, { useEffect, useState, Component } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { StatusBar, Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { onAuthStateChanged, auth } from './src/lib/firebase';
 import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
@@ -48,23 +47,22 @@ class AppErrorBoundary extends Component {
 
 /* ── App Component ────────────────────────────────────────────────────────── */
 
-const FORCE_READY_TIMEOUT = 3000; // Always show UI within 3 seconds
+const FORCE_READY_TIMEOUT = 3000;
 
 export default function App() {
-  const { user, setUser, setToken, setIsReady, isReady } = useAppStore();
+  const { user, setUser, setToken, setIsReady, isReady, setLoading } = useAppStore();
 
   useEffect(() => {
     let unsubscribe = undefined;
     let forceReady = false;
 
-    // Safety timeout: ensure the app shows SOMETHING even if Firebase hangs
+    // Safety timeout
     const safetyTimer = setTimeout(() => {
       console.warn('[App] Safety timeout reached — forcing ready');
       forceReady = true;
       setIsReady(true);
     }, FORCE_READY_TIMEOUT);
 
-    // Initialize Firebase auth
     const initTimer = setTimeout(() => {
       try {
         const authInstance = auth();
@@ -78,7 +76,7 @@ export default function App() {
         }
 
         unsubscribe = onAuthStateChanged(authInstance, async (fbUser) => {
-          if (forceReady) return; // Already past safety timeout
+          if (forceReady) return;
 
           try {
             if (fbUser) {
@@ -120,15 +118,17 @@ export default function App() {
             setUser(null);
             setToken(null);
           }
+          setLoading(false);
           setIsReady(true);
         });
       } catch (initErr) {
         console.error('[App] Firebase init error:', initErr);
         setUser(null);
         setToken(null);
+        setLoading(false);
         setIsReady(true);
       }
-    }, 100);
+    }, 50); // Reduced delay for faster startup
 
     return () => {
       clearTimeout(safetyTimer);
@@ -137,32 +137,50 @@ export default function App() {
     };
   }, []);
 
+  // While not ready, show dark loading screen (matches splash bg #07060b)
+  // This prevents the white flash by always showing a dark background
   return (
     <AppErrorBoundary>
-      <>
-        <StatusBar style="light" />
+      <View style={styles.rootContainer}>
+        <StatusBar style="light" backgroundColor="#07060b" />
         {!isReady ? (
-          <View style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.appName}>Black94</Text>
             <Text style={styles.loadingText}>Loading...</Text>
           </View>
         ) : (
           <Navigation />
         )}
-      </>
+      </View>
     </AppErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  rootContainer: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#07060b', // Match splash screen background exactly
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#07060b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appName: {
+    color: '#e7e9ea',
+    fontSize: 32,
+    fontWeight: '800',
+    marginBottom: 16,
   },
   loadingText: {
     color: '#1d9bf0',
     fontSize: 16,
     textAlign: 'center',
-    marginTop: 100,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#000000',
   },
   errorContainer: {
     backgroundColor: '#000000',

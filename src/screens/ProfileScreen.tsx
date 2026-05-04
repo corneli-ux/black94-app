@@ -2,25 +2,17 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, Image, TouchableOpacity, FlatList,
   StyleSheet, Dimensions, ActivityIndicator, RefreshControl, ScrollView,
+  SafeAreaView,
 } from 'react-native';
 import { colors } from '../theme/colors';
-import { fetchUserProfile, fetchFeed, toggleFollow, checkFollowing, Post, User } from '../lib/api';
+import { fetchUserProfile, toggleFollow, checkFollowing, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis, parseMediaUrls } from '../lib/api';
+import { Avatar, VerifiedBadge } from '../components/Avatar';
+import { timeAgo } from '../utils/timeAgo';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-function Avatar({ uri, size = 72 }: { uri?: string | null; size?: number }) {
-  return uri ? (
-    <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 3, borderColor: colors.bg, backgroundColor: '#222' }} />
-  ) : (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#333', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.bg }}>
-      <Text style={{ color: '#fff', fontSize: size * 0.38, fontWeight: '700' }}>?</Text>
-    </View>
-  );
-}
-
-function PostGrid({ posts, onPress }: { posts: Post[]; onPress: (p: Post) => void }) {
+function PostGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
       <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No posts yet</Text>
@@ -29,7 +21,7 @@ function PostGrid({ posts, onPress }: { posts: Post[]; onPress: (p: Post) => voi
   return (
     <View style={{ paddingHorizontal: 16 }}>
       {posts.map(post => (
-        <TouchableOpacity key={post.id} style={styles.postRow} onPress={() => onPress(post)}>
+        <TouchableOpacity key={post.id} style={styles.postRow}>
           <View style={styles.postRowInner}>
             <Text style={styles.postCaption} numberOfLines={3}>{post.caption}</Text>
             {post.mediaUrls?.length > 0 && (
@@ -60,6 +52,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [tab, setTab] = useState<'posts' | 'store' | 'likes'>('posts');
+  const [likedPosts, setLikedPosts] = useState<Post[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -88,6 +81,34 @@ export default function ProfileScreen({ route, navigation }: any) {
         };
       });
       setPosts(ps);
+
+      // Load liked posts
+      if (isOwnProfile) {
+        const likesSnap = await firestore()
+          .collection('post_bookmarks')
+          .where('userId', '==', targetUserId)
+          .limit(20).get();
+        const liked: Post[] = [];
+        for (const doc of likesSnap.docs) {
+          const postId = doc.data().postId;
+          if (postId) {
+            const postSnap = await firestore().collection('posts').doc(postId).get();
+            if (postSnap.exists) {
+              const data = postSnap.data();
+              liked.push({
+                id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
+                authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
+                authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
+                caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
+                likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
+                repostCount: data.repostCount || 0, liked: true, bookmarked: true, reposted: false,
+                createdAt: tsToMillis(data.createdAt),
+              });
+            }
+          }
+        }
+        setLikedPosts(liked);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -116,23 +137,29 @@ export default function ProfileScreen({ route, navigation }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
     >
       {/* Top bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.openDrawer()}>
-          <Text style={{ color: colors.text, fontSize: 24 }}>☰</Text>
-        </TouchableOpacity>
-        <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-          <Text style={{ color: colors.text, fontSize: 20 }}>⚙️</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView edges={['top']}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.openDrawer()}>
+            <Text style={{ color: colors.text, fontSize: 24 }}>☰</Text>
+          </TouchableOpacity>
+          <Text style={styles.topLogo}>Black94</Text>
+          {isOwnProfile ? (
+            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+              <Text style={{ color: colors.text, fontSize: 20 }}>⚙️</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 30 }} />
+          )}
+        </View>
+      </SafeAreaView>
 
       {/* Cover */}
       <View style={styles.coverWrap}>
         {user?.coverImage ? (
           <Image source={{ uri: user.coverImage }} style={styles.cover} resizeMode="cover" />
         ) : (
-          <View style={[styles.cover, { backgroundColor: '#111' }]}>
-            <Image source={require('../../assets/logo.png')} style={{ width: '80%', height: '80%', opacity: 0.15 }} resizeMode="contain" />
+          <View style={[styles.cover, { backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' }]}>
+            <Text style={{ color: 'rgba(255,255,255,0.08)', fontSize: 60, fontWeight: '800' }}>B94</Text>
           </View>
         )}
       </View>
@@ -140,10 +167,10 @@ export default function ProfileScreen({ route, navigation }: any) {
       {/* Avatar + Edit / Follow */}
       <View style={styles.avatarRow}>
         <View style={{ marginTop: -40 }}>
-          <Avatar uri={user?.profileImage || currentUser?.photoURL} size={80} />
+          <Avatar uri={user?.profileImage || currentUser?.photoURL} size={80} borderWidth={3} borderColor={colors.bg} />
         </View>
         {isOwnProfile ? (
-          <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditProfile')}>
+          <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('Settings')}>
             <Text style={styles.editBtnText}>Edit profile</Text>
           </TouchableOpacity>
         ) : (
@@ -162,11 +189,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       <View style={styles.bioSection}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
-          {user?.isVerified && (
-            <View style={styles.verifiedBadge}>
-              <Text style={{ color: colors.verified, fontSize: 12, fontWeight: '900' }}>✓</Text>
-            </View>
-          )}
+          <VerifiedBadge badge={user?.badge} />
         </View>
         <Text style={styles.handle}>@{user?.username}</Text>
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
@@ -191,16 +214,20 @@ export default function ProfileScreen({ route, navigation }: any) {
         ))}
       </View>
 
-      {tab === 'posts' && <PostGrid posts={posts} onPress={() => {}} />}
+      {tab === 'posts' && <PostGrid posts={posts} navigation={navigation} />}
       {tab === 'store' && (
         <View style={{ alignItems: 'center', paddingTop: 60 }}>
-          <Text style={{ color: colors.textSecondary }}>No store items yet</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No store items yet</Text>
         </View>
       )}
       {tab === 'likes' && (
-        <View style={{ alignItems: 'center', paddingTop: 60 }}>
-          <Text style={{ color: colors.textSecondary }}>No liked posts yet</Text>
-        </View>
+        isOwnProfile ? (
+          <PostGrid posts={likedPosts} navigation={navigation} />
+        ) : (
+          <View style={{ alignItems: 'center', paddingTop: 60 }}>
+            <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Only visible to the profile owner</Text>
+          </View>
+        )
       )}
     </ScrollView>
   );
@@ -210,24 +237,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
   },
-  logo: { height: 28, width: 90 },
+  topLogo: { color: colors.text, fontSize: 18, fontWeight: '800' },
   coverWrap: { height: 140, width: '100%', overflow: 'hidden', backgroundColor: '#111' },
-  cover: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  cover: { width: '100%', height: '100%' },
   avatarRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: -4 },
   editBtn: {
     borderWidth: 1.5, borderColor: colors.border, borderRadius: 20,
     paddingHorizontal: 18, paddingVertical: 8, marginBottom: 6,
   },
-  followingBtn: { backgroundColor: '#1a1a1a' },
+  followingBtn: { backgroundColor: colors.surface },
   editBtnText: { color: colors.text, fontWeight: '700', fontSize: 15 },
   bioSection: { paddingHorizontal: 16, paddingTop: 10 },
   displayName: { color: colors.text, fontSize: 20, fontWeight: '800' },
-  verifiedBadge: {
-    width: 18, height: 18, borderRadius: 9, backgroundColor: colors.verified,
-    alignItems: 'center', justifyContent: 'center',
-  },
   handle: { color: colors.textSecondary, fontSize: 15, marginTop: 2 },
   bio: { color: colors.text, fontSize: 15, lineHeight: 22, marginTop: 8 },
   statsRow: { flexDirection: 'row', gap: 20, marginTop: 10 },
@@ -241,7 +264,7 @@ const styles = StyleSheet.create({
   postRow: { paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border },
   postRowInner: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   postCaption: { color: colors.text, fontSize: 14, flex: 1, lineHeight: 20 },
-  postThumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: '#1a1a1a' },
+  postThumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: colors.surface },
   postStats: { flexDirection: 'row', gap: 16, marginTop: 8 },
   postStat: { color: colors.textSecondary, fontSize: 13 },
 });

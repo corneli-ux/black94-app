@@ -1,21 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TextInput, FlatList, Image, TouchableOpacity,
-  StyleSheet, ActivityIndicator,
+  StyleSheet, ActivityIndicator, SafeAreaView,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
 import { User, Post, tsToMillis, parseMediaUrls } from '../lib/api';
-
-function Avatar({ uri, size = 44 }: { uri?: string | null; size?: number }) {
-  return uri ? (
-    <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#222' }} />
-  ) : (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: '#fff', fontSize: size * 0.4, fontWeight: '700' }}>?</Text>
-    </View>
-  );
-}
+import { Avatar } from '../components/Avatar';
 
 export default function SearchScreen({ navigation }: any) {
   const [query, setQuery] = useState('');
@@ -79,26 +70,25 @@ export default function SearchScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Search</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <SafeAreaView edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Search</Text>
+          <View style={{ width: 36 }} />
+        </View>
+      </SafeAreaView>
 
       {/* Search Bar */}
       <View style={styles.searchBarWrap}>
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search"
+          placeholder="Search users and posts"
           placeholderTextColor={colors.textSecondary}
           value={query}
           onChangeText={q => { setQuery(q); doSearch(q); }}
           returnKeyType="search"
           onSubmitEditing={() => doSearch(query)}
-          autoFocus
+          autoFocus={false}
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => { setQuery(''); setUsers([]); setPosts([]); setSearched(false); }}>
@@ -131,7 +121,10 @@ export default function SearchScreen({ navigation }: any) {
             if (item.type === 'user') {
               const u = item.data as User;
               return (
-                <TouchableOpacity style={styles.userRow}>
+                <TouchableOpacity
+                  style={styles.userRow}
+                  onPress={() => navigation.navigate('Profile', { userId: u.id })}
+                >
                   <Avatar uri={u.profileImage} size={46} />
                   <View style={{ marginLeft: 12, flex: 1 }}>
                     <Text style={styles.displayName}>{u.displayName}</Text>
@@ -170,11 +163,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { color: colors.text, fontSize: 22 },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   searchBarWrap: {
     flexDirection: 'row', alignItems: 'center',
@@ -185,7 +176,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, color: colors.text, fontSize: 16, paddingVertical: 12 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 100 },
   emptyIcon: {
-    width: 72, height: 72, borderRadius: 36, backgroundColor: '#1a1a1a',
+    width: 72, height: 72, borderRadius: 36, backgroundColor: colors.bgInput,
     alignItems: 'center', justifyContent: 'center', marginBottom: 20,
   },
   emptyTitle: { color: colors.text, fontSize: 20, fontWeight: '700', marginBottom: 8 },

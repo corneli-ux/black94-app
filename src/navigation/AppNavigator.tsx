@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAppStore } from '../stores/app';
+import { Avatar } from '../components/Avatar';
 
 import { colors } from '../theme/colors';
 import FeedScreen from '../screens/FeedScreen';
@@ -16,6 +17,24 @@ import StoriesScreen from '../screens/StoriesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import LoginScreen from '../screens/LoginScreen';
+import SignupScreen from '../screens/SignupScreen';
+import BookmarksScreen from '../screens/BookmarksScreen';
+import ExploreScreen from '../screens/ExploreScreen';
+import PrivacySettingsScreen from '../screens/PrivacySettingsScreen';
+import WriteArticleScreen from '../screens/WriteArticleScreen';
+import ShareProfileScreen from '../screens/ShareProfileScreen';
+import StorefrontScreen from '../screens/StorefrontScreen';
+import ProductDetailScreen from '../screens/ProductDetailScreen';
+import CartScreen from '../screens/CartScreen';
+import CheckoutScreen from '../screens/CheckoutScreen';
+import MyStoreScreen from '../screens/MyStoreScreen';
+import AddProductScreen from '../screens/AddProductScreen';
+import BusinessDashboardScreen from '../screens/BusinessDashboardScreen';
+import AdsManagerScreen from '../screens/AdsManagerScreen';
+import CreateAdScreen from '../screens/CreateAdScreen';
+import SalaryScreen from '../screens/SalaryScreen';
+import AffiliatesScreen from '../screens/AffiliatesScreen';
+import PerformanceScreen from '../screens/PerformanceScreen';
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -37,6 +56,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
 }
 
 function MainTabs() {
+  const { unreadNotificationCount } = useAppStore();
   return (
     <Tab.Navigator
       screenOptions={{
@@ -54,7 +74,10 @@ function MainTabs() {
       <Tab.Screen name="Home" component={FeedScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Home" focused={focused} /> }} />
       <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Search" focused={focused} /> }} />
       <Tab.Screen name="Messages" component={ChatListScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Messages" focused={focused} /> }} />
-      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Notifications" focused={focused} /> }} />
+      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{
+        tabBarIcon: ({ focused }) => <TabIcon name="Notifications" focused={focused} />,
+        tabBarBadge: unreadNotificationCount > 0 ? unreadNotificationCount : undefined,
+      }} />
       <Tab.Screen name="Stories" component={StoriesScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Stories" focused={focused} /> }} />
     </Tab.Navigator>
   );
@@ -65,19 +88,21 @@ function CustomDrawerContent({ navigation }: any) {
 
   const navItems = [
     { label: 'Home', icon: '🏠', screen: 'Home' },
-    { label: 'Explore', icon: '🔍', screen: 'Search' },
-    { label: 'Notifications', icon: '🔔', screen: 'Notifications' },
-    { label: 'Messages', icon: '💬', screen: 'Messages' },
-    { label: 'Stories', icon: '📡', screen: 'Stories' },
-    { label: 'Profile', icon: '👤', screen: 'Profile' },
+    { label: 'Explore', icon: '🔍', screen: 'Explore' },
+    { label: 'Notifications', icon: '🔔', screen: 'NotificationsTab' },
+    { label: 'Messages', icon: '💬', screen: 'MessagesTab' },
+    { label: 'Stories', icon: '📡', screen: 'StoriesTab' },
+    { label: 'Profile', icon: '👤', screen: 'ProfileSelf' },
     { label: 'Bookmarks', icon: '🏷️', screen: 'Bookmarks' },
+    { label: 'Cart', icon: '🛒', screen: 'Cart' },
+    { label: 'Settings', icon: '⚙️', screen: 'Settings' },
   ];
 
   return (
     <DrawerContentScrollView style={styles.drawer} contentContainerStyle={{ paddingTop: 0 }}>
       {/* Logo */}
       <View style={styles.drawerLogo}>
-        <Image source={require('../../assets/logo.png')} style={{ height: 36, width: 100 }} resizeMode="contain" />
+        <Text style={styles.drawerLogoText}>Black94</Text>
       </View>
 
       {/* Nav items */}
@@ -99,14 +124,14 @@ function CustomDrawerContent({ navigation }: any) {
 
       {/* User info at bottom */}
       {user && (
-        <View style={styles.drawerUser}>
-          {user.profileImage ? (
-            <Image source={{ uri: user.profileImage }} style={styles.drawerAvatar} />
-          ) : (
-            <View style={[styles.drawerAvatar, { backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>?</Text>
-            </View>
-          )}
+        <TouchableOpacity
+          style={styles.drawerUser}
+          onPress={() => {
+            navigation.closeDrawer();
+            navigation.navigate('ProfileSelf');
+          }}
+        >
+          <Avatar uri={user.profileImage} size={46} />
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.drawerUserName}>{user.displayName}</Text>
@@ -118,7 +143,7 @@ function CustomDrawerContent({ navigation }: any) {
             </View>
             <Text style={styles.drawerUserHandle}>@{user.username}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       )}
     </DrawerContentScrollView>
   );
@@ -135,11 +160,13 @@ function DrawerNavigator() {
       }}
     >
       <Drawer.Screen name="MainTabs" component={MainTabs} />
-      <Drawer.Screen name="Search" component={SearchScreen} />
-      <Drawer.Screen name="Notifications" component={NotificationsScreen} />
-      <Drawer.Screen name="Messages" component={ChatListScreen} />
-      <Drawer.Screen name="Stories" component={StoriesScreen} />
-      <Drawer.Screen name="Profile" component={ProfileScreen} />
+      <Drawer.Screen name="Explore" component={ExploreScreen} />
+      <Drawer.Screen name="NotificationsTab" component={NotificationsScreen} />
+      <Drawer.Screen name="MessagesTab" component={ChatListScreen} />
+      <Drawer.Screen name="StoriesTab" component={StoriesScreen} />
+      <Drawer.Screen name="ProfileSelf" component={ProfileScreen} initialParams={{}} />
+      <Drawer.Screen name="Bookmarks" component={BookmarksScreen} />
+      <Drawer.Screen name="Cart" component={CartScreen} />
       <Drawer.Screen name="Settings" component={SettingsScreen} />
     </Drawer.Navigator>
   );
@@ -149,27 +176,57 @@ function AppStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Drawer" component={DrawerNavigator} />
+      {/* Chat */}
       <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
+      {/* Profile (other users) */}
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      {/* Bookmarks */}
+      <Stack.Screen name="BookmarksStack" component={BookmarksScreen} />
+      {/* Explore */}
+      <Stack.Screen name="ExploreStack" component={ExploreScreen} />
+      {/* Settings sub-screens */}
+      <Stack.Screen name="PrivacySettings" component={PrivacySettingsScreen} />
+      <Stack.Screen name="ShareProfile" component={ShareProfileScreen} />
+      <Stack.Screen name="WriteArticle" component={WriteArticleScreen} />
+      {/* Store / Shop */}
+      <Stack.Screen name="Storefront" component={StorefrontScreen} />
+      <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
+      <Stack.Screen name="Checkout" component={CheckoutScreen} />
+      <Stack.Screen name="MyStore" component={MyStoreScreen} />
+      <Stack.Screen name="AddProduct" component={AddProductScreen} />
+      {/* Business Tools */}
+      <Stack.Screen name="BusinessDashboard" component={BusinessDashboardScreen} />
+      <Stack.Screen name="AdsManager" component={AdsManagerScreen} />
+      <Stack.Screen name="CreateAd" component={CreateAdScreen} />
+      <Stack.Screen name="Salary" component={SalaryScreen} />
+      <Stack.Screen name="Affiliates" component={AffiliatesScreen} />
+      <Stack.Screen name="Performance" component={PerformanceScreen} />
     </Stack.Navigator>
   );
 }
 
 export default function AppNavigator() {
-  const { user, loading } = useAppStore();
+  const { user, isReady } = useAppStore();
 
-  if (loading) return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-      <Image source={require('../../assets/logo.png')} style={{ width: 180, height: 60 }} resizeMode="contain" />
-    </View>
-  );
+  // While not ready, show dark splash-like screen
+  if (!isReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#07060b', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#e7e9ea', fontSize: 28, fontWeight: '800' }}>Black94</Text>
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer>
-      {user ? <AppStack /> : <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Signup" component={require('../screens/SignupScreen').default} />
-      </Stack.Navigator>}
+      {user ? (
+        <AppStack />
+      ) : (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Signup" component={SignupScreen} />
+        </Stack.Navigator>
+      )}
     </NavigationContainer>
   );
 }
@@ -177,12 +234,12 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
   drawer: { flex: 1, backgroundColor: colors.bg, paddingTop: 20 },
   drawerLogo: { paddingHorizontal: 20, paddingVertical: 16, marginBottom: 8 },
-  drawerItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, gap: 18 },
+  drawerLogoText: { color: colors.text, fontSize: 24, fontWeight: '800' },
+  drawerItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 18 },
   drawerIcon: { fontSize: 24, width: 30, textAlign: 'center' },
-  drawerLabel: { color: colors.text, fontSize: 18, fontWeight: '600' },
+  drawerLabel: { color: colors.text, fontSize: 17, fontWeight: '600' },
   drawerSpacer: { flex: 1, minHeight: 40 },
   drawerUser: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, borderTopWidth: 0.5, borderTopColor: colors.border },
-  drawerAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#222' },
   drawerUserName: { color: colors.text, fontWeight: '700', fontSize: 15 },
   drawerUserHandle: { color: colors.textSecondary, fontSize: 14 },
 });

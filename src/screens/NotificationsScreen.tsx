@@ -1,12 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, Image, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl,
+  StyleSheet, ActivityIndicator, RefreshControl, Alert,
+  SafeAreaView,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
 import { auth } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
+import { Avatar } from '../components/Avatar';
+import { timeAgo } from '../utils/timeAgo';
+import { useAppStore } from '../stores/app';
 
 interface Notification {
   id: string;
@@ -21,35 +25,37 @@ interface Notification {
   createdAt: number;
 }
 
-function timeAgo(ms: number): string {
-  const diff = Date.now() - ms;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
-}
-
 const NOTIF_ICONS: Record<string, string> = {
   like: '❤️', comment: '💬', follow: '👤', repost: '🔁', mention: '@',
 };
-
-function Avatar({ uri, size = 44 }: { uri?: string | null; size?: number }) {
-  return uri ? (
-    <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#222' }} />
-  ) : (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#333', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: '#fff', fontSize: size * 0.38, fontWeight: '700' }}>?</Text>
-    </View>
-  );
-}
 
 export default function NotificationsScreen({ navigation }: any) {
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const currentUser = auth()?.currentUser;
+  const { setUnreadNotificationCount } = useAppStore();
+
+  const markAllRead = useCallback(async () => {
+    if (!currentUser) return;
+    try {
+      const snap = await firestore()
+        .collection('notifications')
+        .where('recipientId', '==', currentUser.uid)
+        .where('read', '==', false)
+        .limit(100)
+        .get();
+
+      const batch: Promise<any>[] = [];
+      snap.docs.forEach(doc => {
+        batch.push(doc.ref.update({ read: true }));
+      });
+      await Promise.all(batch);
+      setUnreadNotificationCount(0);
+    } catch (e) {
+      console.warn('Failed to mark read:', e);
+    }
+  }, [currentUser]);
 
   const load = async () => {
     if (!currentUser) { setLoading(false); return; }
@@ -77,6 +83,12 @@ export default function NotificationsScreen({ navigation }: any) {
         };
       });
       setNotifs(ns);
+
+      // Auto mark all as read (matches web app behavior)
+      const unread = ns.filter(n => !n.read);
+      if (unread.length > 0) {
+        markAllRead();
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -88,7 +100,13 @@ export default function NotificationsScreen({ navigation }: any) {
   useEffect(() => { load(); }, []);
 
   const renderItem = ({ item }: { item: Notification }) => (
-    <TouchableOpacity style={[styles.row, !item.read && styles.rowUnread]}>
+    <TouchableOpacity
+      style={[styles.row, !item.read && styles.rowUnread]}
+      onPress={() => {
+        // Navigate to the actor's profile
+        navigation.navigate('Profile', { userId: item.actorId });
+      }}
+    >
       <View style={styles.iconWrap}>
         <Avatar uri={item.actorProfileImage} size={44} />
         <View style={styles.typeIcon}>
@@ -116,15 +134,14 @@ export default function NotificationsScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <TouchableOpacity>
-          <Text style={{ color: colors.text, fontSize: 20 }}>⚙️</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Notifications</Text>
+          <TouchableOpacity onPress={markAllRead}>
+            <Text style={styles.markAllText}>Mark all read</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
 
       {loading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -136,7 +153,11 @@ export default function NotificationsScreen({ navigation }: any) {
           keyExtractor={item => item.id}
           renderItem={renderItem}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); load(); }}
+              tintColor={colors.accent}
+            />
           }
           ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: colors.border }} />}
           ListEmptyComponent={
@@ -158,12 +179,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { color: colors.text, fontSize: 22 },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  markAllText: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   row: { flexDirection: 'row', padding: 16, gap: 14 },
   rowUnread: { backgroundColor: '#0a0a0f' },
   iconWrap: { position: 'relative' },
