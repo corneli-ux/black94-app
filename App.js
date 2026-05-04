@@ -1,5 +1,6 @@
 import React, { useEffect, useState, Component } from 'react';
 import { StatusBar, Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { onAuthStateChanged, auth } from './src/lib/firebase';
 import Navigation from './src/navigation/AppNavigator';
@@ -154,16 +155,18 @@ export default function App() {
   // While not ready, show dark loading screen (matches splash bg #000000)
   return (
     <AppErrorBoundary>
-      <View style={styles.rootContainer}>
-        <StatusBar style="light" backgroundColor="#000000" translucent={true} />
-        {!isReady ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.appName}>Black94</Text>
-          </View>
-        ) : (
-          <Navigation />
-        )}
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.rootContainer}>
+          <StatusBar style="light" backgroundColor="#000000" translucent={true} />
+          {!isReady ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.appName}>Black94</Text>
+            </View>
+          ) : (
+            <Navigation />
+          )}
+        </View>
+      </SafeAreaProvider>
     </AppErrorBoundary>
   );
 }
