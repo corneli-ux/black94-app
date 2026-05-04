@@ -104,19 +104,26 @@ function TabBarBadge({ count }: { count: number }) {
 function MainTabs() {
   const { unreadNotificationCount, user } = useAppStore();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = 56 + (insets.bottom || 0);
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
           backgroundColor: '#000000',
-          borderTopWidth: 0,
+          borderTopWidth: 0.5,
           borderTopColor: 'rgba(255,255,255,0.06)',
-          paddingTop: 4,
-          height: 50 + insets.bottom,
-          paddingBottom: insets.bottom,
+          paddingTop: 6,
+          height: tabBarHeight,
+          paddingBottom: insets.bottom || 0,
+          elevation: 8,
         },
         tabBarShowLabel: false,
+        sceneStyle: { paddingBottom: tabBarHeight },
       }}
     >
       <Tab.Screen name="Home" component={FeedScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Home" focused={focused} /> }} />

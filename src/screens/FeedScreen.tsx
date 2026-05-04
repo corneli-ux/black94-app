@@ -232,8 +232,9 @@ export default function FeedScreen({ navigation }: any) {
     );
   }
 
-  // FAB bottom position: above tab bar (50px) + safe area bottom inset + 8px gap
-  const fabBottom = 50 + insets.bottom + 8;
+  // FAB bottom position: above tab bar (56px) + safe area bottom inset + 8px gap
+  const tabBarHeight = 56 + (insets.bottom || 0);
+  const fabBottom = tabBarHeight + 8;
 
   return (
     <View style={styles.container}>
