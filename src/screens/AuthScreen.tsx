@@ -5,12 +5,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
   StatusBar,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { signInWithGoogle } from '../lib/api';
 
@@ -18,21 +18,24 @@ import { signInWithGoogle } from '../lib/api';
  * AuthScreen — Login screen matching black94.web.app exactly.
  *
  * Web layout (from page source):
- *   bg-[#000000], centered column, max-w-[420px]
- *   1) Logo image (w-20 h-20, mb-5)
- *   2) "Welcome Back" heading (text-3xl, font-bold, text-white)
- *   3) "Sign in to continue to Black94." subtitle (text-sm, #94a3b8)
- *   4) Google button (rounded-full, white bg, h-[52px], max-w-[320px])
- *      - Google SVG logo (h-5 w-5)
+ *   bg-[#000000], min-h-screen, flex flex-col items-center justify-center
+ *   max-w-[420px] w-full, px-6
+ *
+ *   1) Logo image (w-20 h-20 = 80x80, mb-5 = 20px)
+ *   2) "Welcome Back" heading (text-3xl, font-bold, text-white, tracking-tight)
+ *   3) "Sign in to continue to Black94." subtitle (text-sm, text-[#94a3b8], mt-2)
+ *   4) Google button (w-full max-w-[320px], h-[52px], rounded-full, bg-white)
+ *      - Google SVG logo (h-5 w-5 = 20x20)
  *      - "Sign in with Google" text (text-[15px], font-semibold, text-gray-700)
- *   5) Divider row (mt-6, "or" text)
- *   6) "New to Black94? Create Account" link
- *   7) Terms text with links to /terms-of-service.html and /privacy-policy.html
+ *   5) Divider row (mt-6 = 24px, "or" text-[12px] text-[#64748b])
+ *   6) Switch link (mt-4 = 16px, text-[14px])
+ *   7) Terms text (mt-4 = 16px, text-[11px], text-center)
  */
 export default function AuthScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const { setUser, setToken } = useAppStore();
+  const insets = useSafeAreaInsets();
 
   const handleGoogleSignIn = useCallback(async () => {
     setIsLoading(true);
@@ -66,7 +69,6 @@ export default function AuthScreen() {
     } catch (error: any) {
       console.error('Google sign-in error:', error);
       if (error.code !== '12501') {
-        // DEVELOPER_ERROR troubleshooting hint
         let msg = error.message || 'Something went wrong.';
         if (error.code === 'DEVELOPER_ERROR') {
           msg = 'Google Sign-In configuration error (DEVELOPER_ERROR). ' +
@@ -81,12 +83,12 @@ export default function AuthScreen() {
   }, [setUser, setToken]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
-      <View style={styles.inner}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <View style={[styles.inner, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         {/* ── Brand: Logo + Title + Subtitle ─────────────────────────── */}
         <View style={styles.brandContainer}>
-          {/* Using the same icon.png from assets */}
+          {/* Using the same icon.png from assets (same image as web /logo.png) */}
           <BrandLogo />
           <Text style={styles.title}>{mode === 'signin' ? 'Welcome Back' : 'Create Account'}</Text>
           <Text style={styles.subtitle}>
@@ -139,7 +141,7 @@ export default function AuthScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* ── Terms ─────────────────────────────────────────────────── */}
+        {/* ── Terms (normal flow, matching web mt-4) ───────────────── */}
         <View style={styles.termsContainer}>
           <Text style={styles.termsText}>
             By signing in, you agree to our{' '}
@@ -160,7 +162,7 @@ export default function AuthScreen() {
           </Text>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -168,7 +170,6 @@ export default function AuthScreen() {
 
 /** Brand logo using the app icon from assets */
 function BrandLogo() {
-  // Dynamically import Image to avoid potential issues
   const { Image } = require('react-native');
   return (
     <Image
@@ -210,55 +211,55 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 24, // web: px-6 = 24px
   },
 
-  /* Brand */
+  /* Brand — web: mb-8 = 32px container margin */
   brandContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32, // web: mb-8
   },
   logo: {
-    width: 80,
-    height: 80,
-    marginBottom: 20,
+    width: 80,   // web: w-20
+    height: 80,  // web: h-20
+    marginBottom: 20, // web: mb-5
   },
   title: {
-    fontSize: 30,
-    fontWeight: '700',
+    fontSize: 30,     // web: text-3xl
+    fontWeight: '700', // web: font-bold
     color: '#FFFFFF',
-    letterSpacing: -0.5,
+    letterSpacing: -0.5, // web: tracking-tight
   },
   subtitle: {
-    fontSize: 14,
-    color: '#94a3b8',
-    marginTop: 8,
+    fontSize: 14,     // web: text-sm
+    color: '#94a3b8', // web: text-[#94a3b8]
+    marginTop: 8,     // web: mt-2
     textAlign: 'center',
   },
 
-  /* Google Button — web: rounded-full, white bg, h-[52px], max-w-[320px] */
+  /* Google Button — web: rounded-full, bg-white, h-[52px], max-w-[320px] */
   googleButton: {
     width: '100%',
-    maxWidth: 320,
-    height: 52,
+    maxWidth: 320,    // web: max-w-[320px]
+    height: 52,       // web: h-[52px]
     backgroundColor: '#FFFFFF',
-    borderRadius: 26,
+    borderRadius: 26,  // web: rounded-full (pill shape)
     justifyContent: 'center',
     alignItems: 'center',
   },
   googleButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 12,          // web: gap-3 = 12px
   },
   googleButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#374151',
+    fontSize: 15,     // web: text-[15px]
+    fontWeight: '600', // web: font-semibold
+    color: '#374151', // web: text-gray-700
     letterSpacing: -0.1,
   },
 
-  /* Google Logo — 20x20 (h-5 w-5 in web = 20px) */
+  /* Google Logo — 20x20 (web: h-5 w-5 = 20px) */
   googleLogoContainer: {
     width: 20,
     height: 20,
@@ -270,31 +271,31 @@ const styles = StyleSheet.create({
     height: '50%',
   },
 
-  /* Divider */
+  /* Divider — web: mt-6 = 24px, gap-3 = 12px */
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
     maxWidth: 320,
-    marginTop: 24,
-    gap: 12,
+    marginTop: 24,    // web: mt-6
+    gap: 12,          // web: gap-3
   },
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)', // web: bg-white/[0.08]
   },
   dividerText: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: 12,     // web: text-[12px]
+    color: '#64748b', // web: text-[#64748b]
   },
 
-  /* Switch text */
+  /* Switch text — web: mt-4 = 16px */
   switchButton: {
-    marginTop: 16,
+    marginTop: 16,    // web: mt-4
   },
   switchText: {
-    fontSize: 14,
+    fontSize: 14,     // web: text-[14px]
     color: '#94a3b8',
   },
   switchLink: {
@@ -302,19 +303,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  /* Terms */
+  /* Terms — web: mt-4 = 16px, normal flow (NOT absolute) */
   termsContainer: {
-    position: 'absolute',
-    bottom: 40,
-    width: '100%',
+    marginTop: 16,    // web: mt-4
     maxWidth: 320,
+    width: '100%',
     alignItems: 'center',
   },
   termsText: {
-    fontSize: 11,
-    color: '#64748b',
+    fontSize: 11,     // web: text-[11px]
+    color: '#64748b', // web: text-[#64748b]
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 18,   // web: leading-relaxed
   },
   termsLink: {
     color: '#FFFFFF',
