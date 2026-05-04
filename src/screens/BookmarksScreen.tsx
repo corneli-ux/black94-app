@@ -169,7 +169,7 @@ function BookmarkPostCard({ post, navigation }: { post: Post; navigation: any })
             <Text style={styles.displayName} numberOfLines={1}>
               {post.authorDisplayName}
             </Text>
-            <VerifiedBadge badge={post.authorBadge} />
+            <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} />
             <Text style={styles.handle}>@{post.authorUsername}</Text>
             <Text style={styles.dot}>·</Text>
             <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>

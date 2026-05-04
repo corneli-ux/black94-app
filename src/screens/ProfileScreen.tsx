@@ -194,7 +194,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       <View style={styles.bioSection}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
-          <VerifiedBadge badge={user?.badge} />
+          <VerifiedBadge badge={user?.badge} isVerified={user?.isVerified} />
         </View>
         <Text style={styles.handle}>@{user?.username}</Text>
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}

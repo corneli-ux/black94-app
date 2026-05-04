@@ -1,7 +1,7 @@
 // Firebase REST API — NO Web SDK, NO polyfills needed.
 // Uses pure fetch() for Auth + Firestore. Works in React Native without any shims.
 
-const API_KEY = 'AIzaSyBAVWmNA9fo0hg4xRIi_O6ry3kAuuQylck';
+const API_KEY = 'AIzaSyDOGRbI4V82VJ0KZND3v1ggfO5s3933-3w';
 const PROJECT_ID = 'black94';
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 

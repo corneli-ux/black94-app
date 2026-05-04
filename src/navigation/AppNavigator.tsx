@@ -6,7 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
-import { Avatar } from '../components/Avatar';
+import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '../theme/colors';
@@ -215,11 +215,7 @@ function CustomDrawerContent({ navigation }: any) {
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.drawerUserName}>{user.displayName}</Text>
-              {user.isVerified && (
-                <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: colors.verifiedGold, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#000', fontSize: 9, fontWeight: '900' }}>✓</Text>
-                </View>
-              )}
+              <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
             </View>
             <Text style={styles.drawerUserHandle}>@{user.username}</Text>
           </View>

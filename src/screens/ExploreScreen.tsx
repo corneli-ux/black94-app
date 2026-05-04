@@ -224,7 +224,7 @@ export default function ExploreScreen() {
                       <Text style={styles.userName} numberOfLines={1}>
                         {user.displayName}
                       </Text>
-                      <VerifiedBadge badge={user.badge} />
+                      <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
                     </View>
                     <Text style={styles.userHandle}>@{user.username}</Text>
                     {user.bio ? (

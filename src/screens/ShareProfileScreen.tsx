@@ -155,7 +155,7 @@ export default function ShareProfileScreen({ route, navigation }: any) {
           <View style={styles.profileInfo}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={styles.displayName}>{user.displayName}</Text>
-              <VerifiedBadge badge={user.badge} />
+              <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
             </View>
             <Text style={styles.handle}>@{user.username}</Text>
           </View>

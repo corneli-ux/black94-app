@@ -1,6 +1,11 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import { colors } from '../theme/colors';
+import { LinearGradient } from 'expo-linear-gradient';
+
+// Web-matched colors
+const BRAND_BLUE = '#2a7fff';
+const GOLD_START = '#f59e0b';
+const GOLD_END = '#d97706';
 
 export function Avatar({
   uri,
@@ -14,7 +19,7 @@ export function Avatar({
   borderColor?: string;
 }) {
   const border = borderWidth > 0
-    ? { borderWidth, borderColor: borderColor || colors.bg }
+    ? { borderWidth, borderColor: borderColor || '#000000' }
     : {};
 
   if (uri) {
@@ -43,21 +48,53 @@ export function Avatar({
   );
 }
 
-export function VerifiedBadge({ badge }: { badge?: string }) {
-  if (badge === 'gold') {
+/**
+ * VerifiedBadge — matches web app's design exactly.
+ *
+ * Web CSS (.badge-gold):
+ *   background: linear-gradient(135deg, #f59e0b, #d97706)
+ *   padding: 1px 6px
+ *   border-radius: 4px
+ *   font-size: 10px
+ *   font-weight: 700
+ *   color: #fff
+ *   display: inline-flex (align-items: center, gap: 3px)
+ *
+ * Web CSS (.badge-blue):
+ *   background: linear-gradient(135deg, #2a7fff, #1a5fcc)
+ *   same sizing
+ */
+export function VerifiedBadge({ badge, isVerified }: { badge?: string; isVerified?: boolean }) {
+  // Show badge if explicitly set, OR if isVerified is true
+  const showGold = badge === 'gold' || (isVerified && badge !== 'blue');
+  const showBlue = badge === 'blue';
+
+  if (showGold) {
     return (
-      <View style={[styles.badge, { backgroundColor: colors.verifiedGold }]}>
-        <Text style={[styles.badgeText, { color: '#000' }]}>✓</Text>
-      </View>
+      <LinearGradient
+        colors={[GOLD_START, GOLD_END]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.goldBadge}
+      >
+        <Text style={styles.goldBadgeIcon}>✓</Text>
+      </LinearGradient>
     );
   }
-  if (badge === 'blue') {
+
+  if (showBlue) {
     return (
-      <View style={styles.badge}>
-        <Text style={[styles.badgeText, { color: '#ffffff' }]}>✓</Text>
-      </View>
+      <LinearGradient
+        colors={[BRAND_BLUE, '#1a5fcc']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.blueBadge}
+      >
+        <Text style={styles.blueBadgeIcon}>✓</Text>
+      </LinearGradient>
     );
   }
+
   return null;
 }
 
@@ -69,13 +106,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placeholderText: { color: '#fff', fontWeight: '700' },
-  badge: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.verified,
+
+  // Gold badge — matches web .badge-gold
+  goldBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 4,
   },
-  badgeText: { color: colors.verified, fontSize: 10, fontWeight: '900' },
+  goldBadgeIcon: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    includeFontPadding: false,
+  },
+
+  // Blue badge — matches web .badge-blue
+  blueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 4,
+  },
+  blueBadgeIcon: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    includeFontPadding: false,
+  },
 });

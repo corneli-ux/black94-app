@@ -41,7 +41,7 @@ function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
         <View style={styles.postMeta}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
             <Text style={styles.displayName} numberOfLines={1}>{post.authorDisplayName}</Text>
-            <VerifiedBadge badge={post.authorBadge} />
+            <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} />
             <Text style={styles.handle}>@{post.authorUsername}</Text>
             <Text style={styles.dot}>·</Text>
             <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>

@@ -188,7 +188,7 @@ export default function StorefrontScreen({ route, navigation }: any) {
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
             <Text style={styles.storeName}>{owner?.displayName || 'Store'}</Text>
-            <VerifiedBadge badge={owner?.badge} />
+            <VerifiedBadge badge={owner?.badge} isVerified={owner?.isVerified} />
           </View>
           <Text style={styles.storeHandle}>@{owner?.username}</Text>
           {owner?.bio ? <Text style={styles.storeBio} numberOfLines={3}>{owner.bio}</Text> : null}
