@@ -156,7 +156,10 @@ async function _firestoreFetch(
     throw new Error('Not authenticated');
   }
 
-  const url = `${FIRESTORE_BASE}/${path}?key=${API_KEY}`;
+  // runQuery endpoints use ':runQuery' suffix — no '/' before the colon
+  const url = path.startsWith(':')
+    ? `${FIRESTORE_BASE}${path}?key=${API_KEY}`
+    : `${FIRESTORE_BASE}/${path}?key=${API_KEY}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
@@ -392,8 +395,24 @@ class CompatCollectionRef {
 
     console.log(`[Firestore] Collection get: ${this._path}, constraints: ${JSON.stringify(this._constraints)}`);
 
+    // Firestore REST runQuery endpoint format:
+    //   Top-level collection (path='posts'):
+    //     POST .../documents:runQuery  body: { structuredQuery: { from: [{ collectionId: 'posts' }] } }
+    //   Subcollection (path='chats/{id}/messages'):
+    //     POST .../documents/chats/{id}:runQuery  body: { structuredQuery: { from: [{ collectionId: 'messages' }] } }
+    const pathSegments = this._path.split('/');
+    let runQueryPath: string;
+    if (pathSegments.length > 1) {
+      // Subcollection — parent is everything except the last segment
+      const parentPath = pathSegments.slice(0, -1).join('/');
+      runQueryPath = `${parentPath}:runQuery`;
+    } else {
+      // Top-level collection — parent is documents root
+      runQueryPath = ':runQuery';
+    }
+
     const results = await _firestoreFetch(
-      `${this._path}:runQuery`,
+      runQueryPath,
       'POST',
       { structuredQuery },
     );
