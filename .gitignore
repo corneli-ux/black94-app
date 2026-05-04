@@ -44,7 +44,8 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# generated native folders
+# generated native folders (EAS Build runs expo prebuild automatically)
+/android
 /ios
 
 # Android build artifacts (source is committed, outputs are not)
