@@ -501,12 +501,55 @@ class CompatDocRef {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   COMPAT — WriteBatch
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+class CompatWriteBatch {
+  private _operations: Array<{ ref: CompatDocRef; data: any; mode: 'set' | 'update' | 'delete' }> = [];
+
+  delete(ref: CompatDocRef): CompatWriteBatch {
+    this._operations.push({ ref, data: null, mode: 'delete' });
+    return this;
+  }
+
+  set(ref: CompatDocRef, data: any): CompatWriteBatch {
+    this._operations.push({ ref, data, mode: 'set' });
+    return this;
+  }
+
+  update(ref: CompatDocRef, data: any): CompatWriteBatch {
+    this._operations.push({ ref, data, mode: 'update' });
+    return this;
+  }
+
+  async commit(): Promise<void> {
+    // Firestore REST API supports batch writes via a single commit endpoint.
+    // We fire all operations — deletes are independent, sets/updates are PATCH/PUT.
+    const promises = this._operations.map(async (op) => {
+      try {
+        if (op.mode === 'delete') {
+          await op.ref.delete();
+        } else if (op.mode === 'set') {
+          await op.ref.set(op.data);
+        } else if (op.mode === 'update') {
+          await op.ref.update(op.data);
+        }
+      } catch (e: any) {
+        console.warn('[Batch] Operation failed:', e?.message);
+      }
+    });
+    await Promise.all(promises);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    COMPAT — Firestore
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function firestore(): any {
   const instance: any = (path: string) => new CompatCollectionRef(path);
   instance.collection = (path: string) => new CompatCollectionRef(path);
+  instance.batch = () => new CompatWriteBatch();
   return instance;
 }
 

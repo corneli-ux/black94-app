@@ -37,6 +37,24 @@ import CreateAdScreen from '../screens/CreateAdScreen';
 import SalaryScreen from '../screens/SalaryScreen';
 import AffiliatesScreen from '../screens/AffiliatesScreen';
 import PerformanceScreen from '../screens/PerformanceScreen';
+import OrderTrackingScreen from '../screens/OrderTrackingScreen';
+import StoreDashboardScreen from '../screens/StoreDashboardScreen';
+import BusinessOrdersScreen from '../screens/BusinessOrdersScreen';
+import PremiumDashboardScreen from '../screens/PremiumDashboardScreen';
+import AuthScreen from '../screens/AuthScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
+import UserProfileScreen from '../screens/UserProfileScreen';
+import StoryViewerScreen from '../screens/StoryViewerScreen';
+import StoryCreatorScreen from '../screens/StoryCreatorScreen';
+import CreatePostScreen from '../screens/CreatePostScreen';
+import ArticleViewScreen from '../screens/ArticleViewScreen';
+import AudioCallScreen from '../screens/AudioCallScreen';
+import AnonymousChatScreen from '../screens/AnonymousChatScreen';
+import DualPaneChatScreen from '../screens/DualPaneChatScreen';
+import CrmLeadsScreen from '../screens/CrmLeadsScreen';
+import CrmDealsScreen from '../screens/CrmDealsScreen';
+import CrmOrdersScreen from '../screens/CrmOrdersScreen';
+import CrmAnalyticsScreen from '../screens/CrmAnalyticsScreen';
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -241,8 +259,13 @@ function AppStack() {
       <Stack.Screen name="Drawer" component={DrawerNavigator} />
       {/* Chat */}
       <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
-      {/* Profile (other users) */}
+      <Stack.Screen name="DualPaneChat" component={DualPaneChatScreen} />
+      <Stack.Screen name="AnonymousChat" component={AnonymousChatScreen} />
+      <Stack.Screen name="AudioCall" component={AudioCallScreen} />
+      {/* Profile */}
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       {/* Bookmarks */}
       <Stack.Screen name="BookmarksStack" component={BookmarksScreen} />
       {/* Explore */}
@@ -251,6 +274,12 @@ function AppStack() {
       <Stack.Screen name="PrivacySettings" component={PrivacySettingsScreen} />
       <Stack.Screen name="ShareProfile" component={ShareProfileScreen} />
       <Stack.Screen name="WriteArticle" component={WriteArticleScreen} />
+      {/* Posts & Stories */}
+      <Stack.Screen name="CreatePost" component={CreatePostScreen} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="StoryViewer" component={StoryViewerScreen} />
+      <Stack.Screen name="StoryCreator" component={StoryCreatorScreen} />
+      {/* Articles */}
+      <Stack.Screen name="ArticleView" component={ArticleViewScreen} />
       {/* Store / Shop */}
       <Stack.Screen name="Storefront" component={StorefrontScreen} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
@@ -264,6 +293,17 @@ function AppStack() {
       <Stack.Screen name="Salary" component={SalaryScreen} />
       <Stack.Screen name="Affiliates" component={AffiliatesScreen} />
       <Stack.Screen name="Performance" component={PerformanceScreen} />
+      {/* CRM */}
+      <Stack.Screen name="CrmLeads" component={CrmLeadsScreen} />
+      <Stack.Screen name="CrmDeals" component={CrmDealsScreen} />
+      <Stack.Screen name="CrmOrders" component={CrmOrdersScreen} />
+      <Stack.Screen name="CrmAnalytics" component={CrmAnalyticsScreen} />
+      {/* Order Tracking & Store */}
+      <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
+      <Stack.Screen name="StoreDashboard" component={StoreDashboardScreen} />
+      <Stack.Screen name="BusinessOrders" component={BusinessOrdersScreen} />
+      {/* Premium */}
+      <Stack.Screen name="PremiumDashboard" component={PremiumDashboardScreen} />
     </Stack.Navigator>
   );
 }
@@ -286,8 +326,7 @@ export default function AppNavigator() {
         <AppStack />
       ) : (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Signup" component={SignupScreen} />
+          <Stack.Screen name="Login" component={AuthScreen} />
         </Stack.Navigator>
       )}
     </NavigationContainer>

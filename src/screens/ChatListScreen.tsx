@@ -48,7 +48,7 @@ export default function ChatListScreen({ navigation }: any) {
 
   const deleteChat = async (chatId: string, chatName: string) => {
     try {
-      // Delete all messages in the subcollection
+      // Delete all messages in the subcollection using REST batch
       const messagesRef = firestore().collection('chats').doc(chatId).collection('messages');
       const batchSize = 100;
       let query = messagesRef.limit(batchSize);
@@ -60,7 +60,11 @@ export default function ChatListScreen({ navigation }: any) {
         if (snapshot.empty) break;
 
         const batch = firestore().batch();
-        snapshot.docs.forEach(doc => batch.delete(doc.ref));
+        for (const doc of snapshot.docs) {
+          // Build a CompatDocRef for each message to pass to batch.delete()
+          const msgDocRef = messagesRef.doc(doc.id);
+          batch.delete(msgDocRef);
+        }
         await batch.commit();
         deleted += snapshot.size;
 
