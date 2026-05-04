@@ -8,9 +8,6 @@ on:
 env:
   JAVA_VERSION: '17'
   NODE_VERSION: '22'
-  KEYSTORE_PASSWORD: 'black94real'
-  KEY_ALIAS: 'black94'
-  KEY_PASSWORD: 'black94real'
 
 jobs:
   build-apk:
@@ -40,84 +37,88 @@ jobs:
       - name: Expo prebuild (generate android/)
         run: npx expo prebuild --platform android --clean
 
-      - name: Copy release keystore into prebuilt android/
+      - name: Setup release keystore and signing config
         run: |
+          # Copy production keystore
           cp ci/black94-release.jks android/app/black94-release.jks
-          echo "Copied keystore from ci/ to android/app/"
-          # Verify keystore SHA-1 matches google-services.json
+
+          # Verify keystore SHA-1
+          echo "=== Verifying keystore ==="
           keytool -list -v -keystore android/app/black94-release.jks \
-            -storepass 'black94real' \
-            -alias 'black94' 2>&1 | grep SHA1
+            -storepass 'black94real' -alias 'black94' 2>&1 | grep SHA1
 
-      - name: Patch build.gradle for release signing + device-only ABIs
+          # Add release signing config after debug signing config using Python
+          # (sed can't reliably handle multi-line insertions with correct indentation)
+          python3 << 'PYEOF'
+          filepath = 'android/app/build.gradle'
+          with open(filepath, 'r') as f:
+              lines = f.readlines()
+
+          new_lines = []
+          i = 0
+          added_release_signing = False
+          while i < len(lines):
+              line = lines[i]
+
+              # After the debug signingConfig closing brace, add release config
+              if not added_release_signing and line.strip() == '}' and 'signingConfigs' in ''.join(lines[max(0,i-10):i]):
+                  # Check if next non-empty line closes signingConfigs or starts buildTypes
+                  # Look ahead to see if this } closes the debug block (not signingConfigs)
+                  # We're inside signingConfigs { debug { ... } <-- here
+                  # After this }, signingConfigs continues, so add release config
+                  indent = '    '
+                  new_lines.append(line)  # the closing } of debug block
+                  new_lines.append(f'{indent}release {{\n')
+                  new_lines.append(f'{indent}    storeFile file(\'black94-release.jks\')\n')
+                  new_lines.append(f'{indent}    storePassword \'black94real\'\n')
+                  new_lines.append(f'{indent}    keyAlias \'black94\'\n')
+                  new_lines.append(f'{indent}    keyPassword \'black94real\'\n')
+                  new_lines.append(f'{indent}}}\n')
+                  added_release_signing = True
+                  i += 1
+                  continue
+
+              # Change release buildType signingConfig from debug to release
+              if 'signingConfig signingConfigs.debug' in line:
+                  line = line.replace('signingConfigs.debug', 'signingConfigs.release')
+
+              new_lines.append(line)
+              i += 1
+
+          with open(filepath, 'w') as f:
+              f.writelines(new_lines)
+
+          print(f"Added release signing config: {added_release_signing}")
+          PYEOF
+
+          # Verify the build.gradle has correct signing
+          echo "=== Verifying build.gradle signing config ==="
+          rg "signingConfig" android/app/build.gradle || echo "WARNING: no signingConfig found"
+          rg "black94-release.jks" android/app/build.gradle || echo "WARNING: no keystore reference found"
+
+      - name: Add ABI filters
         run: |
-          cat > /tmp/patch_build.py << 'PYEOF'
+          python3 << 'PYEOF'
           import re
-
           filepath = 'android/app/build.gradle'
           with open(filepath, 'r') as f:
               content = f.read()
 
-          # 1) Add release signing config with HARDCODED credentials (no secrets dependency)
-          # Replace the entire signingConfigs block to ensure it's correct
-          signing_config = '''
-          signingConfigs {
-              release {
-                  storeFile file('black94-release.jks')
-                  storePassword 'black94real'
-                  keyAlias 'black94'
-                  keyPassword 'black94real'
-              }
-          }
-          '''
-
-          # Remove existing signingConfigs block if present, then add ours
-          if 'signingConfigs' in content:
-              content = re.sub(r'signingConfigs\s*\{[^}]*release\s*\{[^}]*\}[^}]*\}', '', content)
-
-          # Insert before defaultConfig
-          if 'defaultConfig' in content:
-              content = content.replace('defaultConfig', signing_config.strip() + '\n\ndefaultConfig', 1)
-              print('Added signingConfigs with hardcoded credentials')
+          if 'abiFilters' not in content:
+              pattern = r"(defaultConfig\s*\{[^}]*?versionName\s+\"[^\"]+\"\s*\n)"
+              ndk_block = '\n              ndk {\n                  abiFilters \'arm64-v8a\', \'armeabi-v7a\'\n              }\n'
+              new_content = re.sub(pattern, r'\1' + ndk_block, content)
+              if new_content != content:
+                  content = new_content
+                  print('Added ABI filters')
           else:
-              print('WARNING: Could not find defaultConfig')
-
-          # 2) Wire release buildType to use the signing config
-          # Remove existing signingConfig line from release block and add ours
-          content = re.sub(r'(buildTypes\s*\{[^}]*?release\s*\{)\s*signingConfig\s+[^\n]+\n?', r'\1\n            ', content)
-          # Now add the correct one
-          content = re.sub(
-              r'(buildTypes\s*\{[^}]*?release\s*\{)',
-              r'\1\n            signingConfig signingConfigs.release',
-              content,
-              count=1
-          )
-          print('Wired release signingConfig')
-
-          # 3) Add ndk abiFilters to defaultConfig
-          pattern = r'(defaultConfig\s*\{[^}]*?versionName\s+"[^"]+"\s*\n)'
-          ndk_block = """
-              ndk {
-                  abiFilters 'arm64-v8a', 'armeabi-v7a'
-              }
-          """
-          new_content = re.sub(pattern, r'\1' + ndk_block, content)
-          if new_content != content:
-              content = new_content
-              print('Added ABI filters')
-          else:
-              print('ABI filters already present or pattern not found')
+              print('ABI filters already present')
 
           with open(filepath, 'w') as f:
               f.write(content)
           PYEOF
-          python3 /tmp/patch_build.py
 
       - name: Build Release APK
-        env:
-          KEYSTORE_PASSWORD: 'black94real'
-          KEY_ALIAS: 'black94'
-          KEY_PASSWORD: 'black94real'
         run: |
           cd android
           chmod +x gradlew
@@ -159,71 +160,67 @@ jobs:
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
 
-      - name: Copy release keystore into prebuilt android/
+      - name: Setup release keystore and signing config
         run: |
           cp ci/black94-release.jks android/app/black94-release.jks
-          echo "Copied keystore from ci/ to android/app/"
+          echo "=== Verifying keystore ==="
           keytool -list -v -keystore android/app/black94-release.jks \
-            -storepass 'black94real' \
-            -alias 'black94' 2>&1 | grep SHA1
+            -storepass 'black94real' -alias 'black94' 2>&1 | grep SHA1
 
-      - name: Patch build.gradle for release signing + device-only ABIs
+          python3 << 'PYEOF'
+          filepath = 'android/app/build.gradle'
+          with open(filepath, 'r') as f:
+              lines = f.readlines()
+
+          new_lines = []
+          i = 0
+          added_release_signing = False
+          while i < len(lines):
+              line = lines[i]
+              if not added_release_signing and line.strip() == '}' and 'signingConfigs' in ''.join(lines[max(0,i-10):i]):
+                  indent = '    '
+                  new_lines.append(line)
+                  new_lines.append(f'{indent}release {{\n')
+                  new_lines.append(f'{indent}    storeFile file(\'black94-release.jks\')\n')
+                  new_lines.append(f'{indent}    storePassword \'black94real\'\n')
+                  new_lines.append(f'{indent}    keyAlias \'black94\'\n')
+                  new_lines.append(f'{indent}    keyPassword \'black94real\'\n')
+                  new_lines.append(f'{indent}}}\n')
+                  added_release_signing = True
+                  i += 1
+                  continue
+              if 'signingConfig signingConfigs.debug' in line:
+                  line = line.replace('signingConfigs.debug', 'signingConfigs.release')
+              new_lines.append(line)
+              i += 1
+
+          with open(filepath, 'w') as f:
+              f.writelines(new_lines)
+          print(f"Added release signing config: {added_release_signing}")
+          PYEOF
+
+          echo "=== Verifying build.gradle signing config ==="
+          rg "signingConfig" android/app/build.gradle
+
+      - name: Add ABI filters
         run: |
-          cat > /tmp/patch_build.py << 'PYEOF'
+          python3 << 'PYEOF'
           import re
-
           filepath = 'android/app/build.gradle'
           with open(filepath, 'r') as f:
               content = f.read()
-
-          signing_config = '''
-          signingConfigs {
-              release {
-                  storeFile file('black94-release.jks')
-                  storePassword 'black94real'
-                  keyAlias 'black94'
-                  keyPassword 'black94real'
-              }
-          }
-          '''
-
-          if 'signingConfigs' in content:
-              content = re.sub(r'signingConfigs\s*\{[^}]*release\s*\{[^}]*\}[^}]*\}', '', content)
-
-          if 'defaultConfig' in content:
-              content = content.replace('defaultConfig', signing_config.strip() + '\n\ndefaultConfig', 1)
-              print('Added signingConfigs')
-
-          content = re.sub(r'(buildTypes\s*\{[^}]*?release\s*\{)\s*signingConfig\s+[^\n]+\n?', r'\1\n            ', content)
-          content = re.sub(
-              r'(buildTypes\s*\{[^}]*?release\s*\{)',
-              r'\1\n            signingConfig signingConfigs.release',
-              content,
-              count=1
-          )
-          print('Wired release signingConfig')
-
-          pattern = r'(defaultConfig\s*\{[^}]*?versionName\s+"[^"]+"\s*\n)'
-          ndk_block = """
-              ndk {
-                  abiFilters 'arm64-v8a', 'armeabi-v7a'
-              }
-          """
-          new_content = re.sub(pattern, r'\1' + ndk_block, content)
-          if new_content != content:
-              content = new_content
-              print('Added ABI filters')
-
+          if 'abiFilters' not in content:
+              pattern = r"(defaultConfig\s*\{[^}]*?versionName\s+\"[^\"]+\"\s*\n)"
+              ndk_block = '\n              ndk {\n                  abiFilters \'arm64-v8a\', \'armeabi-v7a\'\n              }\n'
+              new_content = re.sub(pattern, r'\1' + ndk_block, content)
+              if new_content != content:
+                  content = new_content
+                  print('Added ABI filters')
           with open(filepath, 'w') as f:
               f.write(content)
           PYEOF
-          python3 /tmp/patch_build.py
 
       - name: Build Release AAB
-        env:
-          KEYSTORE_PASSWORD: 'black94real'
-          KEY_ALIAS: 'black94'
-          KEY_PASSWORD: 'black94real'
         run: |
           cd android
           chmod +x gradlew
