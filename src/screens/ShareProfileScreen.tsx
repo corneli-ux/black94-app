@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-  ScrollView, SafeAreaView, Share, Clipboard, Alert, Platform,
+  ScrollView, SafeAreaView, Share, Alert,
 } from 'react-native';
+import * as ExpoClipboard from 'expo-clipboard';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -103,11 +104,7 @@ export default function ShareProfileScreen({ route, navigation }: any) {
   const handleCopyLink = async () => {
     if (!shareLink) return;
     try {
-      if (Platform.OS === 'web') {
-        await navigator.clipboard.writeText(shareLink);
-      } else {
-        await Clipboard.setString(shareLink);
-      }
+      await ExpoClipboard.setStringAsync(shareLink);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
