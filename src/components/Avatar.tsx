@@ -1,11 +1,5 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-
-// Web-matched colors
-const BRAND_BLUE = '#2a7fff';
-const GOLD_START = '#f59e0b';
-const GOLD_END = '#d97706';
 
 export function Avatar({
   uri,
@@ -49,49 +43,37 @@ export function Avatar({
 }
 
 /**
- * VerifiedBadge — matches web app's design exactly.
+ * VerifiedBadge — matches web app's badge design.
  *
  * Web CSS (.badge-gold):
  *   background: linear-gradient(135deg, #f59e0b, #d97706)
- *   padding: 1px 6px
- *   border-radius: 4px
- *   font-size: 10px
- *   font-weight: 700
- *   color: #fff
- *   display: inline-flex (align-items: center, gap: 3px)
+ *   padding: 1px 6px, border-radius: 4px
+ *   font-size: 10px, font-weight: 700, color: #fff
  *
  * Web CSS (.badge-blue):
  *   background: linear-gradient(135deg, #2a7fff, #1a5fcc)
  *   same sizing
+ *
+ * We use the gradient start color (which is the dominant visible color
+ * on small pill shapes) as the background. No external dependency needed.
  */
 export function VerifiedBadge({ badge, isVerified }: { badge?: string; isVerified?: boolean }) {
-  // Show badge if explicitly set, OR if isVerified is true
   const showGold = badge === 'gold' || (isVerified && badge !== 'blue');
   const showBlue = badge === 'blue';
 
   if (showGold) {
     return (
-      <LinearGradient
-        colors={[GOLD_START, GOLD_END]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.goldBadge}
-      >
+      <View style={styles.goldBadge}>
         <Text style={styles.goldBadgeIcon}>✓</Text>
-      </LinearGradient>
+      </View>
     );
   }
 
   if (showBlue) {
     return (
-      <LinearGradient
-        colors={[BRAND_BLUE, '#1a5fcc']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.blueBadge}
-      >
+      <View style={styles.blueBadge}>
         <Text style={styles.blueBadgeIcon}>✓</Text>
-      </LinearGradient>
+      </View>
     );
   }
 
@@ -107,12 +89,13 @@ const styles = StyleSheet.create({
   },
   placeholderText: { color: '#fff', fontWeight: '700' },
 
-  // Gold badge — matches web .badge-gold
+  // Gold badge — web: .badge-gold gradient 135deg #f59e0b -> #d97706
   goldBadge: {
+    backgroundColor: '#f59e0b',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 4,
     marginLeft: 4,
@@ -124,12 +107,13 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 
-  // Blue badge — matches web .badge-blue
+  // Blue badge — web: .badge-blue gradient 135deg #2a7fff -> #1a5fcc
   blueBadge: {
+    backgroundColor: '#2a7fff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 4,
     marginLeft: 4,
