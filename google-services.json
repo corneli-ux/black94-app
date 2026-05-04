@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "210565807767-lloam9ir7q79iv43vkj7493sl4s2mqi5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.black94.app",
+            "certificate_hash": "a4694943708787c81096ec0b13026da7621cb0be"
+          }
+        },
+        {
           "client_id": "210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com",
           "client_type": 3
         }

@@ -16,6 +16,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   ActivityIndicator,
+  SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Avatar } from '../components/Avatar';
@@ -28,18 +29,20 @@ import { colors } from '../theme/colors';
 const MAX_IMAGES = 4;
 const MAX_CAPTION_LENGTH = 500;
 
-const COLORS = {
-  bg: '#000000',
-  surface: '#16181c',
-  surfaceLight: '#18181b',
-  textPrimary: '#e7e9ea',
+// Use theme colors for consistency across the app
+const C = {
+  bg: colors.bg,
+  surface: colors.surface,
+  surfaceLight: colors.surfaceLight,
+  textPrimary: colors.text,
   textSecondary: '#94a3b8',
-  textMuted: '#64748b',
+  textMuted: colors.textMuted,
   primary: '#FFFFFF',
   primaryDisabled: 'rgba(255, 255, 255, 0.25)',
   red: '#f43f5e',
   border: 'rgba(255, 255, 255, 0.06)',
   borderLight: 'rgba(255, 255, 255, 0.08)',
+  bgInput: colors.bgInput,
 } as const;
 
 // ── Image picker helper (lazy import to avoid crash if library not linked) ────
@@ -142,9 +145,9 @@ export default function CreatePostScreen() {
   // ── Character count color ─────────────────────────────────────────────
 
   const charCountColor = useMemo(() => {
-    if (captionLength >= MAX_CAPTION_LENGTH) return COLORS.red;
-    if (captionLength >= MAX_CAPTION_LENGTH * 0.9) return COLORS.red;
-    return COLORS.textMuted;
+    if (captionLength >= MAX_CAPTION_LENGTH) return C.red;
+    if (captionLength >= MAX_CAPTION_LENGTH * 0.9) return C.red;
+    return C.textMuted;
   }, [captionLength]);
 
   // ── Image grid ────────────────────────────────────────────────────────
@@ -196,6 +199,7 @@ export default function CreatePostScreen() {
   );
 
   return (
+    <SafeAreaView style={styles.safeArea}>
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -244,7 +248,7 @@ export default function CreatePostScreen() {
           value={caption}
           onChangeText={setCaption}
           placeholder="What's on your mind?"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={C.textMuted}
           multiline
           maxLength={MAX_CAPTION_LENGTH}
           autoFocus
@@ -310,15 +314,20 @@ export default function CreatePostScreen() {
         )}
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: C.bg,
   },
   header: {
     flexDirection: 'row',
@@ -327,8 +336,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bg,
+    borderBottomColor: C.border,
+    backgroundColor: C.bg,
   },
   headerBack: {
     width: 40,
@@ -337,13 +346,13 @@ const styles = StyleSheet.create({
   },
   headerBackIcon: {
     fontSize: 26,
-    color: COLORS.textPrimary,
+    color: C.textPrimary,
     fontWeight: '400',
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: C.textPrimary,
   },
   headerPostButton: {
     borderRadius: 20,
@@ -354,10 +363,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerPostActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: C.primary,
   },
   headerPostInactive: {
-    backgroundColor: COLORS.primaryDisabled,
+    backgroundColor: C.primaryDisabled,
   },
   headerPostText: {
     fontSize: 15,
@@ -389,15 +398,15 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: C.textPrimary,
   },
   username: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: C.textSecondary,
   },
   captionInput: {
     fontSize: 17,
-    color: COLORS.textPrimary,
+    color: C.textPrimary,
     lineHeight: 24,
     minHeight: 120,
     maxHeight: 300,
@@ -425,7 +434,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: C.borderLight,
     position: 'relative',
   },
   imageThumb: {
@@ -455,18 +464,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    backgroundColor: COLORS.surface,
+    backgroundColor: C.surface,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
   },
   addImageIcon: {
     fontSize: 28,
-    color: COLORS.primary,
+    color: C.primary,
   },
   addImageText: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: C.textSecondary,
   },
   addPhotoButton: {
     flexDirection: 'row',
@@ -478,14 +487,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    backgroundColor: COLORS.surface,
+    backgroundColor: C.surface,
   },
   addPhotoIcon: {
     fontSize: 20,
   },
   addPhotoText: {
     fontSize: 15,
-    color: COLORS.textSecondary,
+    color: C.textSecondary,
     fontWeight: '500',
   },
 });

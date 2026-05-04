@@ -18,8 +18,6 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import StoriesScreen from '../screens/StoriesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import LoginScreen from '../screens/LoginScreen';
-import SignupScreen from '../screens/SignupScreen';
 import BookmarksScreen from '../screens/BookmarksScreen';
 import ExploreScreen from '../screens/ExploreScreen';
 import PrivacySettingsScreen from '../screens/PrivacySettingsScreen';

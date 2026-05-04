@@ -13,10 +13,12 @@ import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ChatRoomScreen({ route, navigation }: any) {
-  const { chat } = route.params;
+  const routeChat = route.params?.chat;
+  const routeChatId = route.params?.chatId;
+  const [chat, setChat] = useState(routeChat || null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!routeChat);
   const [sending, setSending] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const flatRef = useRef<FlatList>(null);
@@ -24,7 +26,50 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const insets = useSafeAreaInsets();
 
+  // If chatId was passed (e.g., from UserProfileScreen), fetch the chat doc
+  useEffect(() => {
+    if (routeChatId && !routeChat) {
+      const fetchChat = async () => {
+        try {
+          const chatDoc = await firestore().collection('chats').doc(routeChatId).get();
+          if (chatDoc.exists) {
+            const data = chatDoc.data();
+            const otherId = data.user1Id === currentUser?.uid ? data.user2Id : data.user1Id;
+            let otherUser = null;
+            try {
+              const otherSnap = await firestore().collection('users').doc(otherId).get();
+              if (otherSnap.exists) {
+                const d = otherSnap.data();
+                otherUser = {
+                  id: otherId, email: d.email || '', username: d.username || '',
+                  displayName: d.displayName || '', bio: d.bio || '',
+                  profileImage: d.profileImage || null, coverImage: d.coverImage || null,
+                  role: d.role || 'personal', badge: d.badge || '',
+                  subscription: d.subscription || 'free', isVerified: d.isVerified || false,
+                  createdAt: d.createdAt?.seconds ? d.createdAt.seconds * 1000 : Date.now(),
+                };
+              }
+            } catch {}
+            setChat({
+              id: chatDoc.id,
+              user1Id: data.user1Id,
+              user2Id: data.user2Id,
+              lastMessage: data.lastMessage || '',
+              lastMessageTime: data.lastMessageTime?.seconds ? data.lastMessageTime.seconds * 1000 : Date.now(),
+              unreadCount: 0,
+              otherUser,
+            });
+          }
+        } catch (e) {
+          console.error('[ChatRoom] Failed to fetch chat:', e);
+        }
+      };
+      fetchChat();
+    }
+  }, [routeChatId, routeChat]);
+
   const load = useCallback(async (silent = false) => {
+    if (!chat) return;
     try {
       const msgs = await fetchMessages(chat.id);
       setMessages(msgs);
@@ -34,9 +79,10 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     } finally {
       setLoading(false);
     }
-  }, [chat.id]);
+  }, [chat?.id]);
 
   useEffect(() => {
+    if (!chat) return;
     // Reset unread count when opening chat
     const resetUnread = async () => {
       try {
@@ -51,7 +97,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     load();
     pollRef.current = setInterval(() => load(true), 5000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, []);
+  }, [chat?.id]);
 
   // Keyboard listeners for proper input positioning on Android
   useEffect(() => {
@@ -111,13 +157,19 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
-        <Avatar uri={chat.otherUser?.profileImage} size={36} />
-        <View style={{ marginLeft: 10, flex: 1 }}>
-          <Text style={styles.headerName} numberOfLines={1}>
-            {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
-          </Text>
-          <Text style={styles.headerHandle}>@{chat.otherUser?.username}</Text>
-        </View>
+        {chat ? (
+          <>
+            <Avatar uri={chat.otherUser?.profileImage} size={36} />
+            <View style={{ marginLeft: 10, flex: 1 }}>
+              <Text style={styles.headerName} numberOfLines={1}>
+                {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
+              </Text>
+              <Text style={styles.headerHandle}>@{chat.otherUser?.username}</Text>
+            </View>
+          </>
+        ) : (
+          <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: 10 }} />
+        )}
       </View>
 
       {/* Messages */}

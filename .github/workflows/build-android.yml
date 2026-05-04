@@ -37,40 +37,81 @@ jobs:
       - name: Expo prebuild (generate android/)
         run: npx expo prebuild --platform android --clean
 
-      # Patch build.gradle to skip x86/x86_64 (emulator-only) to prevent linker Bus errors
-      - name: Patch build.gradle for device-only ABIs
+      - name: Decode release keystore
         run: |
-          cat > /tmp/patch_abi.py << 'PYEOF'
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/black94-release.jks
+
+      - name: Patch build.gradle for release signing + device-only ABIs
+        run: |
+          cat > /tmp/patch_build.py << 'PYEOF'
           import re
-          
+
           filepath = 'android/app/build.gradle'
           with open(filepath, 'r') as f:
               content = f.read()
-          
-          # Find the defaultConfig block and add ndk abiFilters
+
+          # 1) Add signing config if not present
+          signing_config = '''
+          signingConfigs {
+              release {
+                  storeFile file('black94-release.jks')
+                  storePassword System.getenv("KEYSTORE_PASSWORD")
+                  keyAlias System.getenv("KEY_ALIAS")
+                  keyPassword System.getenv("KEY_PASSWORD")
+              }
+          }
+          '''
+
+          if 'signingConfigs' not in content:
+              # Insert before defaultConfig or buildTypes
+              if 'defaultConfig' in content:
+                  content = content.replace('defaultConfig', signing_config.strip() + '\n\ndefaultConfig', 1)
+                  print('Added signingConfigs')
+              else:
+                  print('WARNING: Could not find defaultConfig to insert signingConfigs')
+          else:
+              print('signingConfigs already present')
+
+          # 2) Wire release buildType to use the signing config
+          if 'buildTypes' in content and 'release {' in content:
+              if 'signingConfig' not in content.split('buildTypes')[1].split('}')[0]:
+                  content = re.sub(
+                      r'(buildTypes\s*\{[^}]*?release\s*\{)',
+                      r'\1\n            signingConfig signingConfigs.release',
+                      content,
+                      count=1
+                  )
+                  print('Wired release signingConfig')
+              else:
+                  print('Release signingConfig already wired')
+          else:
+              print('WARNING: Could not find buildTypes release block')
+
+          # 3) Add ndk abiFilters to defaultConfig
           pattern = r'(defaultConfig\s*\{[^}]*?versionName\s+"[^"]+"\s*\n)'
-          
           ndk_block = """
-              // Only build real device architectures — skip x86/x86_64
               ndk {
                   abiFilters 'arm64-v8a', 'armeabi-v7a'
               }
           """
-          
-          replacement = r'\1' + ndk_block
-          
-          new_content = re.sub(pattern, replacement, content)
-          
+          new_content = re.sub(pattern, r'\1' + ndk_block, content)
+
           if new_content != content:
-              with open(filepath, 'w') as f:
-                  f.write(new_content)
-              print('Patched build.gradle with ABI filters')
+              content = new_content
+              print('Added ABI filters')
           else:
               print('ABI filters already present or pattern not found')
+
+          with open(filepath, 'w') as f:
+              f.write(content)
           PYEOF
-          python3 /tmp/patch_abi.py
+          python3 /tmp/patch_build.py
 
       - name: Build Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           cd android
           chmod +x gradlew
@@ -112,35 +153,68 @@ jobs:
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
 
-      - name: Patch build.gradle for device-only ABIs
+      - name: Decode release keystore
         run: |
-          cat > /tmp/patch_abi.py << 'PYEOF'
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/black94-release.jks
+
+      - name: Patch build.gradle for release signing + device-only ABIs
+        run: |
+          cat > /tmp/patch_build.py << 'PYEOF'
           import re
-          
+
           filepath = 'android/app/build.gradle'
           with open(filepath, 'r') as f:
               content = f.read()
-          
+
+          signing_config = '''
+          signingConfigs {
+              release {
+                  storeFile file('black94-release.jks')
+                  storePassword System.getenv("KEYSTORE_PASSWORD")
+                  keyAlias System.getenv("KEY_ALIAS")
+                  keyPassword System.getenv("KEY_PASSWORD")
+              }
+          }
+          '''
+
+          if 'signingConfigs' not in content:
+              if 'defaultConfig' in content:
+                  content = content.replace('defaultConfig', signing_config.strip() + '\n\ndefaultConfig', 1)
+                  print('Added signingConfigs')
+          else:
+              print('signingConfigs already present')
+
+          if 'buildTypes' in content and 'release {' in content:
+              if 'signingConfig' not in content.split('buildTypes')[1].split('}')[0]:
+                  content = re.sub(
+                      r'(buildTypes\s*\{[^}]*?release\s*\{)',
+                      r'\1\n            signingConfig signingConfigs.release',
+                      content,
+                      count=1
+                  )
+                  print('Wired release signingConfig')
+
           pattern = r'(defaultConfig\s*\{[^}]*?versionName\s+"[^"]+"\s*\n)'
           ndk_block = """
               ndk {
                   abiFilters 'arm64-v8a', 'armeabi-v7a'
               }
           """
-          
-          replacement = r'\1' + ndk_block
-          new_content = re.sub(pattern, replacement, content)
-          
+          new_content = re.sub(pattern, r'\1' + ndk_block, content)
           if new_content != content:
-              with open(filepath, 'w') as f:
-                  f.write(new_content)
-              print('Patched build.gradle with ABI filters')
-          else:
-              print('ABI filters already present or pattern not found')
+              content = new_content
+              print('Added ABI filters')
+
+          with open(filepath, 'w') as f:
+              f.write(content)
           PYEOF
-          python3 /tmp/patch_abi.py
+          python3 /tmp/patch_build.py
 
       - name: Build Release AAB
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           cd android
           chmod +x gradlew

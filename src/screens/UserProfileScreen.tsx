@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import {
   fetchUserProfile,
@@ -191,7 +192,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
           >
-            <Text style={styles.backButtonText}>←</Text>
+            <Ionicons name="arrow-back" size={20} color={colors.white} />
           </TouchableOpacity>
         </View>
 
