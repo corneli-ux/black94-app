@@ -171,60 +171,60 @@ export async function signOutUser(): Promise<void> {
 /* ── Posts ────────────────────────────────────────────────────────────────── */
 
 export async function fetchFeed(limitCount = 20): Promise<Post[]> {
-  try {
-    const snapshot = await firestore()
-      .collection('posts')
-      .orderBy('createdAt', 'desc')
-      .limit(limitCount)
-      .get();
+  console.log('[Feed] Fetching feed...');
+  const snapshot = await firestore()
+    .collection('posts')
+    .orderBy('createdAt', 'desc')
+    .limit(limitCount)
+    .get();
 
-    const userId = currentUser()?.uid;
-    const posts: Post[] = [];
+  console.log(`[Feed] Got ${snapshot.docs.length} posts from Firestore`);
 
-    for (const docSnap of snapshot.docs) {
-      const data = docSnap.data();
-      let liked = false;
-      let bookmarked = false;
-      let reposted = false;
+  const userId = currentUser()?.uid;
+  const posts: Post[] = [];
 
-      if (userId) {
-        try {
-          const [likeSnap, bookmarkSnap, repostSnap] = await Promise.all([
-            firestore().collection('post_likes').doc(`${docSnap.id}_${userId}`).get(),
-            firestore().collection('post_bookmarks').doc(`${docSnap.id}_${userId}`).get(),
-            firestore().collection('post_reposts').doc(`${docSnap.id}_${userId}`).get(),
-          ]);
-          liked = likeSnap.exists;
-          bookmarked = bookmarkSnap.exists;
-          reposted = repostSnap.exists;
-        } catch {}
+  for (const docSnap of snapshot.docs) {
+    const data = docSnap.data();
+    let liked = false;
+    let bookmarked = false;
+    let reposted = false;
+
+    if (userId) {
+      try {
+        const [likeSnap, bookmarkSnap, repostSnap] = await Promise.all([
+          firestore().collection('post_likes').doc(`${docSnap.id}_${userId}`).get(),
+          firestore().collection('post_bookmarks').doc(`${docSnap.id}_${userId}`).get(),
+          firestore().collection('post_reposts').doc(`${docSnap.id}_${userId}`).get(),
+        ]);
+        liked = likeSnap.exists;
+        bookmarked = bookmarkSnap.exists;
+        reposted = repostSnap.exists;
+      } catch (likeErr: any) {
+        console.warn('[Feed] Like/check error for post', docSnap.id, likeErr?.message);
       }
-
-      posts.push({
-        id: docSnap.id,
-        authorId: data.authorId || '',
-        authorUsername: data.authorUsername || '',
-        authorDisplayName: data.authorDisplayName || '',
-        authorProfileImage: data.authorProfileImage || null,
-        authorBadge: data.authorBadge || '',
-        authorIsVerified: data.authorIsVerified || false,
-        caption: data.caption || '',
-        mediaUrls: parseMediaUrls(data.mediaUrls),
-        likeCount: data.likeCount || 0,
-        commentCount: data.commentCount || 0,
-        repostCount: data.repostCount || 0,
-        liked,
-        bookmarked,
-        reposted,
-        createdAt: tsToMillis(data.createdAt),
-      });
     }
 
-    return posts;
-  } catch (e) {
-    console.error('[Feed] Failed:', e);
-    return [];
+    posts.push({
+      id: docSnap.id,
+      authorId: data.authorId || '',
+      authorUsername: data.authorUsername || '',
+      authorDisplayName: data.authorDisplayName || '',
+      authorProfileImage: data.authorProfileImage || null,
+      authorBadge: data.authorBadge || '',
+      authorIsVerified: data.authorIsVerified || false,
+      caption: data.caption || '',
+      mediaUrls: parseMediaUrls(data.mediaUrls),
+      likeCount: data.likeCount || 0,
+      commentCount: data.commentCount || 0,
+      repostCount: data.repostCount || 0,
+      liked,
+      bookmarked,
+      reposted,
+      createdAt: tsToMillis(data.createdAt),
+    });
   }
+
+  return posts;
 }
 
 export async function createPost(caption: string, mediaUrls: string[] = []): Promise<string> {
@@ -292,11 +292,14 @@ export async function fetchChatList(): Promise<Chat[]> {
   const userId = currentUser()?.uid;
   if (!userId) return [];
 
+  console.log('[Chat] Fetching chat list for user:', userId);
+  const [snap1, snap2] = await Promise.all([
+    firestore().collection('chats').where('user1Id', '==', userId).get(),
+    firestore().collection('chats').where('user2Id', '==', userId).get(),
+  ]);
+  console.log(`[Chat] Got ${snap1.docs.length} + ${snap2.docs.length} chats`);
+
   try {
-    const [snap1, snap2] = await Promise.all([
-      firestore().collection('chats').where('user1Id', '==', userId).get(),
-      firestore().collection('chats').where('user2Id', '==', userId).get(),
-    ]);
     const allDocs = [...snap1.docs, ...snap2.docs];
     const chats: Chat[] = [];
 
@@ -335,10 +338,10 @@ export async function fetchChatList(): Promise<Chat[]> {
     }
 
     return chats.sort((a, b) => b.lastMessageTime - a.lastMessageTime);
-  } catch (e) {
-    console.error('[Chat] Failed:', e);
-    return [];
+  } catch (e: any) {
+    console.error('[Chat] Processing error:', e?.message);
   }
+  return [];
 }
 
 export async function fetchMessages(chatId: string, limitCount = 50): Promise<Message[]> {
@@ -400,28 +403,28 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
 /* ── User ─────────────────────────────────────────────────────────────────── */
 
 export async function fetchUserProfile(userId: string): Promise<User | null> {
-  try {
-    const docSnap = await firestore().collection('users').doc(userId).get();
-    if (!docSnap.exists) return null;
-    const data = docSnap.data();
-    return {
-      id: userId,
-      email: data?.email || '',
-      username: data?.username || '',
-      displayName: data?.displayName || '',
-      bio: data?.bio || '',
-      profileImage: data?.profileImage || null,
-      coverImage: data?.coverImage || null,
-      role: data?.role || 'personal',
-      badge: data?.badge || '',
-      subscription: data?.subscription || 'free',
-      isVerified: data?.isVerified || false,
-      createdAt: tsToMillis(data?.createdAt),
-    };
-  } catch (e) {
-    console.error('[User] Profile fetch failed:', e);
+  console.log('[User] Fetching profile for:', userId);
+  const docSnap = await firestore().collection('users').doc(userId).get();
+  if (!docSnap.exists) {
+    console.log('[User] User doc does not exist:', userId);
     return null;
   }
+  const data = docSnap.data();
+  console.log('[User] Got profile:', data?.displayName, '@' + data?.username, 'badge:', data?.badge, 'verified:', data?.isVerified);
+  return {
+    id: userId,
+    email: data?.email || '',
+    username: data?.username || '',
+    displayName: data?.displayName || '',
+    bio: data?.bio || '',
+    profileImage: data?.profileImage || null,
+    coverImage: data?.coverImage || null,
+    role: data?.role || 'personal',
+    badge: data?.badge || '',
+    subscription: data?.subscription || 'free',
+    isVerified: data?.isVerified || false,
+    createdAt: tsToMillis(data?.createdAt),
+  };
 }
 
 export async function toggleFollow(targetUserId: string, currentlyFollowing: boolean): Promise<boolean> {

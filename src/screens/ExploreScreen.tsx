@@ -41,11 +41,14 @@ export default function ExploreScreen() {
 
   const loadRecommendedUsers = useCallback(async () => {
     try {
+      console.log('[Explore] Loading recommended users...');
       const snap = await firestore()
         .collection('users')
         .orderBy('createdAt', 'desc')
         .limit(10)
         .get();
+
+      console.log(`[Explore] Got ${snap.docs.length} users from Firestore`);
 
       const currentUserId = auth()?.currentUser?.uid;
       const users: User[] = snap.docs
@@ -69,8 +72,8 @@ export default function ExploreScreen() {
         });
 
       setRecommendedUsers(users);
-    } catch (e) {
-      console.error('[Explore] Failed to load recommended users:', e);
+    } catch (e: any) {
+      console.error('[Explore] Failed to load recommended users:', e?.message);
     } finally {
       setLoading(false);
       setRefreshing(false);

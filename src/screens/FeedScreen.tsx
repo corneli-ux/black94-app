@@ -166,9 +166,11 @@ export default function FeedScreen({ navigation }: any) {
   const loadFeed = useCallback(async () => {
     try {
       const data = await fetchFeed(30);
+      console.log('[FeedScreen] Loaded', data.length, 'posts');
       setPosts(data);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('[FeedScreen] Feed load error:', e?.message);
+      Alert.alert('Feed Error', `Could not load feed: ${e?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -290,6 +292,12 @@ export default function FeedScreen({ navigation }: any) {
             </View>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 12 }}>No posts yet</Text>
             <Text style={{ color: colors.textSecondary, fontSize: 15, marginTop: 4 }}>When people post, their posts will show up here.</Text>
+            <TouchableOpacity
+              style={{ marginTop: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, borderRadius: 8 }}
+              onPress={loadFeed}
+            >
+              <Text style={{ color: colors.accent, fontSize: 14 }}>Tap to retry</Text>
+            </TouchableOpacity>
           </View>
         }
         contentContainerStyle={{ paddingBottom: fabBottom + 72 }}

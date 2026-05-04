@@ -168,6 +168,7 @@ async function _firestoreFetch(
 
   // Auto-refresh on 401 — invalidate token first so refresh actually runs
   if (resp.status === 401) {
+    console.log(`[Firestore] 401 on ${method} ${path} — refreshing token...`);
     _idToken = null; // Force refresh
     try {
       token = await _getValidToken();
@@ -178,6 +179,7 @@ async function _firestoreFetch(
       ...opts,
       headers: { ...headers, Authorization: `Bearer ${token}` },
     });
+    console.log(`[Firestore] After token refresh: ${resp.status}`);
   }
 
   const data = await resp.json();
@@ -187,6 +189,13 @@ async function _firestoreFetch(
     const err: any = new Error(errMsg);
     err.status = resp.status;
     err.code = data.error?.status;
+    // Log full error details for debugging
+    console.error(`[Firestore] ${method} ${path} FAILED: ${resp.status} ${data.error?.status} - ${errMsg}`);
+    // If it's a composite index error, include helpful info
+    if (data.error?.message?.includes('FAILED_PRECONDITION') || errMsg.includes('index')) {
+      console.error(`[Firestore] COMPOSITE INDEX NEEDED. Create it at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
+      err.message = `Firestore index needed. Please create the composite index as logged.`;
+    }
     throw err;
   }
 
@@ -335,77 +344,75 @@ class CompatCollectionRef {
   }
 
   async get() {
-    try {
-      const collectionId = this._path.split('/').pop()!;
-      const structuredQuery: any = { from: [{ collectionId }] };
+    const collectionId = this._path.split('/').pop()!;
+    const structuredQuery: any = { from: [{ collectionId }] };
 
-      // Build where clause
-      let whereClause: any = null;
-      const whereConstraints = this._constraints.filter(c => c.type === 'where');
-      if (whereConstraints.length === 1) {
-        const wc = whereConstraints[0];
-        whereClause = {
-          fieldFilter: {
-            field: { fieldPath: wc.field },
-            op: _mapOp(wc.op!),
-            value: _toFsValue(wc.value),
-          },
-        };
-      } else if (whereConstraints.length > 1) {
-        whereClause = {
-          compositeFilter: {
-            op: 'AND',
-            filters: whereConstraints.map(wc => ({
-              fieldFilter: {
-                field: { fieldPath: wc.field },
-                op: _mapOp(wc.op!),
-                value: _toFsValue(wc.value),
-              },
-            })),
-          },
-        };
-      }
-      if (whereClause) structuredQuery.where = whereClause;
-
-      // Build orderBy
-      const orderConstraints = this._constraints.filter(c => c.type === 'orderBy');
-      if (orderConstraints.length > 0) {
-        structuredQuery.orderBy = orderConstraints.map(oc => ({
-          field: { fieldPath: oc.field },
-          direction: oc.direction || 'ASCENDING',
-        }));
-      }
-
-      // Build limit
-      const limitConstraints = this._constraints.filter(c => c.type === 'limit');
-      if (limitConstraints.length > 0) {
-        structuredQuery.limit = limitConstraints[0].n;
-      }
-
-      const results = await _firestoreFetch(
-        `${this._path}:runQuery`,
-        'POST',
-        { structuredQuery },
-      );
-
-      // runQuery returns array of { document: ... } or { done: true }
-      const docs = (results || [])
-        .filter((r: any) => r.document)
-        .map((r: any) => {
-          const docId = r.document.name.split('/').pop();
-          return {
-            id: docId,
-            ref: new CompatDocRef(`${this._path}/${docId}`),
-            data: () => _fromFsDoc(r.document),
-            exists: true,
-          };
-        });
-
-      return { docs, empty: docs.length === 0, size: docs.length };
-    } catch (e: any) {
-      console.warn('[Firestore] Collection get error:', e?.message);
-      return { docs: [], empty: true, size: 0 };
+    // Build where clause
+    let whereClause: any = null;
+    const whereConstraints = this._constraints.filter(c => c.type === 'where');
+    if (whereConstraints.length === 1) {
+      const wc = whereConstraints[0];
+      whereClause = {
+        fieldFilter: {
+          field: { fieldPath: wc.field },
+          op: _mapOp(wc.op!),
+          value: _toFsValue(wc.value),
+        },
+      };
+    } else if (whereConstraints.length > 1) {
+      whereClause = {
+        compositeFilter: {
+          op: 'AND',
+          filters: whereConstraints.map(wc => ({
+            fieldFilter: {
+              field: { fieldPath: wc.field },
+              op: _mapOp(wc.op!),
+              value: _toFsValue(wc.value),
+            },
+          })),
+        },
+      };
     }
+    if (whereClause) structuredQuery.where = whereClause;
+
+    // Build orderBy
+    const orderConstraints = this._constraints.filter(c => c.type === 'orderBy');
+    if (orderConstraints.length > 0) {
+      structuredQuery.orderBy = orderConstraints.map(oc => ({
+        field: { fieldPath: oc.field },
+        direction: oc.direction || 'ASCENDING',
+      }));
+    }
+
+    // Build limit
+    const limitConstraints = this._constraints.filter(c => c.type === 'limit');
+    if (limitConstraints.length > 0) {
+      structuredQuery.limit = limitConstraints[0].n;
+    }
+
+    console.log(`[Firestore] Collection get: ${this._path}, constraints: ${JSON.stringify(this._constraints)}`);
+
+    const results = await _firestoreFetch(
+      `${this._path}:runQuery`,
+      'POST',
+      { structuredQuery },
+    );
+
+    // runQuery returns array of { document: ... } or { done: true }
+    const docs = (results || [])
+      .filter((r: any) => r.document)
+      .map((r: any) => {
+        const docId = r.document.name.split('/').pop();
+        return {
+          id: docId,
+          ref: new CompatDocRef(`${this._path}/${docId}`),
+          data: () => _fromFsDoc(r.document),
+          exists: true,
+        };
+      });
+
+    console.log(`[Firestore] Collection get: ${this._path} returned ${docs.length} docs`);
+    return { docs, empty: docs.length === 0, size: docs.length };
   }
 
   async add(data: any) {

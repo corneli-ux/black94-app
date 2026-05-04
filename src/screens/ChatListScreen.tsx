@@ -20,10 +20,12 @@ export default function ChatListScreen({ navigation }: any) {
   const load = useCallback(async () => {
     try {
       const data = await fetchChatList();
+      console.log('[ChatListScreen] Loaded', data.length, 'chats');
       setChats(data);
       setFiltered(data);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('[ChatListScreen] Chat load error:', e?.message);
+      Alert.alert('Chat Error', `Could not load chats: ${e?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -189,6 +191,12 @@ export default function ChatListScreen({ navigation }: any) {
               <Text style={{ color: colors.textMuted, fontSize: 14, marginTop: 8 }}>
                 Start a conversation from someone's profile
               </Text>
+              <TouchableOpacity
+                style={{ marginTop: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, borderRadius: 8 }}
+                onPress={load}
+              >
+                <Text style={{ color: colors.accent, fontSize: 14 }}>Tap to retry</Text>
+              </TouchableOpacity>
             </View>
           }
         />

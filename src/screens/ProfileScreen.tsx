@@ -54,6 +54,7 @@ export default function ProfileScreen({ route, navigation }: any) {
 
   const load = useCallback(async () => {
     try {
+      console.log('[ProfileScreen] Loading profile for:', targetUserId);
       const [u, feed, isFollowing, followersSnap, followingSnap] = await Promise.all([
         fetchUserProfile(targetUserId),
         firestore().collection('posts').where('authorId', '==', targetUserId).orderBy('createdAt', 'desc').limit(20).get(),
@@ -61,6 +62,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         firestore().collection('follows').where('followingId', '==', targetUserId).get(),
         firestore().collection('follows').where('followerId', '==', targetUserId).get(),
       ]);
+      console.log(`[ProfileScreen] Got user: ${u?.displayName || 'null'}, posts: ${feed.docs.length}, followers: ${followersSnap.size}, following: ${followingSnap.size}`);
       setUser(u);
       setFollowing(isFollowing);
       setFollowersCount(followersSnap.size);
@@ -107,8 +109,9 @@ export default function ProfileScreen({ route, navigation }: any) {
         }
         setLikedPosts(liked);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('[ProfileScreen] Load error:', e?.message);
+      Alert.alert('Profile Error', `Could not load profile: ${e?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
