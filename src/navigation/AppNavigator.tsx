@@ -164,6 +164,7 @@ function MainTabs() {
 
 function CustomDrawerContent({ navigation }: any) {
   const { user } = useAppStore();
+  const insets = useSafeAreaInsets();
 
   const navItems = [
     { label: 'Home', icon: 'home-outline', screen: 'Home' },
@@ -178,7 +179,7 @@ function CustomDrawerContent({ navigation }: any) {
   ];
 
   return (
-    <DrawerContentScrollView style={styles.drawer} contentContainerStyle={{ paddingTop: 0 }}>
+    <DrawerContentScrollView style={styles.drawer} contentContainerStyle={{ paddingTop: insets.top }}>
       {/* Logo */}
       <View style={styles.drawerLogo}>
         <Text style={styles.drawerLogoText}>Black94</Text>

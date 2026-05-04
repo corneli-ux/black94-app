@@ -4,20 +4,8 @@ import React, {
   useRef,
   useMemo,
 } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Image,
-  Alert,
-  ScrollView,
-  Platform,
-  StyleSheet,
-  KeyboardAvoidingView,
-  ActivityIndicator,
-  SafeAreaView,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, Alert, ScrollView, Platform, StyleSheet, KeyboardAvoidingView, ActivityIndicator,  } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Avatar } from '../components/Avatar';
 import { useAppStore } from '../stores/app';

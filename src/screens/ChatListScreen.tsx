@@ -1,9 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  View, Text, FlatList, Image, TouchableOpacity,
-  StyleSheet, TextInput, ActivityIndicator, RefreshControl,
-  Alert, SafeAreaView,
-} from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Alert,  } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchChatList, Chat } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';

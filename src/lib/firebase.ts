@@ -391,11 +391,15 @@ class CompatCollectionRef {
       // runQuery returns array of { document: ... } or { done: true }
       const docs = (results || [])
         .filter((r: any) => r.document)
-        .map((r: any) => ({
-          id: r.document.name.split('/').pop(),
-          data: () => _fromFsDoc(r.document),
-          exists: true,
-        }));
+        .map((r: any) => {
+          const docId = r.document.name.split('/').pop();
+          return {
+            id: docId,
+            ref: new CompatDocRef(`${this._path}/${docId}`),
+            data: () => _fromFsDoc(r.document),
+            exists: true,
+          };
+        });
 
       return { docs, empty: docs.length === 0, size: docs.length };
     } catch (e: any) {

@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-  ScrollView, SafeAreaView, Share, Alert,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Share, Alert,  } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ExpoClipboard from 'expo-clipboard';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';

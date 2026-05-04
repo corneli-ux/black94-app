@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, FlatList, Image, TouchableOpacity,
-  StyleSheet, RefreshControl, ActivityIndicator, SafeAreaView,
-} from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator,  } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';

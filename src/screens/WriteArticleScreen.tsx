@@ -1,9 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, SafeAreaView, StatusBar, ScrollView,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,  } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';

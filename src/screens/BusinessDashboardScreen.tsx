@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-  ScrollView, SafeAreaView, Dimensions,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions,  } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';

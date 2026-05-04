@@ -1,8 +1,6 @@
 import React from 'react';
-import {
-  View, Text, TouchableOpacity, Image, StyleSheet,
-  SafeAreaView, StatusBar, Alert, Linking,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, StatusBar, Alert, Linking,  } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { signInWithGoogle } from '../lib/api';

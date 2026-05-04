@@ -1,10 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import {
-  View, Text, FlatList, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator,
-  SafeAreaView, Keyboard,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Keyboard,  } from 'react-native';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';

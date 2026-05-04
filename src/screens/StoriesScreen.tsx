@@ -1,9 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, Dimensions, ActivityIndicator, RefreshControl,
-  Modal, SafeAreaView, TextInput, Alert,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, Dimensions, ActivityIndicator, RefreshControl, Modal, TextInput, Alert,  } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
 import { auth } from '../lib/firebase';

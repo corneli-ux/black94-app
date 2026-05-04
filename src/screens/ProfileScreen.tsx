@@ -1,9 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, Image, TouchableOpacity, FlatList,
-  StyleSheet, Dimensions, ActivityIndicator, RefreshControl, ScrollView,
-  SafeAreaView,
-} from 'react-native';
+import { View, Text, Image, TouchableOpacity, FlatList, StyleSheet, Dimensions, ActivityIndicator, RefreshControl, ScrollView,  } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchUserProfile, toggleFollow, checkFollowing, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
