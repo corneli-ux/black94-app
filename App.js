@@ -1,9 +1,13 @@
 import React, { useEffect, useState, Component } from 'react';
 import { StatusBar, Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import { onAuthStateChanged, auth } from './src/lib/firebase';
 import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
 import { fetchUserProfile } from './src/lib/api';
+
+// Prevent native splash from auto-hiding before JS is ready
+SplashScreen.preventAutoHideAsync({ fade: true });
 
 /* ── Error Boundary ───────────────────────────────────────────────────────── */
 
@@ -137,8 +141,17 @@ export default function App() {
     };
   }, []);
 
-  // While not ready, show dark loading screen (matches splash bg #07060b)
-  // This prevents the white flash by always showing a dark background
+  // Hide native splash once JS is ready — smooth transition, no white flash
+  useEffect(() => {
+    if (isReady) {
+      const hide = async () => {
+        try { await SplashScreen.hideAsync({ fade: true }); } catch (e) { console.warn('[Splash]', e); }
+      };
+      hide();
+    }
+  }, [isReady]);
+
+  // While not ready, show dark loading screen (matches splash bg #000000)
   return (
     <AppErrorBoundary>
       <View style={styles.rootContainer}>
