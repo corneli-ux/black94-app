@@ -1,11 +1,13 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { Avatar } from '../components/Avatar';
+import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '../theme/colors';
 import FeedScreen from '../screens/FeedScreen';
@@ -41,32 +43,78 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-  const icons: Record<string, string> = {
-    Home: focused ? '🏠' : '🏠',
-    Search: focused ? '🔍' : '🔍',
-    Messages: focused ? '💬' : '💬',
-    Notifications: focused ? '🔔' : '🔔',
-    Stories: focused ? '📡' : '📡',
+  const iconProps: { size: number; color: string } = {
+    size: 24,
+    color: '#ffffff',
   };
+
+  // Match web's Lucide icons with Ionicons equivalents
+  switch (name) {
+    case 'Home':
+      return (
+        <Ionicons
+          {...iconProps}
+          name={focused ? 'home' : 'home-outline'}
+          strokeWidth={focused ? 2.4 : 2.2}
+        />
+      );
+    case 'Search':
+      return (
+        <Ionicons
+          {...iconProps}
+          name={focused ? 'search' : 'search-outline'}
+        />
+      );
+    case 'Messages':
+      return (
+        <Ionicons
+          {...iconProps}
+          name={focused ? 'chatbubble' : 'chatbubble-outline'}
+        />
+      );
+    case 'Notifications':
+      return (
+        <Ionicons
+          {...iconProps}
+          name={focused ? 'notifications' : 'notifications-outline'}
+        />
+      );
+    case 'Stories':
+      return (
+        <Ionicons
+          {...iconProps}
+          name={focused ? 'radio' : 'radio-outline'}
+        />
+      );
+    default:
+      return <Ionicons {...iconProps} name="ellipse" />;
+  }
+}
+
+function TabBarBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  const label = count > 9 ? '9+' : String(count);
   return (
-    <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.45 }}>
-      {icons[name] || '●'}
-    </Text>
+    <View style={styles.tabBadge}>
+      <Text style={styles.tabBadgeText}>{label}</Text>
+    </View>
   );
 }
 
 function MainTabs() {
-  const { unreadNotificationCount } = useAppStore();
+  const { unreadNotificationCount, user } = useAppStore();
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.tabBar,
-          borderTopWidth: 0.5,
-          borderTopColor: colors.tabBarBorder,
-          paddingTop: 6,
-          height: 60,
+          backgroundColor: '#000000',
+          borderTopWidth: 0,
+          borderTopColor: 'rgba(255,255,255,0.06)',
+          paddingTop: 4,
+          height: 50 + insets.bottom,
+          paddingBottom: insets.bottom,
         },
         tabBarShowLabel: false,
       }}
@@ -74,10 +122,18 @@ function MainTabs() {
       <Tab.Screen name="Home" component={FeedScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Home" focused={focused} /> }} />
       <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Search" focused={focused} /> }} />
       <Tab.Screen name="Messages" component={ChatListScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Messages" focused={focused} /> }} />
-      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{
-        tabBarIcon: ({ focused }) => <TabIcon name="Notifications" focused={focused} />,
-        tabBarBadge: unreadNotificationCount > 0 ? unreadNotificationCount : undefined,
-      }} />
+      <Tab.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <View>
+              <TabIcon name="Notifications" focused={focused} />
+              <TabBarBadge count={unreadNotificationCount} />
+            </View>
+          ),
+        }}
+      />
       <Tab.Screen name="Stories" component={StoriesScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Stories" focused={focused} /> }} />
     </Tab.Navigator>
   );
@@ -87,15 +143,15 @@ function CustomDrawerContent({ navigation }: any) {
   const { user } = useAppStore();
 
   const navItems = [
-    { label: 'Home', icon: '🏠', screen: 'Home' },
-    { label: 'Explore', icon: '🔍', screen: 'Explore' },
-    { label: 'Notifications', icon: '🔔', screen: 'NotificationsTab' },
-    { label: 'Messages', icon: '💬', screen: 'MessagesTab' },
-    { label: 'Stories', icon: '📡', screen: 'StoriesTab' },
-    { label: 'Profile', icon: '👤', screen: 'ProfileSelf' },
-    { label: 'Bookmarks', icon: '🏷️', screen: 'Bookmarks' },
-    { label: 'Cart', icon: '🛒', screen: 'Cart' },
-    { label: 'Settings', icon: '⚙️', screen: 'Settings' },
+    { label: 'Home', icon: 'home-outline', screen: 'Home' },
+    { label: 'Explore', icon: 'search-outline', screen: 'Explore' },
+    { label: 'Notifications', icon: 'notifications-outline', screen: 'NotificationsTab' },
+    { label: 'Messages', icon: 'chatbubble-outline', screen: 'MessagesTab' },
+    { label: 'Stories', icon: 'radio-outline', screen: 'StoriesTab' },
+    { label: 'Profile', icon: 'person-outline', screen: 'ProfileSelf' },
+    { label: 'Bookmarks', icon: 'bookmark-outline', screen: 'Bookmarks' },
+    { label: 'Cart', icon: 'cart-outline', screen: 'Cart' },
+    { label: 'Settings', icon: 'settings-outline', screen: 'Settings' },
   ];
 
   return (
@@ -115,7 +171,7 @@ function CustomDrawerContent({ navigation }: any) {
             navigation.navigate(item.screen);
           }}
         >
-          <Text style={styles.drawerIcon}>{item.icon}</Text>
+          <Ionicons name={item.icon as any} size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
           <Text style={styles.drawerLabel}>{item.label}</Text>
         </TouchableOpacity>
       ))}
@@ -211,7 +267,7 @@ export default function AppNavigator() {
   // While not ready, show dark splash-like screen
   if (!isReady) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#07060b', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' }}>
         <Text style={{ color: '#e7e9ea', fontSize: 28, fontWeight: '800' }}>Black94</Text>
       </View>
     );
@@ -242,4 +298,21 @@ const styles = StyleSheet.create({
   drawerUser: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, borderTopWidth: 0.5, borderTopColor: colors.border },
   drawerUserName: { color: colors.text, fontWeight: '700', fontSize: 15 },
   drawerUserHandle: { color: colors.textSecondary, fontSize: 14 },
+  tabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  tabBadgeText: {
+    color: '#000000',
+    fontSize: 10,
+    fontWeight: '700',
+  },
 });

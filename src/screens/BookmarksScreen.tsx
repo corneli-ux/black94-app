@@ -17,6 +17,7 @@ export default function BookmarksScreen() {
   const [bookmarks, setBookmarks] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [canRefresh, setCanRefresh] = useState(true);
 
   const loadBookmarks = useCallback(async () => {
     const userId = auth()?.currentUser?.uid;
@@ -83,6 +84,11 @@ export default function BookmarksScreen() {
     }
   }, []);
 
+  const handleScroll = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    setCanRefresh(offset <= 0);
+  }, []);
+
   useEffect(() => {
     loadBookmarks();
   }, []);
@@ -118,11 +124,14 @@ export default function BookmarksScreen() {
         data={bookmarks}
         keyExtractor={item => item.id}
         renderItem={({ item }) => <BookmarkPostCard post={item} navigation={navigation} />}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
+            refreshing={refreshing && canRefresh}
+            onRefresh={() => { if (canRefresh) handleRefresh(); }}
             tintColor={colors.accent}
+            enabled={canRefresh}
           />
         }
         ItemSeparatorComponent={() => <View style={styles.separator} />}

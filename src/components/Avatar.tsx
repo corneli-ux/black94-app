@@ -54,7 +54,7 @@ export function VerifiedBadge({ badge }: { badge?: string }) {
   if (badge === 'blue') {
     return (
       <View style={styles.badge}>
-        <Text style={styles.badgeText}>✓</Text>
+        <Text style={[styles.badgeText, { color: '#ffffff' }]}>✓</Text>
       </View>
     );
   }

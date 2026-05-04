@@ -42,6 +42,7 @@ export default function StoriesScreen({ navigation }: any) {
   const [filtered, setFiltered] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [canRefresh, setCanRefresh] = useState(true);
   const [activeCategory, setActiveCategory] = useState('all');
   const [viewingStory, setViewingStory] = useState<Story | null>(null);
   const [storyIndex, setStoryIndex] = useState(0);
@@ -85,6 +86,11 @@ export default function StoriesScreen({ navigation }: any) {
       setLoading(false);
       setRefreshing(false);
     }
+  }, []);
+
+  const handleScroll = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    setCanRefresh(offset <= 0);
   }, []);
 
   useEffect(() => { load(); }, []);
@@ -150,8 +156,15 @@ export default function StoriesScreen({ navigation }: any) {
         </View>
       ) : (
         <ScrollView
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />
+            <RefreshControl
+              refreshing={refreshing && canRefresh}
+              onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }}
+              tintColor={colors.accent}
+              enabled={canRefresh}
+            />
           }
         >
           {/* Stories count */}

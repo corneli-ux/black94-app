@@ -5,15 +5,15 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator,
   Alert, Dimensions, SafeAreaView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchFeed, createPost, toggleLike, toggleBookmark, Post } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
+import { Ionicons } from '@expo/vector-icons';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const TAB_BAR_HEIGHT = 60;
-const FAB_BOTTOM = TAB_BAR_HEIGHT + 20; // Position above tab bar
+const { width: SCREEN_W } = Dimensions.get('window');
 
 function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
   post: Post;
@@ -23,6 +23,12 @@ function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
   navigation: any;
 }) {
   const currentUser = auth()?.currentUser;
+
+  const handleDoubleTap = () => {
+    if (!post.liked) {
+      onLike(post.id, post.liked);
+    }
+  };
 
   return (
     <View style={styles.postCard}>
@@ -56,7 +62,7 @@ function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
               ]);
             }}
           >
-            <Text style={styles.moreText}>⋮</Text>
+            <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -70,10 +76,7 @@ function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
 
       {/* Media */}
       {post.mediaUrls?.length > 0 && (
-        <TouchableOpacity
-          activeOpacity={0.95}
-          onLongPress={() => onLike(post.id, post.liked)}
-        >
+        <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
           <View style={styles.mediaContainer}>
             <Image
               source={{ uri: post.mediaUrls[0] }}
@@ -84,58 +87,72 @@ function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
         </TouchableOpacity>
       )}
 
-      {/* Actions */}
+      {/* Action bar — matches web: comment, repost, like, views, bookmark, share */}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionBtn} disabled>
-          <Text style={{ fontSize: 16, color: colors.textSecondary }}>💬</Text>
+        {/* Comment */}
+        <TouchableOpacity style={styles.actionBtn}>
+          <View style={styles.actionIconWrap}>
+            <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
+          </View>
           {post.commentCount > 0 && (
             <Text style={styles.actionCount}>{post.commentCount}</Text>
           )}
         </TouchableOpacity>
+
+        {/* Repost */}
         <TouchableOpacity style={styles.actionBtn} disabled>
-          <Text style={{ fontSize: 16, color: post.reposted ? colors.accentGreen : colors.textSecondary }}>
-            🔁
-          </Text>
+          <View style={styles.actionIconWrap}>
+            <Ionicons name="repeat" size={18} color={post.reposted ? colors.accentGreen : colors.textSecondary} />
+          </View>
           {post.repostCount > 0 && (
             <Text style={[styles.actionCount, post.reposted && { color: colors.accentGreen }]}>
               {post.repostCount}
             </Text>
           )}
         </TouchableOpacity>
+
+        {/* Like */}
         <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
-          <Text style={{ fontSize: 16, color: post.liked ? colors.accentRed : colors.textSecondary }}>
-            {post.liked ? '❤️' : '🤍'}
-          </Text>
+          <View style={styles.actionIconWrap}>
+            {post.liked ? (
+              <Ionicons name="heart" size={18} color="#f43f5e" />
+            ) : (
+              <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
+            )}
+          </View>
           {post.likeCount > 0 && (
-            <Text style={[styles.actionCount, post.liked && { color: colors.accentRed }]}>
+            <Text style={[styles.actionCount, post.liked && { color: '#f43f5e' }]}>
               {post.likeCount}
             </Text>
           )}
         </TouchableOpacity>
+
+        {/* Views / Analytics */}
         <TouchableOpacity style={styles.actionBtn} disabled>
-          <Text style={{ fontSize: 16, color: colors.textSecondary }}>📈</Text>
+          <View style={styles.actionIconWrap}>
+            <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
+          </View>
         </TouchableOpacity>
+
+        {/* Bookmark */}
         <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
-          <Text style={{ fontSize: 16, color: post.bookmarked ? colors.accent : colors.textSecondary }}>
-            {post.bookmarked ? '🔖' : '🏷️'}
-          </Text>
+          <View style={styles.actionIconWrap}>
+            {post.bookmarked ? (
+              <Ionicons name="bookmark" size={18} color="#ffffff" />
+            ) : (
+              <Ionicons name="bookmark-outline" size={18} color={colors.textSecondary} />
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* Share */}
+        <TouchableOpacity style={styles.actionBtn} disabled>
+          <View style={styles.actionIconWrap}>
+            <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
+          </View>
         </TouchableOpacity>
       </View>
     </View>
-  );
-}
-
-function ActionBtn({ icon, count, active, activeColor, onPress, disabled }: {
-  icon: string; count?: number; active?: boolean; activeColor?: string;
-  onPress?: () => void; disabled?: boolean;
-}) {
-  return (
-    <TouchableOpacity style={styles.actionBtn} onPress={onPress} disabled={disabled}>
-      <Text style={{ fontSize: 16, color: active ? activeColor : colors.textSecondary }}>{icon}</Text>
-      {count !== undefined && count > 0 && (
-        <Text style={[styles.actionCount, active && activeColor && { color: activeColor }]}>{count}</Text>
-      )}
-    </TouchableOpacity>
   );
 }
 
@@ -149,6 +166,7 @@ export default function FeedScreen({ navigation }: any) {
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
   const [canRefresh, setCanRefresh] = useState(true);
+  const insets = useSafeAreaInsets();
 
   const loadFeed = useCallback(async () => {
     try {
@@ -214,16 +232,28 @@ export default function FeedScreen({ navigation }: any) {
     );
   }
 
+  // FAB bottom position: above tab bar (50px) + safe area bottom inset + 8px gap
+  const fabBottom = 50 + insets.bottom + 8;
+
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header — matches web: hamburger (avatar) left, logo center, settings right */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.openDrawer()}>
+          <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
             <Avatar uri={currentUser?.photoURL} size={34} />
           </TouchableOpacity>
-          <Text style={styles.logo}>Black94</Text>
-          <View style={{ width: 34 }} />
+          {/* Center: logo */}
+          <View style={styles.headerCenter}>
+            <Text style={styles.logo}>Black94</Text>
+          </View>
+          {/* Right: settings */}
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Ionicons name="settings-outline" size={20} color={colors.text} />
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
@@ -259,18 +289,23 @@ export default function FeedScreen({ navigation }: any) {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', paddingTop: 80 }}>
-            <Text style={{ color: colors.textSecondary, fontSize: 16 }}>No posts yet</Text>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="chatbubble-outline" size={36} color={colors.textSecondary} />
+            </View>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 12 }}>No posts yet</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 15, marginTop: 4 }}>When people post, their posts will show up here.</Text>
           </View>
         }
-        contentContainerStyle={{ paddingBottom: TAB_BAR_HEIGHT + 80 }}
+        contentContainerStyle={{ paddingBottom: fabBottom + 72 }}
       />
 
-      {/* FAB — positioned above tab bar */}
+      {/* FAB — matches web: white circle with + icon */}
       <TouchableOpacity
-        style={[styles.fab, { bottom: FAB_BOTTOM }]}
+        style={[styles.fab, { bottom: fabBottom }]}
         onPress={() => setComposeVisible(true)}
+        activeOpacity={0.8}
       >
-        <Text style={styles.fabText}>✏️</Text>
+        <Ionicons name="add" size={24} color="#000000" />
       </TouchableOpacity>
 
       {/* Compose Modal */}
@@ -279,6 +314,7 @@ export default function FeedScreen({ navigation }: any) {
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setComposeVisible(false)} />
           <View style={styles.composeSheet}>
             <View style={styles.composeHeader}>
               <TouchableOpacity onPress={() => setComposeVisible(false)}>
@@ -291,7 +327,7 @@ export default function FeedScreen({ navigation }: any) {
                 disabled={posting || !composeText.trim()}
               >
                 {posting
-                  ? <ActivityIndicator color="#fff" size="small" />
+                  ? <ActivityIndicator color="#000" size="small" />
                   : <Text style={styles.postBtnText}>Post</Text>
                 }
               </TouchableOpacity>
@@ -322,10 +358,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
-    borderBottomWidth: 0.5, borderBottomColor: colors.border,
+    height: 56,
+    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  logo: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  postCard: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.bg },
+  headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  logo: { color: colors.text, fontSize: 17, fontWeight: '800' },
+  postCard: {
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.bg,
+    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
   postHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
   postMeta: { flex: 1, marginLeft: 10 },
   displayName: { color: colors.text, fontWeight: '700', fontSize: 15 },
@@ -333,23 +375,34 @@ const styles = StyleSheet.create({
   dot: { color: colors.textSecondary, fontSize: 14 },
   time: { color: colors.textSecondary, fontSize: 14 },
   moreBtn: { padding: 4, marginLeft: 'auto' },
-  moreText: { color: colors.textSecondary, fontSize: 20 },
   caption: { color: colors.text, fontSize: 15, lineHeight: 22, marginBottom: 10, marginLeft: 54 },
   mediaContainer: { marginLeft: 54, borderRadius: 14, overflow: 'hidden', marginBottom: 4 },
   media: { width: '100%', height: 260, backgroundColor: '#111' },
-  actions: { flexDirection: 'row', alignItems: 'center', marginTop: 10, marginLeft: 54, gap: 28 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  actionCount: { color: colors.textSecondary, fontSize: 13 },
-  separator: { height: 0.5, backgroundColor: colors.border },
+  actions: {
+    flexDirection: 'row', alignItems: 'center', marginTop: 10, marginLeft: 54,
+    gap: 0, justifyContent: 'space-between', maxWidth: 380,
+  },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  actionIconWrap: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  actionCount: { color: colors.textSecondary, fontSize: 13, marginLeft: 2 },
+  separator: { height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)' },
   fab: {
-    position: 'absolute', right: 20,
+    position: 'absolute', right: 16,
     width: 56, height: 56, borderRadius: 28,
-    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    alignItems: 'center', justifyContent: 'center',
     elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4, shadowRadius: 6,
   },
-  fabText: { fontSize: 22 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  emptyIcon: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalOverlay: { flex: 1, backgroundColor: 'transparent' },
   composeSheet: {
     backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     padding: 16, minHeight: 220,
@@ -358,6 +411,6 @@ const styles = StyleSheet.create({
   composeBody: { flexDirection: 'row', gap: 12 },
   composeInput: { flex: 1, color: colors.text, fontSize: 16, minHeight: 100, textAlignVertical: 'top' },
   charCount: { color: colors.textMuted, fontSize: 12, textAlign: 'right', marginTop: 8 },
-  postBtn: { backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20 },
-  postBtnText: { color: '#fff', fontWeight: '700' },
+  postBtn: { backgroundColor: '#ffffff', paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20 },
+  postBtnText: { color: '#000000', fontWeight: '700' },
 });

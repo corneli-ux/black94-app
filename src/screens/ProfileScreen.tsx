@@ -48,6 +48,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [canRefresh, setCanRefresh] = useState(true);
   const [following, setFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
@@ -117,6 +118,11 @@ export default function ProfileScreen({ route, navigation }: any) {
     }
   }, [targetUserId]);
 
+  const handleScroll = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    setCanRefresh(offset <= 0);
+  }, []);
+
   useEffect(() => { load(); }, []);
 
   const handleFollow = async () => {
@@ -134,7 +140,9 @@ export default function ProfileScreen({ route, navigation }: any) {
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+      onScroll={handleScroll}
+      scrollEventThrottle={16}
+      refreshControl={<RefreshControl refreshing={refreshing && canRefresh} onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }} tintColor={colors.accent} enabled={canRefresh} />}
     >
       {/* Top bar */}
       <SafeAreaView edges={['top']}>

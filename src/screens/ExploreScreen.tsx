@@ -39,6 +39,7 @@ export default function ExploreScreen() {
   const [recommendedUsers, setRecommendedUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [canRefresh, setCanRefresh] = useState(true);
 
   const loadRecommendedUsers = useCallback(async () => {
     try {
@@ -78,6 +79,11 @@ export default function ExploreScreen() {
     }
   }, []);
 
+  const handleScroll = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    setCanRefresh(offset <= 0);
+  }, []);
+
   useEffect(() => {
     loadRecommendedUsers();
   }, []);
@@ -106,11 +112,14 @@ export default function ExploreScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
+            refreshing={refreshing && canRefresh}
+            onRefresh={() => { if (canRefresh) handleRefresh(); }}
             tintColor={colors.accent}
+            enabled={canRefresh}
           />
         }
         contentContainerStyle={{ paddingBottom: 40 }}

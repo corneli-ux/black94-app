@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, Image, TouchableOpacity,
   StyleSheet, TextInput, ActivityIndicator, RefreshControl,
@@ -9,6 +9,7 @@ import { fetchChatList, Chat } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ChatListScreen({ navigation }: any) {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -16,6 +17,7 @@ export default function ChatListScreen({ navigation }: any) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [canRefresh, setCanRefresh] = useState(true);
   const currentUser = auth()?.currentUser;
 
   const load = useCallback(async () => {
@@ -45,34 +47,63 @@ export default function ChatListScreen({ navigation }: any) {
   };
 
   const deleteChat = async (chatId: string, chatName: string) => {
+    try {
+      // Delete all messages in the subcollection
+      const messagesRef = firestore().collection('chats').doc(chatId).collection('messages');
+      const batchSize = 100;
+      let query = messagesRef.limit(batchSize);
+      let deleted = 0;
+
+      // Batch delete — handles large collections properly
+      while (true) {
+        const snapshot = await query.get();
+        if (snapshot.empty) break;
+
+        const batch = firestore().batch();
+        snapshot.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        deleted += snapshot.size;
+
+        // If we deleted less than batchSize, we're done
+        if (snapshot.size < batchSize) break;
+      }
+
+      console.log(`[ChatDelete] Deleted ${deleted} messages from chat ${chatId}`);
+
+      // Delete the chat document
+      await firestore().collection('chats').doc(chatId).delete();
+
+      // Update local state
+      setChats(prev => prev.filter(c => c.id !== chatId));
+      setFiltered(prev => prev.filter(c => c.id !== chatId));
+
+      Alert.alert('Chat Deleted', `Conversation with ${chatName} has been deleted.`);
+    } catch (e) {
+      console.error('[ChatDelete] Error:', e);
+      Alert.alert('Error', 'Failed to delete chat. Please try again.');
+    }
+  };
+
+  const confirmDeleteChat = (chatId: string, chatName: string) => {
     Alert.alert(
       'Delete Chat',
-      `Delete your conversation with ${chatName}?`,
+      `Delete your conversation with ${chatName}? This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              // Delete all messages
-              const msgsSnap = await firestore()
-                .collection('chats').doc(chatId).collection('messages').get();
-              for (const doc of msgsSnap.docs) {
-                await doc.ref.delete();
-              }
-              // Delete chat document
-              await firestore().collection('chats').doc(chatId).delete();
-              setChats(prev => prev.filter(c => c.id !== chatId));
-              setFiltered(prev => prev.filter(c => c.id !== chatId));
-            } catch (e) {
-              Alert.alert('Error', 'Failed to delete chat');
-            }
-          },
+          onPress: () => deleteChat(chatId, chatName),
         },
       ]
     );
   };
+
+  // Pull-to-refresh guard: only refresh when scrolled to top
+  const handleScroll = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    setCanRefresh(offset <= 0);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -86,7 +117,7 @@ export default function ChatListScreen({ navigation }: any) {
 
       {/* Search */}
       <View style={styles.searchWrap}>
-        <Text style={{ color: colors.textSecondary, marginRight: 8, fontSize: 15 }}>🔍</Text>
+        <Ionicons name="search" size={16} color={colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search chats..."
@@ -104,11 +135,19 @@ export default function ChatListScreen({ navigation }: any) {
         <FlatList
           data={filtered}
           keyExtractor={item => item.id}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(); }}
+              refreshing={refreshing && canRefresh}
+              onRefresh={() => {
+                if (canRefresh) {
+                  setRefreshing(true);
+                  load();
+                }
+              }}
               tintColor={colors.accent}
+              enabled={canRefresh}
             />
           }
           renderItem={({ item }) => (
@@ -117,14 +156,7 @@ export default function ChatListScreen({ navigation }: any) {
               onPress={() => navigation.navigate('ChatRoom', { chat: item })}
               onLongPress={() => {
                 const name = item.otherUser?.displayName || item.otherUser?.username || 'this user';
-                Alert.alert(
-                  name,
-                  null,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete Chat', style: 'destructive', onPress: () => deleteChat(item.id, name) },
-                  ]
-                );
+                confirmDeleteChat(item.id, name);
               }}
             >
               <Avatar uri={item.otherUser?.profileImage} size={52} />
@@ -146,10 +178,13 @@ export default function ChatListScreen({ navigation }: any) {
               )}
             </TouchableOpacity>
           )}
-          ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: colors.border, marginLeft: 82 }} />}
+          ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 82 }} />}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
-              <Text style={{ color: colors.textSecondary, fontSize: 16 }}>No chats yet</Text>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="chatbubble-outline" size={36} color={colors.textSecondary} />
+              </View>
+              <Text style={{ color: colors.textSecondary, fontSize: 16, marginTop: 12 }}>No chats yet</Text>
               <Text style={{ color: colors.textMuted, fontSize: 14, marginTop: 8 }}>
                 Start a conversation from someone's profile
               </Text>
@@ -166,12 +201,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
-    borderBottomWidth: 0.5, borderBottomColor: colors.border,
+    height: 56,
+    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  headerTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
   searchWrap: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bgInput,
-    borderRadius: 25, marginHorizontal: 16, marginVertical: 10, paddingHorizontal: 14,
+    borderRadius: 25, marginHorizontal: 16, marginVertical: 10, paddingHorizontal: 14, gap: 8,
   },
   searchInput: { flex: 1, color: colors.text, fontSize: 15, paddingVertical: 11 },
   chatRow: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
@@ -181,8 +217,13 @@ const styles = StyleSheet.create({
   chatTime: { color: colors.textSecondary, fontSize: 13 },
   chatLastMsg: { color: colors.textSecondary, fontSize: 14 },
   unreadBadge: {
-    backgroundColor: colors.accent, width: 20, height: 20, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.accent, minWidth: 20, height: 20, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
   },
   unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  emptyIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center', justifyContent: 'center',
+  },
 });

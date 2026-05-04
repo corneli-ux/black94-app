@@ -142,11 +142,10 @@ export default function App() {
   return (
     <AppErrorBoundary>
       <View style={styles.rootContainer}>
-        <StatusBar style="light" backgroundColor="#07060b" />
+        <StatusBar style="light" backgroundColor="#000000" translucent={true} />
         {!isReady ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.appName}>Black94</Text>
-            <Text style={styles.loadingText}>Loading...</Text>
           </View>
         ) : (
           <Navigation />
@@ -159,11 +158,11 @@ export default function App() {
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#07060b', // Match splash screen background exactly
+    backgroundColor: '#000000',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#07060b',
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -171,12 +170,6 @@ const styles = StyleSheet.create({
     color: '#e7e9ea',
     fontSize: 32,
     fontWeight: '800',
-    marginBottom: 16,
-  },
-  loadingText: {
-    color: '#1d9bf0',
-    fontSize: 16,
-    textAlign: 'center',
   },
   container: {
     flex: 1,

@@ -37,6 +37,7 @@ export default function AffiliatesScreen({ navigation }: any) {
   const [affiliates, setAffiliates] = useState<Affiliate[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [canRefresh, setCanRefresh] = useState(true);
 
   const load = useCallback(async () => {
     if (!currentUser) { setLoading(false); return; }
@@ -69,6 +70,11 @@ export default function AffiliatesScreen({ navigation }: any) {
       setRefreshing(false);
     }
   }, [currentUser]);
+
+  const handleScroll = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    setCanRefresh(offset <= 0);
+  }, []);
 
   useEffect(() => { load(); }, []);
 
@@ -162,12 +168,15 @@ export default function AffiliatesScreen({ navigation }: any) {
           data={affiliates}
           keyExtractor={item => item.id}
           renderItem={renderItem}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(); }}
+              refreshing={refreshing && canRefresh}
+              onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }}
               tintColor={colors.accent}
+              enabled={canRefresh}
             />
           }
           ListEmptyComponent={

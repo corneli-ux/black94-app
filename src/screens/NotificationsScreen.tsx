@@ -33,6 +33,7 @@ export default function NotificationsScreen({ navigation }: any) {
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [canRefresh, setCanRefresh] = useState(true);
   const currentUser = auth()?.currentUser;
   const { setUnreadNotificationCount } = useAppStore();
 
@@ -97,6 +98,11 @@ export default function NotificationsScreen({ navigation }: any) {
     }
   };
 
+  const handleScroll = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    setCanRefresh(offset <= 0);
+  }, []);
+
   useEffect(() => { load(); }, []);
 
   const renderItem = ({ item }: { item: Notification }) => (
@@ -152,11 +158,14 @@ export default function NotificationsScreen({ navigation }: any) {
           data={notifs}
           keyExtractor={item => item.id}
           renderItem={renderItem}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(); }}
+              refreshing={refreshing && canRefresh}
+              onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }}
               tintColor={colors.accent}
+              enabled={canRefresh}
             />
           }
           ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: colors.border }} />}

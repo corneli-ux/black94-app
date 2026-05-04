@@ -2,13 +2,15 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator,
-  SafeAreaView,
+  SafeAreaView, Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ChatRoomScreen({ route, navigation }: any) {
   const { chat } = route.params;
@@ -16,9 +18,11 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const insets = useSafeAreaInsets();
 
   const load = useCallback(async (silent = false) => {
     try {
@@ -47,6 +51,20 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     load();
     pollRef.current = setInterval(() => load(true), 5000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
+
+  // Keyboard listeners for proper input positioning on Android
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   const handleSend = async () => {
@@ -87,49 +105,56 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { paddingBottom: 0 }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
+        </TouchableOpacity>
+        <Avatar uri={chat.otherUser?.profileImage} size={36} />
+        <View style={{ marginLeft: 10, flex: 1 }}>
+          <Text style={styles.headerName} numberOfLines={1}>
+            {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
+          </Text>
+          <Text style={styles.headerHandle}>@{chat.otherUser?.username}</Text>
+        </View>
+      </View>
+
+      {/* Messages */}
+      {loading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      ) : (
+        <FlatList
+          ref={flatRef}
+          data={messages}
+          keyExtractor={item => item.id}
+          renderItem={renderMessage}
+          contentContainerStyle={{ padding: 16, gap: 6 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', paddingTop: 80 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No messages yet. Say hi! 👋</Text>
+            </View>
+          }
+          onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
+          // Add bottom padding so last message isn't hidden behind input
+          ListFooterComponent={<View style={{ height: 8 }} />}
+        />
+      )}
+
+      {/* Input bar — always visible, stays above keyboard */}
       <KeyboardAvoidingView
-        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
+        style={{ backgroundColor: colors.bg }}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backArrow}>←</Text>
-          </TouchableOpacity>
-          <Avatar uri={chat.otherUser?.profileImage} size={36} />
-          <View style={{ marginLeft: 10, flex: 1 }}>
-            <Text style={styles.headerName} numberOfLines={1}>
-              {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
-            </Text>
-            <Text style={styles.headerHandle}>@{chat.otherUser?.username}</Text>
-          </View>
-        </View>
-
-        {/* Messages */}
-        {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator color={colors.accent} />
-          </View>
-        ) : (
-          <FlatList
-            ref={flatRef}
-            data={messages}
-            keyExtractor={item => item.id}
-            renderItem={renderMessage}
-            contentContainerStyle={{ padding: 16, gap: 6 }}
-            ListEmptyComponent={
-              <View style={{ alignItems: 'center', paddingTop: 80 }}>
-                <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No messages yet. Say hi! 👋</Text>
-              </View>
-            }
-            onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
-          />
-        )}
-
-        {/* Input */}
-        <View style={styles.inputRow}>
+        <View style={[
+          styles.inputRow,
+          // On Android, keyboard pushes view up automatically with resize mode
+          // Add bottom padding for safe area
+          { paddingBottom: Math.max(10, insets.bottom) }
+        ]}>
           <TextInput
             style={styles.input}
             placeholder="Type a message..."
@@ -145,7 +170,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           >
             {sending
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={styles.sendIcon}>↑</Text>
+              : <Ionicons name="arrow-up" size={18} color="#fff" />
             }
           </TouchableOpacity>
         </View>
@@ -160,10 +185,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
-    borderBottomWidth: 0.5, borderBottomColor: colors.border,
+    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
-  backArrow: { color: colors.text, fontSize: 22 },
   headerName: { color: colors.text, fontWeight: '700', fontSize: 15 },
   headerHandle: { color: colors.textSecondary, fontSize: 13 },
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginVertical: 2 },
@@ -177,7 +201,7 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 10,
     paddingHorizontal: 16, paddingVertical: 10,
-    borderTopWidth: 0.5, borderTopColor: colors.border,
+    borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.06)',
   },
   input: {
     flex: 1, backgroundColor: colors.bgInput, borderRadius: 22,
@@ -187,5 +211,4 @@ const styles = StyleSheet.create({
     width: 42, height: 42, borderRadius: 21, backgroundColor: colors.accent,
     alignItems: 'center', justifyContent: 'center',
   },
-  sendIcon: { color: '#fff', fontSize: 18, fontWeight: '700' },
 });
