@@ -25,11 +25,12 @@ const TRENDING_TOPICS = [
 ];
 
 const CATEGORIES = [
+  'Trending',
   'Technology',
-  'Business',
+  'Music',
   'Sports',
+  'News',
   'Entertainment',
-  'Science',
 ];
 
 export default function ExploreScreen() {
@@ -434,7 +435,7 @@ const styles = StyleSheet.create({
   userName: {
     color: '#e7e9ea',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 14,
   },
   userHandle: {
     color: '#94a3b8',
@@ -456,7 +457,7 @@ const styles = StyleSheet.create({
   },
   followBtnText: {
     color: '#000000',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   /* Following button: border border-[#64748b] text-[#e7e9ea] */
@@ -470,7 +471,7 @@ const styles = StyleSheet.create({
   },
   followingBtnText: {
     color: '#e7e9ea',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
 });

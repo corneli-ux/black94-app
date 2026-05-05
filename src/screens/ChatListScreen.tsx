@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchChatList, Chat } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
-import { Avatar } from '../components/Avatar';
+import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -283,9 +283,12 @@ export default function ChatListScreen({ navigation }: any) {
                   </View>
                   <View style={styles.chatInfo}>
                     <View style={styles.chatTopRow}>
-                      <Text style={styles.chatName} numberOfLines={1}>
-                        {item.otherUser?.displayName || item.otherUser?.username || 'Unknown'}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                        <Text style={styles.chatName} numberOfLines={1}>
+                          {item.otherUser?.displayName || item.otherUser?.username || 'Unknown'}
+                        </Text>
+                        <VerifiedBadge badge={item.otherUser?.badge} isVerified={item.otherUser?.isVerified} size={14} />
+                      </View>
                       <Text style={styles.chatTime}>{timeAgo(getLastMessageTime(item))}</Text>
                     </View>
                     <View style={styles.chatBottomRow}>

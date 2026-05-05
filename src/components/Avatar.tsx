@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export function Avatar({
   uri,
@@ -42,7 +43,10 @@ export function Avatar({
     : '?';
 
   return (
-    <View
+    <LinearGradient
+      colors={['#FFFFFF', '#9CA3AF']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={[
         styles.placeholder,
         { width: size, height: size, borderRadius: size / 2 },
@@ -50,7 +54,7 @@ export function Avatar({
       ]}
     >
       <Text style={[styles.placeholderText, { fontSize: size * 0.38 }]}>{initials}</Text>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -98,12 +102,9 @@ export function VerifiedBadge({ badge, isVerified, size = 18 }: { badge?: string
 const styles = StyleSheet.create({
   image: { backgroundColor: '#000000' },
   placeholder: {
-    backgroundColor: '#1e293b',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  placeholderText: { color: '#e7e9ea', fontWeight: '700' },
-  badge: {
-    marginLeft: 4,
-  },
+  placeholderText: { color: '#000000', fontWeight: '700' },
+  badge: {},
 });

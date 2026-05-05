@@ -5,7 +5,7 @@ import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
 import { auth } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
-import { Avatar } from '../components/Avatar';
+import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +17,8 @@ interface Notification {
   actorDisplayName: string;
   actorUsername: string;
   actorProfileImage: string | null;
+  actorIsVerified?: boolean;
+  actorBadge?: string;
   postCaption?: string;
   postId?: string;
   read: boolean;
@@ -27,15 +29,15 @@ interface Notification {
 function NotifTypeIcon({ type }: { type: string }) {
   const color = type === 'like' ? '#f43f5e'
     : type === 'repost' ? '#10b981'
-    : type === 'follow' ? '#3b82f6'
-    : type === 'comment' ? '#3b82f6'
+    : type === 'follow' ? '#FFFFFF'
+    : type === 'comment' ? '#FFFFFF'
     : '#94a3b8';
   const name = type === 'like' ? 'heart'
     : type === 'repost' ? 'repeat'
     : type === 'follow' ? 'person-add'
     : type === 'comment' ? 'chatbubble'
     : 'at';
-  return <Ionicons name={name} size={12} color={color} />;
+  return <Ionicons name={name} size={16} color={color} />;
 }
 
 export default function NotificationsScreen({ navigation }: any) {
@@ -86,6 +88,8 @@ export default function NotificationsScreen({ navigation }: any) {
           actorDisplayName: data.actorDisplayName || '',
           actorUsername: data.actorUsername || '',
           actorProfileImage: data.actorProfileImage || null,
+          actorIsVerified: data.actorIsVerified || false,
+          actorBadge: data.actorBadge || '',
           postCaption: data.postCaption || '',
           postId: data.postId || '',
           read: data.read || false,
@@ -142,6 +146,7 @@ export default function NotificationsScreen({ navigation }: any) {
       <View style={styles.content}>
         <Text style={styles.text}>
           <Text style={styles.bold}>{item.actorDisplayName}</Text>
+          <VerifiedBadge badge={item.actorIsVerified} isVerified={!!item.actorIsVerified} size={13} />
           <Text style={styles.action}>
             {item.type === 'like' && ' liked your post'}
             {item.type === 'comment' && ' commented on your post'}

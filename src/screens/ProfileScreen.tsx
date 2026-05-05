@@ -296,16 +296,16 @@ export default function ProfileScreen({ route, navigation }: any) {
       {/* Top bar */}
       <SafeAreaView edges={['top']}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.openDrawer()}>
-            <Text style={{ color: colors.text, fontSize: 24 }}>☰</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
+            <Ionicons name="arrow-back" size={22} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.topLogo}>Black94</Text>
+          <Text style={styles.topLogo}>Profile</Text>
           {isOwnProfile ? (
-            <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
-              <Text style={{ color: colors.text, fontSize: 20 }}>⚙️</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('EditProfile')} hitSlop={8}>
+              <Ionicons name="settings-outline" size={20} color={colors.text} />
             </TouchableOpacity>
           ) : (
-            <View style={{ width: 30 }} />
+            <View style={{ width: 22 }} />
           )}
         </View>
       </SafeAreaView>
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   coverWrap: { height: 128, width: '100%', overflow: 'hidden', backgroundColor: '#000000' },
   cover: { width: '100%', height: '100%' },
   /* Fallback: gradient from-[#1a2a1a] to-[#110f1a] → simple solid */
-  coverPlaceholder: { backgroundColor: '#110f1a' },
+  coverPlaceholder: { backgroundColor: '#110f1a' }, /* TODO: LinearGradient when expo-linear-gradient added */
   /* web: flex items-end justify-between px-5 -mt-8 mb-3 */
   avatarRow: {
     flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
@@ -480,8 +480,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 24,
     right: 24,
-    height: 4,
-    borderRadius: 2,
+    height: 1,
+    borderRadius: 0.5,
     backgroundColor: '#FFFFFF',
   },
   /* Tab text: text-[15px] font-medium, active: text-[#e7e9ea] font-bold, inactive: text-[#94a3b8] */

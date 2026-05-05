@@ -378,8 +378,8 @@ const styles = StyleSheet.create({
   drawerUserHandle: { color: colors.textSecondary, fontSize: 14 },
   tabBadge: {
     position: 'absolute',
-    top: -4,
-    right: -8,
+    top: 4,
+    right: -10,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
