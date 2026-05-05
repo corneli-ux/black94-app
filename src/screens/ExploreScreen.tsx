@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   /* Section title: fontSize: 18, fontWeight: 700, color: #e7e9ea */
   sectionTitle: {
     color: '#e7e9ea',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     paddingHorizontal: 16,
     marginBottom: 10,
@@ -367,11 +367,11 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 13,
   },
-  /* Tag: fontSize: 15, fontWeight: 600, color: #e7e9ea */
+  /* Tag: fontSize: 15, fontWeight: 700, color: #e7e9ea */
   topicTag: {
     color: '#e7e9ea',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 2,
   },
   /* Posts count: fontSize: 13, color: #64748b */

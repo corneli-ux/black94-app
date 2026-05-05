@@ -23,9 +23,20 @@ interface Notification {
   createdAt: number;
 }
 
-const NOTIF_ICONS: Record<string, string> = {
-  like: '❤️', comment: '💬', follow: '👤', repost: '🔁', mention: '@',
-};
+/* Notification type icon mapping — matches web SVG icons */
+function NotifTypeIcon({ type }: { type: string }) {
+  const color = type === 'like' ? '#f43f5e'
+    : type === 'repost' ? '#10b981'
+    : type === 'follow' ? '#3b82f6'
+    : type === 'comment' ? '#3b82f6'
+    : '#94a3b8';
+  const name = type === 'like' ? 'heart'
+    : type === 'repost' ? 'repeat'
+    : type === 'follow' ? 'person-add'
+    : type === 'comment' ? 'chatbubble'
+    : 'at';
+  return <Ionicons name={name} size={12} color={color} />;
+}
 
 export default function NotificationsScreen({ navigation }: any) {
   const [notifs, setNotifs] = useState<Notification[]>([]);
@@ -124,8 +135,9 @@ export default function NotificationsScreen({ navigation }: any) {
       <View style={styles.iconWrap}>
         <Avatar uri={item.actorProfileImage} size={36} />
         <View style={styles.typeIcon}>
-          <Text style={{ fontSize: 12 }}>{NOTIF_ICONS[item.type] || '🔔'}</Text>
+          <NotifTypeIcon type={item.type} />
         </View>
+        {!item.read && <View style={styles.unreadDot} />}
       </View>
       <View style={styles.content}>
         <Text style={styles.text}>
@@ -212,14 +224,19 @@ const styles = StyleSheet.create({
   iconWrap: { position: 'relative' },
   typeIcon: {
     position: 'absolute', bottom: -2, right: -4,
-    width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a1a1a',
+    width: 20, height: 20, borderRadius: 10, backgroundColor: '#000000',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: colors.bg,
+  },
+  unreadDot: {
+    position: 'absolute', top: 0, right: 0,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: '#FFFFFF',
   },
   content: { flex: 1 },
   text: { color: colors.text, fontSize: 15, lineHeight: 24 },
   bold: { fontWeight: '700' },
   action: { fontWeight: '400', color: colors.text },
   postSnippet: { color: colors.textSecondary, fontSize: 13, marginTop: 3 },
-  time: { color: colors.textSecondary, fontSize: 13, marginTop: 4 },
+  time: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
 });

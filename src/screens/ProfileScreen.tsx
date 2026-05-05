@@ -480,8 +480,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 24,
     right: 24,
-    height: 1.5,
-    borderRadius: 1,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: '#FFFFFF',
   },
   /* Tab text: text-[15px] font-medium, active: text-[#e7e9ea] font-bold, inactive: text-[#94a3b8] */
