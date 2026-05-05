@@ -87,34 +87,17 @@ export default function App() {
         if (forceReady) return;
 
         if (fbUser) {
-          // Set basic user data IMMEDIATELY from Firebase auth (non-blocking)
-          const baseUser = {
-            id: fbUser.uid,
-            email: fbUser.email || '',
-            username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid,
-            displayName: fbUser.displayName || 'User',
-            bio: '',
-            profileImage: fbUser.photoURL || null,
-            coverImage: null,
-            role: 'personal',
-            badge: '',
-            subscription: 'free',
-            isVerified: false,
-            createdAt: Date.now(),
-          };
-          setUser(baseUser);
-          setToken(baseUser.id);
-          setLoading(false);
-          setIsReady(true);
-
-          // Fetch full profile in background (non-blocking)
-          fetchUserProfile(fbUser.uid)
-            .then(profile => {
-              if (profile) setUser(profile);
-            })
-            .catch(err => {
-              console.warn('[App] Background profile fetch failed:', err);
-            });
+          setUser(null); setToken(fbUser.uid); setLoading(false);
+          fetchUserProfile(fbUser.uid).then(profile => {
+            if (profile) { setUser(profile); } else {
+              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+            }
+            setIsReady(true);
+          }).catch(err => {
+            console.warn('[App] Profile fetch failed, using Firebase data:', err);
+            setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+            setIsReady(true);
+          });
         } else {
           setUser(null);
           setToken(null);

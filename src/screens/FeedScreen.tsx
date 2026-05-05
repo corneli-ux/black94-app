@@ -10,6 +10,7 @@ import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post }
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
+import CommentSheet from '../components/CommentSheet';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -90,7 +91,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
   onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string) => void;
+  onComment: (id: string, caption?: string) => void;
   navigation: any;
 }) {
   const currentUser = auth()?.currentUser;
@@ -205,7 +206,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {/* Action bar */}
           <View style={styles.actions}>
             {/* Comment */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => onComment(post.id)}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
               <View style={styles.actionIconWrap}>
                 <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
               </View>
@@ -290,6 +291,8 @@ export default function FeedScreen({ navigation }: any) {
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('Discover');
+  const [commentPostId, setCommentPostId] = useState<string | null>(null);
+  const [commentCaption, setCommentCaption] = useState<string>('');
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
@@ -513,9 +516,7 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
-  const handleComment = (postId: string) => {
-    Alert.alert('Comments', 'Comments coming soon!');
-  };
+  const handleComment = (postId: string) => { setCommentPostId(postId); };
 
   const handlePost = async () => {
     if (!composeText.trim()) return;
@@ -624,7 +625,7 @@ export default function FeedScreen({ navigation }: any) {
             onBookmark={handleBookmark}
             onDelete={handleDelete}
             onRepost={handleRepost}
-            onComment={handleComment}
+            onComment={(id, caption) => { setCommentPostId(id); setCommentCaption(caption || ''); }}
             navigation={navigation}
           />
         )}
@@ -741,6 +742,14 @@ export default function FeedScreen({ navigation }: any) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <CommentSheet
+        visible={!!commentPostId}
+        onClose={() => { setCommentPostId(null); setCommentCaption(''); loadFeed(false); }}
+        postId={commentPostId || ''}
+        postCaption={commentCaption}
+        onCommentSent={() => { setPosts(prev => prev.map(p => p.id === commentPostId ? { ...p, commentCount: (p.commentCount || 0) + 1 } : p)); }}
+      />
     </View>
   );
 }

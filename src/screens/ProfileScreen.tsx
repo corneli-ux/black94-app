@@ -369,12 +369,12 @@ export default function ProfileScreen({ route, navigation }: any) {
         <Text style={styles.handle}>@{user?.username}</Text>
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
         <View style={styles.statsRow}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'following' } as never)}>
             <Text style={styles.statText}>
               <Text style={styles.statNum}>{followingCount}</Text> Following
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'followers' } as never)}>
             <Text style={styles.statText}>
               <Text style={styles.statNum}>{followersCount}</Text> Followers
             </Text>

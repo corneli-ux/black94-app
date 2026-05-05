@@ -583,3 +583,89 @@ export async function checkFollowing(targetUserId: string): Promise<boolean> {
   const docSnap = await firestore().collection('follows').doc(`${userId}_${targetUserId}`).get();
   return docSnap.exists;
 }
+
+/* ── Comments ─────────────────────────────────────────────────────────────── */
+
+export interface CommentData {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  authorProfileImage: string;
+  authorIsVerified: boolean;
+  authorBadge: string;
+  content: string;
+  createdAt: number;
+}
+
+export async function fetchPostComments(postId: string): Promise<CommentData[]> {
+  try {
+    const snapshot = await firestore()
+      .collection('post_comments')
+      .where('postId', '==', postId)
+      .orderBy('createdAt', 'asc')
+      .limit(50)
+      .get();
+    return snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        postId: data.postId || '',
+        authorId: data.authorId || '',
+        authorUsername: data.authorUsername || '',
+        authorDisplayName: data.authorDisplayName || '',
+        authorProfileImage: data.authorProfileImage || '',
+        authorIsVerified: data.authorIsVerified || false,
+        authorBadge: data.authorBadge || '',
+        content: data.content || '',
+        createdAt: tsToMillis(data.createdAt),
+      };
+    });
+  } catch (e) {
+    console.error('[Comments] Failed to fetch:', e);
+    return [];
+  }
+}
+
+export async function addPostComment(postId: string, content: string): Promise<CommentData | null> {
+  const userId = currentUser()?.uid;
+  if (!userId || !content.trim()) return null;
+  
+  const userDocSnap = await firestore().collection('users').doc(userId).get();
+  const userData = userDocSnap.data();
+
+  const docRef = await firestore().collection('post_comments').add({
+    postId,
+    authorId: userId,
+    authorUsername: userData?.username || '',
+    authorDisplayName: userData?.displayName || '',
+    authorProfileImage: userData?.profileImage || '',
+    authorIsVerified: userData?.isVerified || false,
+    authorBadge: userData?.badge || '',
+    content: content.trim(),
+    createdAt: firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Increment commentCount on parent post
+  try {
+    await firestore().collection('posts').doc(postId).update({
+      commentCount: firestore.FieldValue.increment(1),
+    });
+  } catch (e) {
+    console.warn('[Comments] Failed to increment commentCount:', e);
+  }
+
+  return {
+    id: docRef.id,
+    postId,
+    authorId: userId,
+    authorUsername: userData?.username || '',
+    authorDisplayName: userData?.displayName || '',
+    authorProfileImage: userData?.profileImage || '',
+    authorIsVerified: userData?.isVerified || false,
+    authorBadge: userData?.badge || '',
+    content: content.trim(),
+    createdAt: Date.now(),
+  };
+}

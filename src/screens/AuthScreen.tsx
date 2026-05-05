@@ -57,9 +57,7 @@ export default function AuthScreen() {
       //   iOS     → web OAuth first (ASWebAuthenticationSession is reliable)
       // ═══════════════════════════════════════════════════════════════════
 
-      const strategies = Platform.OS === 'android'
-        ? ['native', 'web']
-        : ['web', 'native'];
+      const strategies = ['web', 'native'];
 
       for (const strategy of strategies) {
         try {
