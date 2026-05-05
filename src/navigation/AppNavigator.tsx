@@ -142,7 +142,7 @@ function TabBarBadge({ count }: { count: number }) {
 function MainTabs() {
   const { unreadNotificationCount, user } = useAppStore();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = 56 + (insets.bottom || 0);
+  const tabBarHeight = 50 + (insets.bottom || 0);
   return (
     <Tab.Navigator
       screenOptions={{
@@ -155,7 +155,6 @@ function MainTabs() {
           backgroundColor: '#000000',
           borderTopWidth: 0.5,
           borderTopColor: 'rgba(255,255,255,0.06)',
-          paddingTop: 6,
           height: tabBarHeight,
           paddingBottom: insets.bottom || 0,
           elevation: 8,

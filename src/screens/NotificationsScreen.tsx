@@ -8,6 +8,7 @@ import { tsToMillis } from '../lib/api';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
+import { Ionicons } from '@expo/vector-icons';
 
 interface Notification {
   id: string;
@@ -121,7 +122,7 @@ export default function NotificationsScreen({ navigation }: any) {
       }}
     >
       <View style={styles.iconWrap}>
-        <Avatar uri={item.actorProfileImage} size={44} />
+        <Avatar uri={item.actorProfileImage} size={36} />
         <View style={styles.typeIcon}>
           <Text style={{ fontSize: 12 }}>{NOTIF_ICONS[item.type] || '🔔'}</Text>
         </View>
@@ -182,10 +183,12 @@ export default function NotificationsScreen({ navigation }: any) {
           ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: colors.border }} />}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
-              <Text style={{ fontSize: 40, marginBottom: 16 }}>🔔</Text>
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 6 }}>No notifications yet</Text>
-              <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 40 }}>
-                When someone likes, comments, or follows you, it'll show up here.
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <Ionicons name="notifications-outline" size={28} color="#94a3b8" />
+              </View>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 6 }}>Nothing to see here — yet</Text>
+              <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 40, fontSize: 15 }}>
+                Likes, shares, and follows will show up here.
               </Text>
             </View>
           }
@@ -202,21 +205,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
-  headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  headerTitle: { color: colors.text, fontSize: 20, fontWeight: '700' },
   markAllText: { color: colors.accent, fontSize: 14, fontWeight: '600' },
-  row: { flexDirection: 'row', padding: 16, gap: 14 },
-  rowUnread: { backgroundColor: '#0a0a0f' },
+  row: { flexDirection: 'row', padding: 12, paddingHorizontal: 16, gap: 12 },
+  rowUnread: { backgroundColor: 'rgba(255,255,255,0.03)' },
   iconWrap: { position: 'relative' },
   typeIcon: {
     position: 'absolute', bottom: -2, right: -4,
-    width: 22, height: 22, borderRadius: 11, backgroundColor: '#1a1a1a',
+    width: 20, height: 20, borderRadius: 10, backgroundColor: '#1a1a1a',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: colors.bg,
   },
   content: { flex: 1 },
-  text: { color: colors.text, fontSize: 14, lineHeight: 20 },
+  text: { color: colors.text, fontSize: 15, lineHeight: 24 },
   bold: { fontWeight: '700' },
   action: { fontWeight: '400', color: colors.text },
   postSnippet: { color: colors.textSecondary, fontSize: 13, marginTop: 3 },
-  time: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
+  time: { color: colors.textSecondary, fontSize: 13, marginTop: 4 },
 });

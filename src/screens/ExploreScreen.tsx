@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   categoryPillActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#e7e9ea',
   },
   categoryPillText: {
     color: '#e7e9ea',

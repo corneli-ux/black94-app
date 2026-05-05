@@ -546,7 +546,7 @@ export default function FeedScreen({ navigation }: any) {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-              <Avatar uri={currentUser?.photoURL} name={currentUser?.displayName} size={34} />
+              <Ionicons name="menu" size={22} color="#e7e9ea" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
@@ -577,7 +577,7 @@ export default function FeedScreen({ navigation }: any) {
     );
   }
 
-  const tabBarHeight = 56 + (insets.bottom || 0);
+  const tabBarHeight = 50 + (insets.bottom || 0);
   const fabBottom = tabBarHeight + 8;
 
   return (
@@ -586,7 +586,7 @@ export default function FeedScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-            <Avatar uri={currentUser?.photoURL} name={currentUser?.displayName} size={34} />
+            <Ionicons name="menu" size={22} color="#e7e9ea" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Image source={require('../../assets/icon.png')} style={styles.logoImage} />

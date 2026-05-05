@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
     height: 56,
   },
-  headerTitle: { color: '#e7e9ea', fontSize: 17, fontWeight: '700' },
+  headerTitle: { color: '#e7e9ea', fontSize: 20, fontWeight: '700' },
 
   /* ── Tab Switcher ── */
   tabBar: {

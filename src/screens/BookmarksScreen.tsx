@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator,  } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator,  Dimensions, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -9,6 +9,8 @@ import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { Post } from '../lib/api';
+
+const { width: SCREEN_W } = Dimensions.get('window');
 
 export default function BookmarksScreen() {
   const navigation = useNavigation();
@@ -190,7 +192,7 @@ function BookmarkPostCard({ post, navigation }: { post: Post; navigation: any })
             }
           }}
         >
-          <Avatar uri={post.authorProfileImage} size={42} />
+          <Avatar uri={post.authorProfileImage} size={48} />
         </TouchableOpacity>
         <View style={styles.postMeta}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
@@ -260,9 +262,9 @@ const styles = StyleSheet.create({
   postHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
   postMeta: { flex: 1, marginLeft: 10 },
   displayName: { color: colors.text, fontWeight: '700', fontSize: 15 },
-  handle: { color: colors.textSecondary, fontSize: 14 },
-  dot: { color: colors.textSecondary, fontSize: 14 },
-  time: { color: colors.textSecondary, fontSize: 14 },
+  handle: { color: colors.textSecondary, fontSize: 15 },
+  dot: { color: colors.textSecondary, fontSize: 15 },
+  time: { color: colors.textSecondary, fontSize: 15 },
   caption: {
     color: colors.text,
     fontSize: 15,
@@ -272,11 +274,11 @@ const styles = StyleSheet.create({
   },
   mediaContainer: {
     marginLeft: 52,
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 4,
   },
-  media: { width: '100%', height: 220, backgroundColor: '#111' },
+  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#111' },
   statsRow: {
     flexDirection: 'row',
     gap: 20,
@@ -296,7 +298,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 20,
   },
-  emptyTitle: { color: colors.text, fontSize: 20, fontWeight: '700', marginBottom: 8 },
+  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 8 },
   emptySubtitle: {
     color: colors.textSecondary,
     fontSize: 15,

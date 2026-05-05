@@ -187,8 +187,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
         {!isMine && <Avatar uri={chat.otherUser?.profileImage} size={28} />}
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-          <Text style={[styles.bubbleText, isMine && { color: '#FFFFFF' }]}>{item.content}</Text>
-          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(255,255,255,0.6)' } : { color: '#94a3b8' }]}>
+          <Text style={[styles.bubbleText, isMine && { color: '#000000' }]}>{item.content}</Text>
+          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }]}>
             {formatTime(item.createdAt)}
           </Text>
         </View>
@@ -409,22 +409,24 @@ const styles = StyleSheet.create({
   },
 
   /* ── Message Bubbles ──
-     Web: mine = bg-[#3b82f6] text-white rounded-br-md
-          theirs = bg-white/[0.06] text-[#e7e9ea] rounded-bl-md
-     max-w-[75%], px-3 py-2 rounded-2xl, text-[15px] leading-relaxed */
+     Web: mine = bg-gradient(135deg, #FFFFFF, #D1D5DB) text-black rounded-2xl rounded-br-sm
+          theirs = bg-white/[0.08] text-[#e7e9ea] rounded-2xl rounded-bl-sm border-white/[0.06]
+     max-w-[82%], px-3.5 py-2.5, text-[14px] leading-relaxed */
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginVertical: 2 },
   msgRowRight: { justifyContent: 'flex-end' },
   msgRowLeft: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '75%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
+  bubble: { maxWidth: '82%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleMine: {
-    backgroundColor: '#3b82f6',
-    borderBottomRightRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderBottomRightRadius: 4,
   },
   bubbleTheirs: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderBottomLeftRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
-  bubbleText: { color: '#e7e9ea', fontSize: 15, lineHeight: 22 },
+  bubbleText: { color: '#e7e9ea', fontSize: 14, lineHeight: 22 },
   bubbleTime: { fontSize: 11, marginTop: 4 },
 
   /* ── Input Bar — matches web ChatInputBar ── */
