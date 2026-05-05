@@ -185,7 +185,9 @@ async function attemptAuthFlow(
     response_type: 'code',
     scope: 'openid profile email',
     access_type: 'offline',
-    prompt: 'select_account',
+    // Do NOT use prompt: 'select_account' — it forces Google to show the
+    // "Signing back in to project-XXXXX" page with project ID.
+    // Without prompt, Google auto-selects the account for seamless experience.
     // PKCE — prevents the Firebase auth handler from stealing our code
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',

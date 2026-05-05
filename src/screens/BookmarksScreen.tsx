@@ -9,6 +9,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { Post } from '../lib/api';
+import CommentSheet from '../components/CommentSheet';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -25,6 +26,7 @@ export default function BookmarksScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [canRefresh, setCanRefresh] = useState(true);
+  const [commentPostId, setCommentPostId] = useState<string | null>(null);
 
   const loadBookmarks = useCallback(async () => {
     const userId = auth()?.currentUser?.uid;
@@ -102,7 +104,7 @@ export default function BookmarksScreen() {
       <FlatList
         data={bookmarks}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <FullPostCard post={item} navigation={navigation} onUnbookmark={() => setBookmarks(prev => prev.filter(p => p.id !== item.id))} />}
+        renderItem={({ item }) => <FullPostCard post={item} navigation={navigation} onUnbookmark={() => setBookmarks(prev => prev.filter(p => p.id !== item.id))} onComment={(id) => setCommentPostId(id)} />}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing && canRefresh} onRefresh={() => { if (canRefresh) handleRefresh(); }} tintColor={colors.accent} enabled={canRefresh} />}
@@ -122,11 +124,18 @@ export default function BookmarksScreen() {
         }
         contentContainerStyle={bookmarks.length === 0 ? styles.emptyList : undefined}
       />
+
+      <CommentSheet
+        visible={!!commentPostId}
+        onClose={() => setCommentPostId(null)}
+        postId={commentPostId || ''}
+        onCommentSent={() => {}}
+      />
     </View>
   );
 }
 
-function FullPostCard({ post, navigation, onUnbookmark }: { post: Post; navigation: any; onUnbookmark: () => void }) {
+function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Post; navigation: any; onUnbookmark: () => void; onComment: (id: string) => void }) {
   const [liked, setLiked] = useState(post.liked);
   const [bookmarked, setBookmarked] = useState(true);
   const [likeCount, setLikeCount] = useState(post.likeCount);
@@ -159,7 +168,7 @@ function FullPostCard({ post, navigation, onUnbookmark }: { post: Post; navigati
     onUnbookmark();
   };
 
-  const handleComment = () => { Alert.alert('Comments', 'Tap on a post to view comments'); };
+  const handleComment = () => { onComment(post.id); };
 
   const handleShare = async () => { try { await Share.share({ message: 'Check out this post on Black94!' }); } catch {} };
 

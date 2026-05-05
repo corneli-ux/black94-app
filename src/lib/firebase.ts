@@ -1,9 +1,13 @@
 // Firebase REST API — NO Web SDK, NO polyfills needed.
 // Uses pure fetch() for Auth + Firestore. Works in React Native without any shims.
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const API_KEY = 'AIzaSyDOGRbI4V82VJ0KZND3v1ggfO5s3933-3w';
 const PROJECT_ID = 'black94';
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+
+const AUTH_STORAGE_KEY = '@black94/auth';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    AUTH — REST API
@@ -20,6 +24,49 @@ let _authUser: AuthUser | null = null;
 let _idToken: string | null = null;
 let _refreshToken: string | null = null;
 const _authListeners = new Set<(user: any) => void>();
+
+/* ── Persistent Auth Storage ────────────────────────────────────────── */
+
+async function _persistAuth(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+      authUser: _authUser,
+      idToken: _idToken,
+      refreshToken: _refreshToken,
+    }));
+    console.log('[Firebase] Auth state persisted to AsyncStorage');
+  } catch (e) {
+    console.warn('[Firebase] Failed to persist auth:', e);
+  }
+}
+
+async function _restoreAuth(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (data.refreshToken) {
+      _refreshToken = data.refreshToken;
+      _idToken = data.idToken || null;
+      _authUser = data.authUser || null;
+      console.log('[Firebase] Auth state restored from AsyncStorage, uid:', _authUser?.uid);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn('[Firebase] Failed to restore auth:', e);
+    return false;
+  }
+}
+
+async function _clearAuthStorage(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+    console.log('[Firebase] Auth storage cleared');
+  } catch (e) {
+    console.warn('[Firebase] Failed to clear auth storage:', e);
+  }
+}
 
 function _notifyAuthListeners() {
   _authListeners.forEach(cb => {
@@ -75,6 +122,7 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
 
   console.log('[Firebase] Sign-in successful (REST):', _authUser.uid);
   _notifyAuthListeners();
+  _persistAuth(); // Persist tokens so user stays logged in
 
   return { user: _authUser };
 }
@@ -87,6 +135,7 @@ async function signOut(_authRef?: any) {
   _refreshToken = null;
   console.log('[Firebase] Signed out (REST)');
   _notifyAuthListeners();
+  _clearAuthStorage(); // Clear persisted tokens on sign out
 }
 
 /* ── Token refresh ────────────────────────────────────────────────────────── */
@@ -129,6 +178,7 @@ async function _getValidToken(): Promise<string> {
     if (!data.id_token) throw new Error('Token refresh failed');
     _idToken = data.id_token;
     _refreshToken = data.refresh_token || _refreshToken;
+    _persistAuth(); // Persist refreshed tokens
     return _idToken;
   } catch (e: any) {
     // Refresh failed — clear everything only if refresh token is truly dead
@@ -687,3 +737,5 @@ export {
 };
 
 export { _getValidToken as getValidToken };
+export { _restoreAuth as restoreAuth };
+export { _persistAuth as persistAuth };

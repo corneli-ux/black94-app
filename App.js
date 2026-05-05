@@ -6,7 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 
 // Initialize WebBrowser for OAuth callback handling
 WebBrowser.maybeCompleteAuthSession();
-import { onAuthStateChanged, auth } from './src/lib/firebase';
+import { onAuthStateChanged, auth, restoreAuth, getValidToken } from './src/lib/firebase';
 import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
 import { fetchUserProfile } from './src/lib/api';
@@ -65,53 +65,86 @@ export default function App() {
     let unsubscribe = undefined;
     let forceReady = false;
 
-    // Safety timeout
+    // Safety timeout — longer to allow auth restoration
     const safetyTimer = setTimeout(() => {
       console.warn('[App] Safety timeout reached — forcing ready');
       forceReady = true;
       setIsReady(true);
     }, FORCE_READY_TIMEOUT);
 
-    try {
-      const authInstance = auth();
+    (async () => {
+      try {
+        // Step 1: Try to restore persisted auth from AsyncStorage
+        const restored = await restoreAuth();
+        const authInstance = auth();
 
-      if (!authInstance) {
-        console.warn('[App] Firebase Auth null — showing login screen');
-        setUser(null);
-        setToken(null);
-        setIsReady(true);
-        return;
-      }
-
-      unsubscribe = onAuthStateChanged(authInstance, (fbUser) => {
-        if (forceReady) return;
-
-        if (fbUser) {
-          setUser(null); setToken(fbUser.uid); setLoading(false);
-          fetchUserProfile(fbUser.uid).then(profile => {
-            if (profile) { setUser(profile); } else {
-              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+        if (restored && authInstance.currentUser) {
+          console.log('[App] Auth restored — validating token...');
+          try {
+            // Validate the token by making a Firestore call
+            const validToken = await getValidToken();
+            if (validToken) {
+              console.log('[App] Token valid, auto-login successful');
+              const fbUser = authInstance.currentUser;
+              setToken(fbUser.uid);
+              setLoading(false);
+              fetchUserProfile(fbUser.uid).then(profile => {
+                if (profile) { setUser(profile); } else {
+                  setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+                }
+                setIsReady(true);
+              }).catch(err => {
+                console.warn('[App] Profile fetch failed after restore, using Firebase data:', err);
+                setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+                setIsReady(true);
+              });
+              return; // Skip onAuthStateChanged — we handled it
             }
-            setIsReady(true);
-          }).catch(err => {
-            console.warn('[App] Profile fetch failed, using Firebase data:', err);
-            setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
-            setIsReady(true);
-          });
-        } else {
+          } catch (e) {
+            console.warn('[App] Token validation failed after restore:', e);
+            // Token expired, need to refresh or re-login
+          }
+        }
+
+        // Step 2: Normal auth state listener (for fresh login or sign-up)
+        if (!authInstance) {
+          console.warn('[App] Firebase Auth null — showing login screen');
           setUser(null);
           setToken(null);
-          setLoading(false);
           setIsReady(true);
+          return;
         }
-      });
-    } catch (initErr) {
-      console.error('[App] Firebase init error:', initErr);
-      setUser(null);
-      setToken(null);
-      setLoading(false);
-      setIsReady(true);
-    }
+
+        unsubscribe = onAuthStateChanged(authInstance, (fbUser) => {
+          if (forceReady) return;
+
+          if (fbUser) {
+            setUser(null); setToken(fbUser.uid); setLoading(false);
+            fetchUserProfile(fbUser.uid).then(profile => {
+              if (profile) { setUser(profile); } else {
+                setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+              }
+              setIsReady(true);
+            }).catch(err => {
+              console.warn('[App] Profile fetch failed, using Firebase data:', err);
+              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+              setIsReady(true);
+            });
+          } else {
+            setUser(null);
+            setToken(null);
+            setLoading(false);
+            setIsReady(true);
+          }
+        });
+      } catch (initErr) {
+        console.error('[App] Firebase init error:', initErr);
+        setUser(null);
+        setToken(null);
+        setLoading(false);
+        setIsReady(true);
+      }
+    })();
 
     return () => {
       clearTimeout(safetyTimer);

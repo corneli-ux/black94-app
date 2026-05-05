@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, firestore, getValidToken } from '../lib/firebase';
 import { fetchUserProfile, User } from '../lib/api';
+import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 
 type Role = 'personal' | 'creator' | 'professional' | 'business';
@@ -75,6 +76,7 @@ async function openImageLibrary() {
 
 export default function EditProfileScreen({ navigation }: any) {
   const currentUid = auth()?.currentUser?.uid ?? '';
+  const { setUser: setGlobalUser } = useAppStore();
 
   const [user, setUser] = useState<User | null>(null);
   const [displayName, setDisplayName] = useState('');
@@ -244,7 +246,24 @@ export default function EditProfileScreen({ navigation }: any) {
       });
 
       Alert.alert('Success', 'Profile updated successfully', [
-        { text: 'OK', onPress: () => navigation.navigate('Profile') },
+        { text: 'OK', onPress: () => {
+          // Update Zustand store so sidebar/drawer shows the new profile info immediately
+          setGlobalUser({
+            id: currentUid,
+            email: user?.email || '',
+            username: username,
+            displayName: displayName.trim(),
+            bio: bio.trim(),
+            profileImage: finalProfileImage,
+            coverImage: finalCoverImage,
+            role,
+            badge: user?.badge || '',
+            subscription: user?.subscription || 'free',
+            isVerified: user?.isVerified || false,
+            createdAt: user?.createdAt || Date.now(),
+          });
+          navigation.navigate('Profile');
+        }},
       ]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to update profile');
