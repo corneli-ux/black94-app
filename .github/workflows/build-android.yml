@@ -37,6 +37,15 @@ jobs:
       - name: Expo prebuild (generate android/)
         run: npx expo prebuild --platform android --clean
 
+      - name: Fix splashscreen_logo drawable
+        run: |
+          # expo-splash-screen references drawable/splashscreen_logo but
+          # does not create it when no splash.image is configured.
+          # Copy the app icon as the splash logo so the resource link resolves.
+          cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
+          echo "Created splashscreen_logo drawable from app icon"
+          ls -la android/app/src/main/res/drawable/splashscreen_logo.png
+
       - name: Setup release keystore and signing config
         run: |
           # Copy production keystore
@@ -122,7 +131,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew clean assembleRelease --no-build-cache
           echo "APK built successfully"
 
       - name: Upload APK
@@ -159,6 +168,12 @@ jobs:
 
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
+
+      - name: Fix splashscreen_logo drawable
+        run: |
+          cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
+          echo "Created splashscreen_logo drawable from app icon"
+          ls -la android/app/src/main/res/drawable/splashscreen_logo.png
 
       - name: Setup release keystore and signing config
         run: |
