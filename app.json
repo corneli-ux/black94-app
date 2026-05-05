@@ -9,8 +9,6 @@
     "backgroundColor": "#000000",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
     "ios": {
@@ -37,8 +35,7 @@
         "barStyle": "light-content"
       },
       "splash": {
-        "backgroundColor": "#000000",
-        "resizeMode": "contain"
+        "backgroundColor": "#000000"
       }
     },
     "web": {
