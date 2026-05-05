@@ -278,7 +278,6 @@ export default function FeedScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState<Tab>('Discover');
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
-  const [canRefresh, setCanRefresh] = useState(true);
   const insets = useSafeAreaInsets();
   const lastDocRef = useRef<any>(null);
 
@@ -464,12 +463,11 @@ export default function FeedScreen({ navigation }: any) {
   useEffect(() => { loadFeed(); }, []);
 
   const onRefresh = useCallback(() => {
-    if (!canRefresh) return;
     setRefreshing(true);
     setAllLoaded(false);
     lastDocRef.current = null;
     loadFeed(false);
-  }, [canRefresh, loadFeed]);
+  }, [loadFeed]);
 
   const onEndReached = useCallback(() => {
     if (loadingMore || allLoaded) return;
@@ -522,22 +520,6 @@ export default function FeedScreen({ navigation }: any) {
       setPosting(false);
     }
   };
-
-  // Scroll tracking for pull-to-refresh guard — simplified
-  const handleScroll = useCallback((event: any) => {
-    const offset = event.nativeEvent.contentOffset.y;
-    // Only allow refresh when at the very top
-    setCanRefresh(offset <= 0);
-  }, []);
-
-  const handleMomentumScrollBegin = useCallback(() => {
-    setCanRefresh(false);
-  }, []);
-
-  const handleScrollEndDrag = useCallback((event: any) => {
-    const offset = event.nativeEvent.contentOffset.y;
-    if (offset <= 0) setCanRefresh(true);
-  }, []);
 
   if (loading) {
     return (
@@ -640,9 +622,6 @@ export default function FeedScreen({ navigation }: any) {
             progressViewOffset={0}
           />
         }
-        onScroll={handleScroll}
-        onMomentumScrollBegin={handleMomentumScrollBegin}
-        onScrollEndDrag={handleScrollEndDrag}
         scrollEventThrottle={16}
         nestedScrollEnabled={true}
         onEndReached={onEndReached}

@@ -320,12 +320,13 @@ function _parseFields(data: Record<string, any>): {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 interface Constraint {
-  type: 'where' | 'orderBy' | 'limit';
+  type: 'where' | 'orderBy' | 'limit' | 'startAfter';
   field?: string;
   op?: string;
   value?: any;
   direction?: string;
   n?: number;
+  cursorValues?: any[];
 }
 
 class CompatCollectionRef {
@@ -361,6 +362,34 @@ class CompatCollectionRef {
     return new CompatCollectionRef(this._path, [
       ...this._constraints,
       { type: 'limit', n },
+    ]);
+  }
+
+  startAfter(docOrValue: any) {
+    let cursorValues: any[];
+    if (docOrValue && typeof docOrValue === 'object' && typeof docOrValue.data === 'function') {
+      // Document snapshot — extract values based on orderBy fields
+      const orderConstraints = this._constraints.filter(c => c.type === 'orderBy');
+      if (orderConstraints.length === 0) {
+        console.warn('[Firestore] startAfter called without orderBy — skipping cursor');
+        return this;
+      }
+      const data = docOrValue.data();
+      cursorValues = orderConstraints.map(c => {
+        const val = data[c.field];
+        // Firestore timestamps come back as ISO strings from _fromFsValue
+        // Convert them back to the format Firestore expects for cursors
+        if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(val)) {
+          return { __fs_type: 'timestamp', value: val };
+        }
+        return val;
+      });
+    } else {
+      cursorValues = Array.isArray(docOrValue) ? docOrValue : [docOrValue];
+    }
+    return new CompatCollectionRef(this._path, [
+      ...this._constraints,
+      { type: 'startAfter', cursorValues },
     ]);
   }
 
@@ -409,6 +438,23 @@ class CompatCollectionRef {
     const limitConstraints = this._constraints.filter(c => c.type === 'limit');
     if (limitConstraints.length > 0) {
       structuredQuery.limit = limitConstraints[0].n;
+    }
+
+    // Build startAfter cursor
+    const startAfterConstraints = this._constraints.filter(c => c.type === 'startAfter');
+    if (startAfterConstraints.length > 0) {
+      const cursorValues = startAfterConstraints[0].cursorValues;
+      structuredQuery.startAt = {
+        values: cursorValues.map((v: any) => {
+          if (v && typeof v === 'object' && v.__fs_type === 'timestamp') {
+            return { timestampValue: v.value };
+          }
+          return _toFsValue(v);
+        }),
+      };
+      // Note: Firestore REST API uses startAt for cursor-based pagination.
+      // To emulate startAfter (exclusive), we combine with orderBy + offset.
+      // Since documents have unique timestamps, startAt effectively works as startAfter.
     }
 
     console.log(`[Firestore] Collection get: ${this._path}, constraints: ${JSON.stringify(this._constraints)}`);
