@@ -167,7 +167,11 @@ async function _firestoreFetch(
   const opts: RequestInit = { method, headers };
   if (body !== undefined) opts.body = JSON.stringify(body);
 
+  console.log(`[Firestore] ${method} ${url}`);
+  if (body !== undefined) console.log(`[Firestore] body: ${JSON.stringify(body).slice(0, 500)}`);
+
   let resp = await fetch(url, opts);
+  console.log(`[Firestore] response: ${resp.status} ${resp.statusText}`);
 
   // Auto-refresh on 401 — invalidate token first so refresh actually runs
   if (resp.status === 401) {
@@ -185,15 +189,24 @@ async function _firestoreFetch(
     console.log(`[Firestore] After token refresh: ${resp.status}`);
   }
 
-  const data = await resp.json();
+  // Safely parse response — may not be JSON on errors
+  let data: any;
+  const respText = await resp.text();
+  try {
+    data = JSON.parse(respText);
+  } catch {
+    console.error(`[Firestore] Non-JSON response (${resp.status}): ${respText.slice(0, 500)}`);
+    throw new Error(`Firestore HTTP ${resp.status}: ${respText.slice(0, 200)}`);
+  }
 
   if (!resp.ok) {
-    const errMsg = data.error?.message || `Firestore HTTP ${resp.status}`;
+    const errMsg = data.error?.message || JSON.stringify(data).slice(0, 300) || `Firestore HTTP ${resp.status}`;
     const err: any = new Error(errMsg);
     err.status = resp.status;
     err.code = data.error?.status;
     // Log full error details for debugging
     console.error(`[Firestore] ${method} ${path} FAILED: ${resp.status} ${data.error?.status} - ${errMsg}`);
+    console.error(`[Firestore] Full error response: ${respText.slice(0, 500)}`);
     // If it's a composite index error, include helpful info
     if (data.error?.message?.includes('FAILED_PRECONDITION') || errMsg.includes('index')) {
       console.error(`[Firestore] COMPOSITE INDEX NEEDED. Create it at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);

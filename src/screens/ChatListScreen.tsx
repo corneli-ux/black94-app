@@ -171,7 +171,9 @@ export default function ChatListScreen({ navigation }: any) {
                   <Text style={styles.chatTime}>{timeAgo(item.lastMessageTime)}</Text>
                 </View>
                 <Text style={styles.chatLastMsg} numberOfLines={1}>
-                  {item.lastMessage || 'No messages yet'}
+                  {typeof item.lastMessage === 'string'
+                    ? item.lastMessage
+                    : item.lastMessage?.content || item.lastMessage?.text || JSON.stringify(item.lastMessage)?.slice(0, 50) || 'No messages yet'}
                 </Text>
               </View>
               {item.unreadCount > 0 && (
