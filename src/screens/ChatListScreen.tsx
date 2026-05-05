@@ -50,19 +50,20 @@ export default function ChatListScreen({ navigation }: any) {
 
   const deleteChat = async (chatId: string, chatName: string) => {
     try {
-      // Delete all messages in the subcollection using REST batch
+      // Delete the chat document first (Firestore will cascade to subcollections on delete)
+      await firestore().collection('chats').doc(chatId).delete();
+
+      // Then delete messages in the subcollection (best-effort)
       const messagesRef = firestore().collection('chats').doc(chatId).collection('messages');
       const batchSize = 100;
       let deleted = 0;
       let hasMore = true;
 
-      // Batch delete — handles large collections properly
       while (hasMore) {
         try {
           const snapshot = await messagesRef.limit(batchSize).get();
           if (snapshot.empty) break;
 
-          // Delete messages individually (more reliable than batch for REST API)
           const deletePromises = snapshot.docs.map(doc =>
             messagesRef.doc(doc.id).delete().catch(e => {
               console.warn(`[ChatDelete] Failed to delete message ${doc.id}:`, e);
@@ -78,9 +79,6 @@ export default function ChatListScreen({ navigation }: any) {
       }
 
       console.log(`[ChatDelete] Deleted ${deleted} messages from chat ${chatId}`);
-
-      // Delete the chat document
-      await firestore().collection('chats').doc(chatId).delete();
 
       // Update local state
       setChats(prev => prev.filter(c => c.id !== chatId));
@@ -108,11 +106,10 @@ export default function ChatListScreen({ navigation }: any) {
     );
   };
 
-  // Pull-to-refresh guard: only refresh when scrolled to top
+  // Pull-to-refresh: simplified scroll tracking
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
-    if (offset > 2) setCanRefresh(false);
-    if (offset <= 0) setCanRefresh(true);
+    setCanRefresh(offset <= 0);
   }, []);
 
   const handleMomentumScrollBegin = useCallback(() => {
@@ -261,16 +258,9 @@ export default function ChatListScreen({ navigation }: any) {
               scrollEventThrottle={16}
               refreshControl={
                 <RefreshControl
-                  refreshing={refreshing && canRefresh}
-                  onRefresh={() => {
-                    if (canRefresh) {
-                      setRefreshing(true);
-                      load();
-                    }
-                  }}
+                  refreshing={refreshing}
+                  onRefresh={load}
                   tintColor={colors.accent}
-                  enabled={false}
-                  progressViewOffset={-10}
                 />
               }
               renderItem={({ item }) => (
@@ -327,10 +317,10 @@ export default function ChatListScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
-  /* ── Header ── */
+  /* ── Header — matches web ChatListView header ── */
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
     height: 56,
   },
   headerTitle: { color: '#e7e9ea', fontSize: 20, fontWeight: '700' },
@@ -415,7 +405,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  /* ── Chat Row ── */
+  /* ── Chat Row — matches web px-5 py-3.5 ── */
   chatRow: {
     flexDirection: 'row',
     alignItems: 'center',

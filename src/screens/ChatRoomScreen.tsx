@@ -442,13 +442,14 @@ const styles = StyleSheet.create({
   inputPill: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: 0,
     backgroundColor: '#1f2937',
     borderRadius: 22,
     paddingLeft: 6,
     paddingRight: 6,
     paddingVertical: 4,
+    maxHeight: 120,
   },
   pillBtn: {
     width: 34,
@@ -466,7 +467,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 4,
     maxHeight: 100,
-    minWidth: 0,
+    minHeight: 0,
   },
   sendBtn: {
     width: 36,

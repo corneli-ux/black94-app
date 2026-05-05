@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -8,6 +8,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
+
+/* ── Dark Navigation Theme — prevents white flash on transitions ── */
+const DarkTheme = {
+  ...DefaultTheme,
+  dark: true,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: '#FFFFFF',
+    background: '#000000',
+    card: '#000000',
+    text: '#e7e9ea',
+    border: 'rgba(255,255,255,0.06)',
+    notification: '#FFFFFF',
+  },
+};
 
 import { colors } from '../theme/colors';
 
@@ -337,7 +352,7 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={DarkTheme}>
       {user ? (
         <AppStack />
       ) : (

@@ -523,11 +523,11 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
-  // Scroll tracking for pull-to-refresh guard
+  // Scroll tracking for pull-to-refresh guard — simplified
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
-    if (offset > 2) setCanRefresh(false);
-    if (offset <= 0) setCanRefresh(true);
+    // Only allow refresh when at the very top
+    setCanRefresh(offset <= 0);
   }, []);
 
   const handleMomentumScrollBegin = useCallback(() => {
@@ -634,11 +634,10 @@ export default function FeedScreen({ navigation }: any) {
         )}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing && canRefresh}
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.accent}
-            enabled={false}
-            progressViewOffset={-10}
+            progressViewOffset={0}
           />
         }
         onScroll={handleScroll}
@@ -811,14 +810,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
 
-  /* ── Post Card ── */
+  /* ── Post Card — exact match to web UserPostCard ── */
   postCard: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 12,
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   contentRow: {
     flexDirection: 'row',
@@ -942,9 +942,9 @@ const styles = StyleSheet.create({
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: '#ffffff',
     alignItems: 'center', justifyContent: 'center',
-    elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4, shadowRadius: 6,
-    zIndex: 50,
+    elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5, shadowRadius: 8,
+    zIndex: 999,
   },
   emptyIcon: {
     width: 80, height: 80, borderRadius: 40,
