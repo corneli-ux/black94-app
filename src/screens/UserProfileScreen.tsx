@@ -384,14 +384,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  /* ── Display name — web: text-xl font-bold text-[#e7e9ea] ── */
   displayName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
   },
+  /* ── Username — web: text-[15px] text-[#94a3b8] ── */
   username: {
-    fontSize: 14,
-    color: colors.textMuted,
+    fontSize: 15,
+    color: '#94a3b8',
     marginTop: 2,
   },
   bio: {
@@ -414,8 +416,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   statLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
+    fontSize: 13,
+    color: '#94a3b8',
     marginTop: 2,
   },
   actionButtons: {
@@ -423,46 +425,50 @@ const styles = StyleSheet.create({
     marginTop: 16,
     gap: 12,
   },
+  /* ── Follow button — web: not following bg-[#e7e9ea] text-black, following border border-[#64748b] text-[#e7e9ea] ── */
   followBtn: {
     flex: 1,
     height: 44,
-    borderRadius: 10,
-    backgroundColor: colors.accent,
+    borderRadius: 22, // web: rounded-full
+    backgroundColor: '#e7e9ea', // web: bg-[#e7e9ea]
     justifyContent: 'center',
     alignItems: 'center',
   },
   followingBtn: {
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#64748b', // web: border-[#64748b]
   },
+  /* ── Follow button — web: px-6 py-2 rounded-full text-[15px] font-bold ── */
   followBtnText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: colors.bg,
+    fontWeight: '700',
+    color: '#e7e9ea',
   },
   followingBtnText: {
-    color: colors.text,
+    color: '#e7e9ea',
   },
+  /* ── Message button — web: px-5 py-2 rounded-full border border-[#FFFFFF]/40 text-[#FFFFFF] font-bold ── */
   messageBtn: {
     flex: 1,
     height: 44,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceLight,
+    borderRadius: 22,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   messageBtnText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
+  /* ── Tab bar — web: sticky border-b border-white/[0.06] ── */
   tabBar: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.separator,
     marginTop: 16,
   },
   tab: {
@@ -472,21 +478,24 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   tabActive: {},
+  /* ── Tab text — web: text-[15px] font-medium, active font-bold text-[#e7e9ea] ── */
   tabText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
-    color: colors.textMuted,
+    color: '#94a3b8',
   },
   tabTextActive: {
-    color: colors.accent,
+    color: '#e7e9ea',
+    fontWeight: '700',
   },
+  /* ── Tab indicator — web: absolute bottom-0 h-1 bg-[#FFFFFF] rounded-full ── */
   tabIndicator: {
     position: 'absolute',
     bottom: 0,
     width: '60%',
-    height: 2,
-    backgroundColor: colors.accent,
-    borderRadius: 1,
+    height: 3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 2,
   },
   postsGrid: {
     flexDirection: 'row',

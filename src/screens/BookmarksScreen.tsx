@@ -73,6 +73,34 @@ export default function BookmarksScreen() {
         }
       }
 
+      // ── ROBUST: Fetch fresh author profiles for name/username accuracy ──
+      const uniqueAuthorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean))];
+      const authorMap: Record<string, any> = {};
+      try {
+        const userDocs = await Promise.all(
+          uniqueAuthorIds.map(uid =>
+            firestore().collection('users').doc(uid).get().catch(() => null)
+          )
+        );
+        for (const docSnap of userDocs) {
+          if (docSnap && docSnap.exists) {
+            authorMap[docSnap.id] = docSnap.data();
+          }
+        }
+      } catch (e) {
+        console.warn('[Bookmarks] Author profile fetch failed:', e);
+      }
+      for (const post of posts) {
+        const fresh = authorMap[post.authorId];
+        if (fresh) {
+          post.authorDisplayName = fresh.displayName || post.authorDisplayName;
+          post.authorUsername = fresh.username || post.authorUsername;
+          post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
+          post.authorBadge = fresh.badge || post.authorBadge;
+          post.authorIsVerified = fresh.isVerified || post.authorIsVerified;
+        }
+      }
+
       setBookmarks(posts);
     } catch (e) {
       console.error('[Bookmarks] Failed to load:', e);
@@ -158,7 +186,7 @@ function BookmarkPostCard({ post, navigation }: { post: Post; navigation: any })
         <TouchableOpacity
           onPress={() => {
             if (post.authorId !== auth()?.currentUser?.uid) {
-              navigation.navigate('Profile', { userId: post.authorId });
+              navigation.navigate('UserProfile', { userId: post.authorId });
             }
           }}
         >

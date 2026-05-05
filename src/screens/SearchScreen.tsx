@@ -121,7 +121,7 @@ export default function SearchScreen({ navigation }: any) {
               return (
                 <TouchableOpacity
                   style={styles.userRow}
-                  onPress={() => navigation.navigate('Profile', { userId: u.id })}
+                  onPress={() => navigation.navigate('UserProfile', { userId: u.id })}
                 >
                   <Avatar uri={u.profileImage} size={46} />
                   <View style={{ marginLeft: 12, flex: 1 }}>

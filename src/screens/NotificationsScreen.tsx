@@ -107,7 +107,7 @@ export default function NotificationsScreen({ navigation }: any) {
       style={[styles.row, !item.read && styles.rowUnread]}
       onPress={() => {
         // Navigate to the actor's profile
-        navigation.navigate('Profile', { userId: item.actorId });
+        navigation.navigate('UserProfile', { userId: item.actorId });
       }}
     >
       <View style={styles.iconWrap}>

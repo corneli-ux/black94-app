@@ -18,134 +18,162 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   navigation: any;
 }) {
   const currentUser = auth()?.currentUser;
+  const [showHeart, setShowHeart] = useState(false);
+  const lastTapRef = useRef(0);
 
   const handleDoubleTap = () => {
-    if (!post.liked) {
-      onLike(post.id, post.liked);
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!post.liked) {
+        onLike(post.id, post.liked);
+      }
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 900);
     }
+    lastTapRef.current = now;
   };
 
   return (
     <View style={styles.postCard}>
-      {/* Header */}
-      <View style={styles.postHeader}>
+      {/* Double-tap heart overlay — web: animate-heart-burst */}
+      {showHeart && (
+        <View style={styles.heartOverlay} pointerEvents="none">
+          <Ionicons name="heart" size={96} color="#f43f5e" />
+        </View>
+      )}
+
+      {/* Content row: avatar + content */}
+      <View style={styles.contentRow}>
+        {/* Avatar — web: size=48 */}
         <TouchableOpacity
           onPress={() => {
             if (post.authorId !== currentUser?.uid) {
-              navigation.navigate('Profile', { userId: post.authorId });
+              navigation.navigate('UserProfile', { userId: post.authorId });
             }
           }}
         >
-          <Avatar uri={post.authorProfileImage} size={44} />
+          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={48} />
         </TouchableOpacity>
-        <View style={styles.postMeta}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
-            <Text style={styles.displayName} numberOfLines={1}>{post.authorDisplayName}</Text>
-            <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} />
-            <Text style={styles.handle}>@{post.authorUsername}</Text>
-            <Text style={styles.dot}>·</Text>
-            <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
+
+        {/* Content column */}
+        <View style={styles.contentColumn} onTouchEnd={handleDoubleTap}>
+          {/* Header row — web: flex items-center gap-1 */}
+          <View style={styles.headerRow}>
+            <View style={styles.headerNameRow}>
+              <Text style={styles.displayName} numberOfLines={1}>
+                {post.authorDisplayName || post.authorUsername || 'User'}
+              </Text>
+              <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={18} />
+              <Text style={styles.username}>@{post.authorUsername || 'user'}</Text>
+              <Text style={styles.dot}>·</Text>
+              <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
+            </View>
+
+            {/* More button — web: absolute top-0 right-0 w-8 h-8 -mr-2 */}
+            {post.authorId === currentUser?.uid && (
+              <TouchableOpacity
+                style={styles.moreBtn}
+                onPress={() => {
+                  Alert.alert('Post', 'Delete this post?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+                  ]);
+                }}
+              >
+                <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Caption — web: text-[15px] text-[#e7e9ea], marginTop 2px, lineHeight 20px */}
+          {post.caption ? (
+            <Text style={styles.caption} numberOfLines={4}>
+              {post.caption}
+            </Text>
+          ) : null}
+
+          {/* Media — web: rounded-2xl, border white/[0.06], max-h-510px, marginTop 12px */}
+          {post.mediaUrls?.length > 0 && (
+            <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
+              <View style={styles.mediaContainer}>
+                <Image
+                  source={{ uri: post.mediaUrls[0] }}
+                  style={styles.media}
+                  resizeMode="cover"
+                />
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Action bar — web: flex justify-between max-w-440px -ml-2, marginTop 12px */}
+          <View style={styles.actions}>
+            {/* Comment — web: icon in p-2.5 rounded-full, color #94a3b8, hover text-white */}
+            <TouchableOpacity style={styles.actionBtn}>
+              <View style={styles.actionIconWrap}>
+                <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
+              </View>
+              {post.commentCount > 0 && (
+                <Text style={styles.actionCount}>{post.commentCount}</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Repost — web: color #94a3b8, active #10b981 */}
+            <TouchableOpacity style={styles.actionBtn} disabled>
+              <View style={styles.actionIconWrap}>
+                <Ionicons name="repeat" size={18} color={post.reposted ? colors.repost : colors.textSecondary} />
+              </View>
+              {post.repostCount > 0 && (
+                <Text style={[styles.actionCount, post.reposted && { color: colors.repost }]}>
+                  {post.repostCount}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Like — web: color #94a3b8, active #f43f5e */}
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
+              <View style={styles.actionIconWrap}>
+                {post.liked ? (
+                  <Ionicons name="heart" size={18} color={colors.like} />
+                ) : (
+                  <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
+                )}
+              </View>
+              {post.likeCount > 0 && (
+                <Text style={[styles.actionCount, post.liked && { color: colors.like }]}>
+                  {post.likeCount}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Views — web: trending-up icon */}
+            <TouchableOpacity style={styles.actionBtn} disabled>
+              <View style={styles.actionIconWrap}>
+                <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Bookmark + Share */}
+            <View style={styles.actionPair}>
+              {/* Bookmark — web: color #94a3b8, active #FFFFFF */}
+              <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
+                <View style={styles.actionIconWrap}>
+                  {post.bookmarked ? (
+                    <Ionicons name="bookmark" size={18} color={colors.bookmark} />
+                  ) : (
+                    <Ionicons name="bookmark-outline" size={18} color={colors.textSecondary} />
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {/* Share */}
+              <TouchableOpacity style={styles.actionBtn} disabled>
+                <View style={styles.actionIconWrap}>
+                  <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-        {post.authorId === currentUser?.uid && (
-          <TouchableOpacity
-            style={styles.moreBtn}
-            onPress={() => {
-              Alert.alert('Post', 'Delete this post?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
-              ]);
-            }}
-          >
-            <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Caption */}
-      {post.caption ? (
-        <Text style={styles.caption} numberOfLines={4}>
-          {post.caption}
-        </Text>
-      ) : null}
-
-      {/* Media */}
-      {post.mediaUrls?.length > 0 && (
-        <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
-          <View style={styles.mediaContainer}>
-            <Image
-              source={{ uri: post.mediaUrls[0] }}
-              style={styles.media}
-              resizeMode="cover"
-            />
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Action bar — matches web: comment, repost, like, views, bookmark, share */}
-      <View style={styles.actions}>
-        {/* Comment */}
-        <TouchableOpacity style={styles.actionBtn}>
-          <View style={styles.actionIconWrap}>
-            <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
-          </View>
-          {post.commentCount > 0 && (
-            <Text style={styles.actionCount}>{post.commentCount}</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Repost */}
-        <TouchableOpacity style={styles.actionBtn} disabled>
-          <View style={styles.actionIconWrap}>
-            <Ionicons name="repeat" size={18} color={post.reposted ? colors.accentGreen : colors.textSecondary} />
-          </View>
-          {post.repostCount > 0 && (
-            <Text style={[styles.actionCount, post.reposted && { color: colors.accentGreen }]}>
-              {post.repostCount}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Like */}
-        <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
-          <View style={styles.actionIconWrap}>
-            {post.liked ? (
-              <Ionicons name="heart" size={18} color="#f43f5e" />
-            ) : (
-              <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
-            )}
-          </View>
-          {post.likeCount > 0 && (
-            <Text style={[styles.actionCount, post.liked && { color: '#f43f5e' }]}>
-              {post.likeCount}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Views / Analytics */}
-        <TouchableOpacity style={styles.actionBtn} disabled>
-          <View style={styles.actionIconWrap}>
-            <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
-          </View>
-        </TouchableOpacity>
-
-        {/* Bookmark */}
-        <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
-          <View style={styles.actionIconWrap}>
-            {post.bookmarked ? (
-              <Ionicons name="bookmark" size={18} color="#ffffff" />
-            ) : (
-              <Ionicons name="bookmark-outline" size={18} color={colors.textSecondary} />
-            )}
-          </View>
-        </TouchableOpacity>
-
-        {/* Share */}
-        <TouchableOpacity style={styles.actionBtn} disabled>
-          <View style={styles.actionIconWrap}>
-            <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
-          </View>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -215,7 +243,6 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
-  // Only allow pull-to-refresh when scrolled to top
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
     setCanRefresh(offset <= 0);
@@ -229,23 +256,20 @@ export default function FeedScreen({ navigation }: any) {
     );
   }
 
-  // FAB bottom position: above tab bar (56px) + safe area bottom inset + 8px gap
   const tabBarHeight = 56 + (insets.bottom || 0);
   const fabBottom = tabBarHeight + 8;
 
   return (
     <View style={styles.container}>
-      {/* Header — matches web: hamburger (avatar) left, logo center, settings right */}
+      {/* Header — web: h-[56px] px-5 border-b border-white/[0.06] bg-black */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-            <Avatar uri={currentUser?.photoURL} size={34} />
+            <Avatar uri={currentUser?.photoURL} name={currentUser?.displayName} size={34} />
           </TouchableOpacity>
-          {/* Center: logo */}
           <View style={styles.headerCenter}>
             <Text style={styles.logo}>Black94</Text>
           </View>
-          {/* Right: settings */}
           <TouchableOpacity
             style={styles.headerBtn}
             onPress={() => navigation.navigate('Settings')}
@@ -284,7 +308,6 @@ export default function FeedScreen({ navigation }: any) {
         }
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', paddingTop: 80 }}>
             <View style={styles.emptyIcon}>
@@ -303,7 +326,7 @@ export default function FeedScreen({ navigation }: any) {
         contentContainerStyle={{ paddingBottom: fabBottom + 72 }}
       />
 
-      {/* FAB — matches web: white circle with + icon */}
+      {/* FAB — web: fixed right-4 z-30 w-14 h-14 rounded-full bg-white text-black */}
       <TouchableOpacity
         style={[styles.fab, { bottom: fabBottom }]}
         onPress={() => setComposeVisible(true)}
@@ -312,7 +335,7 @@ export default function FeedScreen({ navigation }: any) {
         <Ionicons name="add" size={24} color="#000000" />
       </TouchableOpacity>
 
-      {/* Compose Modal */}
+      {/* Compose Modal — web: ComposeDialog */}
       <Modal visible={composeVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
@@ -320,13 +343,14 @@ export default function FeedScreen({ navigation }: any) {
         >
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setComposeVisible(false)} />
           <View style={styles.composeSheet}>
+            {/* Header — web: px-5 py-3 border-b border-white/[0.08] */}
             <View style={styles.composeHeader}>
               <TouchableOpacity onPress={() => setComposeVisible(false)}>
-                <Text style={{ color: colors.text, fontSize: 16 }}>Cancel</Text>
+                <Text style={styles.composeCancel}>Cancel</Text>
               </TouchableOpacity>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>New Post</Text>
               <TouchableOpacity
-                style={[styles.postBtn, !composeText.trim() && { opacity: 0.4 }]}
+                style={[styles.postBtn, !composeText.trim() && styles.postBtnDisabled]}
                 onPress={handlePost}
                 disabled={posting || !composeText.trim()}
               >
@@ -336,12 +360,13 @@ export default function FeedScreen({ navigation }: any) {
                 }
               </TouchableOpacity>
             </View>
+            {/* Body — web: gap-3.5 p-4, avatar size={38}, text text-[17px] text-[#e7e9ea] */}
             <View style={styles.composeBody}>
-              <Avatar uri={currentUser?.photoURL} size={40} />
+              <Avatar uri={currentUser?.photoURL} name={currentUser?.displayName} size={38} />
               <TextInput
                 style={styles.composeInput}
                 placeholder="What's happening?"
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor="#64748b"
                 value={composeText}
                 onChangeText={setComposeText}
                 multiline
@@ -357,41 +382,135 @@ export default function FeedScreen({ navigation }: any) {
   );
 }
 
+const CONTENT_LEFT = 48 + 12; // avatar size + gap = 60
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+
+  /* ── Header — web: h-[56px] px-5 border-b border-white/[0.06] ── */
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
+    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10,
     height: 56,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomWidth: 0.5, borderBottomColor: colors.separator,
+    backgroundColor: colors.bg,
   },
   headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   logo: { color: colors.text, fontSize: 17, fontWeight: '800' },
+
+  /* ── Post Card — EXACT match to web UserPostCard.tsx ──
+     Web article: paddingLeft:16 paddingRight:16 paddingTop:4 paddingBottom:12
+     border-bottom: 1px solid white/[0.06]
+     Web avatar: size=48, Web gap: 12px */
   postCard: {
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.bg,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
+    backgroundColor: colors.bg,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.separator,
   },
-  postHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
-  postMeta: { flex: 1, marginLeft: 10 },
-  displayName: { color: colors.text, fontWeight: '700', fontSize: 15 },
-  handle: { color: colors.textSecondary, fontSize: 14 },
-  dot: { color: colors.textSecondary, fontSize: 14 },
-  time: { color: colors.textSecondary, fontSize: 14 },
-  moreBtn: { padding: 4, marginLeft: 'auto' },
-  caption: { color: colors.text, fontSize: 15, lineHeight: 22, marginBottom: 10, marginLeft: 54 },
-  mediaContainer: { marginLeft: 54, borderRadius: 14, overflow: 'hidden', marginBottom: 4 },
-  media: { width: '100%', height: 260, backgroundColor: '#111' },
+  contentRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  contentColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+
+  /* ── Post text styles — web exact values ── */
+  displayName: {
+    color: '#e7e9ea',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  username: {
+    color: '#94a3b8',   // web: text-[#94a3b8]
+    fontSize: 15,        // web: text-[15px]
+  },
+  dot: {
+    color: '#94a3b8',
+    fontSize: 15,
+  },
+  time: {
+    color: '#94a3b8',   // web: text-[#94a3b8]
+    fontSize: 15,        // web: text-[15px]
+  },
+  moreBtn: {
+    width: 32, height: 32,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: -8,
+    borderRadius: 16,
+  },
+
+  /* ── Caption — web: text-[15px] text-[#e7e9ea] marginTop:2px lineHeight:20px ── */
+  caption: {
+    color: '#e7e9ea',
+    fontSize: 15,
+    lineHeight: 20,
+    marginTop: 2,
+  },
+
+  /* ── Media — web: rounded-2xl overflow-hidden border border-white/[0.06] max-h-[510px] marginTop:12px ── */
+  mediaContainer: {
+    marginTop: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.separator,
+  },
+  media: {
+    width: '100%',
+    height: Math.min(SCREEN_W * 0.85, 510),
+    backgroundColor: '#111',
+  },
+
+  /* ── Action bar — web: flex justify-between max-w-440px -ml-2 marginTop:12px ── */
   actions: {
-    flexDirection: 'row', alignItems: 'center', marginTop: 10, marginLeft: 54,
-    gap: 0, justifyContent: 'space-between', maxWidth: 380,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    marginLeft: -4,
+    maxWidth: 440,
+    justifyContent: 'space-between',
   },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
+  /* web: p-2.5 rounded-full → padding 10, borderRadius 17.5 */
   actionIconWrap: {
     width: 34, height: 34, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center',
   },
-  actionCount: { color: colors.textSecondary, fontSize: 13, marginLeft: 2 },
-  separator: { height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)' },
+  /* web: text-[13px] text-[#94a3b8] */
+  actionCount: {
+    color: '#94a3b8',
+    fontSize: 13,
+    marginLeft: 2,
+  },
+
+  /* ── Heart overlay — web: w-24 h-24 text-[#f43f5e] animate-heart-burst ── */
+  heartOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+    zIndex: 10,
+  },
+
+  /* ── FAB — web: fixed right-4 z-30 w-14 h-14 rounded-full bg-white ── */
   fab: {
     position: 'absolute', right: 16,
     width: 56, height: 56, borderRadius: 28,
@@ -405,16 +524,50 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center', justifyContent: 'center',
   },
+
+  /* ── Compose Modal — web: ComposeDialog ── */
   modalOverlay: { flex: 1, backgroundColor: 'transparent' },
   composeSheet: {
-    backgroundColor: '#000000', borderTopLeftRadius: 16, borderTopRightRadius: 16,
-    padding: 16, minHeight: 220,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#0d0b14',  // web: bg-[#0d0b14]
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    minHeight: 220,
+    borderWidth: 1,
+    borderColor: colors.composeBorder, // web: border-white/[0.08]
   },
-  composeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingBottom: 12 },
-  composeBody: { flexDirection: 'row', gap: 12 },
-  composeInput: { flex: 1, color: '#e7e9ea', fontSize: 17, lineHeight: 24, minHeight: 100, textAlignVertical: 'top' },
-  charCount: { color: colors.textMuted, fontSize: 12, textAlign: 'right', marginTop: 8 },
-  postBtn: { backgroundColor: '#ffffff', paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20 },
+  composeHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.composeBorder,
+    paddingBottom: 12,
+  },
+  composeBody: { flexDirection: 'row', gap: 14 },
+  composeInput: {
+    flex: 1,
+    color: '#e7e9ea',         // web: text-[#e7e9ea]
+    fontSize: 17,              // web: text-[17px]
+    lineHeight: 24,
+    minHeight: 110,            // web: min-h-[110px]
+    textAlignVertical: 'top',
+  },
+  composeCancel: { color: colors.text, fontSize: 16 },
+  charCount: {
+    color: colors.textMuted,
+    fontSize: 13,              // web: text-[13px] text-[#94a3b8]
+    textAlign: 'right',
+    marginTop: 8,
+  },
+  /* Post button — web: active bg-[#FFFFFF] text-black hover:bg-[#D1D5DB], disabled bg-white/[0.08] text-[#64748b] */
+  postBtn: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 7,
+    borderRadius: 20,          // web: rounded-full
+  },
+  postBtnDisabled: {
+    backgroundColor: colors.composeDisabled,
+  },
   postBtnText: { color: '#000000', fontWeight: '700' },
 });

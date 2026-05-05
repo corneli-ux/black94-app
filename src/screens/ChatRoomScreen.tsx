@@ -241,7 +241,11 @@ const styles = StyleSheet.create({
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginVertical: 2 },
   msgRowRight: { justifyContent: 'flex-end' },
   msgRowLeft: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '75%', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18 },
+  /* ── Chat bubbles — web exact match ──
+     Web .bubble-sent: bg gradient(135deg, #FFFFFF, #D1D5DB), color #000, radius 18/18/4/18
+     Web .bubble-received: bg rgba(255,255,255,0.08), color #e7e9ea, radius 18/18/18/4, backdrop-blur(12px)
+     Web content: px-3.5 py-2.5 = paddingH 14 paddingV 10 */
+  bubble: { maxWidth: '75%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleMine: { backgroundColor: '#e8e8e8', borderBottomRightRadius: 4 },
   bubbleTheirs: { backgroundColor: 'rgba(255,255,255,0.08)', borderBottomLeftRadius: 4 },
   bubbleText: { color: colors.text, fontSize: 15, lineHeight: 21 },

@@ -218,7 +218,7 @@ export default function ExploreScreen() {
                   key={user.id}
                   style={styles.userRow}
                   onPress={() =>
-                    navigation.navigate('Profile' as never, { userId: user.id })
+                    navigation.navigate('UserProfile' as never, { userId: user.id })
                   }
                 >
                   <Avatar uri={user.profileImage} size={44} />

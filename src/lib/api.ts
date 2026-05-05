@@ -180,7 +180,6 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
 
   console.log(`[Feed] Got ${snapshot.docs.length} posts from Firestore`);
 
-  // Render all posts immediately with default interaction states
   const userId = currentUser()?.uid;
   const posts: Post[] = snapshot.docs.map(docSnap => {
     const data = docSnap.data();
@@ -204,11 +203,61 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
     };
   });
 
-  if (!userId || posts.length === 0) return posts;
+  if (posts.length === 0) return posts;
 
-  // Batch fetch all interaction data in background using IN filter (chunks of 30)
-  const postIds = posts.map(p => p.id);
+  // ── ROBUST: Fetch fresh user profiles for ALL unique authors ──
+  // This ensures displayName, username, profileImage, badge, isVerified
+  // are always up-to-date, even if the user changed their profile after posting.
+  // This matches the webapp's behavior where the Zustand store provides live data.
+  const uniqueAuthorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean))];
+  const authorProfileMap: Record<string, {
+    displayName: string;
+    username: string;
+    profileImage: string | null;
+    badge: string;
+    isVerified: boolean;
+  }> = {};
+
   const CHUNK_SIZE = 30;
+  for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
+    const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
+    try {
+      const userDocs = await Promise.all(
+        chunk.map(uid => firestore().collection('users').doc(uid).get().catch(() => null))
+      );
+      for (const docSnap of userDocs) {
+        if (docSnap && docSnap.exists) {
+          const d = docSnap.data()!;
+          authorProfileMap[docSnap.id] = {
+            displayName: d.displayName || d.username || '',
+            username: d.username || '',
+            profileImage: d.profileImage || null,
+            badge: d.badge || '',
+            isVerified: d.isVerified || false,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('[Feed] Batch author profile fetch failed for chunk:', e);
+    }
+  }
+
+  // Enrich posts with fresh author data from user profiles
+  for (const post of posts) {
+    const fresh = authorProfileMap[post.authorId];
+    if (fresh) {
+      post.authorDisplayName = fresh.displayName || post.authorDisplayName;
+      post.authorUsername = fresh.username || post.authorUsername;
+      post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
+      post.authorBadge = fresh.badge || post.authorBadge;
+      post.authorIsVerified = fresh.isVerified || post.authorIsVerified;
+    }
+  }
+
+  if (!userId) return posts;
+
+  // Batch fetch all interaction data using IN filter (chunks of 30)
+  const postIds = posts.map(p => p.id);
   const likedIds = new Set<string>();
   const bookmarkedIds = new Set<string>();
   const repostedIds = new Set<string>();
