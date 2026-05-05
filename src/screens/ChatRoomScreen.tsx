@@ -137,8 +137,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
         {!isMine && <Avatar uri={chat.otherUser?.profileImage} size={28} />}
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-          <Text style={[styles.bubbleText, isMine && { color: '#fff' }]}>{item.content}</Text>
-          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(255,255,255,0.5)' } : { color: colors.textMuted }]}>
+          <Text style={[styles.bubbleText, isMine && { color: '#000' }]}>{item.content}</Text>
+          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.4)' } : { color: colors.textMuted }]}>
             {timeAgo(item.createdAt)}
           </Text>
         </View>
@@ -242,8 +242,8 @@ const styles = StyleSheet.create({
   msgRowRight: { justifyContent: 'flex-end' },
   msgRowLeft: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '75%', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18 },
-  bubbleMine: { backgroundColor: colors.accent, borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: '#1e1e1e', borderBottomLeftRadius: 4 },
+  bubbleMine: { backgroundColor: '#e8e8e8', borderBottomRightRadius: 4 },
+  bubbleTheirs: { backgroundColor: 'rgba(255,255,255,0.08)', borderBottomLeftRadius: 4 },
   bubbleText: { color: colors.text, fontSize: 15, lineHeight: 21 },
   bubbleTime: { fontSize: 10, marginTop: 3 },
   inputRow: {

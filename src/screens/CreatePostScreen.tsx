@@ -314,7 +314,11 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: C.bg,
+    backgroundColor: '#000000',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   header: {
     flexDirection: 'row',
@@ -322,9 +326,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.border,
-    backgroundColor: C.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#000000',
   },
   headerBack: {
     width: 40,
@@ -350,7 +354,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerPostActive: {
-    backgroundColor: C.primary,
+    backgroundColor: '#ffffff',
   },
   headerPostInactive: {
     backgroundColor: C.primaryDisabled,
@@ -393,7 +397,7 @@ const styles = StyleSheet.create({
   },
   captionInput: {
     fontSize: 17,
-    color: C.textPrimary,
+    color: '#e7e9ea',
     lineHeight: 24,
     minHeight: 120,
     maxHeight: 300,

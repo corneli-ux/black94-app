@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
+const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
   post: Post;
   onLike: (id: string, liked: boolean) => void;
   onBookmark: (id: string, bookmarked: boolean) => void;
@@ -149,7 +149,7 @@ function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
       </View>
     </View>
   );
-}
+});
 
 export default function FeedScreen({ navigation }: any) {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -165,7 +165,7 @@ export default function FeedScreen({ navigation }: any) {
 
   const loadFeed = useCallback(async () => {
     try {
-      const data = await fetchFeed(30);
+      const data = await fetchFeed(15);
       console.log('[FeedScreen] Loaded', data.length, 'posts');
       setPosts(data);
     } catch (e: any) {
@@ -370,7 +370,6 @@ const styles = StyleSheet.create({
   logo: { color: colors.text, fontSize: 17, fontWeight: '800' },
   postCard: {
     paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.bg,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   postHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
   postMeta: { flex: 1, marginLeft: 10 },
@@ -408,12 +407,13 @@ const styles = StyleSheet.create({
   },
   modalOverlay: { flex: 1, backgroundColor: 'transparent' },
   composeSheet: {
-    backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    backgroundColor: '#000000', borderTopLeftRadius: 16, borderTopRightRadius: 16,
     padding: 16, minHeight: 220,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
-  composeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  composeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingBottom: 12 },
   composeBody: { flexDirection: 'row', gap: 12 },
-  composeInput: { flex: 1, color: colors.text, fontSize: 16, minHeight: 100, textAlignVertical: 'top' },
+  composeInput: { flex: 1, color: '#e7e9ea', fontSize: 17, lineHeight: 24, minHeight: 100, textAlignVertical: 'top' },
   charCount: { color: colors.textMuted, fontSize: 12, textAlign: 'right', marginTop: 8 },
   postBtn: { backgroundColor: '#ffffff', paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20 },
   postBtnText: { color: '#000000', fontWeight: '700' },

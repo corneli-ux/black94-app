@@ -180,67 +180,80 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
 
   console.log(`[Feed] Got ${snapshot.docs.length} posts from Firestore`);
 
+  // Render all posts immediately with default interaction states
   const userId = currentUser()?.uid;
-  const posts: Post[] = [];
+  const posts: Post[] = snapshot.docs.map(docSnap => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      authorId: data.authorId || '',
+      authorUsername: data.authorUsername || '',
+      authorDisplayName: data.authorDisplayName || '',
+      authorProfileImage: data.authorProfileImage || null,
+      authorBadge: data.authorBadge || '',
+      authorIsVerified: data.authorIsVerified || false,
+      caption: data.caption || '',
+      mediaUrls: parseMediaUrls(data.mediaUrls),
+      likeCount: data.likeCount || 0,
+      commentCount: data.commentCount || 0,
+      repostCount: data.repostCount || 0,
+      liked: false,
+      bookmarked: false,
+      reposted: false,
+      createdAt: tsToMillis(data.createdAt),
+    };
+  });
 
-  // Process like/bookmark/repost checks in batches of 5 to avoid overwhelming the API
-  const BATCH_SIZE = 5;
-  const CHECK_TIMEOUT = 5000;
+  if (!userId || posts.length === 0) return posts;
 
-  for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
-    const batch = snapshot.docs.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map(async (docSnap) => {
-        const data = docSnap.data();
-        let liked = false;
-        let bookmarked = false;
-        let reposted = false;
+  // Batch fetch all interaction data in background using IN filter (chunks of 30)
+  const postIds = posts.map(p => p.id);
+  const CHUNK_SIZE = 30;
+  const likedIds = new Set<string>();
+  const bookmarkedIds = new Set<string>();
+  const repostedIds = new Set<string>();
 
-        if (userId) {
-          try {
-            const checkPromise = Promise.all([
-              firestore().collection('post_likes').doc(`${docSnap.id}_${userId}`).get(),
-              firestore().collection('post_bookmarks').doc(`${docSnap.id}_${userId}`).get(),
-              firestore().collection('post_reposts').doc(`${docSnap.id}_${userId}`).get(),
-            ]);
-            const [likeSnap, bookmarkSnap, repostSnap] = await Promise.race([
-              checkPromise,
-              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), CHECK_TIMEOUT)),
-            ]);
-            liked = likeSnap.exists;
-            bookmarked = bookmarkSnap.exists;
-            reposted = repostSnap.exists;
-          } catch {
-            // Timeout or error — skip interaction status for this post
-          }
-        }
+  for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
+    const chunk = postIds.slice(i, i + CHUNK_SIZE);
 
-        return {
-          id: docSnap.id,
-          authorId: data.authorId || '',
-          authorUsername: data.authorUsername || '',
-          authorDisplayName: data.authorDisplayName || '',
-          authorProfileImage: data.authorProfileImage || null,
-          authorBadge: data.authorBadge || '',
-          authorIsVerified: data.authorIsVerified || false,
-          caption: data.caption || '',
-          mediaUrls: parseMediaUrls(data.mediaUrls),
-          likeCount: data.likeCount || 0,
-          commentCount: data.commentCount || 0,
-          repostCount: data.repostCount || 0,
-          liked,
-          bookmarked,
-          reposted,
-          createdAt: tsToMillis(data.createdAt),
-        };
-      }),
-    );
+    try {
+      const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
+        firestore().collection('post_likes')
+          .where('postId', 'in', chunk)
+          .where('userId', '==', userId)
+          .get(),
+        firestore().collection('post_bookmarks')
+          .where('postId', 'in', chunk)
+          .where('userId', '==', userId)
+          .get(),
+        firestore().collection('post_reposts')
+          .where('postId', 'in', chunk)
+          .where('userId', '==', userId)
+          .get(),
+      ]);
 
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        posts.push(result.value);
+      for (const doc of likesSnap.docs) {
+        const d = doc.data();
+        if (d.postId) likedIds.add(d.postId);
       }
+      for (const doc of bookmarksSnap.docs) {
+        const d = doc.data();
+        if (d.postId) bookmarkedIds.add(d.postId);
+      }
+      for (const doc of repostsSnap.docs) {
+        const d = doc.data();
+        if (d.postId) repostedIds.add(d.postId);
+      }
+    } catch (e) {
+      console.warn('[Feed] Batch interaction fetch failed for chunk:', e);
     }
+  }
+
+  // Merge interaction results back into posts
+  for (const post of posts) {
+    post.liked = likedIds.has(post.id);
+    post.bookmarked = bookmarkedIds.has(post.id);
+    post.reposted = repostedIds.has(post.id);
   }
 
   return posts;
@@ -320,43 +333,70 @@ export async function fetchChatList(): Promise<Chat[]> {
 
   try {
     const allDocs = [...snap1.docs, ...snap2.docs];
-    const chats: Chat[] = [];
+    if (allDocs.length === 0) return [];
 
-    for (const docSnap of allDocs) {
+    // Collect unique other user IDs
+    const otherUserIds = [...new Set(allDocs.map(docSnap => {
+      const data = docSnap.data();
+      return data.user1Id === userId ? data.user2Id : data.user1Id;
+    }))];
+
+    // Batch fetch all user profiles in parallel (chunks of 30)
+    const CHUNK_SIZE = 30;
+    const userMap: Record<string, any> = {};
+
+    for (let i = 0; i < otherUserIds.length; i += CHUNK_SIZE) {
+      const chunk = otherUserIds.slice(i, i + CHUNK_SIZE);
+      try {
+        const userResults = await Promise.all(
+          chunk.map(async uid => {
+            try {
+              const snap = await firestore().collection('users').doc(uid).get();
+              return snap.exists ? { id: uid, data: snap.data() } : null;
+            } catch { return null; }
+          })
+        );
+        for (const r of userResults) {
+          if (r) userMap[r.id] = r.data;
+        }
+      } catch (e) {
+        console.warn('[Chat] Batch user fetch failed for chunk:', e);
+      }
+    }
+
+    // Build chat objects using batched userMap
+    const chats: Chat[] = allDocs.map(docSnap => {
       const data = docSnap.data();
       const otherId = data.user1Id === userId ? data.user2Id : data.user1Id;
       const isUser1 = data.user1Id === userId;
       const unreadCount = isUser1 ? (data.unreadUser1 || 0) : (data.unreadUser2 || 0);
+      const otherData = userMap[otherId];
 
-      try {
-        const otherSnap = await firestore().collection('users').doc(otherId).get();
-        const otherData = otherSnap.data();
-        chats.push({
-          id: docSnap.id,
-          user1Id: data.user1Id,
-          user2Id: data.user2Id,
-          lastMessage: typeof data.lastMessage === 'string'
-            ? data.lastMessage
-            : (data.lastMessage?.content || data.lastMessage?.text || ''),
-          lastMessageTime: tsToMillis(data.lastMessageTime),
-          unreadCount,
-          otherUser: otherData ? {
-            id: otherId,
-            email: otherData.email || '',
-            username: otherData.username || '',
-            displayName: otherData.displayName || '',
-            bio: otherData.bio || '',
-            profileImage: otherData.profileImage || null,
-            coverImage: otherData.coverImage || null,
-            role: otherData.role || 'personal',
-            badge: otherData.badge || '',
-            subscription: otherData.subscription || 'free',
-            isVerified: otherData.isVerified || false,
-            createdAt: tsToMillis(otherData.createdAt),
-          } : null,
-        });
-      } catch {}
-    }
+      return {
+        id: docSnap.id,
+        user1Id: data.user1Id,
+        user2Id: data.user2Id,
+        lastMessage: typeof data.lastMessage === 'string'
+          ? data.lastMessage
+          : (data.lastMessage?.content || data.lastMessage?.text || ''),
+        lastMessageTime: tsToMillis(data.lastMessageTime),
+        unreadCount,
+        otherUser: otherData ? {
+          id: otherId,
+          email: otherData.email || '',
+          username: otherData.username || '',
+          displayName: otherData.displayName || '',
+          bio: otherData.bio || '',
+          profileImage: otherData.profileImage || null,
+          coverImage: otherData.coverImage || null,
+          role: otherData.role || 'personal',
+          badge: otherData.badge || '',
+          subscription: otherData.subscription || 'free',
+          isVerified: otherData.isVerified || false,
+          createdAt: tsToMillis(otherData.createdAt),
+        } : null,
+      };
+    });
 
     return chats.sort((a, b) => b.lastMessageTime - a.lastMessageTime);
   } catch (e: any) {

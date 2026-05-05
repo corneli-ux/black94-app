@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import React, { Suspense, lazy } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -10,53 +10,75 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '../theme/colors';
+
+// Keep tab screens as eager imports
 import FeedScreen from '../screens/FeedScreen';
 import SearchScreen from '../screens/SearchScreen';
 import ChatListScreen from '../screens/ChatListScreen';
-import ChatRoomScreen from '../screens/ChatRoomScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import StoriesScreen from '../screens/StoriesScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import BookmarksScreen from '../screens/BookmarksScreen';
-import ExploreScreen from '../screens/ExploreScreen';
-import PrivacySettingsScreen from '../screens/PrivacySettingsScreen';
-import WriteArticleScreen from '../screens/WriteArticleScreen';
-import ShareProfileScreen from '../screens/ShareProfileScreen';
-import StorefrontScreen from '../screens/StorefrontScreen';
-import ProductDetailScreen from '../screens/ProductDetailScreen';
-import CartScreen from '../screens/CartScreen';
-import CheckoutScreen from '../screens/CheckoutScreen';
-import MyStoreScreen from '../screens/MyStoreScreen';
-import AddProductScreen from '../screens/AddProductScreen';
-import BusinessDashboardScreen from '../screens/BusinessDashboardScreen';
-import AdsManagerScreen from '../screens/AdsManagerScreen';
-import CreateAdScreen from '../screens/CreateAdScreen';
-import SalaryScreen from '../screens/SalaryScreen';
-import AffiliatesScreen from '../screens/AffiliatesScreen';
-import PerformanceScreen from '../screens/PerformanceScreen';
-import OrderTrackingScreen from '../screens/OrderTrackingScreen';
-import StoreDashboardScreen from '../screens/StoreDashboardScreen';
-import BusinessOrdersScreen from '../screens/BusinessOrdersScreen';
-import PremiumDashboardScreen from '../screens/PremiumDashboardScreen';
-import AuthScreen from '../screens/AuthScreen';
-import EditProfileScreen from '../screens/EditProfileScreen';
-import UserProfileScreen from '../screens/UserProfileScreen';
-import StoryViewerScreen from '../screens/StoryViewerScreen';
-import StoryCreatorScreen from '../screens/StoryCreatorScreen';
-import CreatePostScreen from '../screens/CreatePostScreen';
-import ArticleViewScreen from '../screens/ArticleViewScreen';
-import AudioCallScreen from '../screens/AudioCallScreen';
-import AnonymousChatScreen from '../screens/AnonymousChatScreen';
-import DualPaneChatScreen from '../screens/DualPaneChatScreen';
-import CrmLeadsScreen from '../screens/CrmLeadsScreen';
-import CrmDealsScreen from '../screens/CrmDealsScreen';
-import CrmOrdersScreen from '../screens/CrmOrdersScreen';
-import CrmAnalyticsScreen from '../screens/CrmAnalyticsScreen';
+
+// Lazy load all other screens
+const ChatRoomScreen = lazy(() => import('../screens/ChatRoomScreen'));
+const ProfileScreen = lazy(() => import('../screens/ProfileScreen'));
+const SettingsScreen = lazy(() => import('../screens/SettingsScreen'));
+const BookmarksScreen = lazy(() => import('../screens/BookmarksScreen'));
+const ExploreScreen = lazy(() => import('../screens/ExploreScreen'));
+const PrivacySettingsScreen = lazy(() => import('../screens/PrivacySettingsScreen'));
+const WriteArticleScreen = lazy(() => import('../screens/WriteArticleScreen'));
+const ShareProfileScreen = lazy(() => import('../screens/ShareProfileScreen'));
+const StorefrontScreen = lazy(() => import('../screens/StorefrontScreen'));
+const ProductDetailScreen = lazy(() => import('../screens/ProductDetailScreen'));
+const CartScreen = lazy(() => import('../screens/CartScreen'));
+const CheckoutScreen = lazy(() => import('../screens/CheckoutScreen'));
+const MyStoreScreen = lazy(() => import('../screens/MyStoreScreen'));
+const AddProductScreen = lazy(() => import('../screens/AddProductScreen'));
+const BusinessDashboardScreen = lazy(() => import('../screens/BusinessDashboardScreen'));
+const AdsManagerScreen = lazy(() => import('../screens/AdsManagerScreen'));
+const CreateAdScreen = lazy(() => import('../screens/CreateAdScreen'));
+const SalaryScreen = lazy(() => import('../screens/SalaryScreen'));
+const AffiliatesScreen = lazy(() => import('../screens/AffiliatesScreen'));
+const PerformanceScreen = lazy(() => import('../screens/PerformanceScreen'));
+const OrderTrackingScreen = lazy(() => import('../screens/OrderTrackingScreen'));
+const StoreDashboardScreen = lazy(() => import('../screens/StoreDashboardScreen'));
+const BusinessOrdersScreen = lazy(() => import('../screens/BusinessOrdersScreen'));
+const PremiumDashboardScreen = lazy(() => import('../screens/PremiumDashboardScreen'));
+const AuthScreen = lazy(() => import('../screens/AuthScreen'));
+const EditProfileScreen = lazy(() => import('../screens/EditProfileScreen'));
+const UserProfileScreen = lazy(() => import('../screens/UserProfileScreen'));
+const StoryViewerScreen = lazy(() => import('../screens/StoryViewerScreen'));
+const StoryCreatorScreen = lazy(() => import('../screens/StoryCreatorScreen'));
+const CreatePostScreen = lazy(() => import('../screens/CreatePostScreen'));
+const ArticleViewScreen = lazy(() => import('../screens/ArticleViewScreen'));
+const AudioCallScreen = lazy(() => import('../screens/AudioCallScreen'));
+const AnonymousChatScreen = lazy(() => import('../screens/AnonymousChatScreen'));
+const DualPaneChatScreen = lazy(() => import('../screens/DualPaneChatScreen'));
+const CrmLeadsScreen = lazy(() => import('../screens/CrmLeadsScreen'));
+const CrmDealsScreen = lazy(() => import('../screens/CrmDealsScreen'));
+const CrmOrdersScreen = lazy(() => import('../screens/CrmOrdersScreen'));
+const CrmAnalyticsScreen = lazy(() => import('../screens/CrmAnalyticsScreen'));
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+
+function LazyFallback() {
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator color="#2a7fff" size="large" />
+    </View>
+  );
+}
+
+function LazyScreen(Component: any) {
+  return function Wrapped(props: any) {
+    return (
+      <Suspense fallback={<LazyFallback />}>
+        <Component {...props} />
+      </Suspense>
+    );
+  };
+}
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   const iconProps: { size: number; color: string } = {
@@ -236,14 +258,14 @@ function DrawerNavigator() {
       }}
     >
       <Drawer.Screen name="MainTabs" component={MainTabs} />
-      <Drawer.Screen name="Explore" component={ExploreScreen} />
+      <Drawer.Screen name="Explore" component={LazyScreen(ExploreScreen)} />
       <Drawer.Screen name="NotificationsTab" component={NotificationsScreen} />
       <Drawer.Screen name="MessagesTab" component={ChatListScreen} />
       <Drawer.Screen name="StoriesTab" component={StoriesScreen} />
-      <Drawer.Screen name="ProfileSelf" component={ProfileScreen} initialParams={{}} />
-      <Drawer.Screen name="Bookmarks" component={BookmarksScreen} />
-      <Drawer.Screen name="Cart" component={CartScreen} />
-      <Drawer.Screen name="Settings" component={SettingsScreen} />
+      <Drawer.Screen name="ProfileSelf" component={LazyScreen(ProfileScreen)} initialParams={{}} />
+      <Drawer.Screen name="Bookmarks" component={LazyScreen(BookmarksScreen)} />
+      <Drawer.Screen name="Cart" component={LazyScreen(CartScreen)} />
+      <Drawer.Screen name="Settings" component={LazyScreen(SettingsScreen)} />
     </Drawer.Navigator>
   );
 }
@@ -253,52 +275,52 @@ function AppStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Drawer" component={DrawerNavigator} />
       {/* Chat */}
-      <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
-      <Stack.Screen name="DualPaneChat" component={DualPaneChatScreen} />
-      <Stack.Screen name="AnonymousChat" component={AnonymousChatScreen} />
-      <Stack.Screen name="AudioCall" component={AudioCallScreen} />
+      <Stack.Screen name="ChatRoom" component={LazyScreen(ChatRoomScreen)} />
+      <Stack.Screen name="DualPaneChat" component={LazyScreen(DualPaneChatScreen)} />
+      <Stack.Screen name="AnonymousChat" component={LazyScreen(AnonymousChatScreen)} />
+      <Stack.Screen name="AudioCall" component={LazyScreen(AudioCallScreen)} />
       {/* Profile */}
-      <Stack.Screen name="Profile" component={ProfileScreen} />
-      <Stack.Screen name="UserProfile" component={UserProfileScreen} />
-      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="Profile" component={LazyScreen(ProfileScreen)} />
+      <Stack.Screen name="UserProfile" component={LazyScreen(UserProfileScreen)} />
+      <Stack.Screen name="EditProfile" component={LazyScreen(EditProfileScreen)} />
       {/* Bookmarks */}
-      <Stack.Screen name="BookmarksStack" component={BookmarksScreen} />
+      <Stack.Screen name="BookmarksStack" component={LazyScreen(BookmarksScreen)} />
       {/* Explore */}
-      <Stack.Screen name="ExploreStack" component={ExploreScreen} />
+      <Stack.Screen name="ExploreStack" component={LazyScreen(ExploreScreen)} />
       {/* Settings sub-screens */}
-      <Stack.Screen name="PrivacySettings" component={PrivacySettingsScreen} />
-      <Stack.Screen name="ShareProfile" component={ShareProfileScreen} />
-      <Stack.Screen name="WriteArticle" component={WriteArticleScreen} />
+      <Stack.Screen name="PrivacySettings" component={LazyScreen(PrivacySettingsScreen)} />
+      <Stack.Screen name="ShareProfile" component={LazyScreen(ShareProfileScreen)} />
+      <Stack.Screen name="WriteArticle" component={LazyScreen(WriteArticleScreen)} />
       {/* Posts & Stories */}
-      <Stack.Screen name="CreatePost" component={CreatePostScreen} options={{ presentation: 'modal' }} />
-      <Stack.Screen name="StoryViewer" component={StoryViewerScreen} />
-      <Stack.Screen name="StoryCreator" component={StoryCreatorScreen} />
+      <Stack.Screen name="CreatePost" component={LazyScreen(CreatePostScreen)} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="StoryViewer" component={LazyScreen(StoryViewerScreen)} />
+      <Stack.Screen name="StoryCreator" component={LazyScreen(StoryCreatorScreen)} />
       {/* Articles */}
-      <Stack.Screen name="ArticleView" component={ArticleViewScreen} />
+      <Stack.Screen name="ArticleView" component={LazyScreen(ArticleViewScreen)} />
       {/* Store / Shop */}
-      <Stack.Screen name="Storefront" component={StorefrontScreen} />
-      <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
-      <Stack.Screen name="Checkout" component={CheckoutScreen} />
-      <Stack.Screen name="MyStore" component={MyStoreScreen} />
-      <Stack.Screen name="AddProduct" component={AddProductScreen} />
+      <Stack.Screen name="Storefront" component={LazyScreen(StorefrontScreen)} />
+      <Stack.Screen name="ProductDetail" component={LazyScreen(ProductDetailScreen)} />
+      <Stack.Screen name="Checkout" component={LazyScreen(CheckoutScreen)} />
+      <Stack.Screen name="MyStore" component={LazyScreen(MyStoreScreen)} />
+      <Stack.Screen name="AddProduct" component={LazyScreen(AddProductScreen)} />
       {/* Business Tools */}
-      <Stack.Screen name="BusinessDashboard" component={BusinessDashboardScreen} />
-      <Stack.Screen name="AdsManager" component={AdsManagerScreen} />
-      <Stack.Screen name="CreateAd" component={CreateAdScreen} />
-      <Stack.Screen name="Salary" component={SalaryScreen} />
-      <Stack.Screen name="Affiliates" component={AffiliatesScreen} />
-      <Stack.Screen name="Performance" component={PerformanceScreen} />
+      <Stack.Screen name="BusinessDashboard" component={LazyScreen(BusinessDashboardScreen)} />
+      <Stack.Screen name="AdsManager" component={LazyScreen(AdsManagerScreen)} />
+      <Stack.Screen name="CreateAd" component={LazyScreen(CreateAdScreen)} />
+      <Stack.Screen name="Salary" component={LazyScreen(SalaryScreen)} />
+      <Stack.Screen name="Affiliates" component={LazyScreen(AffiliatesScreen)} />
+      <Stack.Screen name="Performance" component={LazyScreen(PerformanceScreen)} />
       {/* CRM */}
-      <Stack.Screen name="CrmLeads" component={CrmLeadsScreen} />
-      <Stack.Screen name="CrmDeals" component={CrmDealsScreen} />
-      <Stack.Screen name="CrmOrders" component={CrmOrdersScreen} />
-      <Stack.Screen name="CrmAnalytics" component={CrmAnalyticsScreen} />
+      <Stack.Screen name="CrmLeads" component={LazyScreen(CrmLeadsScreen)} />
+      <Stack.Screen name="CrmDeals" component={LazyScreen(CrmDealsScreen)} />
+      <Stack.Screen name="CrmOrders" component={LazyScreen(CrmOrdersScreen)} />
+      <Stack.Screen name="CrmAnalytics" component={LazyScreen(CrmAnalyticsScreen)} />
       {/* Order Tracking & Store */}
-      <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
-      <Stack.Screen name="StoreDashboard" component={StoreDashboardScreen} />
-      <Stack.Screen name="BusinessOrders" component={BusinessOrdersScreen} />
+      <Stack.Screen name="OrderTracking" component={LazyScreen(OrderTrackingScreen)} />
+      <Stack.Screen name="StoreDashboard" component={LazyScreen(StoreDashboardScreen)} />
+      <Stack.Screen name="BusinessOrders" component={LazyScreen(BusinessOrdersScreen)} />
       {/* Premium */}
-      <Stack.Screen name="PremiumDashboard" component={PremiumDashboardScreen} />
+      <Stack.Screen name="PremiumDashboard" component={LazyScreen(PremiumDashboardScreen)} />
     </Stack.Navigator>
   );
 }
@@ -321,7 +343,7 @@ export default function AppNavigator() {
         <AppStack />
       ) : (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Login" component={AuthScreen} />
+          <Stack.Screen name="Login" component={LazyScreen(AuthScreen)} />
         </Stack.Navigator>
       )}
     </NavigationContainer>

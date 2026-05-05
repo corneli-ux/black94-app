@@ -639,3 +639,5 @@ export {
   signOut,
   GoogleAuthProvider,
 };
+
+export { _getValidToken as getValidToken };

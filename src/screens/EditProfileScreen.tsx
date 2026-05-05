@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth, firestore } from '../lib/firebase';
+import { auth, firestore, getValidToken } from '../lib/firebase';
 import { fetchUserProfile, User } from '../lib/api';
 import { colors } from '../theme/colors';
 
@@ -29,12 +29,31 @@ const ROLE_OPTIONS: { key: Role; label: string; description: string }[] = [
 const BIO_MAX_LENGTH = 160;
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
-// TODO: Implement image upload to Firebase Storage
-async function uploadImage(_uri: string, _path: string): Promise<string> {
-  // Firebase Storage upload not yet implemented in REST client.
-  // For now, return the original URI (works for local dev).
-  console.warn('[EditProfileScreen] uploadImage not implemented, returning original URI');
-  return _uri;
+const STORAGE_BASE = 'https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o';
+
+async function uploadImage(uri: string, storagePath: string): Promise<string> {
+  const token = await getValidToken();
+  // Convert URI to blob
+  const response = await fetch(uri);
+  const blob = await response.blob();
+
+  // Upload to Firebase Storage via REST
+  const uploadResp = await fetch(
+    `${STORAGE_BASE}/${encodeURIComponent(storagePath)}?uploadType=media&name=${encodeURIComponent(storagePath)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': blob.type || 'image/jpeg',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: blob,
+    },
+  );
+
+  if (!uploadResp.ok) throw new Error('Image upload failed');
+
+  // Return public URL
+  return `https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o/${encodeURIComponent(storagePath)}?alt=media`;
 }
 
 // Lazy image picker (avoid crash if library not linked)
