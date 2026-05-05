@@ -1,18 +1,31 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, FlatList, StyleSheet, Dimensions, ActivityIndicator, RefreshControl, ScrollView, Alert } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { fetchUserProfile, toggleFollow, checkFollowing, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+
+/* ── Replies type ──────────────────────────────────────────────── */
+interface Reply {
+  id: string;
+  postId: string;
+  content: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  authorProfileImage: string;
+  authorIsVerified: boolean;
+  authorBadge: string;
+  createdAt: number;
+}
 
 function PostGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
-      <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No posts yet</Text>
+      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No posts yet</Text>
     </View>
   );
   return (
@@ -36,6 +49,44 @@ function PostGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
   );
 }
 
+function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: any }) {
+  if (replies.length === 0) return (
+    <View style={{ alignItems: 'center', paddingTop: 60 }}>
+      <Ionicons name="chatbubble-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
+      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No replies yet</Text>
+    </View>
+  );
+  return (
+    <View>
+      {replies.map(reply => (
+        <View key={reply.id} style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={32} />
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#e7e9ea' }} numberOfLines={1}>
+                {reply.authorDisplayName || reply.authorUsername}
+              </Text>
+              <Text style={{ fontSize: 13, color: '#94a3b8' }}>@{reply.authorUsername}</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: '#64748b' }}>{timeAgo(reply.createdAt)}</Text>
+          </View>
+          <Text style={{ fontSize: 14, color: '#e7e9ea', lineHeight: 20, paddingLeft: 40 }}>{reply.content}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function LikedPostsGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
+  if (posts.length === 0) return (
+    <View style={{ alignItems: 'center', paddingTop: 60 }}>
+      <Ionicons name="heart-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
+      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No liked posts yet</Text>
+    </View>
+  );
+  return <PostGrid posts={posts} navigation={navigation} />;
+}
+
 export default function ProfileScreen({ route, navigation }: any) {
   const currentUser = auth()?.currentUser;
   const targetUserId = route?.params?.userId || currentUser?.uid;
@@ -49,8 +100,18 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [following, setFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
-  const [tab, setTab] = useState<'posts' | 'store' | 'bookmarks'>('posts');
+  const [tab, setTab] = useState<'posts' | 'replies' | 'likes' | 'store'>('posts');
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
+  const [replies, setReplies] = useState<Reply[]>([]);
+  const [tabLoading, setTabLoading] = useState(false);
+  const [messaging, setMessaging] = useState(false);
+
+  const isBusinessAccount = user?.role === 'business';
+  const showStoreTab = isBusinessAccount;
+
+  const tabs: Array<'posts' | 'replies' | 'likes' | 'store'> = showStoreTab
+    ? ['posts', 'store', 'likes']
+    : ['posts', 'replies', 'likes'];
 
   const load = useCallback(async () => {
     try {
@@ -81,34 +142,6 @@ export default function ProfileScreen({ route, navigation }: any) {
         };
       });
       setPosts(ps);
-
-      // Load liked posts
-      if (isOwnProfile) {
-        const likesSnap = await firestore()
-          .collection('post_bookmarks')
-          .where('userId', '==', targetUserId)
-          .limit(20).get();
-        const liked: Post[] = [];
-        for (const doc of likesSnap.docs) {
-          const postId = doc.data().postId;
-          if (postId) {
-            const postSnap = await firestore().collection('posts').doc(postId).get();
-            if (postSnap.exists) {
-              const data = postSnap.data();
-              liked.push({
-                id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
-                authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
-                authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
-                caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
-                likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
-                repostCount: data.repostCount || 0, liked: true, bookmarked: true, reposted: false,
-                createdAt: tsToMillis(data.createdAt),
-              });
-            }
-          }
-        }
-        setLikedPosts(liked);
-      }
     } catch (e: any) {
       console.error('[ProfileScreen] Load error:', e?.message);
       Alert.alert('Profile Error', `Could not load profile: ${e?.message || 'Unknown error'}`);
@@ -125,10 +158,125 @@ export default function ProfileScreen({ route, navigation }: any) {
 
   useEffect(() => { load(); }, []);
 
+  // Load replies when replies tab is active
+  useEffect(() => {
+    if (tab !== 'replies' || !targetUserId) return;
+    setTabLoading(true);
+    (async () => {
+      try {
+        const snap = await firestore()
+          .collection('post_comments')
+          .where('authorId', '==', targetUserId)
+          .orderBy('createdAt', 'desc')
+          .limit(30)
+          .get();
+        const replyList: Reply[] = snap.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            postId: data.postId || '',
+            content: data.content || '',
+            authorUsername: data.authorUsername || '',
+            authorDisplayName: data.authorDisplayName || '',
+            authorProfileImage: data.authorProfileImage || '',
+            authorIsVerified: data.authorIsVerified || false,
+            authorBadge: data.authorBadge || '',
+            createdAt: tsToMillis(data.createdAt),
+          };
+        });
+        setReplies(replyList);
+      } catch (e: any) {
+        console.error('[ProfileScreen] Failed to load replies:', e?.message);
+        setReplies([]);
+      } finally {
+        setTabLoading(false);
+      }
+    })();
+  }, [tab, targetUserId]);
+
+  // Load liked posts when likes tab is active
+  useEffect(() => {
+    if (tab !== 'likes' || !targetUserId) return;
+    setTabLoading(true);
+    (async () => {
+      try {
+        const likesSnap = await firestore()
+          .collection('post_likes')
+          .where('userId', '==', targetUserId)
+          .limit(20)
+          .get();
+
+        if (likesSnap.empty) {
+          setLikedPosts([]);
+          setTabLoading(false);
+          return;
+        }
+
+        const postIds = [...new Set(likesSnap.docs.map(d => d.data().postId).filter(Boolean))];
+        const allPosts: Post[] = [];
+
+        for (const postId of postIds) {
+          try {
+            const postSnap = await firestore().collection('posts').doc(postId).get();
+            if (postSnap.exists) {
+              const data = postSnap.data();
+              allPosts.push({
+                id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
+                authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
+                authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
+                caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
+                likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
+                repostCount: data.repostCount || 0, liked: true, bookmarked: false, reposted: false,
+                createdAt: tsToMillis(data.createdAt),
+              });
+            }
+          } catch { /* skip */ }
+        }
+
+        allPosts.sort((a, b) => b.createdAt - a.createdAt);
+        setLikedPosts(allPosts);
+      } catch (e: any) {
+        console.error('[ProfileScreen] Failed to load liked posts:', e?.message);
+        setLikedPosts([]);
+      } finally {
+        setTabLoading(false);
+      }
+    })();
+  }, [tab, targetUserId]);
+
   const handleFollow = async () => {
     const newState = await toggleFollow(targetUserId, following);
     setFollowing(newState);
     setFollowersCount(c => c + (newState ? 1 : -1));
+  };
+
+  const handleMessage = async () => {
+    if (!currentUser?.uid || messaging) return;
+    setMessaging(true);
+    try {
+      const [snap1, snap2] = await Promise.all([
+        firestore().collection('chats').where('user1Id', '==', currentUser.uid).where('user2Id', '==', targetUserId).get(),
+        firestore().collection('chats').where('user1Id', '==', targetUserId).where('user2Id', '==', currentUser.uid).get(),
+      ]);
+      const existing = [...snap1.docs, ...snap2.docs][0];
+      if (existing) {
+        navigation.navigate('ChatRoom' as never, { chatId: existing.id } as never);
+      } else {
+        const chatRef = await firestore().collection('chats').add({
+          user1Id: currentUser.uid,
+          user2Id: targetUserId,
+          lastMessage: '',
+          lastMessageTime: firestore.FieldValue.serverTimestamp(),
+          unreadUser1: 0,
+          unreadUser2: 0,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+        });
+        navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
+      }
+    } catch (e: any) {
+      console.warn('[ProfileScreen] message error:', e);
+    }
+    setMessaging(false);
   };
 
   if (loading) return (
@@ -143,6 +291,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       onScroll={handleScroll}
       scrollEventThrottle={16}
       refreshControl={<RefreshControl refreshing={refreshing && canRefresh} onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }} tintColor={colors.accent} enabled={canRefresh} />}
+      stickyHeaderIndices={[3]}
     >
       {/* Top bar */}
       <SafeAreaView edges={['top']}>
@@ -166,31 +315,48 @@ export default function ProfileScreen({ route, navigation }: any) {
         {user?.coverImage ? (
           <Image source={{ uri: user.coverImage }} style={styles.cover} resizeMode="cover" />
         ) : (
-          <View style={[styles.cover, styles.coverPlaceholder]}>
-            <Text style={{ color: 'rgba(255,255,255,0.08)', fontSize: 60, fontWeight: '800' }}>B94</Text>
-          </View>
+          <View style={[styles.cover, styles.coverPlaceholder]} />
         )}
       </View>
 
       {/* Avatar + Edit / Follow */}
       <View style={styles.avatarRow}>
         <View style={{ marginTop: -32 }}>
-          {/* web: PAvatar size={80} className="ring-4 ring-[#000000]" */}
-          <Avatar uri={user?.profileImage || currentUser?.photoURL} size={80} borderWidth={4} borderColor={colors.bg} />
+          <Avatar
+            uri={user?.profileImage || currentUser?.photoURL}
+            name={user?.displayName || null}
+            size={80}
+            borderWidth={4}
+            borderColor="#000000"
+          />
         </View>
         {isOwnProfile ? (
-          <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditProfile')}>
-            <Text style={styles.editBtnText}>Edit profile</Text>
+          <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')}>
+            <Text style={styles.editProfileBtnText}>Edit profile</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={[styles.editBtn, following && styles.followingBtn]}
-            onPress={handleFollow}
-          >
-            <Text style={[styles.editBtnText, following && { color: colors.text }]}>
-              {following ? 'Following' : 'Follow'}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.followBtn, following && styles.followingBtn]}
+              onPress={handleFollow}
+            >
+              <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
+                {following ? 'Following' : 'Follow'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.messageBtn}
+              onPress={handleMessage}
+              disabled={messaging}
+            >
+              {messaging ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="chatbubble-outline" size={18} color="#FFFFFF" />
+              )}
+              <Text style={styles.messageBtnText}>Message</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -198,45 +364,49 @@ export default function ProfileScreen({ route, navigation }: any) {
       <View style={styles.bioSection}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
-          <VerifiedBadge badge={user?.badge} isVerified={user?.isVerified} />
+          <VerifiedBadge badge={user?.badge} isVerified={user?.isVerified} size={20} />
         </View>
         <Text style={styles.handle}>@{user?.username}</Text>
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
         <View style={styles.statsRow}>
           <TouchableOpacity>
-            <Text style={styles.statText}><Text style={styles.statNum}>{followingCount}</Text> Following</Text>
+            <Text style={styles.statText}>
+              <Text style={styles.statNum}>{followingCount}</Text> Following
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity>
-            <Text style={styles.statText}><Text style={styles.statNum}>{followersCount}</Text> Followers</Text>
+            <Text style={styles.statText}>
+              <Text style={styles.statNum}>{followersCount}</Text> Followers
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabs}>
-        {(['posts', 'store', 'bookmarks'] as const).map(t => (
-          <TouchableOpacity key={t} style={[styles.tab, tab === t && styles.tabActive]} onPress={() => setTab(t)}>
+      <View style={styles.tabBar}>
+        {tabs.map(t => (
+          <TouchableOpacity key={t} style={styles.tab} onPress={() => setTab(t)}>
             <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </Text>
+            {tab === t && <View style={styles.tabIndicator} />}
           </TouchableOpacity>
         ))}
       </View>
 
-      {tab === 'posts' && <PostGrid posts={posts} navigation={navigation} />}
+      {/* Tab Content */}
+      {tabLoading ? (
+        <View style={{ paddingTop: 40, alignItems: 'center' }}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      ) : tab === 'posts' && <PostGrid posts={posts} navigation={navigation} />}
+      {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
+      {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} />}
       {tab === 'store' && (
         <View style={{ alignItems: 'center', paddingTop: 60 }}>
-          <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No store items yet</Text>
+          <Ionicons name="storefront-outline" size={48} color="#94a3b8" style={{ marginBottom: 12 }} />
+          <Text style={{ color: '#94a3b8', fontSize: 15 }}>No products listed yet</Text>
         </View>
-      )}
-      {tab === 'bookmarks' && (
-        isOwnProfile ? (
-          <PostGrid posts={likedPosts} navigation={navigation} />
-        ) : (
-          <View style={{ alignItems: 'center', paddingTop: 60 }}>
-            <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Only visible to the profile owner</Text>
-          </View>
-        )
       )}
     </ScrollView>
   );
@@ -249,36 +419,71 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
   },
   topLogo: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  /* web: h-32 = 128px */
-  coverWrap: { height: 128, width: '100%', overflow: 'hidden', backgroundColor: '#111' },
+  /* Cover: h-32 = 128px */
+  coverWrap: { height: 128, width: '100%', overflow: 'hidden', backgroundColor: '#000000' },
   cover: { width: '100%', height: '100%' },
-  /* web: bg-gradient-to-br from-[#1a2a1a] to-[#110f1a] */
-  coverPlaceholder: { backgroundColor: '#110f1a', alignItems: 'center', justifyContent: 'center' },
+  /* Fallback: gradient from-[#1a2a1a] to-[#110f1a] → simple solid */
+  coverPlaceholder: { backgroundColor: '#110f1a' },
   /* web: flex items-end justify-between px-5 -mt-8 mb-3 */
-  avatarRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: -32, marginBottom: 12 },
-  /* web: px-5 py-1.5 rounded-full border border-[#64748b] text-[15px] font-bold text-[#e7e9ea] */
-  editBtn: {
-    borderWidth: 1, borderColor: '#64748b', borderRadius: 20,
+  avatarRow: {
+    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
+    paddingHorizontal: 20, marginTop: -32, marginBottom: 12,
+  },
+  /* Edit Profile button: px-5 py-1.5 rounded-full border border-[#64748b] text-[15px] font-bold text-[#e7e9ea] */
+  editProfileBtn: {
+    borderWidth: 1, borderColor: '#64748b', borderRadius: 999,
     paddingHorizontal: 20, paddingVertical: 6,
   },
-  followingBtn: { backgroundColor: 'transparent' },
-  editBtnText: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  /* web: px-5 pb-4 border-b border-white/[0.06] */
-  bioSection: { paddingHorizontal: 20, paddingTop: 0, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.separator },
-  /* web: text-xl font-bold text-[#e7e9ea] */
+  editProfileBtnText: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  /* Follow button (not following): bg-[#e7e9ea] text-black px-6 py-2 rounded-full text-[15px] font-bold */
+  followBtn: {
+    backgroundColor: '#e7e9ea', borderRadius: 999,
+    paddingHorizontal: 24, paddingVertical: 8,
+  },
+  /* Follow button (following): border border-[#64748b] text-[#e7e9ea] */
+  followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#64748b' },
+  followBtnText: { color: '#000000', fontWeight: '700', fontSize: 15 },
+  followingBtnText: { color: '#e7e9ea' },
+  /* Message button: border border-[#FFFFFF]/40 text-[#FFFFFF] px-5 py-2 rounded-full text-[15px] font-bold */
+  messageBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 999,
+    paddingHorizontal: 20, paddingVertical: 8,
+  },
+  messageBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  /* Bio section: px-5 pb-4 border-b border-white/[0.06] */
+  bioSection: {
+    paddingHorizontal: 20, paddingTop: 0, paddingBottom: 16,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  /* Name: text-xl font-bold text-[#e7e9ea] */
   displayName: { color: '#e7e9ea', fontSize: 20, fontWeight: '700' },
-  /* web: text-[15px] text-[#94a3b8] */
+  /* Username: text-[15px] text-[#94a3b8] */
   handle: { color: '#94a3b8', fontSize: 15, marginTop: 2 },
-  /* web: text-[15px] text-[#e7e9ea] mt-2 leading-relaxed */
-  bio: { color: '#e7e9ea', fontSize: 15, lineHeight: 22, marginTop: 8 },
-  /* web: flex items-center gap-5 mt-4 text-[14px] */
+  /* Bio: text-[15px] text-[#e7e9ea] mt-2 leading-relaxed (leading-relaxed = 1.625 → lineHeight 24.375) */
+  bio: { color: '#e7e9ea', fontSize: 15, lineHeight: 24, marginTop: 8 },
+  /* Stats: flex items-center gap-5 mt-4 text-[14px] */
   statsRow: { flexDirection: 'row', gap: 20, marginTop: 16 },
   statText: { color: '#94a3b8', fontSize: 14 },
   statNum: { color: '#e7e9ea', fontWeight: '700' },
-  /* web: flex py-3.5 text-[15px] font-medium border-b border-white/[0.06] */
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.separator },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 14 },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: '#FFFFFF' },
+  /* Tab bar: sticky, bg-[#000], border-b border-white/[0.06] */
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#000000',
+  },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 14, position: 'relative' as const },
+  /* Active tab indicator: absolute bottom-0 inset-x-6 h-1 bg-[#FFFFFF] */
+  tabIndicator: {
+    position: 'absolute' as const,
+    bottom: 0,
+    left: 24,
+    right: 24,
+    height: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  /* Tab text: text-[15px] font-medium, active: text-[#e7e9ea] font-bold, inactive: text-[#94a3b8] */
   tabText: { color: '#94a3b8', fontWeight: '500', fontSize: 15 },
   tabTextActive: { color: '#e7e9ea', fontWeight: '700' },
   postRow: { paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border },

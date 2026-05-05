@@ -367,6 +367,24 @@ export async function toggleBookmark(postId: string, currentlyBookmarked: boolea
   }
 }
 
+export async function toggleRepost(postId: string, currentlyReposted: boolean): Promise<boolean> {
+  const userId = currentUser()?.uid;
+  if (!userId) return false;
+
+  const repostRef = firestore().collection('post_reposts').doc(`${postId}_${userId}`);
+  const postRef = firestore().collection('posts').doc(postId);
+
+  if (currentlyReposted) {
+    await repostRef.delete();
+    await postRef.update({ repostCount: firestore.FieldValue.increment(-1) });
+    return false;
+  } else {
+    await repostRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
+    await postRef.update({ repostCount: firestore.FieldValue.increment(1) });
+    return true;
+  }
+}
+
 /* ── Chat ─────────────────────────────────────────────────────────────────── */
 
 export async function fetchChatList(): Promise<Chat[]> {

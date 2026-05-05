@@ -1,8 +1,12 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Dimensions,  } from 'react-native';
+import {
+  View, Text, FlatList, Image, TouchableOpacity, StyleSheet,
+  RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, Dimensions, Share,
+} from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchFeed, createPost, toggleLike, toggleBookmark, Post } from '../lib/api';
+import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -10,16 +14,82 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, navigation }: {
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
+
+const TABS = ['Discover', 'Network'] as const;
+type Tab = typeof TABS[number];
+
+function formatCount(n: number | undefined): string {
+  if (!n) return '';
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return n.toString();
+}
+
+/* ── Skeleton Loader ──────────────────────────────────────────────────────── */
+
+function SkeletonCard() {
+  return (
+    <View style={[styles.postCard, { borderBottomColor: 'transparent' }]}>
+      <View style={styles.contentRow}>
+        {/* Avatar placeholder */}
+        <View style={styles.skeletonAvatar} />
+        <View style={{ flex: 1, gap: 8 }}>
+          {/* Name + time */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={[styles.skeletonLine, { width: 100, height: 14 }]} />
+            <View style={[styles.skeletonLine, { width: 60, height: 14 }]} />
+          </View>
+          {/* Caption lines */}
+          <View style={[styles.skeletonLine, { width: '90%', height: 14 }]} />
+          <View style={[styles.skeletonLine, { width: '70%', height: 14 }]} />
+          <View style={[styles.skeletonLine, { width: '40%', height: 14 }]} />
+          {/* Action bar dots */}
+          <View style={{ flexDirection: 'row', marginTop: 12, marginLeft: -4, gap: 56 }}>
+            {[0, 1, 2, 3, 4].map(i => (
+              <View key={i} style={[styles.skeletonDot]} />
+            ))}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function SkeletonFeed() {
+  return (
+    <View>
+      {[0, 1, 2, 3, 4].map(i => (
+        <SkeletonCard key={i} />
+      ))}
+    </View>
+  );
+}
+
+/* ── PostCard ─────────────────────────────────────────────────────────────── */
+
+const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
   post: Post;
   onLike: (id: string, liked: boolean) => void;
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onComment: (id: string) => void;
   navigation: any;
 }) {
   const currentUser = auth()?.currentUser;
   const [showHeart, setShowHeart] = useState(false);
   const lastTapRef = useRef(0);
+
+  // Per-post optimistic repost state
+  const [isReposted, setIsReposted] = useState(post.reposted);
+  const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
+
+  // Sync when post prop changes
+  React.useEffect(() => {
+    setIsReposted(post.reposted);
+    setLocalRepostCount(post.repostCount);
+  }, [post.reposted, post.repostCount]);
 
   const handleDoubleTap = () => {
     const now = Date.now();
@@ -33,9 +103,22 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     lastTapRef.current = now;
   };
 
+  const handleRepostPress = () => {
+    const next = !isReposted;
+    setIsReposted(next);
+    setLocalRepostCount(prev => prev + (next ? 1 : -1));
+    onRepost(post.id, isReposted);
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({ message: 'Check out this post on Black94!' });
+    } catch {}
+  };
+
   return (
     <View style={styles.postCard}>
-      {/* Double-tap heart overlay — web: animate-heart-burst */}
+      {/* Double-tap heart overlay */}
       {showHeart && (
         <View style={styles.heartOverlay} pointerEvents="none">
           <Ionicons name="heart" size={96} color="#f43f5e" />
@@ -44,7 +127,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
       {/* Content row: avatar + content */}
       <View style={styles.contentRow}>
-        {/* Avatar — web: size=48 */}
+        {/* Avatar */}
         <TouchableOpacity
           onPress={() => {
             if (post.authorId !== currentUser?.uid) {
@@ -57,7 +140,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
         {/* Content column */}
         <View style={styles.contentColumn} onTouchEnd={handleDoubleTap}>
-          {/* Header row — web: flex items-center gap-1 */}
+          {/* Header row */}
           <View style={styles.headerRow}>
             <View style={styles.headerNameRow}>
               <Text style={styles.displayName} numberOfLines={1}>
@@ -69,7 +152,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
             </View>
 
-            {/* More button — web: absolute top-0 right-0 w-8 h-8 -mr-2 */}
+            {/* More button */}
             {post.authorId === currentUser?.uid && (
               <TouchableOpacity
                 style={styles.moreBtn}
@@ -85,14 +168,14 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             )}
           </View>
 
-          {/* Caption — web: text-[15px] text-[#e7e9ea], marginTop 2px, lineHeight 20px */}
+          {/* Caption */}
           {post.caption ? (
             <Text style={styles.caption} numberOfLines={4}>
               {post.caption}
             </Text>
           ) : null}
 
-          {/* Media — web: rounded-2xl, border white/[0.06], max-h-510px, marginTop 12px */}
+          {/* Media */}
           {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={styles.mediaContainer}>
@@ -105,31 +188,35 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </TouchableOpacity>
           )}
 
-          {/* Action bar — web: flex justify-between max-w-440px -ml-2, marginTop 12px */}
+          {/* Action bar */}
           <View style={styles.actions}>
-            {/* Comment — web: icon in p-2.5 rounded-full, color #94a3b8, hover text-white */}
-            <TouchableOpacity style={styles.actionBtn}>
+            {/* Comment */}
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onComment(post.id)}>
               <View style={styles.actionIconWrap}>
                 <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
               </View>
-              {post.commentCount > 0 && (
-                <Text style={styles.actionCount}>{post.commentCount}</Text>
-              )}
+              {formatCount(post.commentCount) ? (
+                <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
+              ) : null}
             </TouchableOpacity>
 
-            {/* Repost — web: color #94a3b8, active #10b981 */}
-            <TouchableOpacity style={styles.actionBtn} disabled>
+            {/* Repost */}
+            <TouchableOpacity style={styles.actionBtn} onPress={handleRepostPress}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name="repeat" size={18} color={post.reposted ? colors.repost : colors.textSecondary} />
+                <Ionicons
+                  name="repeat"
+                  size={18}
+                  color={isReposted ? colors.repost : colors.textSecondary}
+                />
               </View>
-              {post.repostCount > 0 && (
-                <Text style={[styles.actionCount, post.reposted && { color: colors.repost }]}>
-                  {post.repostCount}
+              {formatCount(localRepostCount) ? (
+                <Text style={[styles.actionCount, isReposted && { color: colors.repost }]}>
+                  {formatCount(localRepostCount)}
                 </Text>
-              )}
+              ) : null}
             </TouchableOpacity>
 
-            {/* Like — web: color #94a3b8, active #f43f5e */}
+            {/* Like */}
             <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
               <View style={styles.actionIconWrap}>
                 {post.liked ? (
@@ -138,14 +225,14 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                   <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
                 )}
               </View>
-              {post.likeCount > 0 && (
+              {formatCount(post.likeCount) ? (
                 <Text style={[styles.actionCount, post.liked && { color: colors.like }]}>
-                  {post.likeCount}
+                  {formatCount(post.likeCount)}
                 </Text>
-              )}
+              ) : null}
             </TouchableOpacity>
 
-            {/* Views — web: trending-up icon */}
+            {/* Views */}
             <TouchableOpacity style={styles.actionBtn} disabled>
               <View style={styles.actionIconWrap}>
                 <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
@@ -154,7 +241,6 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
             {/* Bookmark + Share */}
             <View style={styles.actionPair}>
-              {/* Bookmark — web: color #94a3b8, active #FFFFFF */}
               <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
                 <View style={styles.actionIconWrap}>
                   {post.bookmarked ? (
@@ -165,8 +251,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                 </View>
               </TouchableOpacity>
 
-              {/* Share */}
-              <TouchableOpacity style={styles.actionBtn} disabled>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
                 <View style={styles.actionIconWrap}>
                   <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
                 </View>
@@ -179,53 +264,245 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   );
 });
 
+/* ── FeedScreen ───────────────────────────────────────────────────────────── */
+
 export default function FeedScreen({ navigation }: any) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [allLoaded, setAllLoaded] = useState(false);
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('Discover');
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
   const [canRefresh, setCanRefresh] = useState(true);
   const insets = useSafeAreaInsets();
+  const lastDocRef = useRef<any>(null);
 
-  const loadFeed = useCallback(async () => {
+  const PAGE_SIZE = 10;
+
+  const loadFeed = useCallback(async (append = false) => {
     try {
-      const data = await fetchFeed(15);
-      console.log('[FeedScreen] Loaded', data.length, 'posts');
-      setPosts(data);
+      if (append && (loadingMore || allLoaded)) return;
+      if (append) setLoadingMore(true);
+
+      const snapshot = lastDocRef.current
+        ? await firestore()
+            .collection('posts')
+            .orderBy('createdAt', 'desc')
+            .startAfter(lastDocRef.current)
+            .limit(PAGE_SIZE)
+            .get()
+        : await firestore()
+            .collection('posts')
+            .orderBy('createdAt', 'desc')
+            .limit(PAGE_SIZE)
+            .get();
+
+      if (snapshot.docs.length === 0) {
+        setAllLoaded(true);
+        if (append) { setLoadingMore(false); return; }
+      }
+
+      // Save cursor for next page
+      lastDocRef.current = snapshot.docs[snapshot.docs.length - 1];
+
+      const userId = currentUser?.uid;
+      const newPosts: Post[] = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          authorId: data.authorId || '',
+          authorUsername: data.authorUsername || '',
+          authorDisplayName: data.authorDisplayName || '',
+          authorProfileImage: data.authorProfileImage || null,
+          authorBadge: data.authorBadge || '',
+          authorIsVerified: data.authorIsVerified || false,
+          caption: data.caption || '',
+          mediaUrls: (() => {
+            const raw = data.mediaUrls;
+            if (!raw) return [];
+            if (Array.isArray(raw)) return raw.filter(Boolean);
+            if (typeof raw === 'string') {
+              if (raw.startsWith('data:')) return [raw];
+              return raw.split(',').map(u => u.trim()).filter(Boolean);
+            }
+            return [];
+          })(),
+          likeCount: data.likeCount || 0,
+          commentCount: data.commentCount || 0,
+          repostCount: data.repostCount || 0,
+          liked: false,
+          bookmarked: false,
+          reposted: false,
+          createdAt: (() => {
+            const ts = data.createdAt;
+            if (!ts) return Date.now();
+            if (typeof ts === 'number') return ts;
+            if (typeof ts === 'string') return new Date(ts).getTime() || Date.now();
+            if (ts?.toMillis) return ts.toMillis();
+            if (ts?.toDate) return ts.toDate().getTime();
+            if (ts?.seconds) return ts.seconds * 1000;
+            return Date.now();
+          })(),
+        };
+      });
+
+      if (newPosts.length === 0) {
+        setAllLoaded(true);
+        if (append) { setLoadingMore(false); return; }
+      }
+
+      // Batch fetch author profiles
+      const uniqueAuthorIds = [...new Set(newPosts.map(p => p.authorId).filter(Boolean))];
+      const authorProfileMap: Record<string, any> = {};
+      const CHUNK_SIZE = 30;
+
+      for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
+        const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
+        try {
+          const userDocs = await Promise.all(
+            chunk.map(uid => firestore().collection('users').doc(uid).get().catch(() => null))
+          );
+          for (const docSnap of userDocs) {
+            if (docSnap && docSnap.exists) {
+              const d = docSnap.data()!;
+              authorProfileMap[docSnap.id] = {
+                displayName: d.displayName || d.username || '',
+                username: d.username || '',
+                profileImage: d.profileImage || null,
+                badge: d.badge || '',
+                isVerified: d.isVerified || false,
+              };
+            }
+          }
+        } catch (e) {
+          console.warn('[Feed] Batch author profile fetch failed for chunk:', e);
+        }
+      }
+
+      for (const post of newPosts) {
+        const fresh = authorProfileMap[post.authorId];
+        if (fresh) {
+          post.authorDisplayName = fresh.displayName || post.authorDisplayName;
+          post.authorUsername = fresh.username || post.authorUsername;
+          post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
+          post.authorBadge = fresh.badge || post.authorBadge;
+          post.authorIsVerified = fresh.isVerified || post.authorIsVerified;
+        }
+      }
+
+      // Batch fetch interactions
+      if (userId) {
+        const postIds = newPosts.map(p => p.id);
+        const likedIds = new Set<string>();
+        const bookmarkedIds = new Set<string>();
+        const repostedIds = new Set<string>();
+
+        for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
+          const chunk = postIds.slice(i, i + CHUNK_SIZE);
+          try {
+            const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
+              firestore().collection('post_likes')
+                .where('postId', 'in', chunk)
+                .where('userId', '==', userId)
+                .get(),
+              firestore().collection('post_bookmarks')
+                .where('postId', 'in', chunk)
+                .where('userId', '==', userId)
+                .get(),
+              firestore().collection('post_reposts')
+                .where('postId', 'in', chunk)
+                .where('userId', '==', userId)
+                .get(),
+            ]);
+
+            for (const doc of likesSnap.docs) {
+              const d = doc.data();
+              if (d.postId) likedIds.add(d.postId);
+            }
+            for (const doc of bookmarksSnap.docs) {
+              const d = doc.data();
+              if (d.postId) bookmarkedIds.add(d.postId);
+            }
+            for (const doc of repostsSnap.docs) {
+              const d = doc.data();
+              if (d.postId) repostedIds.add(d.postId);
+            }
+          } catch (e) {
+            console.warn('[Feed] Batch interaction fetch failed for chunk:', e);
+          }
+        }
+
+        for (const post of newPosts) {
+          post.liked = likedIds.has(post.id);
+          post.bookmarked = bookmarkedIds.has(post.id);
+          post.reposted = repostedIds.has(post.id);
+        }
+      }
+
+      if (append) {
+        setPosts(prev => [...prev, ...newPosts]);
+      } else {
+        setPosts(newPosts);
+      }
     } catch (e: any) {
       console.error('[FeedScreen] Feed load error:', e?.message);
-      Alert.alert('Feed Error', `Could not load feed: ${e?.message || 'Unknown error'}`);
+      if (!append) {
+        Alert.alert('Feed Error', `Could not load feed: ${e?.message || 'Unknown error'}`);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
-  }, []);
+  }, [currentUser?.uid]);
 
   useEffect(() => { loadFeed(); }, []);
+
+  const onRefresh = useCallback(() => {
+    if (!canRefresh) return;
+    setRefreshing(true);
+    setAllLoaded(false);
+    lastDocRef.current = null;
+    loadFeed(false);
+  }, [canRefresh, loadFeed]);
+
+  const onEndReached = useCallback(() => {
+    if (loadingMore || allLoaded) return;
+    loadFeed(true);
+  }, [loadingMore, allLoaded, loadFeed]);
 
   const handleLike = async (postId: string, liked: boolean) => {
     setPosts(prev => prev.map(p => p.id === postId
       ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
       : p));
-    await toggleLike(postId, liked);
+    try { await toggleLike(postId, liked); } catch {}
   };
 
   const handleBookmark = async (postId: string, bookmarked: boolean) => {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, bookmarked: !bookmarked } : p));
-    await toggleBookmark(postId, bookmarked);
+    try { await toggleBookmark(postId, bookmarked); } catch {}
+  };
+
+  const handleRepost = async (postId: string, reposted: boolean) => {
+    try { await toggleRepost(postId, reposted); } catch {}
   };
 
   const handleDelete = async (postId: string) => {
     try {
       await firestore().collection('posts').doc(postId).delete();
       setPosts(prev => prev.filter(p => p.id !== postId));
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Failed to delete post');
     }
+  };
+
+  const handleComment = (postId: string) => {
+    Alert.alert('Comments', 'Comments coming soon!');
   };
 
   const handlePost = async () => {
@@ -235,29 +512,28 @@ export default function FeedScreen({ navigation }: any) {
       await createPost(composeText.trim());
       setComposeText('');
       setComposeVisible(false);
-      loadFeed();
-    } catch (e) {
+      // Reload from scratch
+      lastDocRef.current = null;
+      setAllLoaded(false);
+      loadFeed(false);
+    } catch {
       Alert.alert('Error', 'Failed to post');
     } finally {
       setPosting(false);
     }
   };
 
-  // Scroll tracking for pull-to-refresh guard — only allow refresh at the very top
+  // Scroll tracking for pull-to-refresh guard
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
-    // Disable refresh as soon as user scrolls down even slightly
     if (offset > 2) setCanRefresh(false);
-    // Re-enable only when scrolled back to absolute top
     if (offset <= 0) setCanRefresh(true);
   }, []);
 
-  // Disable refresh during active scroll (momentum)
   const handleMomentumScrollBegin = useCallback(() => {
     setCanRefresh(false);
   }, []);
 
-  // Re-check on scroll end
   const handleScrollEndDrag = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
     if (offset <= 0) setCanRefresh(true);
@@ -265,8 +541,38 @@ export default function FeedScreen({ navigation }: any) {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator color={colors.accent} size="large" />
+      <View style={styles.container}>
+        {/* Header with logo */}
+        <SafeAreaView edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
+              <Avatar uri={currentUser?.photoURL} name={currentUser?.displayName} size={34} />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
+            </View>
+            <TouchableOpacity
+              style={styles.headerBtn}
+              onPress={() => navigation.navigate('Settings')}
+            >
+              <Ionicons name="settings-outline" size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+
+        {/* Tabs */}
+        <View style={styles.tabBar}>
+          {TABS.map(tab => (
+            <TouchableOpacity key={tab} style={styles.tabItem} disabled>
+              <Text style={[styles.tabText, tab === 'Discover' ? styles.tabTextActive : styles.tabTextInactive]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <View style={[styles.tabIndicator, { left: SCREEN_W / 2 - 80, right: SCREEN_W / 2 - 80 }]} />
+        </View>
+
+        <SkeletonFeed />
       </View>
     );
   }
@@ -276,14 +582,14 @@ export default function FeedScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      {/* Header — web: h-[56px] px-5 border-b border-white/[0.06] bg-black */}
+      {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
             <Avatar uri={currentUser?.photoURL} name={currentUser?.displayName} size={34} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.logo}>Black94</Text>
+            <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
           </View>
           <TouchableOpacity
             style={styles.headerBtn}
@@ -293,6 +599,22 @@ export default function FeedScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+
+      {/* Feed Tabs */}
+      <View style={styles.tabBar}>
+        {TABS.map(tab => (
+          <TouchableOpacity
+            key={tab}
+            style={styles.tabItem}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Text style={[styles.tabText, activeTab === tab ? styles.tabTextActive : styles.tabTextInactive]}>
+              {tab}
+            </Text>
+            {activeTab === tab && <View style={styles.tabUnderline} />}
+          </TouchableOpacity>
+        ))}
+      </View>
 
       {/* Feed */}
       <FlatList
@@ -305,18 +627,15 @@ export default function FeedScreen({ navigation }: any) {
             onLike={handleLike}
             onBookmark={handleBookmark}
             onDelete={handleDelete}
+            onRepost={handleRepost}
+            onComment={handleComment}
             navigation={navigation}
           />
         )}
         refreshControl={
           <RefreshControl
             refreshing={refreshing && canRefresh}
-            onRefresh={() => {
-              if (canRefresh) {
-                setRefreshing(true);
-                loadFeed();
-              }
-            }}
+            onRefresh={onRefresh}
             tintColor={colors.accent}
             enabled={false}
             progressViewOffset={-10}
@@ -327,6 +646,15 @@ export default function FeedScreen({ navigation }: any) {
         onScrollEndDrag={handleScrollEndDrag}
         scrollEventThrottle={16}
         nestedScrollEnabled={true}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.loadMoreIndicator}>
+              <ActivityIndicator color={colors.textSecondary} size="small" />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={{ alignItems: 'center', paddingTop: 80 }}>
             <View style={styles.emptyIcon}>
@@ -336,7 +664,7 @@ export default function FeedScreen({ navigation }: any) {
             <Text style={{ color: colors.textSecondary, fontSize: 15, marginTop: 4 }}>When people post, their posts will show up here.</Text>
             <TouchableOpacity
               style={{ marginTop: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, borderRadius: 8 }}
-              onPress={loadFeed}
+              onPress={() => { lastDocRef.current = null; setAllLoaded(false); loadFeed(false); }}
             >
               <Text style={{ color: colors.accent, fontSize: 14 }}>Tap to retry</Text>
             </TouchableOpacity>
@@ -345,7 +673,7 @@ export default function FeedScreen({ navigation }: any) {
         contentContainerStyle={{ paddingBottom: fabBottom + 72 }}
       />
 
-      {/* FAB — web: fixed right-4 z-30 w-14 h-14 rounded-full bg-white text-black */}
+      {/* FAB */}
       <TouchableOpacity
         style={[styles.fab, { bottom: fabBottom }]}
         onPress={() => setComposeVisible(true)}
@@ -354,7 +682,7 @@ export default function FeedScreen({ navigation }: any) {
         <Ionicons name="add" size={24} color="#000000" />
       </TouchableOpacity>
 
-      {/* Compose Modal — web: ComposeDialog */}
+      {/* Compose Modal */}
       <Modal visible={composeVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
@@ -362,12 +690,16 @@ export default function FeedScreen({ navigation }: any) {
         >
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setComposeVisible(false)} />
           <View style={styles.composeSheet}>
-            {/* Header — web: px-5 py-3 border-b border-white/[0.08] */}
+            {/* Header */}
             <View style={styles.composeHeader}>
-              <TouchableOpacity onPress={() => setComposeVisible(false)}>
-                <Text style={styles.composeCancel}>Cancel</Text>
+              {/* Cancel = X icon */}
+              <TouchableOpacity
+                style={styles.composeCloseBtn}
+                onPress={() => setComposeVisible(false)}
+              >
+                <Ionicons name="close" size={20} color="#e7e9ea" />
               </TouchableOpacity>
-              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>New Post</Text>
+              <Text style={styles.composeTitle}>New Post</Text>
               <TouchableOpacity
                 style={[styles.postBtn, !composeText.trim() && styles.postBtnDisabled]}
                 onPress={handlePost}
@@ -375,25 +707,45 @@ export default function FeedScreen({ navigation }: any) {
               >
                 {posting
                   ? <ActivityIndicator color="#000" size="small" />
-                  : <Text style={styles.postBtnText}>Post</Text>
+                  : <Text style={[styles.postBtnText, !composeText.trim() && styles.postBtnTextDisabled]}>Post</Text>
                 }
               </TouchableOpacity>
             </View>
-            {/* Body — web: gap-3.5 p-4, avatar size={38}, text text-[17px] text-[#e7e9ea] */}
+
+            {/* Body */}
             <View style={styles.composeBody}>
               <Avatar uri={currentUser?.photoURL} name={currentUser?.displayName} size={38} />
-              <TextInput
-                style={styles.composeInput}
-                placeholder="What's on your mind?"  // web: exact placeholder text
-                placeholderTextColor="#64748b"
-                value={composeText}
-                onChangeText={setComposeText}
-                multiline
-                autoFocus
-                maxLength={4000}
-              />
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  style={styles.composeInput}
+                  placeholder="What's on your mind?"
+                  placeholderTextColor="#64748b"
+                  value={composeText}
+                  onChangeText={setComposeText}
+                  multiline
+                  autoFocus
+                  maxLength={4000}
+                />
+                {/* Action buttons row below input */}
+                <View style={styles.composeActions}>
+                  <TouchableOpacity style={styles.composeActionBtn}>
+                    <Ionicons name="camera-outline" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.composeActionBtn}>
+                    <Ionicons name="happy-outline" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                {/* Character count (only show when > 3400) */}
+                {composeText.length > 3400 && (
+                  <Text style={[
+                    styles.charCountBottom,
+                    composeText.length > 4000 * 0.95 && { color: colors.error },
+                  ]}>
+                    {composeText.length}/4000
+                  </Text>
+                )}
+              </View>
             </View>
-            <Text style={styles.charCount}>{composeText.length}/4000</Text>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -401,12 +753,12 @@ export default function FeedScreen({ navigation }: any) {
   );
 }
 
-const CONTENT_LEFT = 48 + 12; // avatar size + gap = 60
+/* ── Styles ───────────────────────────────────────────────────────────────── */
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
-  /* ── Header — web: h-[56px] px-5 border-b border-white/[0.06] ── */
+  /* ── Header ── */
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10,
@@ -416,20 +768,57 @@ const styles = StyleSheet.create({
   },
   headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  logo: { color: colors.text, fontSize: 17, fontWeight: '800' },
+  logoImage: { width: 28, height: 28, resizeMode: 'contain' },
 
-  /* ── Post Card — EXACT match to web UserPostCard.tsx ──
-     Web article: paddingLeft:16 paddingRight:16 paddingTop:4 paddingBottom:12
-     border-bottom: 1px solid white/[0.06]
-     Web avatar: size=48, Web gap: 12px
-     Web more button: absolute top-0 right-0 w-8 h-8 -mr-2 */
+  /* ── Tabs ── */
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bg,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 12,
+    position: 'relative',
+  },
+  tabText: {
+    fontSize: 15,
+  },
+  tabTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  tabTextInactive: {
+    color: '#94a3b8',
+    fontWeight: '400',
+  },
+  tabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: 24,
+    right: 24,
+    height: 1,
+    backgroundColor: '#ffffff',
+  },
+  /* Only used in skeleton loading indicator */
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: 1,
+    backgroundColor: '#ffffff',
+  },
+
+  /* ── Post Card ── */
   postCard: {
     paddingHorizontal: 16,
     paddingTop: 4,
     paddingBottom: 12,
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
-    borderBottomColor: colors.separator,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   contentRow: {
     flexDirection: 'row',
@@ -438,7 +827,7 @@ const styles = StyleSheet.create({
   contentColumn: {
     flex: 1,
     minWidth: 0,
-    position: 'relative',  // web: relative — needed for absolute more button
+    position: 'relative',
   },
   headerRow: {
     flexDirection: 'row',
@@ -450,53 +839,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     flex: 1,
-    flexWrap: 'nowrap',  // web: no flex-wrap — names stay on one line
+    flexWrap: 'nowrap',
     overflow: 'hidden',
   },
-
-  /* ── Post text styles — web exact values ── */
   displayName: {
     color: '#e7e9ea',
     fontWeight: '700',
     fontSize: 15,
   },
   username: {
-    color: '#94a3b8',   // web: text-[#94a3b8]
-    fontSize: 15,        // web: text-[15px]
+    color: '#94a3b8',
+    fontSize: 15,
   },
   dot: {
     color: '#94a3b8',
     fontSize: 15,
   },
   time: {
-    color: '#94a3b8',   // web: text-[#94a3b8]
-    fontSize: 15,        // web: text-[15px]
+    color: '#94a3b8',
+    fontSize: 15,
   },
-  /* web: absolute top-0 right-0 w-8 h-8 -mr-2 rounded-full hover:bg-white/[0.06] */
   moreBtn: {
     position: 'absolute',
     top: 0,
-    right: -8,  // web: -mr-2 = -8px
+    right: -8,
     width: 32, height: 32,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: 16,
   },
-
-  /* ── Caption — web: text-[15px] text-[#e7e9ea] marginTop:2px lineHeight:20px ── */
   caption: {
     color: '#e7e9ea',
     fontSize: 15,
     lineHeight: 20,
     marginTop: 2,
   },
-
-  /* ── Media — web: rounded-2xl overflow-hidden border border-white/[0.06] max-h-[510px] marginTop:12px ── */
   mediaContainer: {
     marginTop: 12,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.separator,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   media: {
     width: '100%',
@@ -504,7 +886,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#111',
   },
 
-  /* ── Action bar — web: flex justify-between max-w-440px -ml-2 marginTop:12px ── */
+  /* ── Action bar ── */
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -515,19 +897,17 @@ const styles = StyleSheet.create({
   },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
-  /* web: p-2.5 rounded-full → padding 10, borderRadius 17.5 */
   actionIconWrap: {
     width: 34, height: 34, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center',
   },
-  /* web: text-[13px] text-[#94a3b8] */
   actionCount: {
     color: '#94a3b8',
     fontSize: 13,
     marginLeft: 2,
   },
 
-  /* ── Heart overlay — web: w-24 h-24 text-[#f43f5e] animate-heart-burst ── */
+  /* ── Heart overlay ── */
   heartOverlay: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
@@ -535,7 +915,28 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
-  /* ── FAB — web: fixed right-4 z-30 w-14 h-14 rounded-full bg-white ── */
+  /* ── Skeleton ── */
+  skeletonAvatar: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  skeletonLine: {
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  skeletonDot: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  /* ── Load more indicator ── */
+  loadMoreIndicator: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+
+  /* ── FAB ── */
   fab: {
     position: 'absolute', right: 16,
     width: 56, height: 56, borderRadius: 28,
@@ -551,9 +952,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  /* ── Compose Modal — web: ComposeDialog ── */
+  /* ── Compose Modal ── */
   modalOverlay: { flex: 1, backgroundColor: 'transparent' },
-  /* web: bg-[#0d0b14] border border-white/[0.08] rounded-t-2xl sm:rounded-2xl */
   composeSheet: {
     backgroundColor: '#0d0b14',
     borderTopLeftRadius: 16,
@@ -561,42 +961,64 @@ const styles = StyleSheet.create({
     padding: 16,
     minHeight: 220,
     borderWidth: 1,
-    borderColor: colors.composeBorder,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  /* web: flex items-center justify-between px-5 py-3 border-b border-white/[0.08] */
   composeHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 0,
     borderBottomWidth: 1,
-    borderBottomColor: colors.composeBorder,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
     paddingBottom: 12,
   },
-  /* web: flex gap-3.5 p-4 */
+  composeCloseBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  composeTitle: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 16,
+    position: 'absolute',
+    left: 0, right: 0,
+    textAlign: 'center',
+  },
   composeBody: { flexDirection: 'row', gap: 14 },
   composeInput: {
     flex: 1,
-    color: '#e7e9ea',         // web: text-[#e7e9ea]
-    fontSize: 17,              // web: text-[17px]
+    color: '#e7e9ea',
+    fontSize: 17,
     lineHeight: 24,
-    minHeight: 110,            // web: min-h-[110px]
+    minHeight: 110,
     textAlignVertical: 'top',
   },
-  composeCancel: { color: colors.text, fontSize: 16 },
-  charCount: {
-    color: colors.textMuted,
-    fontSize: 13,              // web: text-[13px] text-[#94a3b8]
-    textAlign: 'right',
+  composeActions: {
+    flexDirection: 'row',
+    gap: 16,
     marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
-  /* Post button — web: active bg-[#FFFFFF] text-black hover:bg-[#D1D5DB], disabled bg-white/[0.08] text-[#64748b] */
+  composeActionBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  charCountBottom: {
+    color: '#94a3b8',
+    fontSize: 13,
+    textAlign: 'right',
+    marginTop: 4,
+  },
   postBtn: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
     paddingVertical: 7,
-    borderRadius: 20,          // web: rounded-full
+    borderRadius: 20,
   },
   postBtnDisabled: {
-    backgroundColor: colors.composeDisabled,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   postBtnText: { color: '#000000', fontWeight: '700' },
+  postBtnTextDisabled: { color: '#64748b' },
 });

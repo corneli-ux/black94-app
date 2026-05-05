@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Alert,  } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchChatList, Chat } from '../lib/api';
@@ -8,6 +8,8 @@ import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
 
+type TabType = 'chat' | 'ads';
+
 export default function ChatListScreen({ navigation }: any) {
   const [chats, setChats] = useState<Chat[]>([]);
   const [filtered, setFiltered] = useState<Chat[]>([]);
@@ -15,6 +17,7 @@ export default function ChatListScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [canRefresh, setCanRefresh] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('chat');
   const currentUser = auth()?.currentUser;
 
   const load = useCallback(async () => {
@@ -121,6 +124,99 @@ export default function ChatListScreen({ navigation }: any) {
     if (offset <= 0) setCanRefresh(true);
   }, []);
 
+  const getLastMessageContent = (item: Chat): string => {
+    if (typeof item.lastMessage === 'string') {
+      return item.lastMessage;
+    }
+    if (item.lastMessage?.content) return item.lastMessage.content;
+    if (item.lastMessage?.text) return item.lastMessage.text;
+    if (item.lastMessage) return JSON.stringify(item.lastMessage)?.slice(0, 50);
+    return 'No messages yet';
+  };
+
+  const getLastMessageTime = (item: Chat): number => {
+    if (item.lastMessageTime) return item.lastMessageTime;
+    if (item.lastMessage && typeof item.lastMessage === 'object' && item.lastMessage.createdAt) {
+      return new Date(item.lastMessage.createdAt).getTime();
+    }
+    return 0;
+  };
+
+  // Empty states
+  const renderNoResults = () => (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIcon}>
+        <Ionicons name="search-outline" size={32} color="#94a3b8" />
+      </View>
+      <Text style={styles.emptyTitle}>No results</Text>
+      <Text style={styles.emptySubtitle}>No chats found matching "{search}"</Text>
+    </View>
+  );
+
+  const renderNoChats = () => (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIcon}>
+        <Ionicons name="chatbubble-outline" size={32} color="#94a3b8" />
+      </View>
+      <Text style={styles.emptyTitle}>No messages yet</Text>
+      <Text style={styles.emptySubtitle}>Start a conversation to see messages here.</Text>
+    </View>
+  );
+
+  // Chat Ads placeholder
+  const renderChatAds = () => (
+    <View style={styles.adsContainer}>
+      <View style={styles.emptyIcon}>
+        <Ionicons name="card-outline" size={32} color="#64748b" />
+      </View>
+      <Text style={styles.adsEmptyText}>No ads right now</Text>
+      <Text style={styles.adsEmptySubtext}>Check back later for new sponsored content</Text>
+    </View>
+  );
+
+  // Tab switcher
+  const renderTabSwitcher = () => (
+    <View style={styles.tabBar}>
+      <TouchableOpacity
+        style={styles.tabButton}
+        onPress={() => setActiveTab('chat')}
+        activeOpacity={0.7}
+      >
+        <View style={styles.tabContent}>
+          <Ionicons
+            name="chatbubble-outline"
+            size={18}
+            color={activeTab === 'chat' ? '#FFFFFF' : '#94a3b8'}
+          />
+          <Text style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>
+            Chats
+          </Text>
+        </View>
+        {activeTab === 'chat' && <View style={styles.tabIndicator} />}
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.tabButton}
+        onPress={() => setActiveTab('ads')}
+        activeOpacity={0.7}
+      >
+        <View style={styles.tabContent}>
+          <Ionicons
+            name="card-outline"
+            size={18}
+            color={activeTab === 'ads' ? '#FFFFFF' : '#94a3b8'}
+          />
+          <Text style={[styles.tabText, activeTab === 'ads' && styles.tabTextActive]}>
+            Chat Ads
+          </Text>
+          <View style={[styles.newBadge, activeTab === 'ads' && styles.newBadgeActive]}>
+            <Text style={[styles.newBadgeText, activeTab === 'ads' && styles.newBadgeTextActive]}>NEW</Text>
+          </View>
+        </View>
+        {activeTab === 'ads' && <View style={styles.tabIndicator} />}
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -131,93 +227,98 @@ export default function ChatListScreen({ navigation }: any) {
         </View>
       </SafeAreaView>
 
-      {/* Search */}
-      <View style={styles.searchWrap}>
-        <Ionicons name="search" size={16} color={colors.textSecondary} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search chats..."
-          placeholderTextColor={colors.textSecondary}
-          value={search}
-          onChangeText={onSearch}
-        />
-      </View>
+      {/* Tab Switcher */}
+      {renderTabSwitcher()}
 
-      {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.accent} />
-        </View>
+      {/* Tab Content */}
+      {activeTab === 'ads' ? (
+        renderChatAds()
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={item => item.id}
-          onScroll={handleScroll}
-          onMomentumScrollBegin={handleMomentumScrollBegin}
-          onScrollEndDrag={handleScrollEndDrag}
-          scrollEventThrottle={16}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing && canRefresh}
-              onRefresh={() => {
-                if (canRefresh) {
-                  setRefreshing(true);
-                  load();
-                }
-              }}
-              tintColor={colors.accent}
-              enabled={false}
-              progressViewOffset={-10}
+        <>
+          {/* Search */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={16} color="#64748b" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search chats..."
+              placeholderTextColor="#64748b"
+              value={search}
+              onChangeText={onSearch}
             />
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.chatRow}
-              onPress={() => navigation.navigate('ChatRoom', { chat: item })}
-              onLongPress={() => {
-                const name = item.otherUser?.displayName || item.otherUser?.username || 'this user';
-                confirmDeleteChat(item.id, name);
-              }}
-            >
-              <Avatar uri={item.otherUser?.profileImage} size={52} />
-              <View style={styles.chatInfo}>
-                <View style={styles.chatTopRow}>
-                  <Text style={styles.chatName} numberOfLines={1}>
-                    {item.otherUser?.displayName || item.otherUser?.username || 'Unknown'}
-                  </Text>
-                  <Text style={styles.chatTime}>{timeAgo(item.lastMessageTime)}</Text>
-                </View>
-                <Text style={styles.chatLastMsg} numberOfLines={1}>
-                  {typeof item.lastMessage === 'string'
-                    ? item.lastMessage
-                    : item.lastMessage?.content || item.lastMessage?.text || JSON.stringify(item.lastMessage)?.slice(0, 50) || 'No messages yet'}
-                </Text>
-              </View>
-              {item.unreadCount > 0 && (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadText}>{item.unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-          ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 82 }} />}
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', paddingTop: 80 }}>
-              <View style={styles.emptyIcon}>
-                <Ionicons name="chatbubble-outline" size={36} color={colors.textSecondary} />
-              </View>
-              <Text style={{ color: colors.textSecondary, fontSize: 16, marginTop: 12 }}>No chats yet</Text>
-              <Text style={{ color: colors.textMuted, fontSize: 14, marginTop: 8 }}>
-                Start a conversation from someone's profile
-              </Text>
-              <TouchableOpacity
-                style={{ marginTop: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, borderRadius: 8 }}
-                onPress={load}
-              >
-                <Text style={{ color: colors.accent, fontSize: 14 }}>Tap to retry</Text>
-              </TouchableOpacity>
+          </View>
+
+          {loading ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator color={colors.accent} />
             </View>
-          }
-        />
+          ) : (
+            <FlatList
+              data={filtered}
+              keyExtractor={item => item.id}
+              onScroll={handleScroll}
+              onMomentumScrollBegin={handleMomentumScrollBegin}
+              onScrollEndDrag={handleScrollEndDrag}
+              scrollEventThrottle={16}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing && canRefresh}
+                  onRefresh={() => {
+                    if (canRefresh) {
+                      setRefreshing(true);
+                      load();
+                    }
+                  }}
+                  tintColor={colors.accent}
+                  enabled={false}
+                  progressViewOffset={-10}
+                />
+              }
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.chatRow}
+                  onPress={() => navigation.navigate('ChatRoom', { chat: item })}
+                  onLongPress={() => {
+                    const name = item.otherUser?.displayName || item.otherUser?.username || 'this user';
+                    confirmDeleteChat(item.id, name);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.avatarWrap}>
+                    <Avatar uri={item.otherUser?.profileImage} size={48} />
+                    {item.unreadCount > 0 && (
+                      <View style={styles.unreadBadge}>
+                        <Text style={styles.unreadText}>{item.unreadCount}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.chatInfo}>
+                    <View style={styles.chatTopRow}>
+                      <Text style={styles.chatName} numberOfLines={1}>
+                        {item.otherUser?.displayName || item.otherUser?.username || 'Unknown'}
+                      </Text>
+                      <Text style={styles.chatTime}>{timeAgo(getLastMessageTime(item))}</Text>
+                    </View>
+                    <View style={styles.chatBottomRow}>
+                      <Text
+                        style={[
+                          styles.chatLastMsg,
+                          item.unreadCount > 0 && styles.chatLastMsgUnread,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {getLastMessageContent(item)}
+                      </Text>
+                    </View>
+                    <View style={styles.chatInfoBorder} />
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                search.trim() ? renderNoResults() : renderNoChats()
+              }
+            />
+          )}
+        </>
       )}
     </View>
   );
@@ -225,32 +326,212 @@ export default function ChatListScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+
+  /* ── Header ── */
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
     height: 56,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  headerTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
-  searchWrap: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bgInput,
-    borderRadius: 25, marginHorizontal: 16, marginVertical: 10, paddingHorizontal: 14, gap: 8,
+  headerTitle: { color: '#e7e9ea', fontSize: 17, fontWeight: '700' },
+
+  /* ── Tab Switcher ── */
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(0,0,0,0.8)',
   },
-  searchInput: { flex: 1, color: colors.text, fontSize: 15, paddingVertical: 11 },
-  chatRow: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
-  chatInfo: { flex: 1 },
-  chatTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 },
-  chatName: { color: colors.text, fontWeight: '700', fontSize: 15, flex: 1 },
-  chatTime: { color: colors.textSecondary, fontSize: 13 },
-  chatLastMsg: { color: colors.textSecondary, fontSize: 14 },
-  unreadBadge: {
-    backgroundColor: colors.accent, minWidth: 20, height: 20, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    position: 'relative',
   },
-  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  emptyIcon: {
-    width: 72, height: 72, borderRadius: 36,
+  tabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  tabText: {
+    fontSize: 15,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  tabTextActive: {
+    color: '#e7e9ea',
+    fontWeight: '700',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: '25%',
+    right: '25%',
+    height: 3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 3,
+  },
+  newBadge: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  newBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  newBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  newBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+
+  /* ── Search ── */
+  searchContainer: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    position: 'relative',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    top: '50%',
+    zIndex: 1,
+  },
+  searchInput: {
+    flex: 1,
     backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingLeft: 36,
+    color: '#e7e9ea',
+    fontSize: 14,
+  },
+
+  /* ── Chat Row ── */
+  chatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  avatarWrap: {
+    position: 'relative',
+    shrink: 0,
+  },
+  chatInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  chatInfoBorder: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 0.5,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  chatTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  chatName: {
+    color: '#e7e9ea',
+    fontWeight: '700',
+    fontSize: 15,
+    flex: 1,
+  },
+  chatTime: {
+    color: '#94a3b8',
+    fontSize: 13,
+    marginLeft: 8,
+  },
+  chatBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  chatLastMsg: {
+    color: '#94a3b8',
+    fontSize: 14,
+    flex: 1,
+  },
+  chatLastMsgUnread: {
+    color: '#e7e9ea',
+    fontWeight: '600',
+  },
+
+  /* ── Unread Badge ── */
+  unreadBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadText: {
+    color: '#000000',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  /* ── Empty States ── */
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 112,
+    paddingHorizontal: 32,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    color: '#e7e9ea',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    color: '#94a3b8',
+    fontSize: 15,
+    textAlign: 'center',
+  },
+
+  /* ── Chat Ads ── */
+  adsContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  adsEmptyText: {
+    color: '#94a3b8',
+    fontSize: 14,
+  },
+  adsEmptySubtext: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 4,
   },
 });

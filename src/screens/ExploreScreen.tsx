@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl,  } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -8,6 +8,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
 import { User } from '../lib/api';
+import { toggleFollow } from '../lib/api';
 
 /* ── Trending Topics (hardcoded samples) ────────────────────────────────── */
 const TRENDING_TOPICS = [
@@ -38,6 +39,7 @@ export default function ExploreScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [canRefresh, setCanRefresh] = useState(true);
+  const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
 
   const loadRecommendedUsers = useCallback(async () => {
     try {
@@ -51,6 +53,19 @@ export default function ExploreScreen() {
       console.log(`[Explore] Got ${snap.docs.length} users from Firestore`);
 
       const currentUserId = auth()?.currentUser?.uid;
+
+      // Get users the current user already follows
+      if (currentUserId) {
+        try {
+          const followsSnap = await firestore()
+            .collection('follows')
+            .where('followerId', '==', currentUserId)
+            .get();
+          const followingIds = new Set(followsSnap.docs.map(d => d.data().followingId));
+          setFollowedUsers(followingIds);
+        } catch { /* skip */ }
+      }
+
       const users: User[] = snap.docs
         .filter(d => d.id !== currentUserId)
         .map(d => {
@@ -98,6 +113,19 @@ export default function ExploreScreen() {
     ? TRENDING_TOPICS.filter(t => t.category === selectedCategory)
     : TRENDING_TOPICS;
 
+  const handleFollow = useCallback(async (targetId: string) => {
+    const currentUser = auth()?.currentUser;
+    if (!currentUser || followedUsers.has(targetId)) return;
+    try {
+      const newState = await toggleFollow(targetId, false);
+      if (newState) {
+        setFollowedUsers(prev => new Set(prev).add(targetId));
+      }
+    } catch (e: any) {
+      console.error('[Explore] Follow failed:', e?.message);
+    }
+  }, [followedUsers]);
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -131,8 +159,8 @@ export default function ExploreScreen() {
           onPress={() => navigation.navigate('Search' as never)}
           activeOpacity={0.7}
         >
-          <Ionicons name="search" size={18} color={colors.textSecondary} />
-          <Text style={styles.searchPlaceholder}>Search Black94</Text>
+          <Ionicons name="search" size={20} color="#94a3b8" />
+          <Text style={styles.searchPlaceholder}>Search</Text>
         </TouchableOpacity>
 
         {/* Category Pills */}
@@ -169,17 +197,19 @@ export default function ExploreScreen() {
         {/* Trending Topics */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            {selectedCategory ? `Trending in ${selectedCategory}` : 'Trending Now'}
+            {selectedCategory ? `Trending in ${selectedCategory}` : 'Trending'}
           </Text>
-          <View style={styles.sectionCard}>
+          <View style={styles.topicList}>
             {filteredTopics.map((topic, idx) => (
-              <TouchableOpacity key={topic.tag} style={styles.topicRow}>
+              <TouchableOpacity
+                key={topic.tag}
+                style={styles.topicRow}
+                onPress={() => navigation.navigate('Search' as never, { q: topic.tag })}
+              >
                 <View style={styles.topicContent}>
-                  <View style={styles.topicCategoryRow}>
-                    <Text style={styles.topicCategory}>
-                      {topic.category} · Trending
-                    </Text>
-                  </View>
+                  <Text style={styles.topicCategory}>
+                    {topic.category}
+                  </Text>
                   <Text style={styles.topicTag}>{topic.tag}</Text>
                   <Text style={styles.topicPosts}>
                     {topic.posts} posts
@@ -198,36 +228,44 @@ export default function ExploreScreen() {
           </View>
         </View>
 
-        {/* Recommended Users */}
+        {/* Who to follow */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recommended Users</Text>
+          <Text style={styles.sectionTitle}>Who to follow</Text>
           {loading ? (
             <View style={styles.usersLoading}>
               <ActivityIndicator color={colors.accent} />
             </View>
           ) : recommendedUsers.length === 0 ? (
-            <View style={styles.sectionCard}>
-              <Text style={styles.noUsersText}>
-                No recommended users at this time.
+            <View style={styles.emptyUsersWrap}>
+              <View style={styles.emptyUsersIcon}>
+                <Ionicons name="people-outline" size={28} color="#64748b" />
+              </View>
+              <Text style={styles.emptyUsersText}>
+                Suggestions will appear as more people join.
               </Text>
             </View>
           ) : (
-            <View style={styles.sectionCard}>
+            <View style={styles.userList}>
               {recommendedUsers.map(user => (
-                <TouchableOpacity
-                  key={user.id}
-                  style={styles.userRow}
-                  onPress={() =>
-                    navigation.navigate('UserProfile' as never, { userId: user.id })
-                  }
-                >
-                  <Avatar uri={user.profileImage} size={44} />
-                  <View style={styles.userInfo}>
+                <View key={user.id} style={styles.userRow}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      navigation.navigate('UserProfile' as never, { userId: user.id })
+                    }
+                  >
+                    <Avatar uri={user.profileImage} size={44} name={user.displayName} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.userInfo}
+                    onPress={() =>
+                      navigation.navigate('UserProfile' as never, { userId: user.id })
+                    }
+                  >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Text style={styles.userName} numberOfLines={1}>
                         {user.displayName}
                       </Text>
-                      <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
+                      <VerifiedBadge badge={user.badge} isVerified={user.isVerified} size={14} />
                     </View>
                     <Text style={styles.userHandle}>@{user.username}</Text>
                     {user.bio ? (
@@ -235,8 +273,20 @@ export default function ExploreScreen() {
                         {user.bio}
                       </Text>
                     ) : null}
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                  {followedUsers.has(user.id) ? (
+                    <TouchableOpacity style={styles.followingBtn}>
+                      <Text style={styles.followingBtnText}>Following</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.followBtn}
+                      onPress={() => handleFollow(user.id)}
+                    >
+                      <Text style={styles.followBtnText}>Follow</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               ))}
             </View>
           )}
@@ -255,128 +305,172 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
   },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  /* Search Bar: decorative, bg-white/[0.06], border border-white/[0.08], pill */
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgInput,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: 25,
     marginHorizontal: 16,
     marginVertical: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     gap: 10,
   },
   searchPlaceholder: {
-    color: colors.textSecondary,
+    color: '#64748b',
     fontSize: 15,
   },
+  /* Category pills */
   categoriesWrap: { marginBottom: 4 },
   categoriesScroll: { paddingHorizontal: 16, gap: 8 },
   categoryPill: {
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   categoryPillActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
+    backgroundColor: '#FFFFFF',
   },
   categoryPillText: {
-    color: colors.text,
+    color: '#e7e9ea',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   categoryPillTextActive: {
-    color: '#fff',
+    color: '#000000',
   },
+  /* Section */
   section: { marginTop: 16 },
+  /* Section title: fontSize: 18, fontWeight: 700, color: #e7e9ea */
   sectionTitle: {
-    color: colors.text,
+    color: '#e7e9ea',
     fontSize: 18,
     fontWeight: '700',
     paddingHorizontal: 16,
     marginBottom: 10,
   },
-  sectionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
+  /* Trending topic list */
+  topicList: {},
   topicRow: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   topicContent: {},
-  topicCategoryRow: { marginBottom: 2 },
+  /* Category: fontSize: 13, color: #94a3b8 */
   topicCategory: {
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  topicTag: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
-    marginVertical: 2,
-  },
-  topicPosts: {
-    color: colors.textSecondary,
+    color: '#94a3b8',
     fontSize: 13,
+  },
+  /* Tag: fontSize: 15, fontWeight: 600, color: #e7e9ea */
+  topicTag: {
+    color: '#e7e9ea',
+    fontSize: 15,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  /* Posts count: fontSize: 13, color: #64748b */
+  topicPosts: {
+    color: '#64748b',
+    fontSize: 13,
+    marginTop: 2,
   },
   topicSeparator: {
     height: 0.5,
-    backgroundColor: colors.border,
-    marginTop: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginLeft: 16,
   },
   noTopicsText: {
-    color: colors.textSecondary,
+    color: '#94a3b8',
     fontSize: 14,
     textAlign: 'center',
     paddingVertical: 20,
   },
+  /* Loading */
   usersLoading: {
     paddingVertical: 30,
     alignItems: 'center',
   },
-  noUsersText: {
-    color: colors.textSecondary,
+  /* Empty users */
+  emptyUsersWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  emptyUsersIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyUsersText: {
+    color: '#94a3b8',
     fontSize: 14,
     textAlign: 'center',
-    paddingVertical: 20,
   },
+  /* User list */
+  userList: {},
   userRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   userInfo: {
     flex: 1,
     marginLeft: 12,
   },
   userName: {
-    color: colors.text,
+    color: '#e7e9ea',
     fontWeight: '700',
     fontSize: 15,
   },
   userHandle: {
-    color: colors.textSecondary,
-    fontSize: 14,
+    color: '#94a3b8',
+    fontSize: 13,
   },
   userBio: {
-    color: colors.textSecondary,
+    color: '#94a3b8',
     fontSize: 13,
     marginTop: 2,
     lineHeight: 18,
+  },
+  /* Follow button: bg-[#e7e9ea] text-black text-[13px] font-semibold rounded-full */
+  followBtn: {
+    backgroundColor: '#e7e9ea',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    alignSelf: 'center',
+  },
+  followBtnText: {
+    color: '#000000',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  /* Following button: border border-[#64748b] text-[#e7e9ea] */
+  followingBtn: {
+    borderWidth: 1,
+    borderColor: '#64748b',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    alignSelf: 'center',
+  },
+  followingBtnText: {
+    color: '#e7e9ea',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

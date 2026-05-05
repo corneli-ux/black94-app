@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Keyboard, ScrollView } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Keyboard, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, Message } from '../lib/api';
@@ -7,6 +7,13 @@ import { auth, firestore } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
+
+function formatTime(timestamp?: number | string): string {
+  if (!timestamp) return '';
+  const date = typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
 
 export default function ChatRoomScreen({ route, navigation }: any) {
   const routeChat = route.params?.chat;
@@ -17,6 +24,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(!routeChat);
   const [sending, setSending] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -131,15 +139,57 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     }
   };
 
+  const handleDeleteChat = () => {
+    setShowMenu(false);
+    const name = chat?.otherUser?.displayName || chat?.otherUser?.username || 'this user';
+    Alert.alert(
+      'Delete Chat',
+      'Are you sure you want to delete this chat? This will permanently remove all messages and cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const messagesRef = firestore().collection('chats').doc(chat.id).collection('messages');
+              const batchSize = 100;
+              let hasMore = true;
+              while (hasMore) {
+                try {
+                  const snapshot = await messagesRef.limit(batchSize).get();
+                  if (snapshot.empty) break;
+                  const deletePromises = snapshot.docs.map(doc =>
+                    messagesRef.doc(doc.id).delete().catch(() => {})
+                  );
+                  await Promise.all(deletePromises);
+                  hasMore = snapshot.size >= batchSize;
+                } catch (e) {
+                  console.warn('[ChatDelete] Batch failed:', e);
+                  break;
+                }
+              }
+              await firestore().collection('chats').doc(chat.id).delete();
+              navigation.goBack();
+            } catch (e) {
+              console.error('[ChatDelete] Error:', e);
+              Alert.alert('Error', 'Failed to delete chat.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isMine = item.senderId === currentUser?.uid;
     return (
       <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
         {!isMine && <Avatar uri={chat.otherUser?.profileImage} size={28} />}
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-          <Text style={[styles.bubbleText, isMine && { color: '#000' }]}>{item.content}</Text>
-          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.4)' } : { color: colors.textMuted }]}>
-            {timeAgo(item.createdAt)}
+          <Text style={[styles.bubbleText, isMine && { color: '#FFFFFF' }]}>{item.content}</Text>
+          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(255,255,255,0.6)' } : { color: '#94a3b8' }]}>
+            {formatTime(item.createdAt)}
           </Text>
         </View>
       </View>
@@ -148,10 +198,10 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={[styles.safeArea, { paddingBottom: 0 }]}>
-      {/* Header — explicit top padding for edge-to-edge status bar */}
+      {/* Header — web: bg-[#000000]/90 backdrop-blur-xl, px-4 py-2.5 */}
       <View style={[styles.header, { paddingTop: Math.max(8, insets.top - 4) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color={colors.text} />
+          <Ionicons name="arrow-back" size={20} color="#e7e9ea" />
         </TouchableOpacity>
         {chat ? (
           <>
@@ -166,6 +216,47 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         ) : (
           <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: 10 }} />
         )}
+
+        {/* Search button */}
+        <TouchableOpacity
+          style={styles.headerActionBtn}
+          onPress={() => {}}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="search-outline" size={18} color="#e7e9ea" />
+        </TouchableOpacity>
+
+        {/* More menu button */}
+        <View style={{ position: 'relative' }}>
+          <TouchableOpacity
+            style={styles.headerActionBtn}
+            onPress={() => setShowMenu(!showMenu)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color="#e7e9ea" />
+          </TouchableOpacity>
+
+          {/* Dropdown menu */}
+          {showMenu && (
+            <>
+              <TouchableOpacity
+                style={StyleSheet.absoluteFillObject}
+                onPress={() => setShowMenu(false)}
+                activeOpacity={1}
+              />
+              <View style={styles.dropdownMenu}>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleDeleteChat}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#f43f5e" />
+                  <Text style={styles.menuItemTextDelete}>Delete Chat</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
       </View>
 
       {/* Messages */}
@@ -179,10 +270,10 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           data={messages}
           keyExtractor={item => item.id}
           renderItem={renderMessage}
-          contentContainerStyle={{ padding: 16, gap: 6, paddingTop: 8 }}
+          contentContainerStyle={{ padding: 16, gap: 4, paddingTop: 8 }}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
-              <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No messages yet. Say hi!</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 15 }}>No messages yet. Say hello!</Text>
             </View>
           }
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
@@ -192,34 +283,57 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         />
       )}
 
-      {/* Input bar — stays above keyboard, properly positioned */}
+      {/* Input bar — matches web ChatInputBar */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
-        style={{ backgroundColor: colors.bg }}
+        style={{ backgroundColor: '#000000' }}
       >
         <View style={[
           styles.inputRow,
-          // On Android, keyboard pushes view up automatically with resize mode
-          // Add bottom padding for safe area
           { paddingBottom: Math.max(8, insets.bottom) }
         ]}>
-          <TextInput
-            style={styles.input}
-            placeholder="Type a message..."
-            placeholderTextColor={colors.textSecondary}
-            value={text}
-            onChangeText={setText}
-            multiline
-          />
+          {/* Input pill with inline buttons */}
+          <View style={styles.inputPill}>
+            {/* Emoji button */}
+            <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
+              <Ionicons name="happy-outline" size={20} color="#71767b" />
+            </TouchableOpacity>
+
+            {/* GIF placeholder button */}
+            <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
+              <Ionicons name="film-outline" size={20} color="#71767b" />
+            </TouchableOpacity>
+
+            {/* Text Input */}
+            <TextInput
+              style={styles.pillInput}
+              placeholder="Start a message"
+              placeholderTextColor="#71767b"
+              value={text}
+              onChangeText={setText}
+              multiline
+            />
+
+            {/* Attach button */}
+            <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
+              <Ionicons name="attach-outline" size={18} color="#71767b" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Send Button */}
           <TouchableOpacity
-            style={[styles.sendBtn, !text.trim() && { opacity: 0.4 }]}
+            style={[
+              styles.sendBtn,
+              !text.trim() && !sending && styles.sendBtnInactive,
+            ]}
             onPress={handleSend}
             disabled={!text.trim() || sending}
+            activeOpacity={0.7}
           >
             {sending
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Ionicons name="arrow-up" size={18} color="#fff" />
+              ? <ActivityIndicator color="#3b82f6" size="small" />
+              : <Ionicons name="send" size={18} color={text.trim() ? '#3b82f6' : '#374151'} />
             }
           </TouchableOpacity>
         </View>
@@ -229,39 +343,137 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.bg },
-  container: { flex: 1, backgroundColor: colors.bg },
+  safeArea: { flex: 1, backgroundColor: '#000000' },
+
+  /* ── Header — web: px-4 py-2.5 bg-[#000000]/90 backdrop-blur-xl ── */
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(0,0,0,0.9)',
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
-  headerName: { color: colors.text, fontWeight: '700', fontSize: 15 },
-  headerHandle: { color: colors.textSecondary, fontSize: 13 },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  headerName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  headerHandle: { color: '#94a3b8', fontSize: 12 },
+
+  /* ── Header Action Buttons ── */
+  headerActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  /* ── Dropdown Menu ── */
+  dropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: 4,
+    minWidth: 180,
+    backgroundColor: '#1d1d1f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
+    zIndex: 50,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  menuItemTextDelete: {
+    color: '#f43f5e',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
+  /* ── Message Bubbles ──
+     Web: mine = bg-[#3b82f6] text-white rounded-br-md
+          theirs = bg-white/[0.06] text-[#e7e9ea] rounded-bl-md
+     max-w-[75%], px-3 py-2 rounded-2xl, text-[15px] leading-relaxed */
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginVertical: 2 },
   msgRowRight: { justifyContent: 'flex-end' },
   msgRowLeft: { justifyContent: 'flex-start' },
-  /* ── Chat bubbles — web exact match ──
-     Web .bubble-sent: bg gradient(135deg, #FFFFFF, #D1D5DB), color #000, radius 18/18/4/18
-     Web .bubble-received: bg rgba(255,255,255,0.08), color #e7e9ea, radius 18/18/18/4, backdrop-blur(12px)
-     Web content: px-3.5 py-2.5 = paddingH 14 paddingV 10 */
-  bubble: { maxWidth: '75%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
-  bubbleMine: { backgroundColor: '#e8e8e8', borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: 'rgba(255,255,255,0.08)', borderBottomLeftRadius: 4 },
-  bubbleText: { color: colors.text, fontSize: 15, lineHeight: 21 },
-  bubbleTime: { fontSize: 10, marginTop: 3 },
-  inputRow: {
-    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.06)',
+  bubble: { maxWidth: '75%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
+  bubbleMine: {
+    backgroundColor: '#3b82f6',
+    borderBottomRightRadius: 6,
   },
-  input: {
-    flex: 1, backgroundColor: colors.bgInput, borderRadius: 22,
-    paddingHorizontal: 16, paddingVertical: 10, color: colors.text, fontSize: 15, maxHeight: 100,
+  bubbleTheirs: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderBottomLeftRadius: 6,
+  },
+  bubbleText: { color: '#e7e9ea', fontSize: 15, lineHeight: 22 },
+  bubbleTime: { fontSize: 11, marginTop: 4 },
+
+  /* ── Input Bar — matches web ChatInputBar ── */
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  inputPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 0,
+    backgroundColor: '#1f2937',
+    borderRadius: 22,
+    paddingLeft: 6,
+    paddingRight: 6,
+    paddingVertical: 4,
+  },
+  pillBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillInput: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    color: '#FFFFFF',
+    fontSize: 15,
+    lineHeight: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    maxHeight: 100,
+    minWidth: 0,
   },
   sendBtn: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: colors.accent,
-    alignItems: 'center', justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendBtnInactive: {
+    // inactive state: no background, icon is #374151
   },
 });
