@@ -14,6 +14,22 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
+/* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
+function HighlightedCaption({ text, style }: { text: string; style: any }) {
+  const parts = text.split(/(#\w+|@\w+)/g);
+  return (
+    <Text style={style}>
+      {parts.map((part, i) =>
+        /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
+          <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+        ) : (
+          <Text key={i}>{part}</Text>
+        )
+      )}
+    </Text>
+  );
+}
+
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
 const TABS = ['Discover', 'Network'] as const;
@@ -170,9 +186,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
           {/* Caption */}
           {post.caption ? (
-            <Text style={styles.caption} numberOfLines={4}>
-              {post.caption}
-            </Text>
+            <HighlightedCaption text={post.caption} style={styles.caption} />
           ) : null}
 
           {/* Media */}

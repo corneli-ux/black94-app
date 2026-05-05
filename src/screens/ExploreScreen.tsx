@@ -10,19 +10,41 @@ import { tsToMillis } from '../lib/api';
 import { User } from '../lib/api';
 import { toggleFollow } from '../lib/api';
 
-/* ── Trending Topics (hardcoded samples) ────────────────────────────────── */
-const TRENDING_TOPICS = [
-  { tag: '#Black94Launch', category: 'Technology', posts: '12.4K' },
-  { tag: '#AIRevolution', category: 'Technology', posts: '8.9K' },
-  { tag: '#StartupLife', category: 'Business', posts: '6.2K' },
-  { tag: '#ChampionsLeague', category: 'Sports', posts: '15.1K' },
-  { tag: '#NewMovieRelease', category: 'Entertainment', posts: '9.7K' },
-  { tag: '#SpaceExploration', category: 'Science', posts: '4.3K' },
-  { tag: '#CryptoUpdate', category: 'Business', posts: '11.8K' },
-  { tag: '#GameDev', category: 'Technology', posts: '5.6K' },
-  { tag: '#FitnessGoals', category: 'Sports', posts: '7.1K' },
-  { tag: '#ClimateTech', category: 'Science', posts: '3.8K' },
-];
+/* ── Trending Topics (fetched live from Firestore) ────────────────────────── */
+interface TrendingTopic {
+  tag: string;
+  count: number;
+}
+
+async function fetchLiveTrending(): Promise<TrendingTopic[]> {
+  try {
+    const snap = await firestore()
+      .collection('posts')
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
+
+    const tagCounts: Record<string, number> = {};
+    snap.docs.forEach(docSnap => {
+      const caption = docSnap.data().caption || '';
+      const tags = caption.match(/#[\w]+/g);
+      if (tags) {
+        tags.forEach(tag => {
+          const lower = tag.toLowerCase();
+          tagCounts[lower] = (tagCounts[lower] || 0) + 1;
+        });
+      }
+    });
+
+    return Object.entries(tagCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([tag, count]) => ({ tag, count }));
+  } catch (e) {
+    console.error('[Explore] Failed to fetch trending:', e);
+    return [];
+  }
+}
 
 const CATEGORIES = [
   'Trending',
@@ -36,11 +58,17 @@ const CATEGORIES = [
 export default function ExploreScreen() {
   const navigation = useNavigation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
   const [recommendedUsers, setRecommendedUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [canRefresh, setCanRefresh] = useState(true);
   const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
+
+  const loadTrending = useCallback(async () => {
+    const topics = await fetchLiveTrending();
+    setTrendingTopics(topics);
+  }, []);
 
   const loadRecommendedUsers = useCallback(async () => {
     try {
@@ -102,6 +130,7 @@ export default function ExploreScreen() {
   }, []);
 
   useEffect(() => {
+    loadTrending();
     loadRecommendedUsers();
   }, []);
 
@@ -110,9 +139,9 @@ export default function ExploreScreen() {
     loadRecommendedUsers();
   };
 
-  const filteredTopics = selectedCategory
-    ? TRENDING_TOPICS.filter(t => t.category === selectedCategory)
-    : TRENDING_TOPICS;
+  const filteredTopics = selectedCategory && selectedCategory !== 'Trending'
+    ? trendingTopics.filter(t => t.tag.includes(selectedCategory.toLowerCase()))
+    : trendingTopics;
 
   const handleFollow = useCallback(async (targetId: string) => {
     const currentUser = auth()?.currentUser;
@@ -208,12 +237,9 @@ export default function ExploreScreen() {
                 onPress={() => navigation.navigate('Search' as never, { q: topic.tag })}
               >
                 <View style={styles.topicContent}>
-                  <Text style={styles.topicCategory}>
-                    {topic.category}
-                  </Text>
                   <Text style={styles.topicTag}>{topic.tag}</Text>
                   <Text style={styles.topicPosts}>
-                    {topic.posts} posts
+                    {topic.count} {topic.count === 1 ? 'post' : 'posts'}
                   </Text>
                 </View>
                 {idx < filteredTopics.length - 1 && (
@@ -223,7 +249,7 @@ export default function ExploreScreen() {
             ))}
             {filteredTopics.length === 0 && (
               <Text style={styles.noTopicsText}>
-                No trending topics in this category.
+                No trending topics yet.
               </Text>
             )}
           </View>
