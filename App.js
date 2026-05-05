@@ -56,7 +56,7 @@ class AppErrorBoundary extends Component {
 
 /* ── App Component ────────────────────────────────────────────────────────── */
 
-const FORCE_READY_TIMEOUT = 2000;
+const FORCE_READY_TIMEOUT = 8000;
 
 export default function App() {
   const { user, setUser, setToken, setIsReady, isReady, setLoading } = useAppStore();
@@ -89,11 +89,14 @@ export default function App() {
               setToken(fbUser.uid);
               setLoading(false);
               fetchUserProfile(fbUser.uid).then(profile => {
+                // Don't update if safety timeout already fired
+                if (forceReady) return;
                 if (profile) { setUser(profile); } else {
                   setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
                 }
                 setIsReady(true);
               }).catch(err => {
+                if (forceReady) return;
                 console.warn('[App] Profile fetch failed after restore, using Firebase data:', err);
                 setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
                 setIsReady(true);

@@ -220,7 +220,13 @@ export default function ChatListScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Messages</Text>
-          <View style={{ width: 36 }} />
+          <TouchableOpacity
+            style={styles.newMsgBtn}
+            onPress={() => navigation.navigate('Explore')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="create-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
@@ -327,6 +333,7 @@ const styles = StyleSheet.create({
     height: 56,
   },
   headerTitle: { color: '#e7e9ea', fontSize: 20, fontWeight: '700' },
+  newMsgBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 
   /* ── Tab Switcher ── */
   tabBar: {

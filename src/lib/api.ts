@@ -139,10 +139,10 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     return {
       id: fbUser.uid,
       email: fbUser.email || '',
-      username: username,
-      displayName: userData.displayName,
+      username: existingData?.username || username,
+      displayName: existingData?.displayName || userData.displayName,
       bio: existingData?.bio || '',
-      profileImage: userData.profileImage,
+      profileImage: existingData?.profileImage || userData.profileImage,
       coverImage: existingData?.coverImage || null,
       role: existingData?.role || 'personal',
       badge: existingData?.badge || '',

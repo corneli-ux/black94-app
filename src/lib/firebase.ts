@@ -261,9 +261,11 @@ async function _firestoreFetch(
     if (data.error?.message?.includes('FAILED_PRECONDITION') || errMsg.includes('index')) {
       console.error(`[Firestore] COMPOSITE INDEX NEEDED for query on path: ${path}`);
       console.error(`[Firestore] Create index at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
-      // Return empty result instead of throwing — graceful degradation
+      // Return empty result with a special flag so callers can detect this
       console.warn(`[Firestore] Returning empty result due to missing index`);
-      return [];
+      const emptyResult: any = [];
+      emptyResult._missingIndex = true;
+      return emptyResult;
     }
     throw err;
   }
@@ -601,8 +603,10 @@ class CompatDocRef {
       if (e.status === 404 || e.code === 'NOT_FOUND') {
         return { id: this.id, exists: false, data: () => null };
       }
-      console.warn('[Firestore] Doc get error:', e?.message);
-      return { id: this.id, exists: false, data: () => null };
+      // Re-throw network/permission errors so callers can handle them properly
+      // Only 404/NOT_FOUND should be treated as "doc doesn't exist"
+      console.error('[Firestore] Doc get error:', e?.message);
+      throw e;
     }
   }
 
