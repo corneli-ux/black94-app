@@ -346,9 +346,11 @@ class CompatCollectionRef {
   }
 
   orderBy(field: string, dir: string = 'asc') {
+    // Firestore REST API requires full direction names: 'ASCENDING' / 'DESCENDING'
+    const direction = dir.toLowerCase() === 'desc' ? 'DESCENDING' : 'ASCENDING';
     return new CompatCollectionRef(this._path, [
       ...this._constraints,
-      { type: 'orderBy', field, direction: dir.toUpperCase() },
+      { type: 'orderBy', field, direction },
     ]);
   }
 

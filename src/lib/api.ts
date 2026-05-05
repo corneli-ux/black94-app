@@ -316,7 +316,9 @@ export async function fetchChatList(): Promise<Chat[]> {
           id: docSnap.id,
           user1Id: data.user1Id,
           user2Id: data.user2Id,
-          lastMessage: data.lastMessage || '',
+          lastMessage: typeof data.lastMessage === 'string'
+            ? data.lastMessage
+            : (data.lastMessage?.content || data.lastMessage?.text || ''),
           lastMessageTime: tsToMillis(data.lastMessageTime),
           unreadCount,
           otherUser: otherData ? {

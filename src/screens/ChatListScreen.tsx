@@ -41,7 +41,7 @@ export default function ChatListScreen({ navigation }: any) {
     setFiltered(chats.filter(c =>
       c.otherUser?.displayName?.toLowerCase().includes(lower) ||
       c.otherUser?.username?.toLowerCase().includes(lower) ||
-      c.lastMessage?.toLowerCase().includes(lower)
+      (typeof c.lastMessage === 'string' && c.lastMessage.toLowerCase().includes(lower))
     ));
   };
 
