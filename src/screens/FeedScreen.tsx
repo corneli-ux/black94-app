@@ -365,7 +365,7 @@ export default function FeedScreen({ navigation }: any) {
               <Avatar uri={currentUser?.photoURL} name={currentUser?.displayName} size={38} />
               <TextInput
                 style={styles.composeInput}
-                placeholder="What's happening?"
+                placeholder="What's on your mind?"  // web: exact placeholder text
                 placeholderTextColor="#64748b"
                 value={composeText}
                 onChangeText={setComposeText}
@@ -402,13 +402,14 @@ const styles = StyleSheet.create({
   /* ── Post Card — EXACT match to web UserPostCard.tsx ──
      Web article: paddingLeft:16 paddingRight:16 paddingTop:4 paddingBottom:12
      border-bottom: 1px solid white/[0.06]
-     Web avatar: size=48, Web gap: 12px */
+     Web avatar: size=48, Web gap: 12px
+     Web more button: absolute top-0 right-0 w-8 h-8 -mr-2 */
   postCard: {
     paddingHorizontal: 16,
     paddingTop: 4,
     paddingBottom: 12,
     backgroundColor: colors.bg,
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 1,
     borderBottomColor: colors.separator,
   },
   contentRow: {
@@ -418,6 +419,7 @@ const styles = StyleSheet.create({
   contentColumn: {
     flex: 1,
     minWidth: 0,
+    position: 'relative',  // web: relative — needed for absolute more button
   },
   headerRow: {
     flexDirection: 'row',
@@ -429,7 +431,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     flex: 1,
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',  // web: no flex-wrap — names stay on one line
+    overflow: 'hidden',
   },
 
   /* ── Post text styles — web exact values ── */
@@ -450,10 +453,13 @@ const styles = StyleSheet.create({
     color: '#94a3b8',   // web: text-[#94a3b8]
     fontSize: 15,        // web: text-[15px]
   },
+  /* web: absolute top-0 right-0 w-8 h-8 -mr-2 rounded-full hover:bg-white/[0.06] */
   moreBtn: {
+    position: 'absolute',
+    top: 0,
+    right: -8,  // web: -mr-2 = -8px
     width: 32, height: 32,
     alignItems: 'center', justifyContent: 'center',
-    marginRight: -8,
     borderRadius: 16,
   },
 
@@ -527,22 +533,25 @@ const styles = StyleSheet.create({
 
   /* ── Compose Modal — web: ComposeDialog ── */
   modalOverlay: { flex: 1, backgroundColor: 'transparent' },
+  /* web: bg-[#0d0b14] border border-white/[0.08] rounded-t-2xl sm:rounded-2xl */
   composeSheet: {
-    backgroundColor: '#0d0b14',  // web: bg-[#0d0b14]
+    backgroundColor: '#0d0b14',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
     minHeight: 220,
     borderWidth: 1,
-    borderColor: colors.composeBorder, // web: border-white/[0.08]
+    borderColor: colors.composeBorder,
   },
+  /* web: flex items-center justify-between px-5 py-3 border-b border-white/[0.08] */
   composeHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 0,
     borderBottomWidth: 1,
     borderBottomColor: colors.composeBorder,
     paddingBottom: 12,
   },
+  /* web: flex gap-3.5 p-4 */
   composeBody: { flexDirection: 'row', gap: 14 },
   composeInput: {
     flex: 1,

@@ -198,7 +198,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
         {/* Profile Image */}
         <View style={styles.profileImageContainer}>
-          <Avatar uri={user.profileImage} size={100} borderWidth={4} borderColor={colors.bg} />
+          <Avatar uri={user.profileImage} size={80} borderWidth={4} borderColor={colors.bg} />
         </View>
 
         {/* User Info */}
@@ -328,8 +328,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  /* web: h-32 bg-[#000000] relative overflow-hidden */
   coverContainer: {
-    height: SCREEN_WIDTH * 9 / 16,
+    height: 128,  // web: h-32 = 128px
     width: '100%',
     position: 'relative',
   },
@@ -347,13 +348,14 @@ const styles = StyleSheet.create({
     fontSize: 60,
     fontWeight: '800',
   },
+  /* ── Avatar size — web: PAvatar size={80} ring-4 ring-black ── */
   coverGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 120,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    height: 40,  // subtle gradient
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   backButton: {
     position: 'absolute',
@@ -371,13 +373,18 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: colors.white,
   },
+  /* web: PAvatar size={80} className="ring-4 ring-[#000000]" positioned -mt-8 */
   profileImageContainer: {
-    marginTop: -50,
-    marginHorizontal: 16,
+    marginTop: -32,  // web: -mt-8 = -32px
+    marginHorizontal: 20,  // web: px-5 = 20px
   },
   userInfoSection: {
-    paddingHorizontal: 16,
+    /* web: px-5 pb-4 border-b border-white/[0.06] */
+    paddingHorizontal: 20,  // web: px-5 = 20px
     paddingTop: 12,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.separator,
   },
   nameRow: {
     flexDirection: 'row',

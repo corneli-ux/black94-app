@@ -166,7 +166,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         {user?.coverImage ? (
           <Image source={{ uri: user.coverImage }} style={styles.cover} resizeMode="cover" />
         ) : (
-          <View style={[styles.cover, { backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' }]}>
+          <View style={[styles.cover, styles.coverPlaceholder]}>
             <Text style={{ color: 'rgba(255,255,255,0.08)', fontSize: 60, fontWeight: '800' }}>B94</Text>
           </View>
         )}
@@ -174,8 +174,9 @@ export default function ProfileScreen({ route, navigation }: any) {
 
       {/* Avatar + Edit / Follow */}
       <View style={styles.avatarRow}>
-        <View style={{ marginTop: -40 }}>
-          <Avatar uri={user?.profileImage || currentUser?.photoURL} size={80} borderWidth={3} borderColor={colors.bg} />
+        <View style={{ marginTop: -32 }}>
+          {/* web: PAvatar size={80} className="ring-4 ring-[#000000]" */}
+          <Avatar uri={user?.profileImage || currentUser?.photoURL} size={80} borderWidth={4} borderColor={colors.bg} />
         </View>
         {isOwnProfile ? (
           <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditProfile')}>
@@ -248,23 +249,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
   },
   topLogo: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  coverWrap: { height: 140, width: '100%', overflow: 'hidden', backgroundColor: '#111' },
+  /* web: h-32 = 128px */
+  coverWrap: { height: 128, width: '100%', overflow: 'hidden', backgroundColor: '#111' },
   cover: { width: '100%', height: '100%' },
-  avatarRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: -4 },
+  /* web: bg-gradient-to-br from-[#1a2a1a] to-[#110f1a] */
+  coverPlaceholder: { backgroundColor: '#110f1a', alignItems: 'center', justifyContent: 'center' },
+  /* web: flex items-end justify-between px-5 -mt-8 mb-3 */
+  avatarRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: -32, marginBottom: 12 },
+  /* web: px-5 py-1.5 rounded-full border border-[#64748b] text-[15px] font-bold text-[#e7e9ea] */
   editBtn: {
-    borderWidth: 1.5, borderColor: colors.border, borderRadius: 20,
-    paddingHorizontal: 18, paddingVertical: 8, marginBottom: 6,
+    borderWidth: 1, borderColor: '#64748b', borderRadius: 20,
+    paddingHorizontal: 20, paddingVertical: 6,
   },
-  followingBtn: { backgroundColor: colors.surface },
-  editBtnText: { color: colors.text, fontWeight: '700', fontSize: 15 },
-  bioSection: { paddingHorizontal: 16, paddingTop: 10 },
-  displayName: { color: colors.text, fontSize: 20, fontWeight: '800' },
+  followingBtn: { backgroundColor: 'transparent' },
+  editBtnText: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  /* web: px-5 pb-4 border-b border-white/[0.06] */
+  bioSection: { paddingHorizontal: 20, paddingTop: 0, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.separator },
+  /* web: text-xl font-bold text-[#e7e9ea] */
+  displayName: { color: '#e7e9ea', fontSize: 20, fontWeight: '700' },
+  /* web: text-[15px] text-[#94a3b8] */
   handle: { color: '#94a3b8', fontSize: 15, marginTop: 2 },
-  bio: { color: colors.text, fontSize: 15, lineHeight: 22, marginTop: 8 },
-  statsRow: { flexDirection: 'row', gap: 20, marginTop: 10 },
+  /* web: text-[15px] text-[#e7e9ea] mt-2 leading-relaxed */
+  bio: { color: '#e7e9ea', fontSize: 15, lineHeight: 22, marginTop: 8 },
+  /* web: flex items-center gap-5 mt-4 text-[14px] */
+  statsRow: { flexDirection: 'row', gap: 20, marginTop: 16 },
   statText: { color: '#94a3b8', fontSize: 14 },
-  statNum: { color: colors.text, fontWeight: '700' },
-  tabs: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: colors.separator, marginTop: 14 },
+  statNum: { color: '#e7e9ea', fontWeight: '700' },
+  /* web: flex py-3.5 text-[15px] font-medium border-b border-white/[0.06] */
+  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.separator },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 14 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: '#FFFFFF' },
   tabText: { color: '#94a3b8', fontWeight: '500', fontSize: 15 },

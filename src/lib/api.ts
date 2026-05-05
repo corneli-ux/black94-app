@@ -521,11 +521,14 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
   }
   const data = docSnap.data();
   console.log('[User] Got profile:', data?.displayName, '@' + data?.username, 'badge:', data?.badge, 'verified:', data?.isVerified);
+  // CRITICAL: Fallback displayName to username so feed and profile always agree.
+  // Feed enrichment uses d.displayName || d.username || '' — must match here.
+  const displayName = data?.displayName || data?.username || '';
   return {
     id: userId,
     email: data?.email || '',
     username: data?.username || '',
-    displayName: data?.displayName || '',
+    displayName,
     bio: data?.bio || '',
     profileImage: data?.profileImage || null,
     coverImage: data?.coverImage || null,
