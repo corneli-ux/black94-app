@@ -38,9 +38,7 @@
       },
       "splash": {
         "backgroundColor": "#000000",
-        "resizeMode": "contain",
-        "androidWindowSplashScreenBackgroundColor": "#000000",
-        "androidWindowSplashScreenAnimatedIcon": "./assets/splash-icon.png"
+        "resizeMode": "contain"
       }
     },
     "web": {
