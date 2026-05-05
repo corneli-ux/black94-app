@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Keyboard,  } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Keyboard, ScrollView } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, Message } from '../lib/api';
@@ -148,8 +148,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={[styles.safeArea, { paddingBottom: 0 }]}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Header — explicit top padding for edge-to-edge status bar */}
+      <View style={[styles.header, { paddingTop: Math.max(8, insets.top - 4) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
@@ -179,21 +179,22 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           data={messages}
           keyExtractor={item => item.id}
           renderItem={renderMessage}
-          contentContainerStyle={{ padding: 16, gap: 6 }}
+          contentContainerStyle={{ padding: 16, gap: 6, paddingTop: 8 }}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
-              <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No messages yet. Say hi! 👋</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No messages yet. Say hi!</Text>
             </View>
           }
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
-          // Add bottom padding so last message isn't hidden behind input
-          ListFooterComponent={<View style={{ height: 8 }} />}
+          // Bottom padding accounts for keyboard + input bar
+          ListFooterComponent={<View style={{ height: keyboardHeight + 80 }} />}
+          keyboardShouldPersistTaps="handled"
         />
       )}
 
-      {/* Input bar — always visible, stays above keyboard */}
+      {/* Input bar — stays above keyboard, properly positioned */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
         style={{ backgroundColor: colors.bg }}
       >
@@ -201,7 +202,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           styles.inputRow,
           // On Android, keyboard pushes view up automatically with resize mode
           // Add bottom padding for safe area
-          { paddingBottom: Math.max(10, insets.bottom) }
+          { paddingBottom: Math.max(8, insets.bottom) }
         ]}>
           <TextInput
             style={styles.input}

@@ -87,7 +87,17 @@ export default function StoriesScreen({ navigation }: any) {
 
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
-    setCanRefresh(offset <= 0);
+    if (offset > 2) setCanRefresh(false);
+    if (offset <= 0) setCanRefresh(true);
+  }, []);
+
+  const handleMomentumScrollBegin = useCallback(() => {
+    setCanRefresh(false);
+  }, []);
+
+  const handleScrollEndDrag = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    if (offset <= 0) setCanRefresh(true);
   }, []);
 
   useEffect(() => { load(); }, []);
@@ -154,13 +164,17 @@ export default function StoriesScreen({ navigation }: any) {
       ) : (
         <ScrollView
           onScroll={handleScroll}
+          onMomentumScrollBegin={handleMomentumScrollBegin}
+          onScrollEndDrag={handleScrollEndDrag}
           scrollEventThrottle={16}
+          nestedScrollEnabled={true}
           refreshControl={
             <RefreshControl
               refreshing={refreshing && canRefresh}
               onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }}
               tintColor={colors.accent}
-              enabled={canRefresh}
+              enabled={false}
+              progressViewOffset={-10}
             />
           }
         >

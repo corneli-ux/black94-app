@@ -243,9 +243,24 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
+  // Scroll tracking for pull-to-refresh guard — only allow refresh at the very top
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
-    setCanRefresh(offset <= 0);
+    // Disable refresh as soon as user scrolls down even slightly
+    if (offset > 2) setCanRefresh(false);
+    // Re-enable only when scrolled back to absolute top
+    if (offset <= 0) setCanRefresh(true);
+  }, []);
+
+  // Disable refresh during active scroll (momentum)
+  const handleMomentumScrollBegin = useCallback(() => {
+    setCanRefresh(false);
+  }, []);
+
+  // Re-check on scroll end
+  const handleScrollEndDrag = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    if (offset <= 0) setCanRefresh(true);
   }, []);
 
   if (loading) {
@@ -303,11 +318,15 @@ export default function FeedScreen({ navigation }: any) {
               }
             }}
             tintColor={colors.accent}
-            enabled={canRefresh}
+            enabled={false}
+            progressViewOffset={-10}
           />
         }
         onScroll={handleScroll}
+        onMomentumScrollBegin={handleMomentumScrollBegin}
+        onScrollEndDrag={handleScrollEndDrag}
         scrollEventThrottle={16}
+        nestedScrollEnabled={true}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', paddingTop: 80 }}>
             <View style={styles.emptyIcon}>
@@ -522,8 +541,9 @@ const styles = StyleSheet.create({
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: '#ffffff',
     alignItems: 'center', justifyContent: 'center',
-    elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4, shadowRadius: 6,
+    zIndex: 50,
   },
   emptyIcon: {
     width: 80, height: 80, borderRadius: 40,

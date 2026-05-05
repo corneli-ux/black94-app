@@ -15,8 +15,16 @@ import { useAppStore } from '../stores/app';
 import { signInWithGoogle } from '../lib/api';
 import { signInWithGoogleWeb } from '../lib/google-web-auth';
 
+const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
+
 /**
  * AuthScreen — Login screen matching black94.web.app exactly.
+ *
+ * Auth strategy:
+ *   Android: Primary = native Google Sign-In (reliable, no redirect issues)
+ *            Fallback = web OAuth (for devices without Play Services)
+ *   iOS:     Primary = web OAuth (ASWebAuthenticationSession works perfectly)
+ *            Fallback = native Google Sign-In
  *
  * Web layout (from page source):
  *   bg-[#000000], min-h-screen, flex flex-col items-center justify-center
@@ -40,58 +48,93 @@ export default function AuthScreen() {
 
   const handleGoogleSignIn = useCallback(async () => {
     setIsLoading(true);
+    let lastError: Error | null = null;
+
     try {
-      // ── Primary: Web-based OAuth (no SHA-1 required, no Google Play Services) ──
-      console.log('[AuthScreen] Using web-based Google OAuth...');
-      const idToken = await signInWithGoogleWeb();
+      // ═══════════════════════════════════════════════════════════════════
+      // Platform-specific auth strategy:
+      //   Android → native first (web OAuth can't intercept HTTPS redirects)
+      //   iOS     → web OAuth first (ASWebAuthenticationSession is reliable)
+      // ═══════════════════════════════════════════════════════════════════
 
-      const user = await signInWithGoogle(idToken);
-      if (user) {
-        setUser(user);
-        setToken(user.id);
-      }
-    } catch (webError: any) {
-      console.warn('[AuthScreen] Web OAuth failed, trying native fallback:', webError.message);
+      const strategies = Platform.OS === 'android'
+        ? ['native', 'web']
+        : ['web', 'native'];
 
-      // ── Fallback: Native Google Sign-In (requires SHA-1 registered) ──
-      try {
-        const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+      for (const strategy of strategies) {
+        try {
+          console.log(`[AuthScreen] Trying ${strategy} Google sign-in...`);
 
-        GoogleSignin.configure({
-          scopes: ['email', 'profile'],
-          webClientId: '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
-          offlineAccess: true,
-        });
+          let idToken: string | null = null;
 
-        await GoogleSignin.hasPlayServices();
-        const userInfo = await GoogleSignin.signIn();
-        let idToken = userInfo.data?.idToken;
-        if (!idToken) {
-          try {
-            const tokens = await GoogleSignin.getTokens();
-            idToken = tokens.idToken;
-          } catch (e) {
-            console.warn('[AuthScreen] getTokens failed:', e);
+          if (strategy === 'native') {
+            idToken = await nativeGoogleSignIn();
+          } else {
+            idToken = await signInWithGoogleWeb();
           }
-        }
-        if (!idToken) throw new Error('Failed to obtain Google ID token');
 
-        const user = await signInWithGoogle(idToken);
-        if (user) {
-          setUser(user);
-          setToken(user.id);
+          if (idToken) {
+            console.log(`[AuthScreen] ${strategy} auth succeeded, signing in to Firebase...`);
+            const user = await signInWithGoogle(idToken);
+            if (user) {
+              setUser(user);
+              setToken(user.id);
+              return; // Success!
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[AuthScreen] ${strategy} auth failed:`, err.message);
+          lastError = err;
+          // If user explicitly cancelled (code 12501), don't try another method
+          if (err.code === '12501' || err.message?.includes('cancelled')) {
+            console.log('[AuthScreen] User cancelled sign-in');
+            return;
+          }
+          // Continue to next strategy
         }
-      } catch (error: any) {
-        console.error('Google sign-in error (all methods):', error);
-        if (error.code !== '12501') {
-          let msg = error.message || 'Something went wrong.';
-          Alert.alert('Sign In Error', msg);
-        }
+      }
+
+      // All methods failed
+      console.error('[AuthScreen] All sign-in methods failed');
+      if (lastError) {
+        Alert.alert(
+          'Sign In Failed',
+          Platform.OS === 'android'
+            ? 'Could not sign in with Google. Please make sure Google Play Services is installed and try again.'
+            : lastError.message || 'Something went wrong.',
+        );
       }
     } finally {
       setIsLoading(false);
     }
   }, [setUser, setToken]);
+
+  /** Native Google Sign-In — reliable on Android with registered SHA-1 */
+  async function nativeGoogleSignIn(): Promise<string> {
+    const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+
+    GoogleSignin.configure({
+      scopes: ['email', 'profile'],
+      webClientId: WEB_CLIENT_ID,
+      offlineAccess: true,
+    });
+
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    const userInfo = await GoogleSignin.signIn();
+
+    // Get ID token from sign-in result
+    let idToken = userInfo.data?.idToken;
+    if (!idToken) {
+      try {
+        const tokens = await GoogleSignin.getTokens();
+        idToken = tokens.idToken;
+      } catch (e) {
+        console.warn('[AuthScreen] getTokens failed:', e);
+      }
+    }
+    if (!idToken) throw new Error('Failed to obtain Google ID token from native sign-in');
+    return idToken;
+  }
 
   return (
     <View style={styles.container}>

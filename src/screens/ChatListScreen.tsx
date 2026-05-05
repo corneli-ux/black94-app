@@ -50,25 +50,28 @@ export default function ChatListScreen({ navigation }: any) {
       // Delete all messages in the subcollection using REST batch
       const messagesRef = firestore().collection('chats').doc(chatId).collection('messages');
       const batchSize = 100;
-      let query = messagesRef.limit(batchSize);
       let deleted = 0;
+      let hasMore = true;
 
       // Batch delete — handles large collections properly
-      while (true) {
-        const snapshot = await query.get();
-        if (snapshot.empty) break;
+      while (hasMore) {
+        try {
+          const snapshot = await messagesRef.limit(batchSize).get();
+          if (snapshot.empty) break;
 
-        const batch = firestore().batch();
-        for (const doc of snapshot.docs) {
-          // Build a CompatDocRef for each message to pass to batch.delete()
-          const msgDocRef = messagesRef.doc(doc.id);
-          batch.delete(msgDocRef);
+          // Delete messages individually (more reliable than batch for REST API)
+          const deletePromises = snapshot.docs.map(doc =>
+            messagesRef.doc(doc.id).delete().catch(e => {
+              console.warn(`[ChatDelete] Failed to delete message ${doc.id}:`, e);
+            })
+          );
+          await Promise.all(deletePromises);
+          deleted += snapshot.size;
+          hasMore = snapshot.size >= batchSize;
+        } catch (e) {
+          console.warn(`[ChatDelete] Batch failed at ${deleted} messages, continuing...`, e);
+          break;
         }
-        await batch.commit();
-        deleted += snapshot.size;
-
-        // If we deleted less than batchSize, we're done
-        if (snapshot.size < batchSize) break;
       }
 
       console.log(`[ChatDelete] Deleted ${deleted} messages from chat ${chatId}`);
@@ -105,7 +108,17 @@ export default function ChatListScreen({ navigation }: any) {
   // Pull-to-refresh guard: only refresh when scrolled to top
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
-    setCanRefresh(offset <= 0);
+    if (offset > 2) setCanRefresh(false);
+    if (offset <= 0) setCanRefresh(true);
+  }, []);
+
+  const handleMomentumScrollBegin = useCallback(() => {
+    setCanRefresh(false);
+  }, []);
+
+  const handleScrollEndDrag = useCallback((event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    if (offset <= 0) setCanRefresh(true);
   }, []);
 
   return (
@@ -139,6 +152,8 @@ export default function ChatListScreen({ navigation }: any) {
           data={filtered}
           keyExtractor={item => item.id}
           onScroll={handleScroll}
+          onMomentumScrollBegin={handleMomentumScrollBegin}
+          onScrollEndDrag={handleScrollEndDrag}
           scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
@@ -150,7 +165,8 @@ export default function ChatListScreen({ navigation }: any) {
                 }
               }}
               tintColor={colors.accent}
-              enabled={canRefresh}
+              enabled={false}
+              progressViewOffset={-10}
             />
           }
           renderItem={({ item }) => (
