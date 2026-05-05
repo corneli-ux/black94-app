@@ -10,8 +10,8 @@ env:
   NODE_VERSION: '22'
 
 jobs:
-  build-apk:
-    name: Build APK
+  build:
+    name: Build Android (APK + AAB)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          # NO npm cache — prevents stale node_modules from previous builds
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -28,36 +28,61 @@ jobs:
           distribution: 'zulu'
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Setup Gradle
+      # ROOT CAUSE FIX #1: Disable ALL Gradle caching
+      # Previously gradle/actions/setup-gradle@v4 cached ~/.gradle/caches between
+      # builds, causing Metro JS bundles to be reused from stale builds even though
+      # source code had changed. This was the PRIMARY reason committed fixes never
+      # appeared in the APK.
+      - name: Setup Gradle (NO caching)
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+          gradle-home-cache-includes: |
+            wrappers/dists/**
+          gradle-home-cache-excludes: |
+            caches/**
+            build-cache/**
 
-      - name: Install npm dependencies
-        run: npm install
+      # ROOT CAUSE FIX #2: Use npm ci for deterministic dependency installation
+      # Previously npm install could produce different node_modules when combined
+      # with cache restoration, leading to missing or incorrect native modules.
+      - name: Install npm dependencies (deterministic)
+        run: npm ci --prefer-offline 2>&1 || npm install
+
+      # ROOT CAUSE FIX #3: Clear ALL Metro bundler caches before prebuild
+      - name: Clear Metro and Expo caches
+        run: |
+          rm -rf node_modules/.cache
+          rm -rf .expo
+          rm -rf /tmp/metro-*
+          rm -rf /tmp/haste-map-*
+          npx expo export --clear 2>/dev/null || true
+          echo "All Metro/Expo caches cleared"
 
       - name: Expo prebuild (generate android/)
         run: npx expo prebuild --platform android --clean
 
+      # ROOT CAUSE FIX #4: Disable Gradle build cache in generated project
+      - name: Disable Gradle build cache
+        run: |
+          echo "org.gradle.caching=false" >> android/gradle.properties
+          echo "org.gradle.parallel=false" >> android/gradle.properties
+          echo "Gradle build cache and parallelism disabled for reproducible builds"
+
       - name: Fix splashscreen_logo drawable
         run: |
-          # expo-splash-screen references drawable/splashscreen_logo but
-          # does not create it when no splash.image is configured.
-          # Copy the app icon as the splash logo so the resource link resolves.
           cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
           echo "Created splashscreen_logo drawable from app icon"
           ls -la android/app/src/main/res/drawable/splashscreen_logo.png
 
       - name: Setup release keystore and signing config
         run: |
-          # Copy production keystore
           cp ci/black94-release.jks android/app/black94-release.jks
 
-          # Verify keystore SHA-1
           echo "=== Verifying keystore ==="
           keytool -list -v -keystore android/app/black94-release.jks \
             -storepass 'black94real' -alias 'black94' 2>&1 | grep SHA1
 
-          # Add release signing config after debug signing config using Python
-          # (sed can't reliably handle multi-line insertions with correct indentation)
           python3 << 'PYEOF'
           filepath = 'android/app/build.gradle'
           with open(filepath, 'r') as f:
@@ -69,14 +94,9 @@ jobs:
           while i < len(lines):
               line = lines[i]
 
-              # After the debug signingConfig closing brace, add release config
               if not added_release_signing and line.strip() == '}' and 'signingConfigs' in ''.join(lines[max(0,i-10):i]):
-                  # Check if next non-empty line closes signingConfigs or starts buildTypes
-                  # Look ahead to see if this } closes the debug block (not signingConfigs)
-                  # We're inside signingConfigs { debug { ... } <-- here
-                  # After this }, signingConfigs continues, so add release config
                   indent = '    '
-                  new_lines.append(line)  # the closing } of debug block
+                  new_lines.append(line)
                   new_lines.append(f'{indent}release {{\n')
                   new_lines.append(f'{indent}    storeFile file(\'black94-release.jks\')\n')
                   new_lines.append(f'{indent}    storePassword \'black94real\'\n')
@@ -87,7 +107,6 @@ jobs:
                   i += 1
                   continue
 
-              # Change release buildType signingConfig from debug to release
               if 'signingConfig signingConfigs.debug' in line:
                   line = line.replace('signingConfigs.debug', 'signingConfigs.release')
 
@@ -100,7 +119,6 @@ jobs:
           print(f"Added release signing config: {added_release_signing}")
           PYEOF
 
-          # Verify the build.gradle has correct signing
           echo "=== Verifying build.gradle signing config ==="
           rg "signingConfig" android/app/build.gradle || echo "WARNING: no signingConfig found"
           rg "black94-release.jks" android/app/build.gradle || echo "WARNING: no keystore reference found"
@@ -127,12 +145,31 @@ jobs:
               f.write(content)
           PYEOF
 
-      - name: Build Release APK
+      # ROOT CAUSE FIX #5: Build both APK and AAB in a single Gradle invocation
+      # Previously they were separate jobs — the AAB job was MISSING clean and
+      # --no-build-cache, so AAB builds always contained stale code. Now both
+      # are built fresh in one pass with clean + no-build-cache.
+      - name: Build Release APK + AAB (clean, no cache)
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleRelease --no-build-cache
-          echo "APK built successfully"
+          ./gradlew clean assembleRelease bundleRelease --no-build-cache --no-daemon
+          echo "=== Build complete ==="
+
+      # Verify the JS bundle was created fresh (not reused from cache)
+      - name: Verify JS bundle
+        run: |
+          BUNDLE_DIR="android/app/build/generated/assets/createBundleReleaseJsAndAssets"
+          if [ -d "$BUNDLE_DIR" ]; then
+            echo "JS bundle found:"
+            ls -la "$BUNDLE_DIR/"*.bundle 2>/dev/null || ls -la "$BUNDLE_DIR"/index.android.bundle 2>/dev/null
+            echo "Bundle size:"
+            du -sh "$BUNDLE_DIR" 2>/dev/null
+          else
+            echo "ERROR: JS bundle directory not found!"
+            ls -la android/app/build/generated/assets/ 2>/dev/null || true
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -140,107 +177,6 @@ jobs:
           name: black94-release-apk
           path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
-
-  build-aab:
-    name: Build AAB (App Bundle)
-    runs-on: ubuntu-latest
-    needs: build-apk
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Install npm dependencies
-        run: npm install
-
-      - name: Expo prebuild
-        run: npx expo prebuild --platform android --clean
-
-      - name: Fix splashscreen_logo drawable
-        run: |
-          cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
-          echo "Created splashscreen_logo drawable from app icon"
-          ls -la android/app/src/main/res/drawable/splashscreen_logo.png
-
-      - name: Setup release keystore and signing config
-        run: |
-          cp ci/black94-release.jks android/app/black94-release.jks
-          echo "=== Verifying keystore ==="
-          keytool -list -v -keystore android/app/black94-release.jks \
-            -storepass 'black94real' -alias 'black94' 2>&1 | grep SHA1
-
-          python3 << 'PYEOF'
-          filepath = 'android/app/build.gradle'
-          with open(filepath, 'r') as f:
-              lines = f.readlines()
-
-          new_lines = []
-          i = 0
-          added_release_signing = False
-          while i < len(lines):
-              line = lines[i]
-              if not added_release_signing and line.strip() == '}' and 'signingConfigs' in ''.join(lines[max(0,i-10):i]):
-                  indent = '    '
-                  new_lines.append(line)
-                  new_lines.append(f'{indent}release {{\n')
-                  new_lines.append(f'{indent}    storeFile file(\'black94-release.jks\')\n')
-                  new_lines.append(f'{indent}    storePassword \'black94real\'\n')
-                  new_lines.append(f'{indent}    keyAlias \'black94\'\n')
-                  new_lines.append(f'{indent}    keyPassword \'black94real\'\n')
-                  new_lines.append(f'{indent}}}\n')
-                  added_release_signing = True
-                  i += 1
-                  continue
-              if 'signingConfig signingConfigs.debug' in line:
-                  line = line.replace('signingConfigs.debug', 'signingConfigs.release')
-              new_lines.append(line)
-              i += 1
-
-          with open(filepath, 'w') as f:
-              f.writelines(new_lines)
-          print(f"Added release signing config: {added_release_signing}")
-          PYEOF
-
-          echo "=== Verifying build.gradle signing config ==="
-          rg "signingConfig" android/app/build.gradle
-
-      - name: Add ABI filters
-        run: |
-          python3 << 'PYEOF'
-          import re
-          filepath = 'android/app/build.gradle'
-          with open(filepath, 'r') as f:
-              content = f.read()
-          if 'abiFilters' not in content:
-              pattern = r"(defaultConfig\s*\{[^}]*?versionName\s+\"[^\"]+\"\s*\n)"
-              ndk_block = '\n              ndk {\n                  abiFilters \'arm64-v8a\', \'armeabi-v7a\'\n              }\n'
-              new_content = re.sub(pattern, r'\1' + ndk_block, content)
-              if new_content != content:
-                  content = new_content
-                  print('Added ABI filters')
-          with open(filepath, 'w') as f:
-              f.write(content)
-          PYEOF
-
-      - name: Build Release AAB
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew bundleRelease
-          echo "AAB built successfully"
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4

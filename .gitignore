@@ -59,6 +59,12 @@ yarn-error.*
 .idea/
 *.iml
 
+# Build outputs (APK, AAB, ZIP — never commit these)
+/download/
+*.apk
+*.aab
+*.zip
+
 # Temp scripts
 SUBMIT_ME.sh
 new.sh
