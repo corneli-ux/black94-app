@@ -209,8 +209,11 @@ async function _firestoreFetch(
     console.error(`[Firestore] Full error response: ${respText.slice(0, 500)}`);
     // If it's a composite index error, include helpful info
     if (data.error?.message?.includes('FAILED_PRECONDITION') || errMsg.includes('index')) {
-      console.error(`[Firestore] COMPOSITE INDEX NEEDED. Create it at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
-      err.message = `Firestore index needed. Please create the composite index as logged.`;
+      console.error(`[Firestore] COMPOSITE INDEX NEEDED for query on path: ${path}`);
+      console.error(`[Firestore] Create index at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
+      // Return empty result instead of throwing — graceful degradation
+      console.warn(`[Firestore] Returning empty result due to missing index`);
+      return [];
     }
     throw err;
   }

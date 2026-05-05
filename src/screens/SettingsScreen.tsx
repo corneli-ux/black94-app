@@ -57,7 +57,7 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { navigation.navigate('Profile'); } }}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
@@ -96,10 +96,13 @@ export default function SettingsScreen() {
             numberOfLines={3}
           />
 
-          <View style={styles.infoRow}>
+          <TouchableOpacity style={styles.infoRow} onPress={() => navigation.navigate('EditProfile' as never)}>
             <Text style={styles.infoLabel}>Username</Text>
-            <Text style={styles.infoValue}>@{user?.username}</Text>
-          </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={styles.infoValue}>@{user?.username}</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+            </View>
+          </TouchableOpacity>
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Email</Text>

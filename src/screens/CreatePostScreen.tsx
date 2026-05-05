@@ -112,10 +112,9 @@ export default function CreatePostScreen() {
     setPosting(true);
 
     try {
-      const mediaUrls =
-        selectedImages.length > 0 ? selectedImages.join(',') : undefined;
+      const mediaUrls = selectedImages.length > 0 ? selectedImages : [];
 
-      await createPost(caption.trim(), mediaUrls ? [mediaUrls] : []);
+      await createPost(caption.trim(), mediaUrls);
 
       // Navigate back
       navigation.goBack();

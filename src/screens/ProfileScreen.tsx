@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, FlatList, StyleSheet, Dimensions, ActivityIndicator, RefreshControl, ScrollView,  } from 'react-native';
+import { View, Text, Image, TouchableOpacity, FlatList, StyleSheet, Dimensions, ActivityIndicator, RefreshControl, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchUserProfile, toggleFollow, checkFollowing, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
@@ -49,7 +49,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [following, setFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
-  const [tab, setTab] = useState<'posts' | 'store' | 'likes'>('posts');
+  const [tab, setTab] = useState<'posts' | 'store' | 'bookmarks'>('posts');
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
 
   const load = useCallback(async () => {
@@ -152,7 +152,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           </TouchableOpacity>
           <Text style={styles.topLogo}>Black94</Text>
           {isOwnProfile ? (
-            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+            <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
               <Text style={{ color: colors.text, fontSize: 20 }}>⚙️</Text>
             </TouchableOpacity>
           ) : (
@@ -178,7 +178,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           <Avatar uri={user?.profileImage || currentUser?.photoURL} size={80} borderWidth={3} borderColor={colors.bg} />
         </View>
         {isOwnProfile ? (
-          <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('Settings')}>
+          <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditProfile')}>
             <Text style={styles.editBtnText}>Edit profile</Text>
           </TouchableOpacity>
         ) : (
@@ -213,7 +213,7 @@ export default function ProfileScreen({ route, navigation }: any) {
 
       {/* Tabs */}
       <View style={styles.tabs}>
-        {(['posts', 'store', 'likes'] as const).map(t => (
+        {(['posts', 'store', 'bookmarks'] as const).map(t => (
           <TouchableOpacity key={t} style={[styles.tab, tab === t && styles.tabActive]} onPress={() => setTab(t)}>
             <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -228,7 +228,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No store items yet</Text>
         </View>
       )}
-      {tab === 'likes' && (
+      {tab === 'bookmarks' && (
         isOwnProfile ? (
           <PostGrid posts={likedPosts} navigation={navigation} />
         ) : (

@@ -61,7 +61,7 @@ export default function StorefrontScreen({ route, navigation }: any) {
     try {
       const [userSnap, productsSnap] = await Promise.all([
         firestore().collection('users').doc(userId).get(),
-        firestore().collection('products').where('ownerId', '==', userId).get(),
+        firestore().collection('products').where('businessId', '==', userId).get(),
       ]);
 
       if (userSnap.exists) {

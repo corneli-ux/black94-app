@@ -114,12 +114,12 @@ export default function DualPaneChatScreen({ navigation }: any) {
         firestore()
           .collection('chats')
           .where('user1Id', '==', currentUserId)
-          .orderBy('updatedAt', 'desc')
+          .orderBy('lastMessageTime', 'desc')
           .get(),
         firestore()
           .collection('chats')
           .where('user2Id', '==', currentUserId)
-          .orderBy('updatedAt', 'desc')
+          .orderBy('lastMessageTime', 'desc')
           .get(),
       ]);
 

@@ -183,45 +183,64 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
   const userId = currentUser()?.uid;
   const posts: Post[] = [];
 
-  for (const docSnap of snapshot.docs) {
-    const data = docSnap.data();
-    let liked = false;
-    let bookmarked = false;
-    let reposted = false;
+  // Process like/bookmark/repost checks in batches of 5 to avoid overwhelming the API
+  const BATCH_SIZE = 5;
+  const CHECK_TIMEOUT = 5000;
 
-    if (userId) {
-      try {
-        const [likeSnap, bookmarkSnap, repostSnap] = await Promise.all([
-          firestore().collection('post_likes').doc(`${docSnap.id}_${userId}`).get(),
-          firestore().collection('post_bookmarks').doc(`${docSnap.id}_${userId}`).get(),
-          firestore().collection('post_reposts').doc(`${docSnap.id}_${userId}`).get(),
-        ]);
-        liked = likeSnap.exists;
-        bookmarked = bookmarkSnap.exists;
-        reposted = repostSnap.exists;
-      } catch (likeErr: any) {
-        console.warn('[Feed] Like/check error for post', docSnap.id, likeErr?.message);
+  for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
+    const batch = snapshot.docs.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async (docSnap) => {
+        const data = docSnap.data();
+        let liked = false;
+        let bookmarked = false;
+        let reposted = false;
+
+        if (userId) {
+          try {
+            const checkPromise = Promise.all([
+              firestore().collection('post_likes').doc(`${docSnap.id}_${userId}`).get(),
+              firestore().collection('post_bookmarks').doc(`${docSnap.id}_${userId}`).get(),
+              firestore().collection('post_reposts').doc(`${docSnap.id}_${userId}`).get(),
+            ]);
+            const [likeSnap, bookmarkSnap, repostSnap] = await Promise.race([
+              checkPromise,
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), CHECK_TIMEOUT)),
+            ]);
+            liked = likeSnap.exists;
+            bookmarked = bookmarkSnap.exists;
+            reposted = repostSnap.exists;
+          } catch {
+            // Timeout or error — skip interaction status for this post
+          }
+        }
+
+        return {
+          id: docSnap.id,
+          authorId: data.authorId || '',
+          authorUsername: data.authorUsername || '',
+          authorDisplayName: data.authorDisplayName || '',
+          authorProfileImage: data.authorProfileImage || null,
+          authorBadge: data.authorBadge || '',
+          authorIsVerified: data.authorIsVerified || false,
+          caption: data.caption || '',
+          mediaUrls: parseMediaUrls(data.mediaUrls),
+          likeCount: data.likeCount || 0,
+          commentCount: data.commentCount || 0,
+          repostCount: data.repostCount || 0,
+          liked,
+          bookmarked,
+          reposted,
+          createdAt: tsToMillis(data.createdAt),
+        };
+      }),
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        posts.push(result.value);
       }
     }
-
-    posts.push({
-      id: docSnap.id,
-      authorId: data.authorId || '',
-      authorUsername: data.authorUsername || '',
-      authorDisplayName: data.authorDisplayName || '',
-      authorProfileImage: data.authorProfileImage || null,
-      authorBadge: data.authorBadge || '',
-      authorIsVerified: data.authorIsVerified || false,
-      caption: data.caption || '',
-      mediaUrls: parseMediaUrls(data.mediaUrls),
-      likeCount: data.likeCount || 0,
-      commentCount: data.commentCount || 0,
-      repostCount: data.repostCount || 0,
-      liked,
-      bookmarked,
-      reposted,
-      createdAt: tsToMillis(data.createdAt),
-    });
   }
 
   return posts;
