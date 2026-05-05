@@ -56,7 +56,7 @@ class AppErrorBoundary extends Component {
 
 /* ── App Component ────────────────────────────────────────────────────────── */
 
-const FORCE_READY_TIMEOUT = 1500;
+const FORCE_READY_TIMEOUT = 2000;
 
 export default function App() {
   const { user, setUser, setToken, setIsReady, isReady, setLoading } = useAppStore();
@@ -151,7 +151,7 @@ export default function App() {
     <AppErrorBoundary>
       <SafeAreaProvider>
         <View style={styles.rootContainer}>
-          <StatusBar style="light" backgroundColor="#000000" translucent={true} />
+          <StatusBar style="light" backgroundColor="#000000" translucent={false} />
           {!isReady ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.appName}>Black94</Text>

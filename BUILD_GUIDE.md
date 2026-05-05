@@ -74,3 +74,21 @@ eas credentials -p android
 | EAS dashboard | https://expo.dev/accounts/tabiblia/projects/black94 |
 | Build history | https://expo.dev/accounts/tabiblia/projects/black94/builds |
 | Signing credentials | Managed by EAS (or upload your own) |
+
+## 2026-05-05: Complete UI Overhaul to Match Webapp
+
+All screens rewritten to match black94real Next.js webapp exactly:
+
+### Files Changed (8 files, 1848 insertions, 510 deletions)
+- FeedScreen.tsx: Discover/Network tabs, logo header, functional buttons, skeleton loader, infinite scroll
+- ChatListScreen.tsx: Chat/ChatAds tabs, styled search bar, white unread badges
+- ChatRoomScreen.tsx: Header actions, dropdown menu, improved bubbles, input bar actions
+- ProfileScreen.tsx: Replies/Likes tabs, cover/avatar styling, Follow/Message/Edit pills
+- ExploreScreen.tsx: Category pills, trending topics, who to follow section
+- SearchScreen.tsx: People/Posts tabs, debounced search, web-matching styling
+- api.ts: toggleRepost function added
+
+### Push Details
+- Commit: 835be9d "feat: exact UI match to webapp - all screens overhauled"
+- Branch: main
+- Remote: tabibliaai-cpu/black94-app

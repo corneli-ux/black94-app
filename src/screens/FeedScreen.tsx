@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: '#ffffff',
     alignItems: 'center', justifyContent: 'center',
-    elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    elevation: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5, shadowRadius: 8,
     zIndex: 999,
   },

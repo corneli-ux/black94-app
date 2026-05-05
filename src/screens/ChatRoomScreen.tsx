@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Keyboard, ScrollView, Alert } from 'react-native';
-import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
@@ -146,30 +146,37 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       'Delete Chat',
       'Are you sure you want to delete this chat? This will permanently remove all messages and cannot be undone.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel', onPress: () => setShowMenu(false) },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
+              // Delete the chat document first (so it disappears from the list immediately)
+              await firestore().collection('chats').doc(chat.id).delete();
+              // Then best-effort delete messages in the subcollection
               const messagesRef = firestore().collection('chats').doc(chat.id).collection('messages');
               const batchSize = 100;
+              let deleted = 0;
               let hasMore = true;
               while (hasMore) {
                 try {
                   const snapshot = await messagesRef.limit(batchSize).get();
                   if (snapshot.empty) break;
                   const deletePromises = snapshot.docs.map(doc =>
-                    messagesRef.doc(doc.id).delete().catch(() => {})
+                    messagesRef.doc(doc.id).delete().catch(e => {
+                      console.warn(`[ChatDelete] Failed to delete msg ${doc.id}:`, e);
+                    })
                   );
                   await Promise.all(deletePromises);
+                  deleted += snapshot.size;
                   hasMore = snapshot.size >= batchSize;
                 } catch (e) {
-                  console.warn('[ChatDelete] Batch failed:', e);
+                  console.warn(`[ChatDelete] Batch ${deleted} failed:`, e);
                   break;
                 }
               }
-              await firestore().collection('chats').doc(chat.id).delete();
+              console.log(`[ChatDelete] Deleted ${deleted} messages from chat ${chat.id}`);
               navigation.goBack();
             } catch (e) {
               console.error('[ChatDelete] Error:', e);
@@ -197,7 +204,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingBottom: 0 }]}>
+    <View style={[styles.safeArea]}>
       {/* Header — web: bg-[#000000]/90 backdrop-blur-xl, px-4 py-2.5 */}
       <View style={[styles.header, { paddingTop: Math.max(8, insets.top - 4) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -285,7 +292,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
       {/* Input bar — matches web ChatInputBar */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
         style={{ backgroundColor: '#000000' }}
       >

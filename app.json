@@ -2,7 +2,7 @@
   "expo": {
     "name": "Black94",
     "slug": "black94",
-    "version": "1.8.2",
+    "version": "1.8.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -24,13 +24,17 @@
       "edgeToEdgeEnabled": true,
       "package": "com.black94.app",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 12,
+      "versionCode": 13,
       "permissions": [
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "CAMERA"
       ],
       "softwareKeyboardLayoutMode": "resize",
+      "navigationBar": {
+        "backgroundColor": "#000000",
+        "barStyle": "light-content"
+      },
       "splash": {
         "backgroundColor": "#000000",
         "resizeMode": "contain",

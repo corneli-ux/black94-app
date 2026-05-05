@@ -268,6 +268,7 @@ function DrawerNavigator() {
       screenOptions={{
         headerShown: false,
         drawerStyle: { backgroundColor: colors.bg, width: '72%' },
+        screenStyle: { backgroundColor: '#000000' },
         overlayColor: 'rgba(0,0,0,0.7)',
       }}
     >
@@ -286,7 +287,7 @@ function DrawerNavigator() {
 
 function AppStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }}>
       <Stack.Screen name="Drawer" component={DrawerNavigator} />
       {/* Chat */}
       <Stack.Screen name="ChatRoom" component={LazyScreen(ChatRoomScreen)} />
@@ -356,7 +357,7 @@ export default function AppNavigator() {
       {user ? (
         <AppStack />
       ) : (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }}>
           <Stack.Screen name="Login" component={LazyScreen(AuthScreen)} />
         </Stack.Navigator>
       )}

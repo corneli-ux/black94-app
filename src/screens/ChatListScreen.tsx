@@ -50,10 +50,10 @@ export default function ChatListScreen({ navigation }: any) {
 
   const deleteChat = async (chatId: string, chatName: string) => {
     try {
-      // Delete the chat document first (Firestore will cascade to subcollections on delete)
+      // Delete the chat document first (so it disappears from the list immediately)
       await firestore().collection('chats').doc(chatId).delete();
 
-      // Then delete messages in the subcollection (best-effort)
+      // Then best-effort delete messages in the subcollection
       const messagesRef = firestore().collection('chats').doc(chatId).collection('messages');
       const batchSize = 100;
       let deleted = 0;

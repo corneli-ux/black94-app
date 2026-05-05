@@ -90,6 +90,12 @@ export default function AuthScreen() {
             console.log('[AuthScreen] User cancelled sign-in');
             return;
           }
+          // DEVELOPER_ERROR typically means SHA-1 not registered in Google Console
+          // Skip to next strategy instead of stopping
+          if (err.code === 'DEVELOPER_ERROR') {
+            console.log('[AuthScreen] DEVELOPER_ERROR — SHA-1 not registered, trying web OAuth');
+            continue;
+          }
           // Continue to next strategy
         }
       }
@@ -117,6 +123,7 @@ export default function AuthScreen() {
       scopes: ['email', 'profile'],
       webClientId: WEB_CLIENT_ID,
       offlineAccess: true,
+      forceCodeForRefreshToken: true,
     });
 
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
