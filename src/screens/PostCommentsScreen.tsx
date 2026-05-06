@@ -189,7 +189,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             <View style={styles.inputWrap}>
               <TextInput
                 style={styles.input}
-                placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : "Add a comment..."
+                placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : "Add a comment..."}
                 placeholderTextColor="#64748b"
                 value={text}
                 onChangeText={setText}
