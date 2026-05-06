@@ -92,14 +92,27 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
     <View style={profileCardStyles.postCard}>
       {/* Content row: avatar + content */}
       <View style={profileCardStyles.contentRow}>
-        <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={44} />
+        <TouchableOpacity onPress={() => {
+              if (post.authorId !== currentUser?.uid) {
+                navigation.navigate('UserProfile', { userId: post.authorId });
+              } else {
+                navigation.navigate('ProfileSelf');
+              }
+            }} activeOpacity={0.7} hitSlop={8}>
+              <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
+            </TouchableOpacity>
         <View style={profileCardStyles.contentColumn}>
           <View style={profileCardStyles.headerNameRow}>
-            <TouchableOpacity onPress={() => navigation.navigate('UserProfile', { userId: post.authorId })}>
+            <TouchableOpacity onPress={() => {
+              if (post.authorId !== currentUser?.uid) {
+                navigation.navigate('UserProfile', { userId: post.authorId });
+              } else {
+                navigation.navigate('ProfileSelf');
+              }
+            }} activeOpacity={0.7} style={profileCardStyles.headerNameRow}>
               <Text style={profileCardStyles.displayName} numberOfLines={1}>
                 {post.authorDisplayName || post.authorUsername || 'User'}
               </Text>
-            </TouchableOpacity>
             <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
             <Text style={profileCardStyles.username}>@{post.authorUsername || 'user'}</Text>
             <Text style={profileCardStyles.dot}>·</Text>
@@ -109,7 +122,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
               ])}>
-                <Ionicons name="ellipsis-horizontal" size={16} color="#71767b" />
+                <Ionicons name="ellipsis-horizontal" size={18} color="#94a3b8" />
               </TouchableOpacity>
             )}
           </View>
@@ -121,47 +134,56 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               </View>
             </TouchableOpacity>
           )}
-          {/* Action bar */}
+          {/* Action bar — exact match to FeedScreen PostCard */}
           <View style={profileCardStyles.actions}>
             {/* Comment */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
               <View style={profileCardStyles.actionIconWrap}>
-                <Ionicons name="chatbubble-outline" size={16} color="#71767b" />
+                <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
               </View>
-              {post.commentCount > 0 && <Text style={profileCardStyles.actionCount}>{post.commentCount}</Text>}
+              {post.commentCount > 0 ? <Text style={profileCardStyles.actionCount}>{post.commentCount}</Text> : null}
             </TouchableOpacity>
             {/* Repost */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleRepostPress}>
               <View style={profileCardStyles.actionIconWrap}>
-                <RepostIcon size={16} color={isReposted ? '#00ba7c' : '#71767b'} />
+                <RepostIcon size={18} color={isReposted ? '#00ba7c' : '#94a3b8'} />
               </View>
-              {localRepostCount > 0 && <Text style={[profileCardStyles.actionCount, isReposted && { color: '#00ba7c' }]}>{localRepostCount}</Text>}
+              {localRepostCount > 0 ? <Text style={[profileCardStyles.actionCount, isReposted && { color: '#00ba7c' }]}>{localRepostCount}</Text> : null}
             </TouchableOpacity>
             {/* Like */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
               <View style={profileCardStyles.actionIconWrap}>
-                <Ionicons name={post.liked ? 'heart' : 'heart-outline'} size={16} color={post.liked ? '#f91880' : '#71767b'} />
+                {post.liked ? (
+                  <Ionicons name="heart" size={18} color="#f43f5e" />
+                ) : (
+                  <Ionicons name="heart-outline" size={18} color="#94a3b8" />
+                )}
               </View>
-              {post.likeCount > 0 && <Text style={[profileCardStyles.actionCount, post.liked && { color: '#f91880' }]}>{post.likeCount}</Text>}
+              {post.likeCount > 0 ? <Text style={[profileCardStyles.actionCount, post.liked && { color: '#f43f5e' }]}>{post.likeCount}</Text> : null}
             </TouchableOpacity>
             {/* Views */}
-            <View style={profileCardStyles.actionBtn}>
+            <TouchableOpacity style={profileCardStyles.actionBtn} disabled>
               <View style={profileCardStyles.actionIconWrap}>
-                <Ionicons name="bar-chart-outline" size={16} color="#71767b" />
+                <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
               </View>
+            </TouchableOpacity>
+            {/* Bookmark + Share */}
+            <View style={profileCardStyles.actionPair}>
+              <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleBookmarkPress}>
+                <View style={profileCardStyles.actionIconWrap}>
+                  {isBookmarked ? (
+                    <Ionicons name="bookmark" size={18} color="#1d9bf0" />
+                  ) : (
+                    <Ionicons name="bookmark-outline" size={18} color="#94a3b8" />
+                  )}
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleShare}>
+                <View style={profileCardStyles.actionIconWrap}>
+                  <Ionicons name="share-outline" size={18} color="#94a3b8" />
+                </View>
+              </TouchableOpacity>
             </View>
-            {/* Bookmark */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleBookmarkPress}>
-              <View style={profileCardStyles.actionIconWrap}>
-                <Ionicons name={isBookmarked ? 'bookmark' : 'bookmark-outline'} size={16} color={isBookmarked ? '#1d9bf0' : '#71767b'} />
-              </View>
-            </TouchableOpacity>
-            {/* Share */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleShare}>
-              <View style={profileCardStyles.actionIconWrap}>
-                <Ionicons name="share-outline" size={16} color="#71767b" />
-              </View>
-            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -192,22 +214,24 @@ const profileCardStyles = StyleSheet.create({
     flex: 1, flexWrap: 'nowrap', overflow: 'hidden',
   },
   displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  username: { color: '#94a3b8', fontSize: 14 },
-  dot: { color: '#94a3b8', fontSize: 14 },
-  time: { color: '#94a3b8', fontSize: 14 },
+  username: { color: '#71767b', fontSize: 15 },
+  dot: { color: '#71767b', fontSize: 15 },
+  time: { color: '#71767b', fontSize: 15 },
   caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
   mediaContainer: {
-    marginTop: 10, borderRadius: 14, overflow: 'hidden',
+    marginTop: 12, borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
   media: { width: '100%', height: 200, backgroundColor: '#111' },
   actions: {
     flexDirection: 'row', alignItems: 'center',
-    marginTop: 10, marginLeft: -4,
+    marginTop: 12, marginLeft: -4, maxWidth: 440,
+    justifyContent: 'space-between',
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1, maxWidth: 80, justifyContent: 'flex-start' },
-  actionIconWrap: { width: 34, alignItems: 'center', justifyContent: 'center' },
-  actionCount: { color: '#71767b', fontSize: 13 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
+  actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  actionCount: { color: '#94a3b8', fontSize: 13, marginLeft: 2 },
   heartOverlay: {
     position: 'absolute', top: '30%', left: '30%', transform: [{ translateX: -40 }, { translateY: -40 }],
     zIndex: 10,
@@ -272,7 +296,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
       {replies.map(reply => (
         <View key={reply.id} style={profileCardStyles.postCard}>
           <View style={profileCardStyles.contentRow}>
-            <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={44} />
+            <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={40} />
             <View style={profileCardStyles.contentColumn}>
               <View style={profileCardStyles.headerNameRow}>
                 <Text style={profileCardStyles.displayName} numberOfLines={1}>
@@ -293,34 +317,36 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
               <View style={profileCardStyles.actions}>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name="chatbubble-outline" size={16} color="#71767b" />
+                    <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <RepostIcon size={16} color={repostMap[reply.id] ? '#00ba7c' : '#71767b'} />
+                    <RepostIcon size={18} color={repostMap[reply.id] ? '#00ba7c' : '#94a3b8'} />
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name={likeMap[reply.id] ? 'heart' : 'heart-outline'} size={16} color={likeMap[reply.id] ? '#f91880' : '#71767b'} />
+                    <Ionicons name={likeMap[reply.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[reply.id] ? '#f43f5e' : '#94a3b8'} />
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name="trending-up-outline" size={16} color="#71767b" />
+                    <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
                   </View>
                 </TouchableOpacity>
-                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
-                  <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name={bookmarkMap[reply.id] ? 'bookmark' : 'bookmark-outline'} size={16} color={bookmarkMap[reply.id] ? '#1d9bf0' : '#71767b'} />
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity style={profileCardStyles.actionBtn}>
-                  <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name="share-outline" size={16} color="#71767b" />
-                  </View>
-                </TouchableOpacity>
+                <View style={profileCardStyles.actionPair}>
+                  <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
+                    <View style={profileCardStyles.actionIconWrap}>
+                      <Ionicons name={bookmarkMap[reply.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[reply.id] ? '#1d9bf0' : '#94a3b8'} />
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={profileCardStyles.actionBtn}>
+                    <View style={profileCardStyles.actionIconWrap}>
+                      <Ionicons name="share-outline" size={18} color="#94a3b8" />
+                    </View>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>

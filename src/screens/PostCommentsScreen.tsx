@@ -179,7 +179,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 
       {/* Sticky input bar */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
         <SafeAreaView edges={['bottom']}>
@@ -233,23 +233,23 @@ const styles = StyleSheet.create({
   emptyTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '700', marginTop: 12 },
   emptySub: { color: '#64748b', fontSize: 15, marginTop: 4 },
   commentRow: {
-    flexDirection: 'row', gap: 10,
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.04)',
+    flexDirection: 'row', gap: 12,
+    paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   commentBody: { flex: 1, minWidth: 0 },
   commentHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginBottom: 2, flexWrap: 'wrap',
   },
-  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 14 },
-  commentHandle: { color: '#94a3b8', fontSize: 13 },
-  commentTime: { color: '#64748b', fontSize: 12 },
-  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 21, marginTop: 2 },
+  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  commentHandle: { color: '#71767b', fontSize: 15 },
+  commentTime: { color: '#71767b', fontSize: 15 },
+  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
   inputBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingVertical: 10,
-    borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
     backgroundColor: '#000000',
   },
   inputWrap: {

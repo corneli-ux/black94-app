@@ -96,7 +96,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={styles.backdropTouch} activeOpacity={1} onPress={onClose} />
-        <KeyboardAvoidingView style={styles.sheetContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.sheetContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
             {/* Handle */}
             <View style={styles.handleWrap}><View style={styles.handle} /></View>
@@ -225,14 +225,14 @@ const styles = StyleSheet.create({
   emptyWrap: { alignItems: 'center', paddingVertical: 48 },
   emptyTitle: { color: '#e7e9ea', fontSize: 16, fontWeight: '700', marginTop: 12 },
   emptySub: { color: '#64748b', fontSize: 14, marginTop: 4 },
-  commentRow: { flexDirection: 'row', gap: 10, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.04)' },
+  commentRow: { flexDirection: 'row', gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
   commentBody: { flex: 1 },
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' },
-  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 14 },
-  commentHandle: { color: '#94a3b8', fontSize: 13 },
-  commentTime: { color: '#64748b', fontSize: 12 },
-  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 21, marginTop: 2 },
-  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.08)', backgroundColor: '#000000' },
+  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  commentHandle: { color: '#71767b', fontSize: 15 },
+  commentTime: { color: '#71767b', fontSize: 15 },
+  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
+  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: '#000000' },
   inputWrap: { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, maxHeight: 100, justifyContent: 'center' },
   input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },

@@ -186,8 +186,12 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
         </TouchableOpacity>
 
-        {/* Content column */}
-        <View style={styles.contentColumn} onTouchEnd={handleDoubleTap}>
+        {/* Content column — tap to open replies */}
+        <TouchableOpacity
+          style={styles.contentColumn}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}
+        >
           {/* Header row */}
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -313,7 +317,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -775,7 +779,7 @@ export default function FeedScreen({ navigation }: any) {
       <Modal visible={composeVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setComposeVisible(false); setComposeImages([]); }} />
           <View style={styles.composeSheet}>

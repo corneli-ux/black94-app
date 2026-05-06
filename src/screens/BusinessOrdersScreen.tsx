@@ -327,7 +327,7 @@ export default function BusinessOrdersScreen() {
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
             style={styles.modalContent}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <Text style={styles.modalTitle}>Add Tracking Number</Text>
             <Text style={styles.modalSubtitle}>
               Enter the tracking number for this shipment
