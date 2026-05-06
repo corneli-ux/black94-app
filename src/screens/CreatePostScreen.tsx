@@ -85,12 +85,12 @@ const CreatePostScreen: React.FC = () => {
   const triggerFeedRefresh = useAppStore((s) => s.triggerFeedRefresh);
   const user = rawUser
     ? {
-        uid: (rawUser.uid as string) ?? '',
-        username: (rawUser.username as string) ?? '',
-        displayName: (rawUser.displayName as string) ?? '',
-        profileImage: (rawUser.profileImage as string) ?? '',
-        isVerified: (rawUser.isVerified as boolean) ?? false,
-        badge: (rawUser.badge as string) ?? '',
+        id: rawUser.id ?? '',
+        username: rawUser.username ?? '',
+        displayName: rawUser.displayName ?? '',
+        profileImage: rawUser.profileImage ?? '',
+        isVerified: rawUser.isVerified ?? false,
+        badge: rawUser.badge ?? '',
       }
     : null;
 

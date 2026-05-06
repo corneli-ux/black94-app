@@ -12,6 +12,8 @@ interface AppState {
   setIsReady: (ready: boolean) => void;
   unreadNotificationCount: number;
   setUnreadNotificationCount: (count: number) => void;
+  feedRefreshKey: number;
+  triggerFeedRefresh: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -25,4 +27,6 @@ export const useAppStore = create<AppState>((set) => ({
   setIsReady: (isReady) => set({ isReady }),
   unreadNotificationCount: 0,
   setUnreadNotificationCount: (count) => set({ unreadNotificationCount: count }),
+  feedRefreshKey: 0,
+  triggerFeedRefresh: () => set((s) => ({ feedRefreshKey: s.feedRefreshKey + 1 })),
 }));
