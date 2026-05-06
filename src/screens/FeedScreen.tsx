@@ -785,7 +785,7 @@ export default function FeedScreen({ navigation }: any) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
+    </View>
   );
 }
 
