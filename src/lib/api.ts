@@ -266,32 +266,59 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
     const chunk = postIds.slice(i, i + CHUNK_SIZE);
 
     try {
-      const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
-        firestore().collection('post_likes')
-          .where('postId', 'in', chunk)
-          .where('userId', '==', userId)
-          .get(),
-        firestore().collection('post_bookmarks')
-          .where('postId', 'in', chunk)
-          .where('userId', '==', userId)
-          .get(),
-        firestore().collection('post_reposts')
-          .where('postId', 'in', chunk)
-          .where('userId', '==', userId)
-          .get(),
-      ]);
+      // Try batch query (needs composite index). Fall back to individual reads if it fails.
+      let batchSucceeded = true;
+      try {
+        const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
+          firestore().collection('post_likes')
+            .where('postId', 'in', chunk)
+            .where('userId', '==', userId)
+            .get(),
+          firestore().collection('post_bookmarks')
+            .where('postId', 'in', chunk)
+            .where('userId', '==', userId)
+            .get(),
+          firestore().collection('post_reposts')
+            .where('postId', 'in', chunk)
+            .where('userId', '==', userId)
+            .get(),
+        ]);
 
-      for (const doc of likesSnap.docs) {
-        const d = doc.data();
-        if (d.postId) likedIds.add(d.postId);
+        for (const doc of likesSnap.docs) {
+          const d = doc.data();
+          if (d.postId) likedIds.add(d.postId);
+        }
+        for (const doc of bookmarksSnap.docs) {
+          const d = doc.data();
+          if (d.postId) bookmarkedIds.add(d.postId);
+        }
+        for (const doc of repostsSnap.docs) {
+          const d = doc.data();
+          if (d.postId) repostedIds.add(d.postId);
+        }
+
+        if ((likesSnap as any)._missingIndex || (bookmarksSnap as any)._missingIndex || (repostsSnap as any)._missingIndex) {
+          batchSucceeded = false;
+        }
+      } catch (batchErr) {
+        console.warn('[Feed] Batch interaction query failed, falling back to individual reads:', batchErr);
+        batchSucceeded = false;
       }
-      for (const doc of bookmarksSnap.docs) {
-        const d = doc.data();
-        if (d.postId) bookmarkedIds.add(d.postId);
-      }
-      for (const doc of repostsSnap.docs) {
-        const d = doc.data();
-        if (d.postId) repostedIds.add(d.postId);
+
+      if (!batchSucceeded) {
+        console.log('[Feed] Using individual interaction reads fallback');
+        const individualPromises = chunk.flatMap(postId => [
+          firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => {
+            if (snap.exists) likedIds.add(postId);
+          }).catch(() => {}),
+          firestore().collection('post_bookmarks').doc(`${postId}_${userId}`).get().then(snap => {
+            if (snap.exists) bookmarkedIds.add(postId);
+          }).catch(() => {}),
+          firestore().collection('post_reposts').doc(`${postId}_${userId}`).get().then(snap => {
+            if (snap.exists) repostedIds.add(postId);
+          }).catch(() => {}),
+        ]);
+        await Promise.all(individualPromises);
       }
     } catch (e) {
       console.warn('[Feed] Batch interaction fetch failed for chunk:', e);
@@ -601,13 +628,14 @@ export interface CommentData {
 
 export async function fetchPostComments(postId: string): Promise<CommentData[]> {
   try {
+    // NOTE: No .orderBy('createdAt', 'asc') — that composite index may not exist.
+    // Fetch without orderBy, then sort client-side (same as web's fetchPostComments).
     const snapshot = await firestore()
       .collection('post_comments')
       .where('postId', '==', postId)
-      .orderBy('createdAt', 'asc')
       .limit(50)
       .get();
-    return snapshot.docs.map(docSnap => {
+    const results = snapshot.docs.map(docSnap => {
       const data = docSnap.data();
       return {
         id: docSnap.id,
@@ -622,6 +650,9 @@ export async function fetchPostComments(postId: string): Promise<CommentData[]> 
         createdAt: tsToMillis(data.createdAt),
       };
     });
+    // Sort client-side ascending by createdAt
+    results.sort((a, b) => a.createdAt - b.createdAt);
+    return results;
   } catch (e) {
     console.error('[Comments] Failed to fetch:', e);
     return [];

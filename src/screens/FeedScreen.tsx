@@ -421,32 +421,62 @@ export default function FeedScreen({ navigation }: any) {
         for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
           const chunk = postIds.slice(i, i + CHUNK_SIZE);
           try {
-            const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
-              firestore().collection('post_likes')
-                .where('postId', 'in', chunk)
-                .where('userId', '==', userId)
-                .get(),
-              firestore().collection('post_bookmarks')
-                .where('postId', 'in', chunk)
-                .where('userId', '==', userId)
-                .get(),
-              firestore().collection('post_reposts')
-                .where('postId', 'in', chunk)
-                .where('userId', '==', userId)
-                .get(),
-            ]);
+            // Try batch query first (needs composite index). If it fails
+            // (e.g., missing index), fall back to individual doc reads.
+            let batchSucceeded = true;
+            try {
+              const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
+                firestore().collection('post_likes')
+                  .where('postId', 'in', chunk)
+                  .where('userId', '==', userId)
+                  .get(),
+                firestore().collection('post_bookmarks')
+                  .where('postId', 'in', chunk)
+                  .where('userId', '==', userId)
+                  .get(),
+                firestore().collection('post_reposts')
+                  .where('postId', 'in', chunk)
+                  .where('userId', '==', userId)
+                  .get(),
+              ]);
 
-            for (const doc of likesSnap.docs) {
-              const d = doc.data();
-              if (d.postId) likedIds.add(d.postId);
+              for (const doc of likesSnap.docs) {
+                const d = doc.data();
+                if (d.postId) likedIds.add(d.postId);
+              }
+              for (const doc of bookmarksSnap.docs) {
+                const d = doc.data();
+                if (d.postId) bookmarkedIds.add(d.postId);
+              }
+              for (const doc of repostsSnap.docs) {
+                const d = doc.data();
+                if (d.postId) repostedIds.add(d.postId);
+              }
+
+              // Check if any result has the _missingIndex flag
+              if ((likesSnap as any)._missingIndex || (bookmarksSnap as any)._missingIndex || (repostsSnap as any)._missingIndex) {
+                batchSucceeded = false;
+              }
+            } catch (batchErr) {
+              console.warn('[Feed] Batch interaction query failed, falling back to individual reads:', batchErr);
+              batchSucceeded = false;
             }
-            for (const doc of bookmarksSnap.docs) {
-              const d = doc.data();
-              if (d.postId) bookmarkedIds.add(d.postId);
-            }
-            for (const doc of repostsSnap.docs) {
-              const d = doc.data();
-              if (d.postId) repostedIds.add(d.postId);
+
+            // Fallback: individual reads using composite doc IDs
+            if (!batchSucceeded) {
+              console.log('[Feed] Using individual interaction reads fallback');
+              const individualPromises = chunk.flatMap(postId => [
+                firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => {
+                  if (snap.exists) likedIds.add(postId);
+                }).catch(() => {}),
+                firestore().collection('post_bookmarks').doc(`${postId}_${userId}`).get().then(snap => {
+                  if (snap.exists) bookmarkedIds.add(postId);
+                }).catch(() => {}),
+                firestore().collection('post_reposts').doc(`${postId}_${userId}`).get().then(snap => {
+                  if (snap.exists) repostedIds.add(postId);
+                }).catch(() => {}),
+              ]);
+              await Promise.all(individualPromises);
             }
           } catch (e) {
             console.warn('[Feed] Batch interaction fetch failed for chunk:', e);

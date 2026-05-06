@@ -118,7 +118,10 @@ export default function ProfileScreen({ route, navigation }: any) {
       console.log('[ProfileScreen] Loading profile for:', targetUserId);
       const [u, feed, isFollowing, followersSnap, followingSnap] = await Promise.all([
         fetchUserProfile(targetUserId),
-        firestore().collection('posts').where('authorId', '==', targetUserId).orderBy('createdAt', 'desc').limit(20).get(),
+        // NOTE: No .orderBy('createdAt', 'desc') here — that composite index may
+        // not exist in Firestore. Query without orderBy, then sort client-side
+        // (same strategy as web's fetchUserPostsNoIndex in social.ts).
+        firestore().collection('posts').where('authorId', '==', targetUserId).limit(50).get(),
         isOwnProfile ? Promise.resolve(false) : checkFollowing(targetUserId),
         firestore().collection('follows').where('followingId', '==', targetUserId).get(),
         firestore().collection('follows').where('followerId', '==', targetUserId).get(),
@@ -141,6 +144,8 @@ export default function ProfileScreen({ route, navigation }: any) {
           createdAt: tsToMillis(data.createdAt),
         };
       });
+      // Sort client-side by createdAt descending (avoids composite index requirement)
+      ps.sort((a, b) => b.createdAt - a.createdAt);
       setPosts(ps);
     } catch (e: any) {
       console.error('[ProfileScreen] Load error:', e?.message);
@@ -167,7 +172,6 @@ export default function ProfileScreen({ route, navigation }: any) {
         const snap = await firestore()
           .collection('post_comments')
           .where('authorId', '==', targetUserId)
-          .orderBy('createdAt', 'desc')
           .limit(30)
           .get();
         const replyList: Reply[] = snap.docs.map(d => {
@@ -184,6 +188,8 @@ export default function ProfileScreen({ route, navigation }: any) {
             createdAt: tsToMillis(data.createdAt),
           };
         });
+        // Sort client-side to avoid composite index requirement
+        replyList.sort((a, b) => b.createdAt - a.createdAt);
         setReplies(replyList);
       } catch (e: any) {
         console.error('[ProfileScreen] Failed to load replies:', e?.message);
@@ -254,14 +260,18 @@ export default function ProfileScreen({ route, navigation }: any) {
     if (!currentUser?.uid || messaging) return;
     setMessaging(true);
     try {
-      const [snap1, snap2] = await Promise.all([
-        firestore().collection('chats').where('user1Id', '==', currentUser.uid).where('user2Id', '==', targetUserId).get(),
-        firestore().collection('chats').where('user1Id', '==', targetUserId).where('user2Id', '==', currentUser.uid).get(),
-      ]);
-      const existing = [...snap1.docs, ...snap2.docs][0];
+      // Try to find existing chat — use simple queries first to avoid composite index issues.
+      // If both user1/user2 simple queries fail, fall back to searching user2 queries.
+      const snap1 = await firestore().collection('chats').where('user1Id', '==', currentUser.uid).get();
+      const existing = snap1.docs.find(d => d.data().user2Id === targetUserId);
       if (existing) {
         navigation.navigate('ChatRoom' as never, { chatId: existing.id } as never);
       } else {
+        const snap2 = await firestore().collection('chats').where('user2Id', '==', currentUser.uid).get();
+        const existing2 = snap2.docs.find(d => d.data().user1Id === targetUserId);
+        if (existing2) {
+          navigation.navigate('ChatRoom' as never, { chatId: existing2.id } as never);
+        } else {
         const chatRef = await firestore().collection('chats').add({
           user1Id: currentUser.uid,
           user2Id: targetUserId,

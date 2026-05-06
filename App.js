@@ -56,7 +56,7 @@ class AppErrorBoundary extends Component {
 
 /* ── App Component ────────────────────────────────────────────────────────── */
 
-const FORCE_READY_TIMEOUT = 8000;
+const FORCE_READY_TIMEOUT = 15000;
 
 export default function App() {
   const { user, setUser, setToken, setIsReady, isReady, setLoading } = useAppStore();
@@ -88,17 +88,19 @@ export default function App() {
               const fbUser = authInstance.currentUser;
               setToken(fbUser.uid);
               setLoading(false);
+              // Set a preliminary user immediately so the app doesn't flash login screen
+              // even if the full profile fetch is slow
+              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+              // Cancel safety timeout since auth is validated
+              clearTimeout(safetyTimer);
+              // Fetch full profile in background and update
               fetchUserProfile(fbUser.uid).then(profile => {
-                // Don't update if safety timeout already fired
-                if (forceReady) return;
-                if (profile) { setUser(profile); } else {
-                  setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
-                }
+                if (profile) { setUser(profile); }
+                // If this is very slow, isReady was already set above
                 setIsReady(true);
               }).catch(err => {
-                if (forceReady) return;
-                console.warn('[App] Profile fetch failed after restore, using Firebase data:', err);
-                setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+                console.warn('[App] Profile fetch failed after restore, keeping preliminary user:', err);
+                // isReady was already set above
                 setIsReady(true);
               });
               return; // Skip onAuthStateChanged — we handled it
