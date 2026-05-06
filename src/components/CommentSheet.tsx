@@ -96,7 +96,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={styles.backdropTouch} activeOpacity={1} onPress={onClose} />
-        <KeyboardAvoidingView style={styles.sheetContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={styles.sheetContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
             {/* Handle */}
             <View style={styles.handleWrap}><View style={styles.handle} /></View>
@@ -150,20 +150,32 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                           displayName: item.authorDisplayName || item.authorUsername,
                         });
                       }}>
-                        <Ionicons name="chatbubble-outline" size={14} color="#64748b" />
+                        <View style={styles.actionIconWrap}>
+                          <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
+                        </View>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
-                        {repostMap[item.id] ? <RepostIcon size={14} color="#10b981" /> : <RepostIcon size={14} color="#64748b" />}
+                        <View style={styles.actionIconWrap}>
+                          {repostMap[item.id] ? <RepostIcon size={18} color="#10b981" /> : <RepostIcon size={18} color="#94a3b8" />}
+                        </View>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
-                        <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={14} color={likeMap[item.id] ? "#f43f5e" : "#64748b"} />
+                        <View style={styles.actionIconWrap}>
+                          <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={18} color={likeMap[item.id] ? "#f43f5e" : "#94a3b8"} />
+                        </View>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.commentActionBtn}>
-                        <Ionicons name="trending-up-outline" size={14} color="#64748b" />
+                      <TouchableOpacity style={styles.commentActionBtn} disabled>
+                        <View style={styles.actionIconWrap}>
+                          <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+                        </View>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
-                        <Ionicons name={bookmarkMap[item.id] ? "bookmark" : "bookmark-outline"} size={14} color={bookmarkMap[item.id] ? "#ffffff" : "#64748b"} />
-                      </TouchableOpacity>
+                      <View style={styles.actionPair}>
+                        <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
+                          <View style={styles.actionIconWrap}>
+                            <Ionicons name={bookmarkMap[item.id] ? "bookmark" : "bookmark-outline"} size={18} color={bookmarkMap[item.id] ? "#ffffff" : "#94a3b8"} />
+                          </View>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -233,21 +245,24 @@ const styles = StyleSheet.create({
   commentTime: { color: '#71767b', fontSize: 15 },
   commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
   inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: '#000000' },
-  inputWrap: { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, maxHeight: 100, justifyContent: 'center' },
+  inputWrap: { flex: 1, backgroundColor: '#16181c', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, maxHeight: 100, justifyContent: 'center' },
   input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: 12,
     marginLeft: -4,
-    gap: 20,
+    maxWidth: 440,
+    justifyContent: 'space-between',
   },
-  commentActionBtn: {
-    padding: 4,
-    borderRadius: 12,
+  actionIconWrap: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: 'center', justifyContent: 'center',
   },
+  actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
+  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   replyingBar: {
     flexDirection: 'row',
     alignItems: 'center',

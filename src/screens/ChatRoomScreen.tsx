@@ -293,7 +293,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
       {/* Input bar — matches web ChatInputBar */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
         style={{ backgroundColor: '#000000' }}
       >

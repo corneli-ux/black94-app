@@ -101,8 +101,8 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             }} activeOpacity={0.7} hitSlop={8}>
               <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
             </TouchableOpacity>
-        <View style={profileCardStyles.contentColumn}>
-          <View style={profileCardStyles.headerNameRow}>
+        <TouchableOpacity style={profileCardStyles.contentColumn} activeOpacity={0.7} onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
+          <View style={profileCardStyles.headerRow}>
             <TouchableOpacity onPress={() => {
               if (post.authorId !== currentUser?.uid) {
                 navigation.navigate('UserProfile', { userId: post.authorId });
@@ -113,19 +113,22 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               <Text style={profileCardStyles.displayName} numberOfLines={1}>
                 {post.authorDisplayName || post.authorUsername || 'User'}
               </Text>
-            <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
-            <Text style={profileCardStyles.username}>@{post.authorUsername || 'user'}</Text>
-            <Text style={profileCardStyles.dot}>·</Text>
-            <Text style={profileCardStyles.time}>{timeAgo(post.createdAt)}</Text>
+              <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
+              <Text style={profileCardStyles.username}>@{post.authorUsername || 'user'}</Text>
+              <Text style={profileCardStyles.dot}>·</Text>
+              <Text style={profileCardStyles.time}>{timeAgo(post.createdAt)}</Text>
+            </TouchableOpacity>
             {isOwnPost && (
-              <TouchableOpacity style={{ marginLeft: 'auto' }} onPress={() => Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
-              ])}>
+              <TouchableOpacity
+                style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16 }}
+                onPress={() => Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+                ])}
+              >
                 <Ionicons name="ellipsis-horizontal" size={18} color="#94a3b8" />
               </TouchableOpacity>
             )}
-          </TouchableOpacity>
           </View>
           {post.caption ? <Text style={profileCardStyles.caption}>{post.caption}</Text> : null}
           {post.mediaUrls?.length > 0 && (
@@ -186,7 +189,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
       {/* Double-tap heart overlay */}
       {showHeart && (
@@ -209,7 +212,11 @@ const profileCardStyles = StyleSheet.create({
     paddingBottom: 12,
   },
   contentRow: { flexDirection: 'row', gap: 12 },
-  contentColumn: { flex: 1, minWidth: 0 },
+  contentColumn: { flex: 1, minWidth: 0, position: 'relative' },
+  headerRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   headerNameRow: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     flex: 1, flexWrap: 'nowrap', overflow: 'hidden',

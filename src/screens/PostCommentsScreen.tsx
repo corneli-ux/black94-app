@@ -28,7 +28,7 @@ interface PostCommentsScreenProps {
 }
 
 export default function PostCommentsScreen({ route, navigation }: PostCommentsScreenProps) {
-  const { postId, postCaption } = route?.params || {};
+  const { postId, postCaption, postAuthorUsername, postAuthorDisplayName } = route?.params || {};
   const { user } = useAppStore();
   const currentUser = auth()?.currentUser;
   const [comments, setComments] = useState<CommentData[]>([]);
@@ -50,6 +50,17 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   }, [postId]);
 
   useEffect(() => { loadComments(); }, [loadComments]);
+
+  // Auto-set replyingTo when navigating from a post card with postAuthorUsername
+  useEffect(() => {
+    if (postAuthorUsername) {
+      setReplyingTo({
+        id: '',
+        username: postAuthorUsername,
+        displayName: postAuthorDisplayName || postAuthorUsername,
+      });
+    }
+  }, [postAuthorUsername, postAuthorDisplayName]);
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
@@ -85,17 +96,18 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 
   const renderComment = ({ item }: { item: CommentData }) => (
     <View style={styles.commentRow}>
-      <Avatar uri={item.authorProfileImage || null} name={item.authorDisplayName || item.authorUsername} size={36} />
+      <Avatar uri={item.authorProfileImage || null} name={item.authorDisplayName || item.authorUsername} size={40} />
       <View style={styles.commentBody}>
         <View style={styles.commentHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Text style={styles.commentName} numberOfLines={1}>{item.authorDisplayName || item.authorUsername}</Text>
-            <VerifiedBadge badge={item.authorBadge} isVerified={item.authorIsVerified} size={14} />
+            <VerifiedBadge badge={item.authorBadge} isVerified={item.authorIsVerified} size={16} />
+            <Text style={styles.commentHandle}>@{item.authorUsername}</Text>
+            <Text style={styles.commentTime}>{timeAgo(item.createdAt)}</Text>
           </View>
-          <Text style={styles.commentHandle}>@{item.authorUsername}</Text>
-          <Text style={styles.commentTime}>{timeAgo(item.createdAt)}</Text>
         </View>
         <Text style={styles.commentContent}>{item.content}</Text>
+        {/* Action bar — matches feed PostCard exactly */}
         <View style={styles.commentActions}>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => {
             setReplyingTo({
@@ -104,20 +116,37 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               displayName: item.authorDisplayName || item.authorUsername,
             });
           }}>
-            <Ionicons name="chatbubble-outline" size={14} color="#64748b" />
+            <View style={styles.actionIconWrap}>
+              <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
+            </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
-            {repostMap[item.id] ? <RepostIcon size={14} color="#10b981" /> : <RepostIcon size={14} color="#64748b" />}
+            <View style={styles.actionIconWrap}>
+              {repostMap[item.id] ? <RepostIcon size={18} color="#10b981" /> : <RepostIcon size={18} color="#94a3b8" />}
+            </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
-            <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={14} color={likeMap[item.id] ? "#f43f5e" : "#64748b"} />
+            <View style={styles.actionIconWrap}>
+              <Ionicons name={likeMap[item.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[item.id] ? '#f43f5e' : '#94a3b8'} />
+            </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.commentActionBtn}>
-            <Ionicons name="trending-up-outline" size={14} color="#64748b" />
+          <TouchableOpacity style={styles.commentActionBtn} disabled>
+            <View style={styles.actionIconWrap}>
+              <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+            </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
-            <Ionicons name={bookmarkMap[item.id] ? "bookmark" : "bookmark-outline"} size={14} color={bookmarkMap[item.id] ? "#ffffff" : "#64748b"} />
-          </TouchableOpacity>
+          <View style={styles.actionPair}>
+            <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
+              <View style={styles.actionIconWrap}>
+                <Ionicons name={bookmarkMap[item.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item.id] ? '#ffffff' : '#94a3b8'} />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.commentActionBtn}>
+              <View style={styles.actionIconWrap}>
+                <Ionicons name="share-outline" size={18} color="#94a3b8" />
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
@@ -127,7 +156,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     <View style={styles.container}>
       {/* Header */}
       <SafeAreaView edges={['top']}>
-        <View style={[styles.header, { paddingTop: insets.top || 8 }]}>
+        <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
             <Ionicons name="arrow-back" size={22} color="#e7e9ea" />
           </TouchableOpacity>
@@ -139,6 +168,10 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
       {/* Post caption preview */}
       {postCaption ? (
         <View style={styles.preview}>
+          <Text style={styles.previewLabel}>Replying to</Text>
+          {postAuthorDisplayName ? (
+            <Text style={styles.previewAuthor}>{postAuthorDisplayName} <Text style={styles.previewHandle}>@{postAuthorUsername}</Text></Text>
+          ) : null}
           <Text style={styles.previewCaption} numberOfLines={2}>{postCaption}</Text>
         </View>
       ) : null}
@@ -177,38 +210,36 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         </View>
       ) : null}
 
-      {/* Sticky input bar */}
+      {/* Sticky input bar — keyboard aware, black themed */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top || 0 : 0}
       >
-        <SafeAreaView edges={['bottom']}>
-          <View style={[styles.inputBar, { paddingBottom: Math.max(8, (insets.bottom || 0)) }]}>
-            <Avatar uri={user?.profileImage || null} name={user?.displayName} size={32} />
-            <View style={styles.inputWrap}>
-              <TextInput
-                style={styles.input}
-                placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : "Add a comment..."}
-                placeholderTextColor="#64748b"
-                value={text}
-                onChangeText={setText}
-                multiline
-                maxLength={500}
-                editable={!sending}
-              />
-            </View>
-            <TouchableOpacity
-              style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
-              onPress={handleSend}
-              disabled={!text.trim() || sending}
-            >
-              {sending
-                ? <ActivityIndicator size="small" color="#000" />
-                : <Ionicons name="send" size={18} color={text.trim() ? '#000' : '#555'} />
-              }
-            </TouchableOpacity>
+        <View style={[styles.inputBar, { paddingBottom: Math.max(8, insets.bottom || 0) }]}>
+          <Avatar uri={user?.profileImage || null} name={user?.displayName} size={32} />
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={styles.input}
+              placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
+              placeholderTextColor="#64748b"
+              value={text}
+              onChangeText={setText}
+              multiline
+              maxLength={500}
+              editable={!sending}
+            />
           </View>
-        </SafeAreaView>
+          <TouchableOpacity
+            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
+            onPress={handleSend}
+            disabled={!text.trim() || sending}
+          >
+            {sending
+              ? <ActivityIndicator size="small" color="#000" />
+              : <Ionicons name="send" size={18} color={text.trim() ? '#000' : '#555'} />
+            }
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -220,13 +251,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingBottom: 12,
     borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#000000',
   },
   headerTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '800' },
   preview: {
     paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#000000',
   },
-  previewCaption: { color: '#94a3b8', fontSize: 15, lineHeight: 21 },
+  previewLabel: { color: '#71767b', fontSize: 13, fontWeight: '500', marginBottom: 2 },
+  previewAuthor: { color: '#e7e9ea', fontSize: 15, fontWeight: '700' },
+  previewHandle: { color: '#71767b', fontSize: 15, fontWeight: '400' },
+  previewCaption: { color: '#94a3b8', fontSize: 15, lineHeight: 21, marginTop: 4 },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyListContent: { flexGrow: 1 },
   emptyWrap: { alignItems: 'center', paddingTop: 100 },
@@ -246,6 +282,22 @@ const styles = StyleSheet.create({
   commentHandle: { color: '#71767b', fontSize: 15 },
   commentTime: { color: '#71767b', fontSize: 15 },
   commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
+  /* Action bar — matches feed PostCard exactly */
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    marginLeft: -4,
+    maxWidth: 440,
+    justifyContent: 'space-between',
+  },
+  actionIconWrap: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
+  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  /* Black themed input bar */
   inputBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingVertical: 10,
@@ -253,7 +305,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   inputWrap: {
-    flex: 1, backgroundColor: 'rgba(255,255,255,0.06)',
+    flex: 1, backgroundColor: '#16181c',
     borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
     minHeight: 36, maxHeight: 100, justifyContent: 'center',
   },
@@ -263,22 +315,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  commentActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    marginLeft: -4,
-    gap: 20,
-  },
-  commentActionBtn: {
-    padding: 4,
-    borderRadius: 12,
-  },
-  replyingTo: {
-    color: '#3b82f6',
-    fontSize: 13,
-    marginTop: 2,
-  },
   replyingBar: {
     flexDirection: 'row',
     alignItems: 'center',
