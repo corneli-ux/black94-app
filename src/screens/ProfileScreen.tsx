@@ -125,6 +125,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
                 <Ionicons name="ellipsis-horizontal" size={18} color="#94a3b8" />
               </TouchableOpacity>
             )}
+          </TouchableOpacity>
           </View>
           {post.caption ? <Text style={profileCardStyles.caption}>{post.caption}</Text> : null}
           {post.mediaUrls?.length > 0 && (
