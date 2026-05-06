@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, ScrollView, Alert } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, ScrollView, Alert, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
-import { fetchUserProfile, toggleFollow, checkFollowing, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
+import { fetchUserProfile, toggleFollow, checkFollowing, toggleLike, toggleBookmark, toggleRepost, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -33,55 +33,144 @@ interface Reply {
   createdAt: number;
 }
 
-/* ── Feed-style PostCard for profile (matches FeedScreen PostCard) ── */
-function ProfilePostCard({ post, navigation }: { post: Post; navigation: any }) {
+/* ── Feed-style PostCard for profile (fully interactive, matches FeedScreen PostCard) ── */
+const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
+  post: Post;
+  onLike: (id: string, liked: boolean) => void;
+  onBookmark: (id: string, bookmarked: boolean) => void;
+  onDelete: (id: string) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onComment: (id: string, caption?: string) => void;
+  navigation: any;
+}) {
   const currentUser = auth()?.currentUser;
+  const [showHeart, setShowHeart] = useState(false);
+  const lastTapRef = useRef(0);
+  const [isReposted, setIsReposted] = useState(post.reposted);
+  const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
+  const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
+
+  React.useEffect(() => {
+    setIsReposted(post.reposted);
+    setLocalRepostCount(post.repostCount);
+    setIsBookmarked(post.bookmarked);
+  }, [post.reposted, post.repostCount, post.bookmarked]);
+
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!post.liked) { onLike(post.id, post.liked); }
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 900);
+    }
+    lastTapRef.current = now;
+  };
+
+  const handleRepostPress = () => {
+    const next = !isReposted;
+    setIsReposted(next);
+    setLocalRepostCount(prev => prev + (next ? 1 : -1));
+    onRepost(post.id, isReposted);
+  };
+
+  const handleBookmarkPress = () => {
+    const next = !isBookmarked;
+    setIsBookmarked(next);
+    onBookmark(post.id, isBookmarked);
+  };
+
+  const handleShare = async () => {
+    try { await Share.share({ message: 'Check out this post on Black94!' }); } catch {}
+  };
+
+  const isOwnPost = currentUser?.uid === post.authorId;
 
   return (
-    <TouchableOpacity
-      style={profileCardStyles.postCard}
-      activeOpacity={0.95}
-      onPress={() => navigation.navigate('UserProfile', { userId: post.authorId })}
-    >
+    <View style={profileCardStyles.postCard}>
       {/* Content row: avatar + content */}
       <View style={profileCardStyles.contentRow}>
         <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={44} />
         <View style={profileCardStyles.contentColumn}>
           <View style={profileCardStyles.headerNameRow}>
-            <Text style={profileCardStyles.displayName} numberOfLines={1}>
-              {post.authorDisplayName || post.authorUsername || 'User'}
-            </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('UserProfile', { userId: post.authorId })}>
+              <Text style={profileCardStyles.displayName} numberOfLines={1}>
+                {post.authorDisplayName || post.authorUsername || 'User'}
+              </Text>
+            </TouchableOpacity>
             <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
             <Text style={profileCardStyles.username}>@{post.authorUsername || 'user'}</Text>
             <Text style={profileCardStyles.dot}>·</Text>
             <Text style={profileCardStyles.time}>{timeAgo(post.createdAt)}</Text>
+            {isOwnPost && (
+              <TouchableOpacity style={{ marginLeft: 'auto' }} onPress={() => Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+              ])}>
+                <Ionicons name="ellipsis-horizontal" size={16} color="#71767b" />
+              </TouchableOpacity>
+            )}
           </View>
           {post.caption ? <Text style={profileCardStyles.caption}>{post.caption}</Text> : null}
           {post.mediaUrls?.length > 0 && (
-            <View style={profileCardStyles.mediaContainer}>
-              <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" />
-            </View>
+            <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
+              <View style={profileCardStyles.mediaContainer}>
+                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" />
+              </View>
+            </TouchableOpacity>
           )}
           {/* Action bar */}
           <View style={profileCardStyles.actions}>
-            <View style={profileCardStyles.actionBtn}>
-              <Ionicons name="chatbubble-outline" size={16} color="#71767b" />
+            {/* Comment */}
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
+              <View style={profileCardStyles.actionIconWrap}>
+                <Ionicons name="chatbubble-outline" size={16} color="#71767b" />
+              </View>
               {post.commentCount > 0 && <Text style={profileCardStyles.actionCount}>{post.commentCount}</Text>}
-            </View>
+            </TouchableOpacity>
+            {/* Repost */}
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleRepostPress}>
+              <View style={profileCardStyles.actionIconWrap}>
+                <RepostIcon size={16} color={isReposted ? '#00ba7c' : '#71767b'} />
+              </View>
+              {localRepostCount > 0 && <Text style={[profileCardStyles.actionCount, isReposted && { color: '#00ba7c' }]}>{localRepostCount}</Text>}
+            </TouchableOpacity>
+            {/* Like */}
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
+              <View style={profileCardStyles.actionIconWrap}>
+                <Ionicons name={post.liked ? 'heart' : 'heart-outline'} size={16} color={post.liked ? '#f91880' : '#71767b'} />
+              </View>
+              {post.likeCount > 0 && <Text style={[profileCardStyles.actionCount, post.liked && { color: '#f91880' }]}>{post.likeCount}</Text>}
+            </TouchableOpacity>
+            {/* Views */}
             <View style={profileCardStyles.actionBtn}>
-              <RepostIcon size={16} color="#71767b" />
-              {post.repostCount > 0 && <Text style={profileCardStyles.actionCount}>{post.repostCount}</Text>}
+              <View style={profileCardStyles.actionIconWrap}>
+                <Ionicons name="bar-chart-outline" size={16} color="#71767b" />
+              </View>
             </View>
-            <View style={profileCardStyles.actionBtn}>
-              <Ionicons name="heart-outline" size={16} color="#71767b" />
-              {post.likeCount > 0 && <Text style={profileCardStyles.actionCount}>{post.likeCount}</Text>}
-            </View>
+            {/* Bookmark */}
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleBookmarkPress}>
+              <View style={profileCardStyles.actionIconWrap}>
+                <Ionicons name={isBookmarked ? 'bookmark' : 'bookmark-outline'} size={16} color={isBookmarked ? '#1d9bf0' : '#71767b'} />
+              </View>
+            </TouchableOpacity>
+            {/* Share */}
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleShare}>
+              <View style={profileCardStyles.actionIconWrap}>
+                <Ionicons name="share-outline" size={16} color="#71767b" />
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
-    </TouchableOpacity>
+      {/* Double-tap heart overlay */}
+      {showHeart && (
+        <View style={profileCardStyles.heartOverlay} pointerEvents="none">
+          <Ionicons name="heart" size={80} color="rgba(249,24,128,0.85)" />
+        </View>
+      )}
+    </View>
   );
-}
+});
 
 const profileCardStyles = StyleSheet.create({
   postCard: {
@@ -111,13 +200,25 @@ const profileCardStyles = StyleSheet.create({
   media: { width: '100%', height: 200, backgroundColor: '#111' },
   actions: {
     flexDirection: 'row', alignItems: 'center',
-    marginTop: 10, marginLeft: -4, gap: 40,
+    marginTop: 10, marginLeft: -4,
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1, maxWidth: 80, justifyContent: 'flex-start' },
+  actionIconWrap: { width: 34, alignItems: 'center', justifyContent: 'center' },
   actionCount: { color: '#71767b', fontSize: 13 },
+  heartOverlay: {
+    position: 'absolute', top: '30%', left: '30%', transform: [{ translateX: -40 }, { translateY: -40 }],
+    zIndex: 10,
+  },
 });
 
-function PostGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
+function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, onComment }: {
+  posts: Post[]; navigation: any;
+  onLike: (id: string, liked: boolean) => void;
+  onBookmark: (id: string, bookmarked: boolean) => void;
+  onDelete: (id: string) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onComment: (id: string, caption?: string) => void;
+}) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
       <Text style={{ color: '#94a3b8', fontSize: 15 }}>No posts yet</Text>
@@ -126,7 +227,7 @@ function PostGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
   return (
     <View>
       {posts.map(post => (
-        <ProfilePostCard key={post.id} post={post} navigation={navigation} />
+        <ProfilePostCard key={post.id} post={post} onLike={onLike} onBookmark={onBookmark} onDelete={onDelete} onRepost={onRepost} onComment={onComment} navigation={navigation} />
       ))}
     </View>
   );
@@ -160,14 +261,21 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
   );
 }
 
-function LikedPostsGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
+function LikedPostsGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, onComment }: {
+  posts: Post[]; navigation: any;
+  onLike: (id: string, liked: boolean) => void;
+  onBookmark: (id: string, bookmarked: boolean) => void;
+  onDelete: (id: string) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onComment: (id: string, caption?: string) => void;
+}) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
       <Ionicons name="heart-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
       <Text style={{ color: '#94a3b8', fontSize: 15 }}>No liked posts yet</Text>
     </View>
   );
-  return <PostGrid posts={posts} navigation={navigation} />;
+  return <PostGrid posts={posts} navigation={navigation} onLike={onLike} onBookmark={onBookmark} onDelete={onDelete} onRepost={onRepost} onComment={onComment} />;
 }
 
 export default function ProfileScreen({ route, navigation }: any) {
@@ -188,6 +296,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
   const [messaging, setMessaging] = useState(false);
+  const [interactionsChecked, setInteractionsChecked] = useState(false);
 
   const isBusinessAccount = user?.role === 'business';
   const showStoreTab = isBusinessAccount;
@@ -230,6 +339,40 @@ export default function ProfileScreen({ route, navigation }: any) {
       // Sort client-side by createdAt descending (avoids composite index requirement)
       ps.sort((a, b) => b.createdAt - a.createdAt);
       setPosts(ps);
+
+      // Batch check interactions for current user's posts
+      if (currentUser?.uid && ps.length > 0) {
+        const postIds = ps.map(p => p.id);
+        const likedIds = new Set<string>();
+        const bookmarkedIds = new Set<string>();
+        const repostedIds = new Set<string>();
+
+        // Check interactions in chunks of 30
+        for (let i = 0; i < postIds.length; i += 30) {
+          const chunk = postIds.slice(i, i + 30);
+          try {
+            const promises = chunk.flatMap(postId => [
+              firestore().collection('post_likes').doc(`${postId}_${currentUser.uid}`).get()
+                .then(snap => { if (snap.exists) likedIds.add(postId); }).catch(() => {}),
+              firestore().collection('post_bookmarks').doc(`${postId}_${currentUser.uid}`).get()
+                .then(snap => { if (snap.exists) bookmarkedIds.add(postId); }).catch(() => {}),
+              firestore().collection('post_reposts').doc(`${postId}_${currentUser.uid}`).get()
+                .then(snap => { if (snap.exists) repostedIds.add(postId); }).catch(() => {}),
+            ]);
+            await Promise.all(promises);
+          } catch (e) {
+            console.warn('[Profile] Interaction check failed:', e);
+          }
+        }
+
+        for (const post of ps) {
+          post.liked = likedIds.has(post.id);
+          post.bookmarked = bookmarkedIds.has(post.id);
+          post.reposted = repostedIds.has(post.id);
+        }
+        setPosts([...ps]); // trigger re-render
+        setInteractionsChecked(true);
+      }
     } catch (e: any) {
       console.error('[ProfileScreen] Load error:', e?.message);
       Alert.alert('Profile Error', `Could not load profile: ${e?.message || 'Unknown error'}`);
@@ -332,6 +475,38 @@ export default function ProfileScreen({ route, navigation }: any) {
       }
     })();
   }, [tab, targetUserId]);
+
+  const handleLike = async (postId: string, liked: boolean) => {
+    setPosts(prev => prev.map(p => p.id === postId
+      ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
+      : p));
+    try { await toggleLike(postId, liked); } catch {}
+  };
+
+  const handleBookmark = async (postId: string, bookmarked: boolean) => {
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, bookmarked: !bookmarked } : p));
+    try { await toggleBookmark(postId, bookmarked); } catch {}
+  };
+
+  const handleRepost = async (postId: string, reposted: boolean) => {
+    setPosts(prev => prev.map(p => p.id === postId
+      ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
+      : p));
+    try { await toggleRepost(postId, reposted); } catch {}
+  };
+
+  const handleComment = (postId: string, caption?: string) => {
+    navigation.navigate('PostComments', { postId, postCaption: caption || '' });
+  };
+
+  const handleDelete = async (postId: string) => {
+    try {
+      await firestore().collection('posts').doc(postId).delete();
+      setPosts(prev => prev.filter(p => p.id !== postId));
+    } catch {
+      Alert.alert('Error', 'Failed to delete post');
+    }
+  };
 
   const handleFollow = async () => {
     const newState = await toggleFollow(targetUserId, following);
@@ -493,9 +668,9 @@ export default function ProfileScreen({ route, navigation }: any) {
         <View style={{ paddingTop: 40, alignItems: 'center' }}>
           <ActivityIndicator color={colors.accent} />
         </View>
-      ) : tab === 'posts' && <PostGrid posts={posts} navigation={navigation} />}
+      ) : tab === 'posts' && <PostGrid posts={posts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
-      {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} />}
+      {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'store' && (
         <View style={{ alignItems: 'center', paddingTop: 60 }}>
           <Ionicons name="storefront-outline" size={48} color="#94a3b8" style={{ marginBottom: 12 }} />

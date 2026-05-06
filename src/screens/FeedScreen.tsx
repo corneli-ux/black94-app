@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  View, Text, FlatList, Image, TouchableOpacity, StyleSheet,
+  View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
   RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Dimensions, Share,
+  ActivityIndicator, Alert, Dimensions, Share, Image,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -54,6 +54,22 @@ function formatCount(n: number | undefined): string {
   return n.toString();
 }
 
+/* ── Lazy image picker (avoids crashes if expo-image-picker not installed) ── */
+async function openImagePicker() {
+  try {
+    const { launchImageLibrary } = require('expo-image-picker');
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      quality: 0.8,
+      selectionLimit: 4,
+    });
+    return result;
+  } catch (err) {
+    console.error('[Compose] Image picker not available:', err);
+    return { assets: [], didCancel: true, errorCode: 'unavailable', errorMessage: 'Image picker not available' };
+  }
+}
+
 /* ── Skeleton Loader ──────────────────────────────────────────────────────── */
 
 function SkeletonCard() {
@@ -102,7 +118,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
   onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string, caption?: string) => void;
+  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
   navigation: any;
 }) {
   const currentUser = auth()?.currentUser;
@@ -231,7 +247,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {/* Action bar */}
           <View style={styles.actions}>
             {/* Comment */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption })}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
               <View style={styles.actionIconWrap}>
                 <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
               </View>
@@ -315,6 +331,7 @@ export default function FeedScreen({ navigation }: any) {
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
+  const [composeImages, setComposeImages] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('Discover');
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
@@ -569,16 +586,40 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
-  const handleComment = (postId: string, caption?: string) => {
-    navigation.navigate('PostComments', { postId, postCaption: caption || '' });
+  const handleComment = (postId: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => {
+    navigation.navigate('PostComments', { postId, postCaption: caption || '', postAuthorUsername: authorUsername || '', postAuthorDisplayName: authorDisplayName || '' });
+  };
+
+  const handleAddImages = async () => {
+    const remaining = 4 - composeImages.length;
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', 'You can add up to 4 images.');
+      return;
+    }
+    const result = await openImagePicker();
+    if (result.didCancel || result.errorCode) return;
+    const assets = result.assets ?? [];
+    const newUris = assets
+      .filter((a: any) => a.uri)
+      .map((a: any) => a.uri)
+      .slice(0, remaining);
+    if (newUris.length > 0) {
+      setComposeImages(prev => [...prev, ...newUris]);
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setComposeImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handlePost = async () => {
-    if (!composeText.trim()) return;
+    if (!composeText.trim() && composeImages.length === 0) return;
     setPosting(true);
     try {
-      await createPost(composeText.trim());
+      const mediaUrls = composeImages.length > 0 ? composeImages : [];
+      await createPost(composeText.trim(), mediaUrls);
       setComposeText('');
+      setComposeImages([]);
       setComposeVisible(false);
       // Reload from scratch
       lastDocRef.current = null;
@@ -736,26 +777,26 @@ export default function FeedScreen({ navigation }: any) {
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setComposeVisible(false)} />
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setComposeVisible(false); setComposeImages([]); }} />
           <View style={styles.composeSheet}>
             {/* Header */}
             <View style={styles.composeHeader}>
               {/* Cancel = X icon */}
               <TouchableOpacity
                 style={styles.composeCloseBtn}
-                onPress={() => setComposeVisible(false)}
+                onPress={() => { setComposeVisible(false); setComposeImages([]); }}
               >
                 <Ionicons name="close" size={20} color="#e7e9ea" />
               </TouchableOpacity>
               <Text style={styles.composeTitle}>New Post</Text>
               <TouchableOpacity
-                style={[styles.postBtn, !composeText.trim() && styles.postBtnDisabled]}
+                style={[styles.postBtn, (!composeText.trim() && composeImages.length === 0) && styles.postBtnDisabled]}
                 onPress={handlePost}
-                disabled={posting || !composeText.trim()}
+                disabled={posting || (!composeText.trim() && composeImages.length === 0)}
               >
                 {posting
                   ? <ActivityIndicator color="#000" size="small" />
-                  : <Text style={[styles.postBtnText, !composeText.trim() && styles.postBtnTextDisabled]}>Post</Text>
+                  : <Text style={[styles.postBtnText, (!composeText.trim() && composeImages.length === 0) && styles.postBtnTextDisabled]}>Post</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -774,15 +815,43 @@ export default function FeedScreen({ navigation }: any) {
                   autoFocus
                   maxLength={4000}
                 />
-                {/* Action buttons row below input */}
+
+                {/* Image preview grid */}
+                {composeImages.length > 0 && (
+                  <View style={styles.imagePreviewGrid}>
+                    {composeImages.map((uri, index) => (
+                      <View key={uri} style={styles.imagePreviewCard}>
+                        <RNImage source={{ uri }} style={styles.imagePreviewThumb} resizeMode="cover" />
+                        <TouchableOpacity
+                          style={styles.imageRemoveBtn}
+                          onPress={() => handleRemoveImage(index)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="close" size={12} color="#ffffff" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    {composeImages.length < 4 && (
+                      <TouchableOpacity style={styles.imageAddCard} onPress={handleAddImages} activeOpacity={0.7}>
+                        <Ionicons name="add" size={24} color="rgba(255,255,255,0.5)" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Action buttons row */}
                 <View style={styles.composeActions}>
-                  <TouchableOpacity style={styles.composeActionBtn}>
-                    <Ionicons name="camera-outline" size={20} color={colors.textSecondary} />
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={handleAddImages}>
+                    <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn}>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('GIF', 'GIF picker coming soon!')}>
+                    <Ionicons name="film-outline" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Emoji', 'Emoji picker coming soon!')}>
                     <Ionicons name="happy-outline" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
+
                 {/* Character count (only show when > 3400) */}
                 {composeText.length > 3400 && (
                   <Text style={[
@@ -1008,7 +1077,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
-    minHeight: 220,
+    minHeight: 280,
+    maxHeight: '85%',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
@@ -1070,4 +1140,47 @@ const styles = StyleSheet.create({
   },
   postBtnText: { color: '#000000', fontWeight: '700' },
   postBtnTextDisabled: { color: '#64748b' },
+
+  /* ── Image Preview Grid ── */
+  imagePreviewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  imagePreviewCard: {
+    width: '47%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    position: 'relative',
+  },
+  imagePreviewThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  imageRemoveBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageAddCard: {
+    width: '47%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

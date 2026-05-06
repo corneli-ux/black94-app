@@ -11,6 +11,16 @@ import { CommentData, fetchPostComments, addPostComment } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path, Polyline } from 'react-native-svg';
+
+function RepostIcon({ size = 16, color = '#94a3b8' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="23 4 23 10 17 10" />
+      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+    </Svg>
+  );
+}
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_H * 0.75;
@@ -29,6 +39,10 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<{ id: string; username: string; displayName: string } | null>(null);
+  const [likeMap, setLikeMap] = useState<Record<string, boolean>>({});
+  const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
+  const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
   const slideAnim = useRef(new Animated.Value(0)).current;
   const listRef = useRef<FlatList>(null);
 
@@ -60,6 +74,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     };
     setComments(prev => [...prev, optimistic]);
     setText('');
+    setReplyingTo(null);
     try {
       const real = await addPostComment(postId, text.trim());
       if (real) {
@@ -126,11 +141,44 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                       <Text style={styles.commentHandle}>@{item.authorUsername}</Text>
                       <Text style={styles.commentTime}>{timeAgo(item.createdAt)}</Text>
                     </View>
+                    <Text style={styles.replyingTo}>Replying to @{item.authorUsername}</Text>
                     <Text style={styles.commentContent}>{item.content}</Text>
+                    <View style={styles.commentActions}>
+                      <TouchableOpacity style={styles.commentActionBtn} onPress={() => {
+                        setReplyingTo({
+                          id: item.authorId,
+                          username: item.authorUsername,
+                          displayName: item.authorDisplayName || item.authorUsername,
+                        });
+                      }}>
+                        <Ionicons name="chatbubble-outline" size={14} color="#64748b" />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.commentActionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
+                        {repostMap[item.id] ? <RepostIcon size={14} color="#10b981" /> : <RepostIcon size={14} color="#64748b" />}
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
+                        <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={14} color={likeMap[item.id] ? "#f43f5e" : "#64748b"} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.commentActionBtn}>
+                        <Ionicons name="trending-up-outline" size={14} color="#64748b" />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
+                        <Ionicons name={bookmarkMap[item.id] ? "bookmark" : "bookmark-outline"} size={14} color={bookmarkMap[item.id] ? "#ffffff" : "#64748b"} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
               )}
             />
+            {/* Replying to indicator */}
+            {replyingTo ? (
+              <View style={styles.replyingBar}>
+                <Text style={styles.replyingBarText}>Replying to <Text style={styles.replyingBarName}>@{replyingTo.username}</Text></Text>
+                <TouchableOpacity onPress={() => setReplyingTo(null)} hitSlop={8}>
+                  <Ionicons name="close" size={16} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
             {/* Input bar */}
             <SafeAreaView edges={['bottom']}>
               <View style={styles.inputBar}>
@@ -138,7 +186,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                 <View style={styles.inputWrap}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Add a comment..."
+                    placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : "Add a comment..."
                     placeholderTextColor="#64748b"
                     value={text}
                     onChangeText={setText}
@@ -190,4 +238,38 @@ const styles = StyleSheet.create({
   input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    marginLeft: -4,
+    gap: 20,
+  },
+  commentActionBtn: {
+    padding: 4,
+    borderRadius: 12,
+  },
+  replyingTo: {
+    color: '#3b82f6',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  replyingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#000000',
+  },
+  replyingBarText: {
+    color: '#94a3b8',
+    fontSize: 13,
+  },
+  replyingBarName: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
 });
