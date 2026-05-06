@@ -16,6 +16,14 @@ export default function SettingsScreen() {
   const [bio, setBio] = React.useState(user?.bio || '');
   const [saving, setSaving] = React.useState(false);
 
+  // Sync form fields when user store updates (handles async hydration)
+  React.useEffect(() => {
+    if (user) {
+      setDisplayName(user.displayName || '');
+      setBio(user.bio || '');
+    }
+  }, [user]);
+
   const handleSave = async () => {
     if (!user?.id) return;
     setSaving(true);

@@ -36,11 +36,10 @@ export default function BookmarksScreen() {
       const snap = await firestore()
         .collection('post_bookmarks')
         .where('userId', '==', userId)
-        .orderBy('createdAt', 'desc')
         .limit(50)
         .get();
 
-      const bookmarkEntries = snap.docs.map(d => ({ id: d.id, postId: d.data().postId }));
+      const bookmarkEntries = snap.docs.map(d => ({ id: d.id, postId: d.data().postId })).filter(e => !!e.postId);
       const posts: Post[] = [];
       for (const entry of bookmarkEntries) {
         try {
@@ -76,7 +75,7 @@ export default function BookmarksScreen() {
           post.authorIsVerified = fresh.isVerified || post.authorIsVerified;
         }
       }
-      setBookmarks(posts);
+      setBookmarks(posts.sort((a, b) => b.createdAt - a.createdAt));
     } catch (e) { console.error('[Bookmarks] Failed to load:', e); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);

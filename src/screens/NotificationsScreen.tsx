@@ -72,10 +72,11 @@ export default function NotificationsScreen({ navigation }: any) {
   const load = async () => {
     if (!currentUser) { setLoading(false); return; }
     try {
+      // No .orderBy — composite index (recipientId, createdAt) may not exist.
+      // Sort client-side instead.
       const snap = await firestore()
         .collection('notifications')
         .where('recipientId', '==', currentUser.uid)
-        .orderBy('createdAt', 'desc')
         .limit(50)
         .get();
 
@@ -96,6 +97,8 @@ export default function NotificationsScreen({ navigation }: any) {
           createdAt: tsToMillis(data.createdAt),
         };
       });
+      // Sort client-side descending by createdAt
+      ns.sort((a, b) => b.createdAt - a.createdAt);
       setNotifs(ns);
 
       // Auto mark all as read (matches web app behavior)

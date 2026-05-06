@@ -284,8 +284,9 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             </View>
           }
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
-          // Bottom padding accounts for keyboard + input bar
-          ListFooterComponent={<View style={{ height: keyboardHeight + 80 }} />}
+          // Bottom padding: on Android, adjustResize already accounts for keyboard
+          // so we only need the input bar height. On iOS, we need both.
+          ListFooterComponent={<View style={{ height: Platform.OS === 'android' ? 80 : keyboardHeight + 80 }} />}
           keyboardShouldPersistTaps="handled"
         />
       )}

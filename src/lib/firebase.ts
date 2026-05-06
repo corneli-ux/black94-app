@@ -603,12 +603,12 @@ class CompatDocRef {
       if (e.status === 404 || e.code === 'NOT_FOUND') {
         return { id: this.id, exists: false, data: () => null };
       }
-      // Don't crash on transient network errors — return exists:false
-      // so callers (like fetchUserProfile) gracefully fall back to Firebase data.
-      // Only 404/NOT_FOUND means "doc doesn't exist"; everything else is a
-      // transient failure that shouldn't crash the app.
-      console.warn('[Firestore] Doc get error (returning exists:false):', e?.message);
-      return { id: this.id, exists: false, data: () => null };
+      // Only 404/NOT_FOUND should be treated as "doc doesn't exist".
+      // Re-throw all other errors (network, permission, server) so callers
+      // can handle them properly. Swallowing these would cause data loss
+      // in signInWithGoogle (non-merge set overwrites existing user docs).
+      console.error('[Firestore] Doc get error:', e?.message);
+      throw e;
     }
   }
 

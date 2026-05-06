@@ -272,16 +272,17 @@ export default function ProfileScreen({ route, navigation }: any) {
         if (existing2) {
           navigation.navigate('ChatRoom' as never, { chatId: existing2.id } as never);
         } else {
-        const chatRef = await firestore().collection('chats').add({
-          user1Id: currentUser.uid,
-          user2Id: targetUserId,
-          lastMessage: '',
-          lastMessageTime: firestore.FieldValue.serverTimestamp(),
-          unreadUser1: 0,
-          unreadUser2: 0,
-          createdAt: firestore.FieldValue.serverTimestamp(),
-        });
-        navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
+          const chatRef = await firestore().collection('chats').add({
+            user1Id: currentUser.uid,
+            user2Id: targetUserId,
+            lastMessage: '',
+            lastMessageTime: firestore.FieldValue.serverTimestamp(),
+            unreadUser1: 0,
+            unreadUser2: 0,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+          });
+          navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
+        }
       }
     } catch (e: any) {
       console.warn('[ProfileScreen] message error:', e);

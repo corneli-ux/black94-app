@@ -110,16 +110,16 @@ export default function DualPaneChatScreen({ navigation }: any) {
   const loadChats = useCallback(async () => {
     if (!currentUserId) return;
     try {
+      // No .orderBy('lastMessageTime') — composite index may not exist.
+      // Sort client-side instead.
       const [snap1, snap2] = await Promise.all([
         firestore()
           .collection('chats')
           .where('user1Id', '==', currentUserId)
-          .orderBy('lastMessageTime', 'desc')
           .get(),
         firestore()
           .collection('chats')
           .where('user2Id', '==', currentUserId)
-          .orderBy('lastMessageTime', 'desc')
           .get(),
       ]);
 
@@ -163,6 +163,13 @@ export default function DualPaneChatScreen({ navigation }: any) {
           } as ChatItem;
         }),
       );
+
+      // Sort chats by lastMessageTime descending
+      enriched.sort((a, b) => {
+        const tA = a.lastMessageTime?.seconds ? a.lastMessageTime.seconds * 1000 : (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0);
+        const tB = b.lastMessageTime?.seconds ? b.lastMessageTime.seconds * 1000 : (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0);
+        return tB - tA;
+      });
 
       setChats(enriched);
 
@@ -267,10 +274,15 @@ export default function DualPaneChatScreen({ navigation }: any) {
         createdAt: firestore.FieldValue.serverTimestamp(),
       })
       .then(() => {
+        // Update lastMessage and lastMessageTime so chat sorts to top
         firestore()
           .collection('chats')
           .doc(selectedChat.id)
-          .update({ updatedAt: firestore.FieldValue.serverTimestamp() })
+          .update({
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+            lastMessage: messageText.trim(),
+            lastMessageTime: firestore.FieldValue.serverTimestamp(),
+          })
           .catch(() => {});
         setMessageText('');
       })
@@ -694,7 +706,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     gap: 8,
     backgroundColor: colors.surface,
-    paddingBottom: 20,
+    // Let SafeAreaView handle bottom inset instead of hardcoding
+    paddingBottom: 8,
   },
   input: {
     flex: 1,

@@ -118,7 +118,9 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     if (!userDocSnap.exists) {
       userData.createdAt = firestore.FieldValue.serverTimestamp();
       try {
-        await userDocRef.set(userData);
+        // Use merge: true so if the doc was created by another client between
+        // the get() and set() (race condition), we don't overwrite existing fields.
+        await userDocRef.set(userData, { merge: true });
         await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: fbUser.uid });
       } catch (e) {
         console.warn('[Auth] Failed to create user doc:', e);

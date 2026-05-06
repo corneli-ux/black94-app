@@ -50,11 +50,12 @@ export default function UserProfileScreen({ navigation, route }: any) {
         firestore().collection('follows').where('followingId', '==', userId).get(),
         firestore().collection('follows').where('followerId', '==', userId).get(),
         currentUid ? checkFollowing(userId) : Promise.resolve(false),
+        // No .orderBy('createdAt', 'desc') — composite index may not exist.
+        // Sort client-side instead (same as ProfileScreen strategy).
         firestore()
           .collection('posts')
           .where('authorId', '==', userId)
-          .orderBy('createdAt', 'desc')
-          .limit(20)
+          .limit(50)
           .get(),
       ]);
       setUser(userData);
@@ -83,6 +84,8 @@ export default function UserProfileScreen({ navigation, route }: any) {
           createdAt: tsToMillis(data.createdAt),
         };
       });
+      // Sort client-side by createdAt descending
+      userPosts.sort((a, b) => b.createdAt - a.createdAt);
       setPosts(userPosts);
     } catch (e) {
       console.warn('[UserProfileScreen] load error:', e);
@@ -116,34 +119,29 @@ export default function UserProfileScreen({ navigation, route }: any) {
     if (!currentUid || messageLoading) return;
     setMessageLoading(true);
     try {
-      // Try to find existing chat
-      const [snap1, snap2] = await Promise.all([
-        firestore()
-          .collection('chats')
-          .where('user1Id', '==', currentUid)
-          .where('user2Id', '==', userId)
-          .get(),
-        firestore()
-          .collection('chats')
-          .where('user1Id', '==', userId)
-          .where('user2Id', '==', currentUid)
-          .get(),
-      ]);
-      const existing = [...snap1.docs, ...snap2.docs][0];
+      // Try to find existing chat — use simple queries to avoid composite index issues
+      const snap1 = await firestore().collection('chats').where('user1Id', '==', currentUid).get();
+      const existing = snap1.docs.find(d => d.data().user2Id === userId);
       if (existing) {
         navigation.navigate('ChatRoom' as never, { chatId: existing.id } as never);
       } else {
-        // Create a new chat
-        const chatRef = await firestore().collection('chats').add({
-          user1Id: currentUid,
-          user2Id: userId,
-          lastMessage: '',
-          lastMessageTime: firestore.FieldValue.serverTimestamp(),
-          unreadUser1: 0,
-          unreadUser2: 0,
-          createdAt: firestore.FieldValue.serverTimestamp(),
-        });
-        navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
+        const snap2 = await firestore().collection('chats').where('user2Id', '==', currentUid).get();
+        const existing2 = snap2.docs.find(d => d.data().user1Id === userId);
+        if (existing2) {
+          navigation.navigate('ChatRoom' as never, { chatId: existing2.id } as never);
+        } else {
+          // Create a new chat
+          const chatRef = await firestore().collection('chats').add({
+            user1Id: currentUid,
+            user2Id: userId,
+            lastMessage: '',
+            lastMessageTime: firestore.FieldValue.serverTimestamp(),
+            unreadUser1: 0,
+            unreadUser2: 0,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+          });
+          navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
+        }
       }
     } catch (e) {
       console.warn('[UserProfileScreen] message error:', e);
