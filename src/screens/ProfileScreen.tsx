@@ -36,6 +36,22 @@ interface Reply {
   createdAt: number;
 }
 
+/* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
+function HighlightedCaption({ text, style }: { text: string; style: any }) {
+  const parts = text.split(/(#\w+|@\w+)/g);
+  return (
+    <Text style={style}>
+      {parts.map((part, i) =>
+        /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
+          <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+        ) : (
+          <Text key={i}>{part}</Text>
+        )
+      )}
+    </Text>
+  );
+}
+
 /* ── Feed-style PostCard for profile (fully interactive, matches FeedScreen PostCard) ── */
 const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
   post: Post;
@@ -130,7 +146,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               </TouchableOpacity>
             )}
           </View>
-          {post.caption ? <Text style={profileCardStyles.caption}>{post.caption}</Text> : null}
+          {post.caption ? <HighlightedCaption text={post.caption} style={profileCardStyles.caption} /> : null}
           {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={profileCardStyles.mediaContainer}>

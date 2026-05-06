@@ -212,8 +212,8 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 
       {/* Sticky input bar — keyboard aware, black themed */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top || 0 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
       >
         <View style={[styles.inputBar, { paddingBottom: Math.max(8, insets.bottom || 0) }]}>
           <Avatar uri={user?.profileImage || null} name={user?.displayName} size={32} />
@@ -327,10 +327,10 @@ const styles = StyleSheet.create({
   },
   replyingBarText: {
     color: '#94a3b8',
-    fontSize: 13,
+    fontSize: 14,
   },
   replyingBarName: {
-    color: '#ffffff',
-    fontWeight: '600',
+    color: '#e7e9ea',
+    fontWeight: '700',
   },
 });
