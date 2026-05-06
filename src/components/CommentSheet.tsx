@@ -141,7 +141,6 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                       <Text style={styles.commentHandle}>@{item.authorUsername}</Text>
                       <Text style={styles.commentTime}>{timeAgo(item.createdAt)}</Text>
                     </View>
-                    <Text style={styles.replyingTo}>Replying to @{item.authorUsername}</Text>
                     <Text style={styles.commentContent}>{item.content}</Text>
                     <View style={styles.commentActions}>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={() => {
@@ -248,11 +247,6 @@ const styles = StyleSheet.create({
   commentActionBtn: {
     padding: 4,
     borderRadius: 12,
-  },
-  replyingTo: {
-    color: '#3b82f6',
-    fontSize: 13,
-    marginTop: 2,
   },
   replyingBar: {
     flexDirection: 'row',

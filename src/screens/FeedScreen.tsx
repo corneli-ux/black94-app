@@ -842,13 +842,19 @@ export default function FeedScreen({ navigation }: any) {
                 {/* Action buttons row */}
                 <View style={styles.composeActions}>
                   <TouchableOpacity style={styles.composeActionBtn} onPress={handleAddImages}>
-                    <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
+                    <Ionicons name="image-outline" size={20} color={colors.accent} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Camera', 'Camera capture coming soon!')}>
+                    <Ionicons name="camera-outline" size={20} color="#00ba7c" />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('GIF', 'GIF picker coming soon!')}>
-                    <Ionicons name="film-outline" size={20} color={colors.textSecondary} />
+                    <Ionicons name="film-outline" size={20} color="#f59e0b" />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Emoji', 'Emoji picker coming soon!')}>
-                    <Ionicons name="happy-outline" size={20} color={colors.textSecondary} />
+                    <Ionicons name="happy-outline" size={20} color={colors.accent} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Poll', 'Poll creation coming soon!')}>
+                    <Ionicons name="stats-chart-outline" size={20} color="#8b5cf6" />
                   </TouchableOpacity>
                 </View>
 

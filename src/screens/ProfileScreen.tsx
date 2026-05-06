@@ -24,6 +24,9 @@ function RepostIcon({ size = 16, color = '#71767b' }: { size?: number; color?: s
 interface Reply {
   id: string;
   postId: string;
+  postCaption: string;
+  postAuthorUsername: string;
+  postAuthorDisplayName: string;
   content: string;
   authorUsername: string;
   authorDisplayName: string;
@@ -179,10 +182,10 @@ const profileCardStyles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.06)',
     paddingLeft: 16,
     paddingRight: 16,
-    paddingTop: 8,
+    paddingTop: 4,
     paddingBottom: 12,
   },
-  contentRow: { flexDirection: 'row', gap: 10 },
+  contentRow: { flexDirection: 'row', gap: 12 },
   contentColumn: { flex: 1, minWidth: 0 },
   headerNameRow: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -209,6 +212,26 @@ const profileCardStyles = StyleSheet.create({
     position: 'absolute', top: '30%', left: '30%', transform: [{ translateX: -40 }, { translateY: -40 }],
     zIndex: 10,
   },
+  replyingTo: {
+    color: '#71767b',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  replyingToName: {
+    color: '#3b82f6',
+  },
+  replyContextCaption: {
+    color: '#94a3b8',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
 });
 
 function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, onComment }: {
@@ -234,6 +257,10 @@ function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, o
 }
 
 function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: any }) {
+  const [likeMap, setLikeMap] = useState<Record<string, boolean>>({});
+  const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
+  const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
+
   if (replies.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
       <Ionicons name="chatbubble-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
@@ -243,18 +270,60 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
   return (
     <View>
       {replies.map(reply => (
-        <View key={reply.id} style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={32} />
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#e7e9ea' }} numberOfLines={1}>
-                {reply.authorDisplayName || reply.authorUsername}
+        <View key={reply.id} style={profileCardStyles.postCard}>
+          <View style={profileCardStyles.contentRow}>
+            <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={44} />
+            <View style={profileCardStyles.contentColumn}>
+              <View style={profileCardStyles.headerNameRow}>
+                <Text style={profileCardStyles.displayName} numberOfLines={1}>
+                  {reply.authorDisplayName || reply.authorUsername}
+                </Text>
+                <VerifiedBadge badge={reply.authorBadge} isVerified={reply.authorIsVerified} size={16} />
+                <Text style={profileCardStyles.username}>@{reply.authorUsername}</Text>
+                <Text style={profileCardStyles.dot}>·</Text>
+                <Text style={profileCardStyles.time}>{timeAgo(reply.createdAt)}</Text>
+              </View>
+              <Text style={profileCardStyles.replyingTo}>
+                Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
               </Text>
-              <Text style={{ fontSize: 13, color: '#94a3b8' }}>@{reply.authorUsername}</Text>
+              {reply.postCaption ? (
+                <Text style={profileCardStyles.replyContextCaption} numberOfLines={2}>{reply.postCaption}</Text>
+              ) : null}
+              <Text style={profileCardStyles.caption}>{reply.content}</Text>
+              <View style={profileCardStyles.actions}>
+                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <Ionicons name="chatbubble-outline" size={16} color="#71767b" />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <RepostIcon size={16} color={repostMap[reply.id] ? '#00ba7c' : '#71767b'} />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <Ionicons name={likeMap[reply.id] ? 'heart' : 'heart-outline'} size={16} color={likeMap[reply.id] ? '#f91880' : '#71767b'} />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={profileCardStyles.actionBtn}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <Ionicons name="trending-up-outline" size={16} color="#71767b" />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <Ionicons name={bookmarkMap[reply.id] ? 'bookmark' : 'bookmark-outline'} size={16} color={bookmarkMap[reply.id] ? '#1d9bf0' : '#71767b'} />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={profileCardStyles.actionBtn}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <Ionicons name="share-outline" size={16} color="#71767b" />
+                  </View>
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={{ fontSize: 13, color: '#64748b' }}>{timeAgo(reply.createdAt)}</Text>
           </View>
-          <Text style={{ fontSize: 14, color: '#e7e9ea', lineHeight: 20, paddingLeft: 40 }}>{reply.content}</Text>
         </View>
       ))}
     </View>
@@ -400,11 +469,30 @@ export default function ProfileScreen({ route, navigation }: any) {
           .where('authorId', '==', targetUserId)
           .limit(30)
           .get();
-        const replyList: Reply[] = snap.docs.map(d => {
+        const replyList: Reply[] = [];
+        for (const d of snap.docs) {
           const data = d.data();
-          return {
+          const postId = data.postId || '';
+          let postCaption = '';
+          let postAuthorUsername = '';
+          let postAuthorDisplayName = '';
+          if (postId) {
+            try {
+              const postSnap = await firestore().collection('posts').doc(postId).get();
+              if (postSnap.exists) {
+                const pd = postSnap.data();
+                postCaption = pd.caption || '';
+                postAuthorUsername = pd.authorUsername || '';
+                postAuthorDisplayName = pd.authorDisplayName || '';
+              }
+            } catch { /* skip if post not found */ }
+          }
+          replyList.push({
             id: d.id,
-            postId: data.postId || '',
+            postId,
+            postCaption,
+            postAuthorUsername,
+            postAuthorDisplayName,
             content: data.content || '',
             authorUsername: data.authorUsername || '',
             authorDisplayName: data.authorDisplayName || '',
@@ -412,8 +500,8 @@ export default function ProfileScreen({ route, navigation }: any) {
             authorIsVerified: data.authorIsVerified || false,
             authorBadge: data.authorBadge || '',
             createdAt: tsToMillis(data.createdAt),
-          };
-        });
+          });
+        }
         // Sort client-side to avoid composite index requirement
         replyList.sort((a, b) => b.createdAt - a.createdAt);
         setReplies(replyList);

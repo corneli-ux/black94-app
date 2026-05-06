@@ -95,7 +95,6 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           <Text style={styles.commentHandle}>@{item.authorUsername}</Text>
           <Text style={styles.commentTime}>{timeAgo(item.createdAt)}</Text>
         </View>
-        <Text style={styles.replyingTo}>Replying to @{item.authorUsername}</Text>
         <Text style={styles.commentContent}>{item.content}</Text>
         <View style={styles.commentActions}>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => {
