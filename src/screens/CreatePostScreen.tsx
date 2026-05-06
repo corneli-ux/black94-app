@@ -23,9 +23,9 @@ import { useNavigation } from '@react-navigation/native';
 import type { ImagePickerResponse, launchImageLibrary } from 'react-native-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 
-import type { CreatePostScreenNavigationProp } from '../navigation/types';
-import { useAppStore } from '../store/useAppStore';
-import { createPost } from '../lib/db';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useAppStore } from '../stores/app';
+import { createPost } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ async function openImagePicker(limit: number): Promise<ImagePickerResponse> {
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 const CreatePostScreen: React.FC = () => {
-  const navigation = useNavigation<CreatePostScreenNavigationProp>();
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const insets = useSafeAreaInsets();
   const rawUser = useAppStore((s) => s.user);
   const triggerFeedRefresh = useAppStore((s) => s.triggerFeedRefresh);
@@ -145,9 +145,7 @@ const CreatePostScreen: React.FC = () => {
     if (!canPost || !user) return;
     setPosting(true);
     try {
-      const mediaUrls =
-        selectedImages.length > 0 ? selectedImages.join(',') : undefined;
-      await createPost(user.uid, caption.trim(), mediaUrls);
+      await createPost(caption.trim(), selectedImages);
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err) {
