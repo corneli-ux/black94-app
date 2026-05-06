@@ -22,6 +22,90 @@ interface Reply {
   createdAt: number;
 }
 
+/* ── Feed-style PostCard for profile (matches FeedScreen PostCard) ── */
+function ProfilePostCard({ post, navigation }: { post: Post; navigation: any }) {
+  const currentUser = auth()?.currentUser;
+
+  return (
+    <TouchableOpacity
+      style={profileCardStyles.postCard}
+      activeOpacity={0.95}
+      onPress={() => navigation.navigate('UserProfile', { userId: post.authorId })}
+    >
+      {/* Content row: avatar + content */}
+      <View style={profileCardStyles.contentRow}>
+        <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={44} />
+        <View style={profileCardStyles.contentColumn}>
+          <View style={profileCardStyles.headerNameRow}>
+            <Text style={profileCardStyles.displayName} numberOfLines={1}>
+              {post.authorDisplayName || post.authorUsername || 'User'}
+            </Text>
+            <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
+            <Text style={profileCardStyles.username}>@{post.authorUsername || 'user'}</Text>
+            <Text style={profileCardStyles.dot}>·</Text>
+            <Text style={profileCardStyles.time}>{timeAgo(post.createdAt)}</Text>
+          </View>
+          {post.caption ? <Text style={profileCardStyles.caption}>{post.caption}</Text> : null}
+          {post.mediaUrls?.length > 0 && (
+            <View style={profileCardStyles.mediaContainer}>
+              <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" />
+            </View>
+          )}
+          {/* Action bar */}
+          <View style={profileCardStyles.actions}>
+            <View style={profileCardStyles.actionBtn}>
+              <Ionicons name="chatbubble-outline" size={16} color="#71767b" />
+              {post.commentCount > 0 && <Text style={profileCardStyles.actionCount}>{post.commentCount}</Text>}
+            </View>
+            <View style={profileCardStyles.actionBtn}>
+              <Ionicons name="repeat" size={16} color="#71767b" />
+              {post.repostCount > 0 && <Text style={profileCardStyles.actionCount}>{post.repostCount}</Text>}
+            </View>
+            <View style={profileCardStyles.actionBtn}>
+              <Ionicons name="heart-outline" size={16} color="#71767b" />
+              {post.likeCount > 0 && <Text style={profileCardStyles.actionCount}>{post.likeCount}</Text>}
+            </View>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const profileCardStyles = StyleSheet.create({
+  postCard: {
+    backgroundColor: '#000000',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  contentRow: { flexDirection: 'row', gap: 10 },
+  contentColumn: { flex: 1, minWidth: 0 },
+  headerNameRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flex: 1, flexWrap: 'nowrap', overflow: 'hidden',
+  },
+  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  username: { color: '#94a3b8', fontSize: 14 },
+  dot: { color: '#94a3b8', fontSize: 14 },
+  time: { color: '#94a3b8', fontSize: 14 },
+  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
+  mediaContainer: {
+    marginTop: 10, borderRadius: 14, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+  },
+  media: { width: '100%', height: 200, backgroundColor: '#111' },
+  actions: {
+    flexDirection: 'row', alignItems: 'center',
+    marginTop: 10, marginLeft: -4, gap: 40,
+  },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  actionCount: { color: '#71767b', fontSize: 13 },
+});
+
 function PostGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
@@ -29,21 +113,9 @@ function PostGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
     </View>
   );
   return (
-    <View style={{ paddingHorizontal: 16 }}>
+    <View>
       {posts.map(post => (
-        <TouchableOpacity key={post.id} style={styles.postRow}>
-          <View style={styles.postRowInner}>
-            <Text style={styles.postCaption} numberOfLines={3}>{post.caption}</Text>
-            {post.mediaUrls?.length > 0 && (
-              <Image source={{ uri: post.mediaUrls[0] }} style={styles.postThumb} />
-            )}
-          </View>
-          <View style={styles.postStats}>
-            <Text style={styles.postStat}>🤍 {post.likeCount}</Text>
-            <Text style={styles.postStat}>💬 {post.commentCount}</Text>
-            <Text style={styles.postStat}>🔁 {post.repostCount}</Text>
-          </View>
-        </TouchableOpacity>
+        <ProfilePostCard key={post.id} post={post} navigation={navigation} />
       ))}
     </View>
   );
@@ -498,10 +570,4 @@ const styles = StyleSheet.create({
   /* Tab text: text-[15px] font-medium, active: text-[#e7e9ea] font-bold, inactive: text-[#94a3b8] */
   tabText: { color: '#94a3b8', fontWeight: '500', fontSize: 15 },
   tabTextActive: { color: '#e7e9ea', fontWeight: '700' },
-  postRow: { paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  postRowInner: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  postCaption: { color: colors.text, fontSize: 14, flex: 1, lineHeight: 20 },
-  postThumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: colors.surface },
-  postStats: { flexDirection: 'row', gap: 16, marginTop: 8 },
-  postStat: { color: colors.textSecondary, fontSize: 13 },
 });

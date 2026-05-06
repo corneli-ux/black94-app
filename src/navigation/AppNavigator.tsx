@@ -73,6 +73,7 @@ const CrmDealsScreen = lazy(() => import('../screens/CrmDealsScreen'));
 const CrmOrdersScreen = lazy(() => import('../screens/CrmOrdersScreen'));
 const CrmAnalyticsScreen = lazy(() => import('../screens/CrmAnalyticsScreen'));
 const FollowersScreen = lazy(() => import('../screens/FollowersScreen'));
+const PostCommentsScreen = lazy(() => import('../screens/PostCommentsScreen'));
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -338,6 +339,7 @@ function AppStack() {
       {/* Premium */}
       <Stack.Screen name="PremiumDashboard" component={LazyScreen(PremiumDashboardScreen)} />
       <Stack.Screen name="Followers" component={LazyScreen(FollowersScreen)} />
+      <Stack.Screen name="PostComments" component={LazyScreen(PostCommentsScreen)} />
     </Stack.Navigator>
   );
 }

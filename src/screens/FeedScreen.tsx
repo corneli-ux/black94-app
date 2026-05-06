@@ -7,11 +7,10 @@ import {
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post } from '../lib/api';
+import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import CommentSheet from '../components/CommentSheet';
-import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -144,13 +143,17 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
       {/* Content row: avatar + content */}
       <View style={styles.contentRow}>
-        {/* Avatar */}
+        {/* Avatar + Name row — tap navigates to profile */}
         <TouchableOpacity
           onPress={() => {
             if (post.authorId !== currentUser?.uid) {
               navigation.navigate('UserProfile', { userId: post.authorId });
+            } else {
+              navigation.navigate('ProfileSelf');
             }
           }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+          activeOpacity={0.7}
         >
           <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={48} />
         </TouchableOpacity>
@@ -159,7 +162,17 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
         <View style={styles.contentColumn} onTouchEnd={handleDoubleTap}>
           {/* Header row */}
           <View style={styles.headerRow}>
-            <View style={styles.headerNameRow}>
+            <TouchableOpacity
+              onPress={() => {
+                if (post.authorId !== currentUser?.uid) {
+                  navigation.navigate('UserProfile', { userId: post.authorId });
+                } else {
+                  navigation.navigate('ProfileSelf');
+                }
+              }}
+              activeOpacity={0.7}
+              style={styles.headerNameRow}
+            >
               <Text style={styles.displayName} numberOfLines={1}>
                 {post.authorDisplayName || post.authorUsername || 'User'}
               </Text>
@@ -167,7 +180,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <Text style={styles.username}>@{post.authorUsername || 'user'}</Text>
               <Text style={styles.dot}>·</Text>
               <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
-            </View>
+            </TouchableOpacity>
 
             {/* More button */}
             {post.authorId === currentUser?.uid && (
@@ -206,7 +219,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {/* Action bar */}
           <View style={styles.actions}>
             {/* Comment */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption })}>
               <View style={styles.actionIconWrap}>
                 <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
               </View>
@@ -291,8 +304,6 @@ export default function FeedScreen({ navigation }: any) {
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('Discover');
-  const [commentPostId, setCommentPostId] = useState<string | null>(null);
-  const [commentCaption, setCommentCaption] = useState<string>('');
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
@@ -546,7 +557,9 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
-  const handleComment = (postId: string) => { setCommentPostId(postId); };
+  const handleComment = (postId: string, caption?: string) => {
+    navigation.navigate('PostComments', { postId, postCaption: caption || '' });
+  };
 
   const handlePost = async () => {
     if (!composeText.trim()) return;
@@ -655,7 +668,7 @@ export default function FeedScreen({ navigation }: any) {
             onBookmark={handleBookmark}
             onDelete={handleDelete}
             onRepost={handleRepost}
-            onComment={(id, caption) => { setCommentPostId(id); setCommentCaption(caption || ''); }}
+            onComment={handleComment}
             navigation={navigation}
           />
         )}
@@ -773,14 +786,6 @@ export default function FeedScreen({ navigation }: any) {
         </KeyboardAvoidingView>
       </Modal>
 
-      <CommentSheet
-        visible={!!commentPostId}
-        onClose={() => { setCommentPostId(null); setCommentCaption(''); loadFeed(false); }}
-        postId={commentPostId || ''}
-        postCaption={commentCaption}
-        onCommentSent={() => { setPosts(prev => prev.map(p => p.id === commentPostId ? { ...p, commentCount: (p.commentCount || 0) + 1 } : p)); }}
-      />
-    </View>
   );
 }
 
@@ -987,7 +992,7 @@ const styles = StyleSheet.create({
   /* ── Compose Modal ── */
   modalOverlay: { flex: 1, backgroundColor: 'transparent' },
   composeSheet: {
-    backgroundColor: '#0d0b14',
+    backgroundColor: '#000000',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,

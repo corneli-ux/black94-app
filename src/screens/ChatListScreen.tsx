@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: '#000000',
   },
   tabButton: {
     flex: 1,
@@ -393,13 +393,14 @@ const styles = StyleSheet.create({
   searchContainer: {
     marginHorizontal: 16,
     marginTop: 12,
-    marginBottom: 8,
+    marginBottom: 4,
+    height: 40,
     position: 'relative',
+    justifyContent: 'center',
   },
   searchIcon: {
     position: 'absolute',
     left: 12,
-    top: '50%',
     zIndex: 1,
   },
   searchInput: {
@@ -409,10 +410,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingLeft: 36,
     color: '#e7e9ea',
     fontSize: 14,
+    height: 40,
   },
 
   /* ── Chat Row — matches web px-5 py-3.5 ── */
