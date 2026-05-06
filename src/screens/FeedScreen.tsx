@@ -11,8 +11,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
+import { useAppStore } from '../stores/app';
+import Svg, { Path, Polyline } from 'react-native-svg';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+
+/* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
+function RepostIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="23 4 23 10 17 10" />
+      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+    </Svg>
+  );
+}
 
 /* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
 function HighlightedCaption({ text, style }: { text: string; style: any }) {
@@ -143,7 +155,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
       {/* Content row: avatar + content */}
       <View style={styles.contentRow}>
-        {/* Avatar + Name row — tap navigates to profile */}
+        {/* Avatar — tap navigates to profile */}
         <TouchableOpacity
           onPress={() => {
             if (post.authorId !== currentUser?.uid) {
@@ -152,10 +164,10 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               navigation.navigate('ProfileSelf');
             }
           }}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
           activeOpacity={0.7}
+          hitSlop={8}
         >
-          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={48} />
+          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
         </TouchableOpacity>
 
         {/* Content column */}
@@ -176,7 +188,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <Text style={styles.displayName} numberOfLines={1}>
                 {post.authorDisplayName || post.authorUsername || 'User'}
               </Text>
-              <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={18} />
+              <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
               <Text style={styles.username}>@{post.authorUsername || 'user'}</Text>
               <Text style={styles.dot}>·</Text>
               <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
@@ -231,8 +243,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             {/* Repost */}
             <TouchableOpacity style={styles.actionBtn} onPress={handleRepostPress}>
               <View style={styles.actionIconWrap}>
-                <Ionicons
-                  name="repeat"
+                <RepostIcon
                   size={18}
                   color={isReposted ? colors.repost : colors.textSecondary}
                 />
@@ -295,6 +306,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 /* ── FeedScreen ───────────────────────────────────────────────────────────── */
 
 export default function FeedScreen({ navigation }: any) {
+  const { user: storeUser } = useAppStore();
   const [posts, setPosts] = useState<Post[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -750,7 +762,7 @@ export default function FeedScreen({ navigation }: any) {
 
             {/* Body */}
             <View style={styles.composeBody}>
-              <Avatar uri={currentUser?.photoURL} name={currentUser?.displayName} size={38} />
+              <Avatar uri={storeUser?.profileImage || currentUser?.photoURL} name={storeUser?.displayName || currentUser?.displayName} size={38} />
               <View style={{ flex: 1 }}>
                 <TextInput
                   style={styles.composeInput}
@@ -885,15 +897,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   username: {
-    color: '#94a3b8',
+    color: '#71767b',
     fontSize: 15,
   },
   dot: {
-    color: '#94a3b8',
+    color: '#71767b',
     fontSize: 15,
   },
   time: {
-    color: '#94a3b8',
+    color: '#71767b',
     fontSize: 15,
   },
   moreBtn: {

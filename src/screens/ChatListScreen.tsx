@@ -3,7 +3,7 @@ import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, TextInput, A
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchChatList, Chat } from '../lib/api';
-import { auth, firestore } from '../lib/firebase';
+import { auth, firestore, getValidToken } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +22,8 @@ export default function ChatListScreen({ navigation }: any) {
 
   const load = useCallback(async () => {
     try {
+      // Ensure auth token is fresh before querying Firestore
+      try { await getValidToken(); } catch {}
       const data = await fetchChatList();
       console.log('[ChatListScreen] Loaded', data.length, 'chats');
       setChats(data);

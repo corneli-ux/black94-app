@@ -7,6 +7,17 @@ import { fetchUserProfile, toggleFollow, checkFollowing, Post, User, tsToMillis,
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
+import Svg, { Path, Polyline } from 'react-native-svg';
+
+/* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
+function RepostIcon({ size = 16, color = '#71767b' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="23 4 23 10 17 10" />
+      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+    </Svg>
+  );
+}
 
 
 /* ── Replies type ──────────────────────────────────────────────── */
@@ -58,7 +69,7 @@ function ProfilePostCard({ post, navigation }: { post: Post; navigation: any }) 
               {post.commentCount > 0 && <Text style={profileCardStyles.actionCount}>{post.commentCount}</Text>}
             </View>
             <View style={profileCardStyles.actionBtn}>
-              <Ionicons name="repeat" size={16} color="#71767b" />
+              <RepostIcon size={16} color="#71767b" />
               {post.repostCount > 0 && <Text style={profileCardStyles.actionCount}>{post.repostCount}</Text>}
             </View>
             <View style={profileCardStyles.actionBtn}>

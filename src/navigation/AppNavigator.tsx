@@ -22,6 +22,12 @@ const DarkTheme = {
     border: 'rgba(255,255,255,0.06)',
     notification: '#FFFFFF',
   },
+  fonts: {
+    regular: { fontFamily: 'Inter-Regular', fontWeight: '400' },
+    medium: { fontFamily: 'Inter-Medium', fontWeight: '500' },
+    bold: { fontFamily: 'Inter-Bold', fontWeight: '700' },
+    heavy: { fontFamily: 'Inter-Bold', fontWeight: '900' },
+  },
 };
 
 import { colors } from '../theme/colors';

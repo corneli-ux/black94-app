@@ -3,6 +3,7 @@ import { StatusBar, Text, View, StyleSheet, TouchableOpacity, ScrollView } from 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import * as WebBrowser from 'expo-web-browser';
+import * as Font from 'expo-font';
 
 // Initialize WebBrowser for OAuth callback handling
 WebBrowser.maybeCompleteAuthSession();
@@ -10,6 +11,12 @@ import { onAuthStateChanged, auth, restoreAuth, getValidToken } from './src/lib/
 import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
 import { fetchUserProfile } from './src/lib/api';
+
+// Set global default font — clean system font for all text
+if (Text.defaultProps == null) {
+  Text.defaultProps = {};
+}
+Text.defaultProps.style = { fontFamily: 'System', color: '#e7e9ea' };
 
 // Prevent native splash from auto-hiding before JS is ready
 SplashScreen.preventAutoHideAsync({ fade: true });
@@ -60,6 +67,27 @@ const FORCE_READY_TIMEOUT = 15000;
 
 export default function App() {
   const { user, setUser, setToken, setIsReady, isReady, setLoading } = useAppStore();
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  // Load fonts on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        await Font.loadAsync({
+          'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
+          'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
+          'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
+          'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
+        });
+        Text.defaultProps.style = { fontFamily: 'Inter-Regular', color: '#e7e9ea' };
+        console.log('[App] Fonts loaded — Inter');
+      } catch (e) {
+        console.warn('[App] Font loading failed, using system default:', e);
+        Text.defaultProps.style = { fontFamily: 'System', color: '#e7e9ea' };
+      }
+      setFontsLoaded(true);
+    })();
+  }, []);
 
   useEffect(() => {
     let unsubscribe = undefined;
