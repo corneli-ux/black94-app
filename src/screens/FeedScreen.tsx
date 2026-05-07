@@ -16,6 +16,9 @@ import Svg, { Path, Polyline } from 'react-native-svg';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
+/* ── Panda image for @black94's post fallback ──────────────────────────── */
+const pandaImage = require('../../../assets/panda-post.png');
+
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
 function RepostIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
   return (
@@ -236,11 +239,13 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           ) : null}
 
           {/* Media */}
-          {post.mediaUrls?.length > 0 && (
+          {(post.mediaUrls?.length > 0 || (post.caption?.toLowerCase().includes('panda') && post.authorUsername === 'black94')) && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={styles.mediaContainer}>
                 <Image
-                  source={{ uri: post.mediaUrls[0] }}
+                  source={post.mediaUrls?.length > 0
+                    ? { uri: post.mediaUrls[0] }
+                    : pandaImage}
                   style={styles.media}
                   resizeMode="cover"
                 />
@@ -974,18 +979,22 @@ const styles = StyleSheet.create({
     color: '#e7e9ea',
     fontWeight: '700',
     fontSize: 15,
+    lineHeight: 20,
   },
   username: {
     color: '#71767b',
     fontSize: 15,
+    lineHeight: 20,
   },
   dot: {
     color: '#71767b',
     fontSize: 15,
+    lineHeight: 20,
   },
   time: {
     color: '#71767b',
     fontSize: 15,
+    lineHeight: 20,
   },
   moreBtn: {
     position: 'absolute',
@@ -999,7 +1008,7 @@ const styles = StyleSheet.create({
     color: '#e7e9ea',
     fontSize: 15,
     lineHeight: 20,
-    marginTop: 2,
+    marginTop: 4,
   },
   mediaContainer: {
     marginTop: 12,
@@ -1014,25 +1023,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#111',
   },
 
-  /* ── Action bar ── */
+  /* ── Action bar — X/Twitter exact spacing ── */
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    marginLeft: 0,
+    marginTop: 8,
+    marginLeft: -4,
     maxWidth: 440,
     justifyContent: 'space-between',
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
   actionIconWrap: {
     width: 34, height: 34, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center',
   },
   actionCount: {
-    color: '#94a3b8',
+    color: '#71767b',
     fontSize: 13,
-    marginLeft: 2,
+    lineHeight: 16,
+    marginLeft: 1,
   },
 
   /* ── Heart overlay ── */

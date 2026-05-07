@@ -51,9 +51,10 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 
   useEffect(() => { loadComments(); }, [loadComments]);
 
-  // Auto-set replyingTo when navigating from a post card with postAuthorUsername
+  // Auto-set replyingTo only when replying to a DIFFERENT user
   useEffect(() => {
-    if (postAuthorUsername) {
+    const currentUserUsername = user?.username || currentUser?.displayName || '';
+    if (postAuthorUsername && postAuthorUsername.toLowerCase() !== currentUserUsername.toLowerCase()) {
       setReplyingTo({
         id: '',
         username: postAuthorUsername,
@@ -153,7 +154,11 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   );
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior="padding" keyboardVerticalOffset={0}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : undefined}
+    >
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
@@ -274,16 +279,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginBottom: 2, flexWrap: 'wrap',
   },
-  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  commentHandle: { color: '#71767b', fontSize: 15 },
-  commentTime: { color: '#71767b', fontSize: 15 },
-  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
+  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
+  commentHandle: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  commentTime: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
   /* Action bar — matches feed PostCard exactly */
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    marginLeft: 0,
+    marginTop: 8,
+    marginLeft: -4,
     maxWidth: 440,
     justifyContent: 'space-between',
   },
@@ -292,7 +297,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
-  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   /* Black themed input bar */
   inputBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

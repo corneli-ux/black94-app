@@ -9,6 +9,9 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
+/* ── Panda image for @black94's post fallback ──────────────────────────── */
+const pandaImage = require('../../../assets/panda-post.png');
+
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
 function RepostIcon({ size = 16, color = '#71767b' }: { size?: number; color?: string }) {
   return (
@@ -154,10 +157,12 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             )}
           </View>
           {post.caption ? <HighlightedCaption text={post.caption} style={profileCardStyles.caption} /> : null}
-          {post.mediaUrls?.length > 0 && (
+          {(post.mediaUrls?.length > 0 || (post.caption?.toLowerCase().includes('panda') && post.authorUsername === 'black94')) && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={profileCardStyles.mediaContainer}>
-                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" />
+                <Image source={post.mediaUrls?.length > 0
+                  ? { uri: post.mediaUrls[0] }
+                  : pandaImage} style={profileCardStyles.media} resizeMode="cover" />
               </View>
             </TouchableOpacity>
           )}
@@ -254,11 +259,11 @@ const profileCardStyles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderRadius: 16,
   },
-  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  username: { color: '#71767b', fontSize: 15 },
-  dot: { color: '#71767b', fontSize: 15 },
-  time: { color: '#71767b', fontSize: 15 },
-  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
+  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
+  username: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  dot: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  time: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
   mediaContainer: {
     marginTop: 12, borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
@@ -266,13 +271,13 @@ const profileCardStyles = StyleSheet.create({
   media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#111' },
   actions: {
     flexDirection: 'row', alignItems: 'center',
-    marginTop: 12, marginLeft: 0, maxWidth: 440,
+    marginTop: 8, marginLeft: -4, maxWidth: 440,
     justifyContent: 'space-between',
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
   actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  actionCount: { color: '#94a3b8', fontSize: 13, marginLeft: 2 },
+  actionCount: { color: '#71767b', fontSize: 13, lineHeight: 16, marginLeft: 1 },
   heartOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center', zIndex: 10,
@@ -326,7 +331,12 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
   const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
   const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
 
-  if (replies.length === 0) return (
+  // Filter out self-replies (user replying to their own post)
+  const filteredReplies = replies.filter(r =>
+    r.authorUsername.toLowerCase() !== r.postAuthorUsername.toLowerCase()
+  );
+
+  if (filteredReplies.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
       <Ionicons name="chatbubble-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
       <Text style={{ color: '#94a3b8', fontSize: 15 }}>No replies yet</Text>
@@ -334,7 +344,9 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
   );
   return (
     <View>
-      {replies.map(reply => (
+      {filteredReplies.map(reply => {
+        const isSelfReply = reply.authorUsername.toLowerCase() === reply.postAuthorUsername.toLowerCase();
+        return (
         <View key={reply.id} style={profileCardStyles.postCard}>
           <View style={profileCardStyles.contentRow}>
             <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={40} />
@@ -348,12 +360,11 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
                 <Text style={profileCardStyles.dot}>·</Text>
                 <Text style={profileCardStyles.time}>{timeAgo(reply.createdAt)}</Text>
               </View>
-              <Text style={profileCardStyles.replyingTo}>
-                Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
-              </Text>
-              {reply.postCaption ? (
-                <Text style={profileCardStyles.replyContextCaption} numberOfLines={2}>{reply.postCaption}</Text>
-              ) : null}
+              {!isSelfReply && (
+                <Text style={profileCardStyles.replyingTo}>
+                  Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
+                </Text>
+              )}
               <Text style={profileCardStyles.caption}>{reply.content}</Text>
               <View style={profileCardStyles.actions}>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
@@ -392,7 +403,8 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
             </View>
           </View>
         </View>
-      ))}
+      );
+    })}
     </View>
   );
 }
@@ -795,12 +807,12 @@ export default function ProfileScreen({ route, navigation }: any) {
         <View style={styles.statsRow}>
           <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'following' } as never)}>
             <Text style={styles.statText}>
-              <Text style={styles.statNum}>{followingCount}</Text> Following
+              <Text style={styles.statNum}>{formatCount(followingCount)}</Text> Following
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'followers' } as never)}>
             <Text style={styles.statText}>
-              <Text style={styles.statNum}>{followersCount}</Text> Followers
+              <Text style={styles.statNum}>{formatCount(followersCount)}</Text> Followers
             </Text>
           </TouchableOpacity>
         </View>

@@ -96,7 +96,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={styles.backdropTouch} activeOpacity={1} onPress={onClose} />
-        <KeyboardAvoidingView style={styles.sheetContainer} behavior="padding">
+        <KeyboardAvoidingView style={styles.sheetContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
             {/* Handle */}
             <View style={styles.handleWrap}><View style={styles.handle} /></View>
@@ -240,10 +240,10 @@ const styles = StyleSheet.create({
   commentRow: { flexDirection: 'row', gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
   commentBody: { flex: 1 },
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' },
-  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  commentHandle: { color: '#71767b', fontSize: 15 },
-  commentTime: { color: '#71767b', fontSize: 15 },
-  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
+  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
+  commentHandle: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  commentTime: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
   inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: '#000000' },
   inputWrap: { flex: 1, backgroundColor: '#16181c', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, maxHeight: 100, justifyContent: 'center' },
   input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },
@@ -252,8 +252,8 @@ const styles = StyleSheet.create({
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    marginLeft: 0,
+    marginTop: 8,
+    marginLeft: -4,
     maxWidth: 440,
     justifyContent: 'space-between',
   },
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
-  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   replyingBar: {
     flexDirection: 'row',
     alignItems: 'center',
