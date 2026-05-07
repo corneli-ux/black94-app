@@ -10,8 +10,17 @@ import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { Post } from '../lib/api';
 import CommentSheet from '../components/CommentSheet';
+import Svg, { Path } from 'react-native-svg';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+
+function ReplyIcon({ size = 18, color = '#71767b' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </Svg>
+  );
+}
 
 const formatCount = (n: number | undefined): string => {
   if (!n) return '';
@@ -210,7 +219,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
           )}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
-              <View style={styles.actionIconWrap}><Ionicons name="chatbubble-outline" size={18} color="#71767b" /></View>
+              <View style={styles.actionIconWrap}><ReplyIcon size={18} color="#71767b" /></View>
               {formatCount(commentCount) ? <Text style={styles.actionCount}>{formatCount(commentCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={handleRepost}>
