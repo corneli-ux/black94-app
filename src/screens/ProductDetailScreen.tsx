@@ -66,6 +66,7 @@ function formatINR(amount: number): string {
 
 export default function ProductDetailScreen({ route, navigation }: any) {
   const { productId } = route.params;
+  if (!productId) { Alert.alert('Error', 'Product not found'); navigation.goBack(); return null; }
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -135,7 +136,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
     }
   }, [productId]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [productId]);
 
   const handleAddToCart = async () => {
     setAddingToCart(true);
@@ -325,7 +326,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
               <Text style={styles.qtyValue}>{quantity}</Text>
               <TouchableOpacity
                 style={styles.qtyBtn}
-                onPress={() => setQuantity(q => q + 1)}
+                onPress={() => setQuantity(q => Math.min(q + 1, product?.stock || 99))}
               >
                 <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>

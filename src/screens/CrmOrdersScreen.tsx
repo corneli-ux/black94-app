@@ -65,7 +65,7 @@ const STATUS_TABS: Array<{
 
 const CrmOrdersScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const uid = auth().currentUser?.uid ?? '';
+  const uid = auth()?.currentUser?.uid ?? '';
 
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<ShopOrder[]>([]);

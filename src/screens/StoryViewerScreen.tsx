@@ -10,6 +10,7 @@ import {
   PanResponder,
   StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
 import { colors } from '../theme/colors';
@@ -34,6 +35,7 @@ interface StoryItem {
 
 export default function StoryViewerScreen({ navigation, route }: any) {
   const { storyIds, startIndex = 0, storyGroupId } = route.params || {};
+  const insets = useSafeAreaInsets();
 
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
@@ -236,7 +238,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
       )}
 
       {/* Progress Bars */}
-      <View style={styles.progressContainer}>
+      <View style={[styles.progressContainer, { top: insets.top + 8 }]}>
         {progressBars.map((_, i) => (
           <View key={i} style={styles.progressTrack}>
             {i < currentIndex ? (
@@ -259,7 +261,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
       </View>
 
       {/* Author Bar */}
-      <View style={styles.authorBar}>
+      <View style={[styles.authorBar, { top: insets.top + 18 }]}>
         <View style={styles.authorInfo}>
           <Image
             source={
@@ -365,7 +367,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
 
       {/* Swipe up hint */}
       <View style={styles.swipeHintContainer}>
-        <Text style={styles.swipeHint}>Swipe up to dismiss</Text>
+        <Text style={styles.swipeHint}>Swipe down to dismiss</Text>
       </View>
 
       {/* Pause indicator */}

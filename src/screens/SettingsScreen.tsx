@@ -127,24 +127,24 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
-            <SettingsLink icon="lock-closed" label="Privacy Settings" onPress={() => navigation.navigate('PrivacySettings' as never)} />
-            <SettingsLink icon="share-social" label="Share Profile" onPress={() => navigation.navigate('ShareProfile' as never)} />
+            <SettingsLink icon="lock-closed" label="Privacy Settings" onPress={() => { try { navigation.navigate('PrivacySettings' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
+            <SettingsLink icon="share-social" label="Share Profile" onPress={() => { try { navigation.navigate('ShareProfile' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Business</Text>
           <View style={styles.card}>
-            <SettingsLink icon="storefront" label="My Store" onPress={() => navigation.navigate('MyStore' as never)} />
-            <SettingsLink icon="newspaper" label="Write Article" onPress={() => navigation.navigate('WriteArticle' as never)} />
+            <SettingsLink icon="storefront" label="My Store" onPress={() => { try { navigation.navigate('MyStore' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
+            <SettingsLink icon="newspaper" label="Write Article" onPress={() => { try { navigation.navigate('WriteArticle' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tools</Text>
           <View style={styles.card}>
-            <SettingsLink icon="bar-chart" label="Business Dashboard" onPress={() => navigation.navigate('BusinessDashboard' as never)} />
-            <SettingsLink icon="megaphone" label="Ads Manager" onPress={() => navigation.navigate('AdsManager' as never)} />
+            <SettingsLink icon="bar-chart" label="Business Dashboard" onPress={() => { try { navigation.navigate('BusinessDashboard' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
+            <SettingsLink icon="megaphone" label="Ads Manager" onPress={() => { try { navigation.navigate('AdsManager' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
           </View>
         </View>
 

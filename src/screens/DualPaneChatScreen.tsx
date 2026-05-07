@@ -87,7 +87,7 @@ const IS_TABLET = SCREEN_WIDTH >= 768;
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function DualPaneChatScreen({ navigation }: any) {
-  const currentUserId = auth().currentUser?.uid ?? '';
+  const currentUserId = auth()?.currentUser?.uid ?? '';
 
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);

@@ -51,6 +51,7 @@ function formatINR(amount: number): string {
 
 export default function StorefrontScreen({ route, navigation }: any) {
   const { userId } = route.params;
+  if (!userId) { Alert.alert('Error', 'User not found'); navigation.goBack(); return null; }
   const [owner, setOwner] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);

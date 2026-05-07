@@ -51,6 +51,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   const insets = useSafeAreaInsets();
 
   const loadComments = useCallback(async () => {
+    if (!postId) { setLoading(false); return; }
     setLoading(true);
     const data = await fetchPostComments(postId);
     setComments(data);
@@ -131,7 +132,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
             <View style={styles.actionIconWrap}>
-              {repostMap[item.id] ? <RepostIcon size={18} color="#10b981" /> : <RepostIcon size={18} color="#94a3b8" />}
+              {repostMap[item.id] ? <RepostIcon size={18} color="#00ba7c" /> : <RepostIcon size={18} color="#94a3b8" />}
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
@@ -147,7 +148,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           <View style={styles.actionPair}>
             <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name={bookmarkMap[item.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item.id] ? '#ffffff' : '#94a3b8'} />
+                <Ionicons name={bookmarkMap[item.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item.id] ? '#1d9bf0' : '#94a3b8'} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn}>
@@ -255,18 +256,18 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingBottom: 12,
     borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   headerTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '800' },
   preview: {
     paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   previewLabel: { color: '#71767b', fontSize: 13, fontWeight: '500', marginBottom: 2 },
   previewAuthor: { color: '#e7e9ea', fontSize: 15, fontWeight: '700' },
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingVertical: 10,
     borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   inputWrap: {
     flex: 1, backgroundColor: '#16181c',
@@ -332,7 +333,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   replyingBarText: {
     color: '#94a3b8',

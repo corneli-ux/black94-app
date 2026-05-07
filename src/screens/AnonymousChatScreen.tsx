@@ -180,7 +180,8 @@ export default function AnonymousChatScreen() {
     setChatState('searching');
     setMessages([]);
     setElapsed(0);
-    setStrangerName(generateUsername());
+    const newName = generateUsername();
+    setStrangerName(newName);
 
     setTimeout(() => {
       setChatState('connected');
@@ -190,14 +191,14 @@ export default function AnonymousChatScreen() {
         setMessages([
           {
             id: `msg_${++msgIdCounter}`,
-            content: `Hey! I'm ${strangerName}. What's up? 😄`,
+            content: `Hey! I'm ${newName}. What's up? 😄`,
             isMine: false,
             timestamp: Date.now(),
           },
         ]);
       }, 600);
     }, 2000 + Math.random() * 2000);
-  }, [cleanup, startTimer, strangerName]);
+  }, [cleanup, startTimer]);
 
   // ── Send message ───────────────────────────────────────────────────────
   const handleSend = useCallback(() => {

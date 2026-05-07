@@ -58,7 +58,7 @@ const STAGES: Array<{ key: CrmDeal['stage']; label: string; color: string }> = [
 ];
 
 const CrmDealsScreen: React.FC = () => {
-  const uid = auth().currentUser?.uid ?? '';
+  const uid = auth()?.currentUser?.uid ?? '';
   const [deals, setDeals] = useState<CrmDeal[]>([]);
   const [filteredDeals, setFilteredDeals] = useState<CrmDeal[]>([]);
   const [loading, setLoading] = useState(true);

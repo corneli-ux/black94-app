@@ -302,7 +302,17 @@ export default function ExploreScreen() {
                     ) : null}
                   </TouchableOpacity>
                   {followedUsers.has(user.id) ? (
-                    <TouchableOpacity style={styles.followingBtn}>
+                    <TouchableOpacity
+                      style={styles.followingBtn}
+                      onPress={() => {
+                        toggleFollow(user.id, true);
+                        setFollowedUsers(prev => {
+                          const next = new Set(prev);
+                          next.delete(user.id);
+                          return next;
+                        });
+                      }}
+                    >
                       <Text style={styles.followingBtnText}>Following</Text>
                     </TouchableOpacity>
                   ) : (

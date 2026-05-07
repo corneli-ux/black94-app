@@ -98,6 +98,7 @@ function formatDate(dateStr: string): string {
 
 export default function ArticleViewScreen({ route, navigation }: any) {
   const { articleId } = route.params;
+  if (!articleId) { navigation.goBack(); return null; }
   const currentUser = useAppStore((s) => s.user);
 
   const [article, setArticle] = useState<Article | null>(null);

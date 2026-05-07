@@ -61,7 +61,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     } else {
       Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
     }
-  }, [visible]);
+  }, [visible, postId]);
 
   const loadComments = async () => {
     setLoading(true);

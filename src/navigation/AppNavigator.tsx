@@ -211,7 +211,7 @@ function CustomDrawerContent({ navigation }: any) {
   const insets = useSafeAreaInsets();
 
   const navItems = [
-    { label: 'Home', icon: 'home-outline', screen: 'Home' },
+    { label: 'Home', icon: 'home-outline', screen: 'MainTabs' },
     { label: 'Explore', icon: 'search-outline', screen: 'Explore' },
     { label: 'Notifications', icon: 'notifications-outline', screen: 'NotificationsTab' },
     { label: 'Messages', icon: 'chatbubble-outline', screen: 'MessagesTab' },

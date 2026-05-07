@@ -51,7 +51,7 @@ interface AnalyticsData {
 }
 
 const CrmAnalyticsScreen: React.FC = () => {
-  const uid = auth().currentUser?.uid ?? '';
+  const uid = auth()?.currentUser?.uid ?? '';
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

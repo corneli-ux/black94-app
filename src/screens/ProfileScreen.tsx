@@ -19,7 +19,7 @@ function ReplyIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: st
 }
 
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
-function RepostIcon({ size = 16, color = '#71767b' }: { size?: number; color?: string }) {
+function RepostIcon({ size = 18, color = '#71767b' }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <Polyline points="23 4 23 10 17 10" />
@@ -76,7 +76,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
   onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string, caption?: string) => void;
+  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
   navigation: any;
 }) {
   const currentUser = auth()?.currentUser;
@@ -174,7 +174,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
           {/* Action bar — exact match to FeedScreen PostCard */}
           <View style={profileCardStyles.actions}>
             {/* Comment */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption, post.authorUsername, post.authorDisplayName)}>
               <View style={profileCardStyles.actionIconWrap}>
                 <ReplyIcon size={18} color="#94a3b8" />
               </View>
@@ -227,7 +227,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
       {/* Double-tap heart overlay */}
       {showHeart && (
         <View style={profileCardStyles.heartOverlay} pointerEvents="none">
-          <Ionicons name="heart" size={80} color="rgba(249,24,128,0.85)" />
+          <Ionicons name="heart" size={96} color="#f43f5e" />
         </View>
       )}
     </View>
@@ -296,7 +296,7 @@ const profileCardStyles = StyleSheet.create({
     color: '#3b82f6',
   },
   replyContextCaption: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
     marginTop: 2,
@@ -328,7 +328,7 @@ function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, o
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
   onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string, caption?: string) => void;
+  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
 }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
@@ -363,7 +363,6 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
   return (
     <View>
       {filteredReplies.map(reply => {
-        const isSelfReply = reply.authorUsername.toLowerCase() === reply.postAuthorUsername.toLowerCase();
         return (
         <View key={reply.id} style={profileCardStyles.postCard}>
           <View style={profileCardStyles.contentRow}>
@@ -378,11 +377,9 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
                 <Text style={profileCardStyles.dot}>·</Text>
                 <Text style={profileCardStyles.time}>{timeAgo(reply.createdAt)}</Text>
               </View>
-              {!isSelfReply && (
-                <Text style={profileCardStyles.replyingTo}>
-                  Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
-                </Text>
-              )}
+              <Text style={profileCardStyles.replyingTo}>
+                Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
+              </Text>
               <Text style={profileCardStyles.caption}>{reply.content}</Text>
               {/* Show parent post media if available */}
               {reply.postMediaUrls?.length > 0 && (
@@ -441,7 +438,7 @@ function LikedPostsGrid({ posts, navigation, onLike, onBookmark, onDelete, onRep
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
   onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string, caption?: string) => void;
+  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
 }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
@@ -561,7 +558,7 @@ export default function ProfileScreen({ route, navigation }: any) {
     setCanRefresh(offset <= 0);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   // Load replies when replies tab is active
   useEffect(() => {
@@ -831,7 +828,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
           <VerifiedBadge badge={user?.badge} isVerified={user?.isVerified} size={20} />
         </View>
-        <Text style={styles.handle}>@{user?.username}</Text>
+        <Text style={styles.handle}>@{user?.username || ''}</Text>
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
         <View style={styles.statsRow}>
           <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'following' } as never)}>
@@ -951,5 +948,5 @@ const styles = StyleSheet.create({
   },
   /* Tab text: text-[15px] font-medium, active: text-[#e7e9ea] font-bold, inactive: text-[#94a3b8] */
   tabText: { color: '#94a3b8', fontWeight: '500', fontSize: 15 },
-  tabTextActive: { color: '#e7e9ea', fontWeight: '700' },
+  tabTextActive: { color: '#ffffff', fontWeight: '700' },
 });

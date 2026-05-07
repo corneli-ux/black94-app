@@ -50,22 +50,21 @@ export default function BookmarksScreen() {
 
       const bookmarkEntries = snap.docs.map(d => ({ id: d.id, postId: d.data().postId })).filter(e => !!e.postId);
       const posts: Post[] = [];
-      for (const entry of bookmarkEntries) {
-        try {
-          const postSnap = await firestore().collection('posts').doc(entry.postId).get();
-          if (postSnap.exists) {
-            const data = postSnap.data();
-            posts.push({
-              id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
-              authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
-              authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
-              caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
-              likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
-              repostCount: data.repostCount || 0, liked: false, bookmarked: true, reposted: false,
-              createdAt: tsToMillis(data.createdAt),
-            });
-          }
-        } catch { /* skip */ }
+      const postSnaps = await Promise.all(
+        bookmarkEntries.map(entry => firestore().collection('posts').doc(entry.postId).get().catch(() => null))
+      );
+      for (const postSnap of postSnaps) {
+        if (!postSnap || !postSnap.exists) continue;
+        const data = postSnap.data();
+        posts.push({
+          id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
+          authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
+          authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
+          caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
+          likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
+          repostCount: data.repostCount || 0, liked: false, bookmarked: true, reposted: false,
+          createdAt: tsToMillis(data.createdAt),
+        });
       }
 
       const uniqueAuthorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean))];

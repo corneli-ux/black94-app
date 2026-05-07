@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
   RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Dimensions, Share, Image,
+  ActivityIndicator, Alert, Dimensions, Share,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -248,7 +248,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={styles.mediaContainer}>
-                <Image
+                <RNImage
                   source={{ uri: post.mediaUrls[0] }}
                   style={styles.media}
                   resizeMode="cover"
@@ -560,7 +560,7 @@ export default function FeedScreen({ navigation }: any) {
     }
   }, [currentUser?.uid]);
 
-  useEffect(() => { loadFeed(); }, []);
+  useEffect(() => { loadFeed(); }, [loadFeed]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -587,6 +587,9 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const handleRepost = async (postId: string, reposted: boolean) => {
+    setPosts(prev => prev.map(p => p.id === postId
+      ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
+      : p));
     try { await toggleRepost(postId, reposted); } catch {}
   };
 
@@ -655,7 +658,7 @@ export default function FeedScreen({ navigation }: any) {
               <Ionicons name="menu" size={22} color="#e7e9ea" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
+              <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
             </View>
             <TouchableOpacity
               style={styles.headerBtn}
@@ -695,7 +698,7 @@ export default function FeedScreen({ navigation }: any) {
             <Ionicons name="menu" size={22} color="#e7e9ea" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
+            <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
           </View>
           <TouchableOpacity
             style={styles.headerBtn}
@@ -747,7 +750,6 @@ export default function FeedScreen({ navigation }: any) {
           />
         }
         scrollEventThrottle={16}
-        nestedScrollEnabled={true}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
@@ -788,7 +790,7 @@ export default function FeedScreen({ navigation }: any) {
       <Modal visible={composeVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior="padding"
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setComposeVisible(false); setComposeImages([]); }} />
           <View style={styles.composeSheet}>

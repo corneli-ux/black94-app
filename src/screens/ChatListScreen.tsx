@@ -269,6 +269,7 @@ export default function ChatListScreen({ navigation }: any) {
                   refreshing={refreshing}
                   onRefresh={load}
                   tintColor={colors.accent}
+                  enabled={canRefresh}
                 />
               }
               renderItem={({ item }) => (

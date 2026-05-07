@@ -87,6 +87,7 @@ export default function OrderTrackingScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { orderId } = route.params;
+  if (!orderId) { Alert.alert('Error', 'Order not found'); navigation.goBack(); return null; }
 
   const [order, setOrder] = useState<ShopOrder | null>(null);
   const [loading, setLoading] = useState(true);

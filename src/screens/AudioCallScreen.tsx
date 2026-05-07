@@ -249,7 +249,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
           </View>
           <Text
             style={[styles.actionLabel, isSpeaker && styles.actionLabelActive]}>
-            {isSpeaker ? 'Speaker' : 'Speaker'}
+            {isSpeaker ? 'Speaker' : 'Phone'}
           </Text>
         </TouchableOpacity>
 

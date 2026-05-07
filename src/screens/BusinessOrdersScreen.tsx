@@ -137,7 +137,7 @@ export default function BusinessOrdersScreen() {
         if (trackingNumber) {
           update.trackingNumber = trackingNumber;
         }
-        firestore().collection('orders').doc(orderId).update(update);
+        await firestore().collection('orders').doc(orderId).update(update);
       } catch (err) {
         console.warn('[BusinessOrdersScreen] updateStatus error:', err);
       }

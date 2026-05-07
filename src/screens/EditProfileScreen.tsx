@@ -106,7 +106,7 @@ export default function EditProfileScreen({ navigation }: any) {
         </TouchableOpacity>
       ),
     });
-  }, [navigation, saving, displayName, username, bio, profileImage, coverImage, role]);
+  }, [navigation, saving, displayName, username, bio, profileImage, coverImage, role, usernameAvailable]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -289,7 +289,7 @@ export default function EditProfileScreen({ navigation }: any) {
                 source={
                   profileImage
                     ? { uri: profileImage }
-                    : { uri: 'https://via.placeholder.com/200/333/ccc?text=A' }
+                    : null
                 }
                 style={styles.avatarImage}
               />
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
   },
   roleItemSelected: {
     borderColor: colors.accent,
-    backgroundColor: `${colors.accent}15`,
+    backgroundColor: `${colors.accent}22`,
   },
   roleItemDisabled: {
     opacity: 0.5,

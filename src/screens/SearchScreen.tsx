@@ -92,7 +92,7 @@ export default function SearchScreen({ route, navigation }: any) {
     if (q) {
       setQuery(q);
     }
-  }, []);
+  }, [route?.params?.q]);
 
   const renderUserItem = ({ item }: { item: User }) => (
     <TouchableOpacity
@@ -144,7 +144,6 @@ export default function SearchScreen({ route, navigation }: any) {
           onChangeText={q => setQuery(q)}
           returnKeyType="search"
           onSubmitEditing={() => doSearch(query)}
-          autoFocus={true}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />

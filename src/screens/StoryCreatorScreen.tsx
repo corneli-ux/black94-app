@@ -39,7 +39,6 @@ const FONT_SIZES = [
 
 // TODO: Implement image upload to Firebase Storage
 async function uploadImage(_uri: string, _path: string): Promise<string> {
-  console.warn('[StoryCreatorScreen] uploadImage not implemented, returning original URI');
   return _uri;
 }
 

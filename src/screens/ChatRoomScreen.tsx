@@ -104,7 +104,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
 
   const handleSend = async () => {
-    if (!text.trim() || sending) return;
+    if (!chat || !text.trim() || sending) return;
     const content = text.trim();
     setText('');
     setSending(true);
