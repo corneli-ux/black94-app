@@ -10,7 +10,7 @@ import { timeAgo } from '../utils/timeAgo';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
 /* ── Panda image for @black94's post fallback ──────────────────────────── */
-const pandaImage = require('../../assets/panda-post.png');
+const pandaImage = require('../../assets/panda-post.jpg');
 
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
 function RepostIcon({ size = 16, color = '#71767b' }: { size?: number; color?: string }) {
