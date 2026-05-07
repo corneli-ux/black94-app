@@ -16,9 +16,6 @@ import Svg, { Path, Polyline } from 'react-native-svg';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-/* ── Panda image for @black94's post fallback ──────────────────────────── */
-const pandaImage = require('../../assets/panda-post.jpg');
-
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
 function RepostIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
   return (
@@ -239,13 +236,11 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           ) : null}
 
           {/* Media */}
-          {(post.mediaUrls?.length > 0 || (post.caption?.toLowerCase().includes('panda') && post.authorUsername === 'black94')) && (
+          {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={styles.mediaContainer}>
                 <Image
-                  source={post.mediaUrls?.length > 0
-                    ? { uri: post.mediaUrls[0] }
-                    : pandaImage}
+                  source={{ uri: post.mediaUrls[0] }}
                   style={styles.media}
                   resizeMode="cover"
                 />

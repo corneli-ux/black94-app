@@ -9,9 +9,6 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
-/* ── Panda image for @black94's post fallback ──────────────────────────── */
-const pandaImage = require('../../assets/panda-post.jpg');
-
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
 function RepostIcon({ size = 16, color = '#71767b' }: { size?: number; color?: string }) {
   return (
@@ -28,6 +25,7 @@ interface Reply {
   id: string;
   postId: string;
   postCaption: string;
+  postMediaUrls: string[];
   postAuthorUsername: string;
   postAuthorDisplayName: string;
   content: string;
@@ -157,12 +155,10 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             )}
           </View>
           {post.caption ? <HighlightedCaption text={post.caption} style={profileCardStyles.caption} /> : null}
-          {(post.mediaUrls?.length > 0 || (post.caption?.toLowerCase().includes('panda') && post.authorUsername === 'black94')) && (
+          {(post.mediaUrls?.length > 0) && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={profileCardStyles.mediaContainer}>
-                <Image source={post.mediaUrls?.length > 0
-                  ? { uri: post.mediaUrls[0] }
-                  : pandaImage} style={profileCardStyles.media} resizeMode="cover" />
+                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" />
               </View>
             </TouchableOpacity>
           )}
@@ -302,6 +298,19 @@ const profileCardStyles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
+  /* Parent post media shown in reply cards */
+  replyMediaContainer: {
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  replyMedia: {
+    width: '100%',
+    height: Math.min(SCREEN_W * 0.65, 380),
+    backgroundColor: '#111',
+  },
 });
 
 function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, onComment }: {
@@ -366,6 +375,14 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
                 </Text>
               )}
               <Text style={profileCardStyles.caption}>{reply.content}</Text>
+              {/* Show parent post media if available */}
+              {reply.postMediaUrls?.length > 0 && (
+                <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
+                  <View style={profileCardStyles.replyMediaContainer}>
+                    <Image source={{ uri: reply.postMediaUrls[0] }} style={profileCardStyles.replyMedia} resizeMode="cover" />
+                  </View>
+                </TouchableOpacity>
+              )}
               <View style={profileCardStyles.actions}>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
                   <View style={profileCardStyles.actionIconWrap}>
@@ -553,6 +570,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           const data = d.data();
           const postId = data.postId || '';
           let postCaption = '';
+          let postMediaUrls: string[] = [];
           let postAuthorUsername = '';
           let postAuthorDisplayName = '';
           if (postId) {
@@ -561,6 +579,7 @@ export default function ProfileScreen({ route, navigation }: any) {
               if (postSnap.exists) {
                 const pd = postSnap.data();
                 postCaption = pd.caption || '';
+                postMediaUrls = parseMediaUrls(pd.mediaUrls);
                 postAuthorUsername = pd.authorUsername || '';
                 postAuthorDisplayName = pd.authorDisplayName || '';
               }
@@ -570,6 +589,7 @@ export default function ProfileScreen({ route, navigation }: any) {
             id: d.id,
             postId,
             postCaption,
+            postMediaUrls,
             postAuthorUsername,
             postAuthorDisplayName,
             content: data.content || '',
