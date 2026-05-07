@@ -17,7 +17,7 @@ import Svg, { Path, Polyline } from 'react-native-svg';
 const { width: SCREEN_W } = Dimensions.get('window');
 
 /* ── Panda image for @black94's post fallback ──────────────────────────── */
-const pandaImage = require('../../../assets/panda-post.png');
+const pandaImage = require('../../assets/panda-post.png');
 
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
 function RepostIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
