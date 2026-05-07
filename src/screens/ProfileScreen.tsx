@@ -52,6 +52,13 @@ function HighlightedCaption({ text, style }: { text: string; style: any }) {
   );
 }
 
+function formatCount(n: number | undefined): string {
+  if (!n) return '';
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return n.toString();
+}
+
 /* ── Feed-style PostCard for profile (fully interactive, matches FeedScreen PostCard) ── */
 const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
   post: Post;
@@ -161,7 +168,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               <View style={profileCardStyles.actionIconWrap}>
                 <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
               </View>
-              {post.commentCount > 0 ? <Text style={profileCardStyles.actionCount}>{post.commentCount}</Text> : null}
+              {formatCount(post.commentCount) ? <Text style={profileCardStyles.actionCount}>{formatCount(post.commentCount)}</Text> : null}
             </TouchableOpacity>
             {/* Repost */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleRepostPress}>
@@ -192,7 +199,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleBookmarkPress}>
                 <View style={profileCardStyles.actionIconWrap}>
                   {isBookmarked ? (
-                    <Ionicons name="bookmark" size={18} color="#1d9bf0" />
+                    <Ionicons name="bookmark" size={18} color={colors.bookmark} />
                   ) : (
                     <Ionicons name="bookmark-outline" size={18} color="#94a3b8" />
                   )}
@@ -372,7 +379,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
                 <View style={profileCardStyles.actionPair}>
                   <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
                     <View style={profileCardStyles.actionIconWrap}>
-                      <Ionicons name={bookmarkMap[reply.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[reply.id] ? '#1d9bf0' : '#94a3b8'} />
+                      <Ionicons name={bookmarkMap[reply.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[reply.id] ? colors.bookmark : '#94a3b8'} />
                     </View>
                   </TouchableOpacity>
                   <TouchableOpacity style={profileCardStyles.actionBtn}>
@@ -643,8 +650,8 @@ export default function ProfileScreen({ route, navigation }: any) {
     try { await toggleRepost(postId, reposted); } catch {}
   };
 
-  const handleComment = (postId: string, caption?: string) => {
-    navigation.navigate('PostComments', { postId, postCaption: caption || '' });
+  const handleComment = (postId: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => {
+    navigation.navigate('PostComments', { postId, postCaption: caption || '', postAuthorUsername: authorUsername || '', postAuthorDisplayName: authorDisplayName || '' });
   };
 
   const handleDelete = async (postId: string) => {

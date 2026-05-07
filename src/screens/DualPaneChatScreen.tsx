@@ -357,7 +357,7 @@ export default function DualPaneChatScreen({ navigation }: any) {
     return (
       <KeyboardAvoidingView
         style={styles.roomContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        behavior="padding">
         {/* Room header */}
         <View style={styles.roomHeader}>
           <TouchableOpacity onPress={() => !IS_TABLET && setPhoneTab('list')}>

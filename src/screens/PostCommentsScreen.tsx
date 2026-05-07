@@ -153,7 +153,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   );
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior="padding" keyboardVerticalOffset={0}>
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
@@ -211,63 +211,33 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         </View>
       ) : null}
 
-      {/* Sticky input bar — on iOS use padding, on Android rely on adjustResize */}
-      {Platform.OS === 'ios' ? (
-        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0}>
-          <View style={[styles.inputBar, { paddingBottom: Math.max(8, insets.bottom || 0) }]}>
-            <Avatar uri={user?.profileImage || null} name={user?.displayName} size={32} />
-            <View style={styles.inputWrap}>
-              <TextInput
-                style={styles.input}
-                placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
-                placeholderTextColor="#64748b"
-                value={text}
-                onChangeText={setText}
-                multiline
-                maxLength={500}
-                editable={!sending}
-              />
-            </View>
-            <TouchableOpacity
-              style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
-              onPress={handleSend}
-              disabled={!text.trim() || sending}
-            >
-              {sending
-                ? <ActivityIndicator size="small" color="#000" />
-                : <Ionicons name="send" size={18} color={text.trim() ? '#000' : '#555'} />
-              }
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      ) : (
-        <View style={[styles.inputBar, { paddingBottom: Math.max(8, insets.bottom || 0) }]}>
-          <Avatar uri={user?.profileImage || null} name={user?.displayName} size={32} />
-          <View style={styles.inputWrap}>
-            <TextInput
-              style={styles.input}
-              placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
-              placeholderTextColor="#64748b"
-              value={text}
-              onChangeText={setText}
-              multiline
-              maxLength={500}
-              editable={!sending}
-            />
-          </View>
-          <TouchableOpacity
-            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
-            onPress={handleSend}
-            disabled={!text.trim() || sending}
-          >
-            {sending
-              ? <ActivityIndicator size="small" color="#000" />
-              : <Ionicons name="send" size={18} color={text.trim() ? '#000' : '#555'} />
-            }
-          </TouchableOpacity>
+      {/* Sticky input bar — KeyboardAvoidingView handles both platforms */}
+      <View style={[styles.inputBar, { paddingBottom: Math.max(8, insets.bottom || 0) }]}>
+        <Avatar uri={user?.profileImage || null} name={user?.displayName} size={32} />
+        <View style={styles.inputWrap}>
+          <TextInput
+            style={styles.input}
+            placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
+            placeholderTextColor="#64748b"
+            value={text}
+            onChangeText={setText}
+            multiline
+            maxLength={500}
+            editable={!sending}
+          />
         </View>
-      )}
-    </View>
+        <TouchableOpacity
+          style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
+          onPress={handleSend}
+          disabled={!text.trim() || sending}
+        >
+          {sending
+            ? <ActivityIndicator size="small" color="#000" />
+            : <Ionicons name="send" size={18} color={text.trim() ? '#000' : '#555'} />
+          }
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 

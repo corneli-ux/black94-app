@@ -96,7 +96,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={styles.backdropTouch} activeOpacity={1} onPress={onClose} />
-        <KeyboardAvoidingView style={styles.sheetContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.sheetContainer} behavior="padding">
           <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
             {/* Handle */}
             <View style={styles.handleWrap}><View style={styles.handle} /></View>

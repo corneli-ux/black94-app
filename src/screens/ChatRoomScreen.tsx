@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Keyboard, ScrollView, Alert } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, Message } from '../lib/api';
@@ -23,7 +23,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(!routeChat);
   const [sending, setSending] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
@@ -103,19 +102,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [chat?.id]);
 
-  // Keyboard listeners for proper input positioning on Android
-  useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
@@ -204,7 +190,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   };
 
   return (
-    <View style={[styles.safeArea]}>
+    <KeyboardAvoidingView style={[styles.safeArea]} behavior="padding" keyboardVerticalOffset={0}>
       {/* Header — web: bg-[#000000]/90 backdrop-blur-xl, px-4 py-2.5 */}
       <View style={[styles.header, { paddingTop: Math.max(8, insets.top - 4) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -286,7 +272,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
           // Bottom padding: on Android, adjustResize already accounts for keyboard
           // so we only need the input bar height. On iOS, we need both.
-          ListFooterComponent={<View style={{ height: Platform.OS === 'android' ? 80 : keyboardHeight + 80 }} />}
+          ListFooterComponent={<View style={{ height: 80 }} />}
           keyboardShouldPersistTaps="handled"
         />
       )}
@@ -346,7 +332,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
