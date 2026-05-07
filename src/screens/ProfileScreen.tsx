@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, ScrollView, Alert, Share } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, ScrollView, Alert, Share, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -136,7 +136,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             </TouchableOpacity>
             {isOwnPost && (
               <TouchableOpacity
-                style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16 }}
+                style={profileCardStyles.moreBtn}
                 onPress={() => Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
@@ -217,9 +217,11 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   );
 });
 
+const { width: SCREEN_W } = Dimensions.get('window');
+
 const profileCardStyles = StyleSheet.create({
   postCard: {
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
     paddingLeft: 16,
@@ -237,6 +239,14 @@ const profileCardStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     flex: 1, flexWrap: 'nowrap', overflow: 'hidden',
   },
+  moreBtn: {
+    position: 'absolute',
+    top: 0,
+    right: -8,
+    width: 32, height: 32,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: 16,
+  },
   displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
   username: { color: '#71767b', fontSize: 15 },
   dot: { color: '#71767b', fontSize: 15 },
@@ -246,10 +256,10 @@ const profileCardStyles = StyleSheet.create({
     marginTop: 12, borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
-  media: { width: '100%', height: 200, backgroundColor: '#111' },
+  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#111' },
   actions: {
     flexDirection: 'row', alignItems: 'center',
-    marginTop: 12, marginLeft: -4, maxWidth: 440,
+    marginTop: 12, marginLeft: 0, maxWidth: 440,
     justifyContent: 'space-between',
   },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
@@ -257,8 +267,8 @@ const profileCardStyles = StyleSheet.create({
   actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   actionCount: { color: '#94a3b8', fontSize: 13, marginLeft: 2 },
   heartOverlay: {
-    position: 'absolute', top: '30%', left: '30%', transform: [{ translateX: -40 }, { translateY: -40 }],
-    zIndex: 10,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center', zIndex: 10,
   },
   replyingTo: {
     color: '#71767b',

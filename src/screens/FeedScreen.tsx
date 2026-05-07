@@ -89,7 +89,7 @@ function SkeletonCard() {
           <View style={[styles.skeletonLine, { width: '70%', height: 14 }]} />
           <View style={[styles.skeletonLine, { width: '40%', height: 14 }]} />
           {/* Action bar dots */}
-          <View style={{ flexDirection: 'row', marginTop: 12, marginLeft: -4, gap: 56 }}>
+          <View style={{ flexDirection: 'row', marginTop: 12, gap: 56 }}>
             {[0, 1, 2, 3, 4].map(i => (
               <View key={i} style={[styles.skeletonDot]} />
             ))}
@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 12,
-    marginLeft: -4,
+    marginLeft: 0,
     maxWidth: 440,
     justifyContent: 'space-between',
   },
