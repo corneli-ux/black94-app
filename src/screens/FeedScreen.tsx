@@ -481,9 +481,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     position: 'relative',
   },
-  tabText: { fontSize: 15 },
-  tabTextActive: { color: '#ffffff', fontWeight: '700' },
-  tabTextInactive: { color: '#94a3b8', fontWeight: '400' },
+  tabText: { fontSize: 15, fontFamily: 'Inter-Regular' },
+  tabTextActive: { color: '#ffffff', fontWeight: '700', fontFamily: 'Inter-Bold' },
+  tabTextInactive: { color: '#94a3b8', fontWeight: '400', fontFamily: 'Inter-Regular' },
   tabUnderline: {
     position: 'absolute', bottom: 0, left: 24, right: 24,
     height: 2, backgroundColor: '#ffffff', borderRadius: 1,

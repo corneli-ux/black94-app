@@ -22,7 +22,7 @@ export function HighlightedCaption({ text, style }: { text: string; style: any }
     <Text style={style}>
       {parts.map((part, i) =>
         /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
-          <Text key={i} style={{ color: '#2a7fff' }}>{part}</Text>
+          <Text key={i} style={{ color: '#1d9bf0' }}>{part}</Text>
         ) : (
           <Text key={i}>{part}</Text>
         )
@@ -58,7 +58,7 @@ function AnimatedHeart({ visible }: { visible: boolean }) {
   return (
     <View style={PostCardStyles.heartOverlay} pointerEvents="none">
       <Animated.View style={{ transform: [{ scale }], opacity }}>
-        <HeartIcon size={96} color="#f43f5e" filled />
+        <HeartIcon size={96} color="#f91880" filled />
       </Animated.View>
     </View>
   );
@@ -139,9 +139,9 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     <View style={PostCardStyles.postCard}>
       <AnimatedHeart visible={showHeart} />
 
-      {/* Main row: avatar + content */}
+      {/* Main row: avatar + content — name top-aligned with avatar */}
       <View style={PostCardStyles.contentRow}>
-        {/* Avatar — aligned to top with header, not stretched */}
+        {/* Avatar — aligned to top, level with display name */}
         <TouchableOpacity
           onPress={navigateToProfile}
           activeOpacity={0.7}
@@ -151,7 +151,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
         </TouchableOpacity>
 
-        {/* Content column */}
+        {/* Content column — tight to the right of avatar */}
         <View style={PostCardStyles.contentColumn}>
           {/* Header row: name/badge/username/time ... moreBtn */}
           <View style={PostCardStyles.headerRow}>
@@ -183,7 +183,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </TouchableOpacity>
           </View>
 
-          {/* Caption — tappable to open comments */}
+          {/* Caption — immediately below header, no extra margin */}
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={navigateToComments}
@@ -217,8 +217,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </TouchableOpacity>
           )}
 
-          {/* ── Action bar — rebuilt from scratch ──────────────────── */}
-          {/* Layout: [Reply] [Repost] [Like] [Chart] [Bookmark | Share] */}
+          {/* ── Action bar — X-style: left-aligned, under content ──── */}
           <View style={PostCardStyles.actions}>
 
             {/* Reply */}
@@ -226,9 +225,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               style={PostCardStyles.actionBtn}
               onPress={navigateToComments}
             >
-              <View style={PostCardStyles.actionIconWrap}>
-                <ReplyIcon size={18} color={INACTIVE} />
-              </View>
+              <ReplyIcon size={18} color={INACTIVE} />
               {formatCount(post.commentCount) ? (
                 <Text style={PostCardStyles.actionCount}>{formatCount(post.commentCount)}</Text>
               ) : null}
@@ -236,11 +233,9 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
             {/* Repost */}
             <TouchableOpacity style={PostCardStyles.actionBtn} onPress={handleRepostPress}>
-              <View style={PostCardStyles.actionIconWrap}>
-                <RepostIcon size={18} color={isReposted ? '#10b981' : INACTIVE} />
-              </View>
+              <RepostIcon size={18} color={isReposted ? '#00ba7c' : INACTIVE} />
               {formatCount(localRepostCount) ? (
-                <Text style={[PostCardStyles.actionCount, isReposted && { color: '#10b981' }]}>
+                <Text style={[PostCardStyles.actionCount, isReposted && { color: '#00ba7c' }]}>
                   {formatCount(localRepostCount)}
                 </Text>
               ) : null}
@@ -248,35 +243,27 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
             {/* Heart / Like */}
             <TouchableOpacity style={PostCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
-              <View style={PostCardStyles.actionIconWrap}>
-                <HeartIcon size={18} color={post.liked ? '#f43f5e' : INACTIVE} filled={post.liked} />
-              </View>
+              <HeartIcon size={18} color={post.liked ? '#f91880' : INACTIVE} filled={post.liked} />
               {formatCount(post.likeCount) ? (
-                <Text style={[PostCardStyles.actionCount, post.liked && { color: '#f43f5e' }]}>
+                <Text style={[PostCardStyles.actionCount, post.liked && { color: '#f91880' }]}>
                   {formatCount(post.likeCount)}
                 </Text>
               ) : null}
             </TouchableOpacity>
 
-            {/* Chart / Analytics */}
+            {/* Analytics / Views */}
             <TouchableOpacity style={PostCardStyles.actionBtn} disabled>
-              <View style={PostCardStyles.actionIconWrap}>
-                <ChartIcon size={18} color={INACTIVE} />
-              </View>
+              <ChartIcon size={18} color={INACTIVE} />
             </TouchableOpacity>
 
-            {/* Bookmark + Share — grouped at the end */}
+            {/* Bookmark + Share */}
             <View style={PostCardStyles.actionPair}>
               <TouchableOpacity style={PostCardStyles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
-                <View style={PostCardStyles.actionIconWrap}>
-                  <BookmarkIcon size={18} color={post.bookmarked ? '#ffffff' : INACTIVE} filled={post.bookmarked} />
-                </View>
+                <BookmarkIcon size={18} color={post.bookmarked ? '#1d9bf0' : INACTIVE} filled={post.bookmarked} />
               </TouchableOpacity>
 
               <TouchableOpacity style={PostCardStyles.actionBtn} onPress={handleShare}>
-                <View style={PostCardStyles.actionIconWrap}>
-                  <ShareIcon size={18} color={INACTIVE} />
-                </View>
+                <ShareIcon size={18} color={INACTIVE} />
               </TouchableOpacity>
             </View>
           </View>
@@ -288,13 +275,13 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
 export default PostCard;
 
-/* ── PostCard Styles ──────────────────────────────────────────────────── */
+/* ── PostCard Styles — X/Twitter-matched ─────────────────────────────── */
 export const PostCardStyles = StyleSheet.create({
   postCard: {
     backgroundColor: '#000000',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    paddingTop: 2,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+    paddingTop: 12,
     paddingBottom: 4,
     paddingHorizontal: 12,
   },
@@ -308,6 +295,7 @@ export const PostCardStyles = StyleSheet.create({
   },
   avatarWrap: {
     alignSelf: 'flex-start',
+    marginTop: 0,
   },
   headerRow: {
     flexDirection: 'row',
@@ -322,20 +310,25 @@ export const PostCardStyles = StyleSheet.create({
     flexWrap: 'nowrap',
     overflow: 'hidden',
   },
+  /* X uses Inter — exact same font loaded in App.js */
   displayName: {
+    fontFamily: 'Inter-Bold',
     color: '#e7e9ea',
     fontWeight: '700',
     fontSize: 15,
   },
   username: {
+    fontFamily: 'Inter-Regular',
     color: '#71767b',
     fontSize: 15,
   },
   dot: {
+    fontFamily: 'Inter-Regular',
     color: '#71767b',
     fontSize: 15,
   },
   time: {
+    fontFamily: 'Inter-Regular',
     color: '#71767b',
     fontSize: 15,
   },
@@ -344,18 +337,20 @@ export const PostCardStyles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
+    borderRadius: 999,
   },
+  /* Caption immediately follows header — no marginTop */
   caption: {
+    fontFamily: 'Inter-Regular',
     color: '#e7e9ea',
     fontSize: 15,
     lineHeight: 20,
     marginTop: 0,
   },
   seeMore: {
-    color: '#2a7fff',
+    fontFamily: 'Inter-Regular',
+    color: '#1d9bf0',
     fontSize: 15,
-    fontWeight: '700',
     marginTop: 0,
   },
   mediaContainer: {
@@ -370,27 +365,27 @@ export const PostCardStyles = StyleSheet.create({
     aspectRatio: 4 / 3,
     backgroundColor: '#111111',
   },
+  /* ── Action bar — X style: left-aligned, no space-between ── */
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 4,
+    marginTop: 8,
+    maxWidth: 425,
+    marginLeft: -8,
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 34,
+    minWidth: 34,
+    paddingHorizontal: 6,
   },
   actionPair: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  actionIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   actionCount: {
+    fontFamily: 'Inter-Regular',
     color: '#71767b',
     fontSize: 13,
     marginLeft: 2,

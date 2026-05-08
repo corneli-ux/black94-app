@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
     backgroundColor: '#000000',
   },
-  headerTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '800' },
+  headerTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '800', fontFamily: 'Inter-Bold' },
 
   /* ── Post Preview ── */
   postPreview: {
@@ -351,11 +351,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  postPreviewName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  postPreviewHandle: { color: '#71767b', fontSize: 14 },
+  postPreviewName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, fontFamily: 'Inter-Bold' },
+  postPreviewHandle: { color: '#71767b', fontSize: 14, fontFamily: 'Inter-Regular' },
   postCaptionWrap: { marginBottom: 8 },
-  postCaption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20 },
-  seeMore: { color: '#2a7fff', fontSize: 15, fontWeight: '600', marginTop: 2 },
+  postCaption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, fontFamily: 'Inter-Regular' },
+  seeMore: { color: '#1d9bf0', fontSize: 15, fontWeight: '600', marginTop: 2, fontFamily: 'Inter-Bold' },
   postMedia: {
     width: '100%',
     height: 220,
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.06)',
     paddingTop: 8,
   },
-  postStatsText: { color: '#71767b', fontSize: 13 },
+  postStatsText: { color: '#71767b', fontSize: 13, fontFamily: 'Inter-Regular' },
   postActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -391,8 +391,8 @@ const styles = StyleSheet.create({
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyListContent: { flexGrow: 1 },
   emptyWrap: { alignItems: 'center', paddingTop: 100 },
-  emptyTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '700', marginTop: 12 },
-  emptySub: { color: '#64748b', fontSize: 15, marginTop: 4 },
+  emptyTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '700', marginTop: 12, fontFamily: 'Inter-Bold' },
+  emptySub: { color: '#64748b', fontSize: 15, marginTop: 4, fontFamily: 'Inter-Regular' },
   commentRow: {
     flexDirection: 'row', gap: 10,
     paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12,
@@ -403,10 +403,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     marginBottom: 2, flexWrap: 'wrap',
   },
-  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  commentHandle: { color: '#71767b', fontSize: 15 },
-  commentTime: { color: '#71767b', fontSize: 15 },
-  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
+  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, fontFamily: 'Inter-Bold' },
+  commentHandle: { color: '#71767b', fontSize: 15, fontFamily: 'Inter-Regular' },
+  commentTime: { color: '#71767b', fontSize: 15, fontFamily: 'Inter-Regular' },
+  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2, fontFamily: 'Inter-Regular' },
 
   /* ── Action bar ── */
   commentActions: {
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
     minHeight: 36, maxHeight: 100, justifyContent: 'center',
   },
-  input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },
+  input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80, fontFamily: 'Inter-Regular' },
   sendBtn: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
@@ -455,6 +455,6 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.06)',
     backgroundColor: '#000000',
   },
-  replyingBarText: { color: '#94a3b8', fontSize: 14 },
-  replyingBarName: { color: '#e7e9ea', fontWeight: '700' },
+  replyingBarText: { color: '#94a3b8', fontSize: 14, fontFamily: 'Inter-Regular' },
+  replyingBarName: { color: '#e7e9ea', fontWeight: '700', fontFamily: 'Inter-Bold' },
 });

@@ -1,14 +1,14 @@
 import React from 'react';
 import Svg, { Path, Polyline, Circle, Rect, Line } from 'react-native-svg';
 
-/* ── Reply / Chat Bubble Icon ────────────────────────────────────────────
- *  Clean chat bubble outline with tail pointing bottom-LEFT.
- *  Thin stroke, no fill.
+/* ── Reply Icon (X/Twitter style) ─────────────────────────────────────────
+ *  Premium chat bubble — rounded rect body with a curved tail
+ *  pointing bottom-left. Slightly thicker stroke, softer feel.
  * ────────────────────────────────────────────────────────────────────────── */
 export function ReplyIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M3 3h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2z" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
     </Svg>
   );
 }
@@ -52,16 +52,15 @@ export function ShareIcon({ size = 18, color = '#94a3b8' }: { size?: number; col
   );
 }
 
-/* ── Chart / Bar Analytics Icon (replaces ViewsIcon) ──────────────────────
- *  Three vertical bars of different heights.
- *  No fill, stroke only.
+/* ── Analytics Icon (X/Twitter style) ────────────────────────────────────────
+ *  Three ascending bars inside a rounded rectangle frame.
+ *  Premium, minimal, chart-style.
  * ────────────────────────────────────────────────────────────────────────── */
 export function ChartIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8}>
-      <Rect x="3" y="12" width="4" height="9" rx="1" />
-      <Rect x="10" y="7" width="4" height="14" rx="1" />
-      <Rect x="17" y="3" width="4" height="18" rx="1" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M3 3v18h18" />
+      <Path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
     </Svg>
   );
 }
