@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { useAppStore } from '../stores/app';
 import PostCard from '../components/PostCard';
+import { ReplyIcon } from '../components/Icons';
 import { Avatar } from '../components/Avatar';
 
 const { width: SCREEN_W } = Dimensions.get('window');
