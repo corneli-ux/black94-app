@@ -190,7 +190,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : undefined}>
+    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'android' ? 'height' : 'padding'} keyboardVerticalOffset={0}>
       {/* Header — web: bg-[#000000]/90 backdrop-blur-xl, px-4 py-2.5 */}
       <View style={[styles.header, { paddingTop: Math.max(8, insets.top - 4) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -277,12 +277,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         />
       )}
 
-      {/* Input bar — matches web ChatInputBar */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
-        style={{ backgroundColor: '#000000' }}
-      >
+      {/* Input bar — always above keyboard */}
+      <View style={{ backgroundColor: '#000000' }}>
         <View style={[
           styles.inputRow,
           { paddingBottom: Math.max(8, insets.bottom) }
@@ -331,7 +327,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             }
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </KeyboardAvoidingView>
   );
 }

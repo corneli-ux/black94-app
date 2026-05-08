@@ -162,7 +162,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   );
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'android' ? 'height' : 'padding'} keyboardVerticalOffset={0}>
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>

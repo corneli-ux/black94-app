@@ -287,7 +287,7 @@ export const PostCardStyles = StyleSheet.create({
   },
   contentRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
   contentColumn: {
     flex: 1,
@@ -299,7 +299,7 @@ export const PostCardStyles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
   headerNameRow: {
@@ -316,11 +316,13 @@ export const PostCardStyles = StyleSheet.create({
     color: '#e7e9ea',
     fontWeight: '700',
     fontSize: 15,
+    lineHeight: 20,
   },
   username: {
     fontFamily: 'Inter-Regular',
     color: '#71767b',
     fontSize: 15,
+    lineHeight: 20,
   },
   dot: {
     fontFamily: 'Inter-Regular',
