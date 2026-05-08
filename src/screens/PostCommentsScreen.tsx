@@ -1,31 +1,13 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Image as RNImage,
-  ScrollView,
-  Dimensions,
+  View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Image as RNImage,
+  ScrollView, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ReplyIcon,
-  RepostIcon,
-  HeartIcon,
-  BookmarkIcon,
-  ShareIcon,
-  ChartIcon,
-  ImageIcon,
-  GIFIcon,
-  EmojiIcon,
-  CameraIcon,
-  formatCount,
+  ReplyIcon, RepostIcon, HeartIcon, BookmarkIcon, ShareIcon,
+  ChartIcon, ImageIcon, GIFIcon, EmojiIcon, CameraIcon, formatCount,
 } from '../components/Icons';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { CommentData, fetchPostComments, addPostComment } from '../lib/api';
@@ -399,7 +381,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             />
           )}
 
-          {/* Action bar */}
+          {/* Action bar — improved padding & alignment */}
           <View style={styles.commentActions}>
             <TouchableOpacity
               style={styles.commentActionBtn}
@@ -771,10 +753,10 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         data={comments}
         keyExtractor={(item: CommentData) => item.id}
         renderItem={renderComment}
-        contentContainerStyle={
+        contentContainerStyle={{
           comments.length === 0 && !loading ? styles.emptyListContent : undefined
-        }
-        ListEmptyComponent={
+        }}
+        ListEmptyComponent={{
           loading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color="#94a3b8" size="small" />
@@ -786,7 +768,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               <Text style={styles.emptySub}>Be the first to share your thoughts.</Text>
             </View>
           )
-        }
+        }}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
         keyboardShouldPersistTaps="handled"
       />
@@ -824,11 +806,11 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             <TextInput
               ref={inputRef}
               style={styles.input}
-              placeholder={
+              placeholder={{
                 replyingTo
                   ? `Reply to @${replyingTo.username}...`
                   : 'Add a comment...'
-              }
+              }}
               placeholderTextColor="#64748b"
               value={text}
               onChangeText={setText}
@@ -864,7 +846,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           </TouchableOpacity>
         </View>
 
-        {/* ── Media Action Toolbar ── */}
+        {/* ── Media Action Toolbar — improved spacing */}
         <View style={styles.mediaToolbar}>
           {/* Photo gallery */}
           <TouchableOpacity style={styles.mediaToolBtn} onPress={pickImage}>
@@ -904,7 +886,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   STYLES
+   STYLES — Improved padding & alignment for reply sheet + reactions
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const styles = StyleSheet.create({
@@ -994,7 +976,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     maxWidth: 360,
-    marginTop: 4,
+    marginTop: 6,
     paddingBottom: 4,
   },
   postActionBtn: {
@@ -1035,11 +1017,11 @@ const styles = StyleSheet.create({
   },
   commentRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
     paddingLeft: 16,
     paddingRight: 16,
-    paddingTop: 4,
-    paddingBottom: 12,
+    paddingTop: 6,
+    paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
   },
@@ -1051,7 +1033,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 2,
+    marginBottom: 4,
     flexWrap: 'wrap',
   },
   commentName: {
@@ -1074,15 +1056,15 @@ const styles = StyleSheet.create({
     color: '#e7e9ea',
     fontSize: 15,
     lineHeight: 20,
-    marginTop: 2,
+    marginTop: 4,
     fontFamily: 'Inter-Regular',
   },
 
   /* ── Comment Media ── */
   commentMediaRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: 8,
+    gap: 8,
+    marginTop: 10,
   },
   commentMediaImage: {
     width: 120,
@@ -1094,35 +1076,35 @@ const styles = StyleSheet.create({
     width: 180,
     height: 120,
     borderRadius: 12,
-    marginTop: 8,
+    marginTop: 10,
     backgroundColor: '#111',
   },
 
-  /* ── Action Bar ── */
+  /* ── Action Bar — improved padding & alignment */}
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
     marginLeft: -4,
     maxWidth: 440,
     justifyContent: 'space-between',
   },
   actionIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionPair: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 0,
+    gap: 4,
   },
   commentActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 1,
+    gap: 2,
   },
 
   /* ── Replying Bar ── */
@@ -1131,7 +1113,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(255,255,255,0.06)',
     backgroundColor: '#000000',
@@ -1155,26 +1137,26 @@ const styles = StyleSheet.create({
   /* ── Image Strip ── */
   imageStripContent: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
+    paddingVertical: 10,
+    gap: 10,
     backgroundColor: '#000000',
   },
   imageStripItem: {
     position: 'relative',
   },
   imageStripThumb: {
-    width: 64,
-    height: 64,
-    borderRadius: 10,
+    width: 68,
+    height: 68,
+    borderRadius: 12,
     backgroundColor: '#16181c',
   },
   imageStripRemove: {
     position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: -5,
+    right: -5,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: 'rgba(0,0,0,0.75)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1183,7 +1165,7 @@ const styles = StyleSheet.create({
   },
   imageStripRemoveText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     fontFamily: 'Inter-Bold',
   },
@@ -1193,17 +1175,17 @@ const styles = StyleSheet.create({
     left: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 3,
     backgroundColor: 'rgba(0,0,0,0.75)',
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
   },
   imageStripGifText: {
     color: '#f59e0b',
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: '700',
     fontFamily: 'Inter-Bold',
   },
@@ -1217,29 +1199,29 @@ const styles = StyleSheet.create({
   },
   emojiCategoryTabs: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
+    paddingVertical: 10,
+    gap: 10,
   },
   emojiCategoryTab: {
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-    gap: 4,
+    gap: 6,
   },
   emojiCategoryTabActive: {
     backgroundColor: 'rgba(42,127,255,0.15)',
     borderColor: 'rgba(42,127,255,0.4)',
   },
   emojiCategoryIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   emojiCategoryName: {
     color: '#71767b',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     fontFamily: 'Inter-SemiBold',
   },
@@ -1247,21 +1229,21 @@ const styles = StyleSheet.create({
     color: '#2a7fff',
   },
   emojiGrid: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
   },
   emojiRow: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
   },
   emojiBtn: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emojiChar: {
-    fontSize: 26,
+    fontSize: 28,
   },
 
   /* ── GIF Picker ── */
@@ -1270,23 +1252,23 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(255,255,255,0.08)',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   gifPickerTitle: {
     color: '#e7e9ea',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     fontFamily: 'Inter-Bold',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   gifScrollContent: {
-    gap: 8,
-    paddingBottom: 4,
+    gap: 10,
+    paddingBottom: 6,
   },
   gifThumb: {
-    width: 100,
-    height: 100,
-    borderRadius: 12,
+    width: 104,
+    height: 104,
+    borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: 'transparent',
@@ -1301,18 +1283,18 @@ const styles = StyleSheet.create({
   },
   gifCheckOverlay: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#2a7fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   gifCheckIcon: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     fontFamily: 'Inter-Bold',
   },
@@ -1321,9 +1303,9 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.06)',
     backgroundColor: '#000000',
@@ -1331,24 +1313,24 @@ const styles = StyleSheet.create({
   inputWrap: {
     flex: 1,
     backgroundColor: '#16181c',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    minHeight: 36,
-    maxHeight: 100,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minHeight: 40,
+    maxHeight: 110,
     justifyContent: 'center',
   },
   input: {
     color: '#e7e9ea',
-    fontSize: 15,
-    lineHeight: 20,
-    maxHeight: 80,
+    fontSize: 16,
+    lineHeight: 22,
+    maxHeight: 90,
     fontFamily: 'Inter-Regular',
   },
   sendBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1359,7 +1341,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   sendBtnText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     fontFamily: 'Inter-Bold',
   },
@@ -1370,21 +1352,21 @@ const styles = StyleSheet.create({
     color: '#555',
   },
 
-  /* ── Media Toolbar ── */
+  /* ── Media Toolbar — improved spacing */}
   mediaToolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: 6,
+    gap: 8,
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    paddingTop: 4,
+    paddingBottom: 14,
+    paddingTop: 6,
     backgroundColor: '#000000',
   },
   mediaToolBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.04)',
