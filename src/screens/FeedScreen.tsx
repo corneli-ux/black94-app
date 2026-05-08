@@ -438,7 +438,7 @@ export default function FeedScreen({ navigation }: any) {
       // Batch fetch author profiles
       const uniqueAuthorIds = [...new Set(newPosts.map(p => p.authorId).filter(Boolean))];
       const authorProfileMap: Record<string, any> = {};
-      const CHUNK_SIZE = 30;
+      const CHUNK_SIZE = 10; // Firestore IN operator max is 10
 
       for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
         const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
@@ -678,11 +678,13 @@ export default function FeedScreen({ navigation }: any) {
         nestedScrollEnabled={true}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )
-        }
+        onScroll={(e) => {
+          // Animated.event is deprecated; use direct value set instead
+          try {
+            const y = e.nativeEvent?.contentOffset?.y ?? 0;
+            scrollY.setValue(y);
+          } catch {}
+        }}
         ListFooterComponent={
           loadingMore ? (
             <View style={styles.loadMoreIndicator}>

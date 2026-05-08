@@ -14,11 +14,8 @@ import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
 import { fetchUserProfile } from './src/lib/api';
 
-// Set global default font — clean system font for all text
-if (Text.defaultProps == null) {
-  Text.defaultProps = {};
-}
-Text.defaultProps.style = { fontFamily: 'System', color: '#e7e9ea' };
+// NOTE: Text.defaultProps mutation was removed in RN 0.73+
+// Default styles are now set explicitly on each <Text> or via a wrapper component.
 
 // Prevent native splash from auto-hiding before JS is ready
 // Wrap in try-catch — no-op on web
@@ -82,11 +79,9 @@ export default function App() {
           'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
           'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
         });
-        Text.defaultProps.style = { fontFamily: 'Inter-Regular', color: '#e7e9ea' };
         console.log('[App] Fonts loaded — Inter');
       } catch (e) {
         console.warn('[App] Font loading failed, using system default:', e);
-        Text.defaultProps.style = { fontFamily: 'System', color: '#e7e9ea' };
       }
       setFontsLoaded(true);
     })();
