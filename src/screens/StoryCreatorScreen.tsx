@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, firestore } from '../lib/firebase';
+import { uploadFile, getFilePath } from '../lib/storage';
 import { fetchUserProfile } from '../lib/api';
 import { colors } from '../theme/colors';
 
@@ -37,9 +38,11 @@ const FONT_SIZES = [
   { value: 56, label: 'Extra Large' },
 ];
 
-// TODO: Implement image upload to Firebase Storage
-async function uploadImage(_uri: string, _path: string): Promise<string> {
-  return _uri;
+// Upload image to Firebase Storage
+async function uploadImage(uri: string, filename: string): Promise<string> {
+  const uid = auth()?.currentUser?.uid ?? 'anon';
+  const path = getFilePath('stories', filename, uid);
+  return uploadFile(uri, path);
 }
 
 // Lazy image picker
@@ -153,7 +156,7 @@ export default function StoryCreatorScreen({ navigation }: any) {
         if (imageUri && !imageUri.startsWith('http')) {
           mediaUrl = await uploadImage(
             imageUri,
-            `stories/${currentUid}/${Date.now()}.jpg`,
+            `${Date.now()}.jpg`,
           );
         } else {
           mediaUrl = imageUri;

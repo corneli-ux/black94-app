@@ -18,6 +18,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { initiatePayment, PLANS, formatAmount } from '../lib/payments';
+import type { PaymentPlan } from '../lib/payments';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -50,6 +52,12 @@ const USAGE_DATA = {
   storage: { current: 12, limit: 50 },
 };
 
+// Map plan types to payment plan IDs
+const PLAN_ID_MAP: Record<string, string> = {
+  premium: 'pro_monthly',
+  business: 'pro_yearly',
+};
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function PremiumDashboardScreen() {
@@ -63,24 +71,85 @@ export default function PremiumDashboardScreen() {
     setLoading(false);
   }, [user]);
 
-  const handleUpgrade = useCallback((plan: PlanType) => {
-    Alert.alert(
-      `Upgrade to ${plan.charAt(0).toUpperCase() + plan.slice(1)}`,
-      plan === 'premium'
-        ? 'Get access to advanced features, analytics, and more.\n\n₹499/month'
-        : 'Full business suite: CRM, shop, ads, analytics.\n\n₹1,499/month',
-      [
+  const [processing, setProcessing] = useState(false);
+
+  const handleUpgrade = useCallback(
+    (plan: PlanType) => {
+      const planId = PLAN_ID_MAP[plan];
+      const paymentPlan = PLANS.find((p) => p.id === planId);
+
+      if (!paymentPlan) {
+        Alert.alert('Error', 'Selected plan is not available.');
+        return;
+      }
+
+      const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+      const priceLabel = formatAmount(paymentPlan.amount);
+      const durationLabel = paymentPlan.duration === 'yearly' ? '/year' : '/month';
+      const description =
+        plan === 'premium'
+          ? `Get access to advanced features, analytics, and more.\n\n${priceLabel}${durationLabel}`
+          : `Full business suite: CRM, shop, ads, analytics.\n\n${priceLabel}${durationLabel}`;
+
+      Alert.alert(`Upgrade to ${planLabel}`, description, [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Upgrade',
+          text: 'Pay Now',
           style: 'default',
-          onPress: () => {
-            Alert.alert('Coming Soon', 'Payment integration in progress.');
-          },
+          onPress: () => processPayment(paymentPlan),
         },
-      ],
-    );
-  }, []);
+      ]);
+    },
+    [],
+  );
+
+  const processPayment = useCallback(
+    async (paymentPlan: PaymentPlan) => {
+      if (!user) {
+        Alert.alert('Error', 'You must be signed in to upgrade.');
+        return;
+      }
+
+      if (processing) return;
+      setProcessing(true);
+
+      try {
+        const result = await initiatePayment({
+          plan: paymentPlan,
+          userId: user.id,
+          userEmail: user.email,
+          userName: user.displayName,
+        });
+
+        if (result.success && result.paymentId) {
+          Alert.alert(
+            'Payment Successful',
+            `Payment ID: ${result.paymentId}\n\nYour ${paymentPlan.name} subscription is now active.`,
+            [
+              {
+                text: 'Great!',
+                onPress: () => {
+                  // Update local plan state
+                  if (paymentPlan.duration === 'monthly') {
+                    setCurrentPlan('premium');
+                  } else {
+                    setCurrentPlan('business');
+                  }
+                },
+              },
+            ],
+          );
+        } else {
+          Alert.alert('Payment Failed', result.error || 'Something went wrong. Please try again.');
+        }
+      } catch (err: any) {
+        Alert.alert('Payment Error', err?.message || 'An unexpected error occurred.');
+      } finally {
+        setProcessing(false);
+      }
+    },
+    [user, processing],
+  );
 
   const planIcon = (plan: PlanType) => {
     switch (plan) {

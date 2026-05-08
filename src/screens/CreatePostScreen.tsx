@@ -26,6 +26,8 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
+import { uploadFile, getFilePath } from '../lib/storage';
+import { auth } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { ImageIcon, GIFIcon, EmojiIcon, CameraIcon } from '../components/Icons';
 
@@ -96,6 +98,7 @@ const CreatePostScreen: React.FC = () => {
   const [caption, setCaption] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeEmojiCat, setActiveEmojiCat] = useState(0);
 
@@ -152,21 +155,13 @@ const CreatePostScreen: React.FC = () => {
 
   // ── GIF picker (opens image picker filtered to GIF) ────────────────────
 
-  const handleGIF = useCallback(async () => {
-    try {
-      const { launchImageLibrary } = require('react-native-image-picker');
-      const result = await launchImageLibrary({
-        mediaType: 'photo',
-        quality: 1,
-        selectionLimit: 1,
-      });
-      if (result.didCancel || result.errorCode || !result.assets?.length) return;
-      const uri = result.assets[0].uri;
-      if (uri) setSelectedImages((prev) => [...prev, uri]);
-    } catch (err) {
-      Alert.alert('GIF', 'Unable to pick GIF.');
-    }
-  }, []);
+  const handleGIF = useCallback(() => {
+    navigation.navigate('GifPicker' as never, {
+      onSelect: (gifUrl: string) => {
+        setSelectedImages((prev) => [...prev, gifUrl]);
+      },
+    } as never);
+  }, [navigation]);
 
   // ── Emoji ────────────────────────────────────────────────────────────
 
@@ -180,10 +175,25 @@ const CreatePostScreen: React.FC = () => {
     if (!canPost || !user) return;
     setPosting(true);
     try {
-      await createPost(caption.trim(), selectedImages);
+      // Upload images to Firebase Storage first
+      let mediaUrls = selectedImages;
+      if (selectedImages.length > 0) {
+        setUploading(true);
+        const uid = auth()?.currentUser?.uid || user.id;
+        const uploadPromises = selectedImages.map((uri) => {
+          const filename = uri.split('/').pop() || `image_${Date.now()}.jpg`;
+          const path = getFilePath('posts', filename, uid);
+          return uploadFile(uri, path);
+        });
+        mediaUrls = await Promise.all(uploadPromises);
+        setUploading(false);
+      }
+
+      await createPost(caption.trim(), mediaUrls);
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err) {
+      setUploading(false);
       console.error('[CreatePost] Failed to create post:', err);
       Alert.alert(
         'Post failed',
@@ -215,7 +225,13 @@ const CreatePostScreen: React.FC = () => {
         activeOpacity={0.7}
       >
         {posting ? (
-          <ActivityIndicator size="small" color="#ffffff" />
+          uploading ? (
+            <Text style={[styles.headerPostText, styles.headerPostTextActive]}>
+              Uploading...
+            </Text>
+          ) : (
+            <ActivityIndicator size="small" color="#ffffff" />
+          )
         ) : (
           <Text
             style={[
@@ -230,7 +246,7 @@ const CreatePostScreen: React.FC = () => {
         )}
       </TouchableOpacity>
     ),
-    [canPost, posting, handlePost],
+    [canPost, posting, uploading, handlePost],
   );
 
   return (

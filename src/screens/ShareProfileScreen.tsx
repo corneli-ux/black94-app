@@ -166,12 +166,28 @@ export default function ShareProfileScreen({ route, navigation }: any) {
         </Text>
       </View>
 
-      {/* QR Code Placeholder */}
+      {/* Profile Link Card */}
       <View style={styles.qrSection}>
-        <Text style={styles.sectionLabel}>QR Code</Text>
+        <Text style={styles.sectionLabel}>Profile Link</Text>
         <View style={styles.qrPlaceholder}>
-          <Text style={styles.qrInitial}>{initial}</Text>
-          <Text style={styles.qrSubtext}>@{user.username}</Text>
+          <View style={styles.qrCardInner}>
+            <View style={styles.qrIconRow}>
+              <Text style={styles.qrInitial}>{initial}</Text>
+              <Text style={styles.qrCardHandle}>@{user.username}</Text>
+            </View>
+            <Text style={styles.qrLinkText} numberOfLines={1}>
+              black94.app/u/{user.username}
+            </Text>
+            <TouchableOpacity
+              onPress={handleCopyLink}
+              style={[styles.qrCopyBtn, copied && styles.qrCopyBtnCopied]}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.qrCopyBtnText, copied && styles.qrCopyBtnTextCopied]}>
+                {copied ? '✓ Copied' : 'Copy Link'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -249,12 +265,22 @@ const styles = StyleSheet.create({
   qrSection: { paddingHorizontal: 16, marginTop: 24 },
   sectionLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 10, textTransform: 'uppercase' },
   qrPlaceholder: {
-    width: 160, height: 160, borderRadius: 16, backgroundColor: colors.surface,
+    width: '100%', borderRadius: 16, backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
+    padding: 20, alignSelf: 'center',
   },
-  qrInitial: { color: colors.accent, fontSize: 48, fontWeight: '800' },
-  qrSubtext: { color: colors.textSecondary, fontSize: 13, marginTop: 6 },
+  qrCardInner: { alignItems: 'center' },
+  qrIconRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  qrInitial: { color: colors.accent, fontSize: 36, fontWeight: '800' },
+  qrCardHandle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  qrLinkText: { color: colors.textSecondary, fontSize: 13, marginBottom: 16, textAlign: 'center' },
+  qrCopyBtn: {
+    backgroundColor: colors.accent, borderRadius: 10,
+    paddingHorizontal: 24, paddingVertical: 10,
+  },
+  qrCopyBtnCopied: { backgroundColor: colors.accentGreen },
+  qrCopyBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  qrCopyBtnTextCopied: { color: '#fff' },
   linkSection: { paddingHorizontal: 16, marginTop: 28 },
   linkRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   linkBox: {
