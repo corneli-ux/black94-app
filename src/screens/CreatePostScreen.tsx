@@ -20,7 +20,6 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import type { ImagePickerResponse, launchImageLibrary } from 'react-native-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -60,20 +59,21 @@ const EMOJI_CATEGORIES = [
   { name: 'Objects', icon: '\uD83C\uDF89', emojis: ['\uD83D\uDD25','\u2B50','\uD83C\uDF1F','\uD83D\uDCAB','\u2728','\u26A1','\uD83C\uDF89','\uD83C\uDF8A','\uD83C\uDF88','\uD83C\uDF81','\uD83C\uDFC6','\uD83E\uDD47','\uD83E\uDD48','\uD83E\uDD49','\u26BD','\uD83C\uDFC0','\uD83C\uDFC8','\u26BE','\uD83C\uDFAE','\uD83C\uDFAF','\uD83C\uDFB5','\uD83C\uDFB6','\uD83C\uDFB8','\uD83C\uDFB4','\uD83C\uDFAC','\uD83D\uDCF7','\uD83D\uDCF1','\uD83D\uDCBB','\uD83D\uDCA1','\uD83D\uDCCC','\u2705','\u274C','\u26A1'] },
 ];
 
-// ── Image picker helper (lazy import) ────────────────────────────────────────
+// ── Image picker helper (uses expo-image-picker) ─────────────────────────────
 
-async function openImagePicker(limit: number): Promise<ImagePickerResponse> {
+async function openImagePicker(limit: number) {
   try {
-    const { launchImageLibrary } = require('react-native-image-picker');
-    const result: ImagePickerResponse = await (launchImageLibrary as typeof launchImageLibrary)({
-      mediaType: 'mixed',
+    const { launchImageLibrary } = require('expo-image-picker');
+    const result = await launchImageLibrary({
+      mediaTypes: ['images'],
       quality: 0.85,
+      allowsMultipleSelection: limit > 1,
       selectionLimit: limit,
     });
     return result;
   } catch (err) {
     console.error('[CreatePost] Image picker not available:', err);
-    return { assets: [], didCancel: true, errorCode: 'unavailable', errorMessage: 'Image picker not available' };
+    return { canceled: true, assets: [] };
   }
 }
 
@@ -118,12 +118,12 @@ const CreatePostScreen: React.FC = () => {
     }
 
     const result = await openImagePicker(remaining);
-    if (result.didCancel || result.errorCode) return;
+    if (result.canceled) return;
 
     const assets = result.assets ?? [];
     const newUris = assets
-      .filter((a) => a.uri)
-      .map((a) => a.uri!)
+      .filter((a: any) => a.uri)
+      .map((a: any) => a.uri as string)
       .slice(0, remaining);
 
     if (newUris.length > 0) {
@@ -139,13 +139,12 @@ const CreatePostScreen: React.FC = () => {
 
   const handleCamera = useCallback(async () => {
     try {
-      const { launchCamera } = require('react-native-image-picker');
+      const { launchCamera } = require('expo-image-picker');
       const result = await launchCamera({
-        mediaType: 'photo',
+        mediaTypes: ['images'],
         quality: 0.85,
-        selectionLimit: 1,
       });
-      if (result.didCancel || result.errorCode || !result.assets?.length) return;
+      if (result.canceled || !result.assets?.length) return;
       const uri = result.assets[0].uri;
       if (uri) setSelectedImages((prev) => [...prev, uri]);
     } catch (err) {

@@ -281,14 +281,14 @@ export const PostCardStyles = StyleSheet.create({
     backgroundColor: '#000000',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.08)',
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 6,
+    paddingBottom: 6,
     paddingHorizontal: 12,
   },
   contentRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 10,
   },
   contentColumn: {
     flex: 1,
@@ -296,7 +296,7 @@ export const PostCardStyles = StyleSheet.create({
   },
   avatarWrap: {
     alignSelf: 'flex-start',
-    marginTop: 0,
+    marginTop: -1,
   },
   headerRow: {
     flexDirection: 'row',
@@ -311,13 +311,13 @@ export const PostCardStyles = StyleSheet.create({
     flexWrap: 'nowrap',
     overflow: 'hidden',
   },
-  /* X uses Inter — exact same font loaded in App.js */
+  /* X uses Inter — tight lineHeight so text top-edge aligns with avatar top */
   displayName: {
     fontFamily: 'Inter-Bold',
     color: '#e7e9ea',
     fontWeight: '700',
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   username: {
     fontFamily: 'Inter-Regular',
@@ -342,13 +342,13 @@ export const PostCardStyles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 999,
   },
-  /* Caption immediately follows header — no marginTop */
+  /* Caption immediately follows header — gap = same as line spacing within text */
   caption: {
     fontFamily: 'Inter-Regular',
     color: '#e7e9ea',
     fontSize: 15,
     lineHeight: 20,
-    marginTop: 0,
+    marginTop: 2,
   },
   seeMore: {
     fontFamily: 'Inter-Regular',

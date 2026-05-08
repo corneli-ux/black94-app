@@ -20,45 +20,9 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const TABS = ['Discover', 'Network'] as const;
 type Tab = typeof TABS[number];
 
-/* ── Skeleton Loader ──────────────────────────────────────────────────── */
-
-function SkeletonCard() {
-  return (
-    <View style={[styles.postCard, { borderBottomColor: 'transparent' }]}>
-      <View style={styles.contentRow}>
-        <View style={styles.skeletonAvatar} />
-        <View style={{ flex: 1, gap: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={[styles.skeletonLine, { width: 100, height: 14 }]} />
-            <View style={[styles.skeletonLine, { width: 60, height: 14 }]} />
-          </View>
-          <View style={[styles.skeletonLine, { width: '90%', height: 14 }]} />
-          <View style={[styles.skeletonLine, { width: '70%', height: 14 }]} />
-          <View style={[styles.skeletonLine, { width: '40%', height: 14 }]} />
-          <View style={{ flexDirection: 'row', marginTop: 12, gap: 56 }}>
-            {[0, 1, 2, 3].map(i => (
-              <View key={i} style={styles.skeletonDot} />
-            ))}
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function SkeletonFeed() {
-  return (
-    <View>
-      {[0, 1, 2, 3, 4].map(i => (
-        <SkeletonCard key={i} />
-      ))}
-    </View>
-  );
-}
-
 /* ── FeedScreen ───────────────────────────────────────────────────────── */
 
-export default function FeedScreen({ navigation }: any) {
+export default function FeedScreen({ navigation, route }: any) {
   const { user: storeUser } = useAppStore();
   const [posts, setPosts] = useState<Post[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,7 +112,7 @@ export default function FeedScreen({ navigation }: any) {
       // Batch fetch author profiles
       const uniqueAuthorIds = [...new Set(newPosts.map(p => p.authorId).filter(Boolean))];
       const authorProfileMap: Record<string, any> = {};
-      const CHUNK_SIZE = 10; // Firestore IN operator max is 10
+      const CHUNK_SIZE = 10;
 
       for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
         const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
@@ -246,7 +210,6 @@ export default function FeedScreen({ navigation }: any) {
               const actualCount = countSnap.size;
               if (actualCount > 0) {
                 post.commentCount = actualCount;
-                // Also backfill to Firestore so next load is fast
                 firestore().collection('posts').doc(post.id).update({
                   commentCount: actualCount,
                 }).catch(() => {});
@@ -322,26 +285,37 @@ export default function FeedScreen({ navigation }: any) {
   const tabBarHeight = 50 + (insets.bottom || 0);
   const fabBottom = tabBarHeight + 16;
 
-  // Scroll-driven FAB visibility
+  /* ── Scroll-driven FAB + Tab Bar visibility ─────────────────────────── */
   const [fabVisible, setFabVisible] = useState(true);
+  const [tabBarVisible, setTabBarVisible] = useState(true);
   const scrollOffset = useRef(0);
+
+  const hideTabBar = route?.params?.hideTabBar;
+  const showTabBar = route?.params?.showTabBar;
 
   const handleScroll = useCallback((e: any) => {
     try {
       const y = e.nativeEvent?.contentOffset?.y ?? 0;
       scrollY.setValue(y);
+
       if (y > 80 && y > scrollOffset.current + 10) {
+        // Scrolling down — hide both FAB and tab bar
         setFabVisible(false);
+        if (tabBarVisible) {
+          setTabBarVisible(false);
+          hideTabBar?.();
+        }
       } else if (y < scrollOffset.current - 5 || y < 40) {
+        // Scrolling up or near top — show both FAB and tab bar
         setFabVisible(true);
+        if (!tabBarVisible) {
+          setTabBarVisible(true);
+          showTabBar?.();
+        }
       }
       scrollOffset.current = y;
     } catch {}
-  }, [scrollY]);
-
-  // Remove skeleton loading screen — show feed directly with empty state
-  // This prevents the flash of skeleton lines on app open
-  const showContent = true;
+  }, [scrollY, tabBarVisible, hideTabBar, showTabBar]);
 
   return (
     <View style={styles.container}>
@@ -413,19 +387,27 @@ export default function FeedScreen({ navigation }: any) {
           ) : null
         }
         ListEmptyComponent={
-          <View style={{ alignItems: 'center', paddingTop: 80 }}>
-            <View style={styles.emptyIcon}>
-              <ReplyIcon size={36} color={colors.textSecondary} />
+          loading ? (
+            /* Loading state — clean spinner, no skeleton lines */
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color={colors.accent} size="large" />
             </View>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 12 }}>No posts yet</Text>
-            <Text style={{ color: colors.textSecondary, fontSize: 15, marginTop: 4 }}>When people post, their posts will show up here.</Text>
-            <TouchableOpacity
-              style={{ marginTop: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, borderRadius: 8 }}
-              onPress={() => { lastDocRef.current = null; setAllLoaded(false); loadFeed(false); }}
-            >
-              <Text style={{ color: colors.accent, fontSize: 14 }}>Tap to retry</Text>
-            </TouchableOpacity>
-          </View>
+          ) : (
+            /* True empty state — only shown after loading completes with no posts */
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIcon}>
+                <ReplyIcon size={36} color={colors.textSecondary} />
+              </View>
+              <Text style={styles.emptyTitle}>No posts yet</Text>
+              <Text style={styles.emptySubtitle}>When people post, their posts will show up here.</Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => { lastDocRef.current = null; setAllLoaded(false); loadFeed(false); }}
+              >
+                <Text style={styles.retryButtonText}>Tap to retry</Text>
+              </TouchableOpacity>
+            </View>
+          )
         }
         contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
       />
@@ -491,23 +473,50 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 24, right: 24,
     height: 2, backgroundColor: '#ffffff', borderRadius: 1,
   },
-  tabIndicator: {
-    position: 'absolute', bottom: 0,
-    height: 2, backgroundColor: '#ffffff', borderRadius: 1,
+
+  /* ── Loading state ── */
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 120,
+    paddingBottom: 120,
   },
 
-  /* ── Skeleton ── */
-  skeletonAvatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  /* ── Empty state ── */
+  emptyContainer: {
+    alignItems: 'center',
+    paddingTop: 80,
+    paddingBottom: 40,
   },
-  skeletonLine: {
-    height: 14, borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  emptyIcon: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  skeletonDot: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  emptyTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 12,
+    fontFamily: 'Inter-Bold',
+  },
+  emptySubtitle: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    marginTop: 4,
+    fontFamily: 'Inter-Regular',
+  },
+  retryButton: {
+    marginTop: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: colors.accent,
+    fontSize: 14,
   },
 
   /* ── FAB ── */
@@ -524,9 +533,4 @@ const styles = StyleSheet.create({
 
   /* ── Load more ── */
   loadMoreIndicator: { paddingVertical: 20, alignItems: 'center' },
-  emptyIcon: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center', justifyContent: 'center',
-  },
 });
