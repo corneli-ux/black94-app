@@ -288,24 +288,43 @@ export default PostCard;
 
 /* ── PostCard Styles ──────────────────────────────────────────────────── */
 export const PostCardStyles = StyleSheet.create({
-  postCard: { backgroundColor: '#000000', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
+  postCard: {
+    backgroundColor: '#000000',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
   contentRow: { flexDirection: 'row', gap: 10 },
   contentColumn: { flex: 1, minWidth: 0 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, flexWrap: 'nowrap', overflow: 'hidden' },
+  headerNameRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flex: 1, flexWrap: 'nowrap', overflow: 'hidden',
+  },
   displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
   username: { color: '#71767b', fontSize: 15 },
   dot: { color: '#71767b', fontSize: 15 },
   time: { color: '#71767b', fontSize: 15 },
   moreBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
-  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
-  seeMore: { color: '#2a7fff', fontSize: 15, fontWeight: '700', marginTop: 2 },
-  mediaContainer: { marginTop: 12, borderRadius: 16, overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)' },
+  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 0 },
+  seeMore: { color: '#2a7fff', fontSize: 15, fontWeight: '700', marginTop: 0 },
+  mediaContainer: {
+    marginTop: 10, borderRadius: 16, overflow: 'hidden',
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)',
+  },
   media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#111111' },
-  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  actions: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginTop: 4,
+  },
   actionBtn: { flexDirection: 'row', alignItems: 'center' },
   actionPair: { flexDirection: 'row', alignItems: 'center' },
   actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   actionCount: { color: '#71767b', fontSize: 13, marginLeft: 2 },
-  heartOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+  heartOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center', zIndex: 10,
+  },
 });
