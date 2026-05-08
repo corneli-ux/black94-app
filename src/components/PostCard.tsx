@@ -204,7 +204,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             ) : null}
           </TouchableOpacity>
 
-          {/* Media image */}
+          {/* Media image — improved for tall images like X */}
           {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={PostCardStyles.mediaContainer}>
@@ -275,15 +275,15 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
 export default PostCard;
 
-/* ── PostCard Styles — X/Twitter-matched ─────────────────────────────── */
+/* ── PostCard Styles — X/Twitter-matched with better padding & tall image support ─────────────────────────────── */
 export const PostCardStyles = StyleSheet.create({
   postCard: {
     backgroundColor: '#000000',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.08)',
-    paddingTop: 6,
-    paddingBottom: 6,
-    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingHorizontal: 16,  // Increased from 12 for better breathing room
   },
   contentRow: {
     flexDirection: 'row',
@@ -365,14 +365,14 @@ export const PostCardStyles = StyleSheet.create({
   },
   media: {
     width: '100%',
-    aspectRatio: 4 / 3,
+    maxHeight: 420,  // Prevents tall images from dominating the screen (X-style)
     backgroundColor: '#111111',
   },
   /* ── Action bar — X style: left-aligned, no space-between ── */
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 4,
+    marginTop: 6,
     maxWidth: 425,
     marginLeft: -8,
   },
