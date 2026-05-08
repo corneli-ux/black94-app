@@ -10,17 +10,9 @@ import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { Post } from '../lib/api';
 import CommentSheet from '../components/CommentSheet';
-import Svg, { Path } from 'react-native-svg';
+import { ReplyIcon, RepostIcon } from '../components/Icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-
-function ReplyIcon({ size = 18, color = '#71767b' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-    </Svg>
-  );
-}
 
 const formatCount = (n: number | undefined): string => {
   if (!n) return '';
@@ -50,21 +42,22 @@ export default function BookmarksScreen() {
 
       const bookmarkEntries = snap.docs.map(d => ({ id: d.id, postId: d.data().postId })).filter(e => !!e.postId);
       const posts: Post[] = [];
-      const postSnaps = await Promise.all(
-        bookmarkEntries.map(entry => firestore().collection('posts').doc(entry.postId).get().catch(() => null))
-      );
-      for (const postSnap of postSnaps) {
-        if (!postSnap || !postSnap.exists) continue;
-        const data = postSnap.data();
-        posts.push({
-          id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
-          authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
-          authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
-          caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
-          likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
-          repostCount: data.repostCount || 0, liked: false, bookmarked: true, reposted: false,
-          createdAt: tsToMillis(data.createdAt),
-        });
+      for (const entry of bookmarkEntries) {
+        try {
+          const postSnap = await firestore().collection('posts').doc(entry.postId).get();
+          if (postSnap.exists) {
+            const data = postSnap.data();
+            posts.push({
+              id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
+              authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
+              authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
+              caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
+              likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
+              repostCount: data.repostCount || 0, liked: false, bookmarked: true, reposted: false,
+              createdAt: tsToMillis(data.createdAt),
+            });
+          }
+        } catch { /* skip */ }
       }
 
       const uniqueAuthorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean))];
@@ -198,7 +191,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
     <View style={styles.postCard}>
       <View style={styles.contentRow}>
         <TouchableOpacity onPress={() => { if (post.authorId !== auth()?.currentUser?.uid) navigation.navigate('UserProfile', { userId: post.authorId }); }}>
-          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={48} />
+          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
         </TouchableOpacity>
         <View style={styles.contentColumn}>
           <View style={styles.headerRow}>
@@ -218,26 +211,26 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
           )}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
-              <View style={styles.actionIconWrap}><ReplyIcon size={18} color="#71767b" /></View>
+              <View style={styles.actionIconWrap}><ReplyIcon size={18} color="#94a3b8" /></View>
               {formatCount(commentCount) ? <Text style={styles.actionCount}>{formatCount(commentCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={handleRepost}>
-              <View style={styles.actionIconWrap}><Ionicons name="repeat" size={18} color={reposted ? '#10b981' : '#71767b'} /></View>
-              {formatCount(repostCount) ? <Text style={[styles.actionCount, reposted && { color: '#10b981' }]}>{formatCount(repostCount)}</Text> : null}
+              <View style={styles.actionIconWrap}><RepostIcon size={18} color={reposted ? colors.repost : '#94a3b8'} /></View>
+              {formatCount(repostCount) ? <Text style={[styles.actionCount, reposted && { color: colors.repost }]}>{formatCount(repostCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-              <View style={styles.actionIconWrap}><Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? '#f43f5e' : '#71767b'} /></View>
-              {formatCount(likeCount) ? <Text style={[styles.actionCount, liked && { color: '#f43f5e' }]}>{formatCount(likeCount)}</Text> : null}
+              <View style={styles.actionIconWrap}><Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? colors.like : '#94a3b8'} /></View>
+              {formatCount(likeCount) ? <Text style={[styles.actionCount, liked && { color: colors.like }]}>{formatCount(likeCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} disabled>
-              <View style={styles.actionIconWrap}><Ionicons name="trending-up-outline" size={18} color="#71767b" /></View>
+              <View style={styles.actionIconWrap}><Ionicons name="trending-up-outline" size={18} color="#94a3b8" /></View>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
-                <View style={styles.actionIconWrap}><Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarked ? '#FFFFFF' : '#71767b'} /></View>
+                <View style={styles.actionIconWrap}><Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarked ? colors.bookmark : '#94a3b8'} /></View>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-                <View style={styles.actionIconWrap}><Ionicons name="share-outline" size={18} color="#71767b" /></View>
+                <View style={styles.actionIconWrap}><Ionicons name="share-outline" size={18} color="#94a3b8" /></View>
               </TouchableOpacity>
             </View>
           </View>

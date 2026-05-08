@@ -11,24 +11,7 @@ import { useAppStore } from '../stores/app';
 import { auth } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Path, Polyline } from 'react-native-svg';
-
-function ReplyIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-    </Svg>
-  );
-}
-
-function RepostIcon({ size = 16, color = '#94a3b8' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="23 4 23 10 17 10" />
-      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-    </Svg>
-  );
-}
+import { ReplyIcon, RepostIcon as SharedRepostIcon } from '../components/Icons';
 
 interface PostCommentsScreenProps {
   route?: any;
@@ -51,7 +34,6 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   const insets = useSafeAreaInsets();
 
   const loadComments = useCallback(async () => {
-    if (!postId) { setLoading(false); return; }
     setLoading(true);
     const data = await fetchPostComments(postId);
     setComments(data);
@@ -60,10 +42,9 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 
   useEffect(() => { loadComments(); }, [loadComments]);
 
-  // Auto-set replyingTo only when replying to a DIFFERENT user
+  // Auto-set replyingTo when navigating from a post card with postAuthorUsername
   useEffect(() => {
-    const currentUserUsername = user?.username || currentUser?.displayName || '';
-    if (postAuthorUsername && postAuthorUsername.toLowerCase() !== currentUserUsername.toLowerCase()) {
+    if (postAuthorUsername) {
       setReplyingTo({
         id: '',
         username: postAuthorUsername,
@@ -132,7 +113,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
             <View style={styles.actionIconWrap}>
-              {repostMap[item.id] ? <RepostIcon size={18} color="#00ba7c" /> : <RepostIcon size={18} color="#94a3b8" />}
+              {repostMap[item.id] ? <SharedRepostIcon size={18} color={colors.repost} /> : <SharedRepostIcon size={18} color="#94a3b8" />}
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
@@ -148,7 +129,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           <View style={styles.actionPair}>
             <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name={bookmarkMap[item.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item.id] ? '#1d9bf0' : '#94a3b8'} />
+                <Ionicons name={bookmarkMap[item.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item.id] ? '#ffffff' : '#94a3b8'} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn}>
@@ -163,11 +144,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : undefined}
-    >
+    <KeyboardAvoidingView style={styles.container} behavior="padding" keyboardVerticalOffset={0}>
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
@@ -205,7 +182,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             </View>
           ) : (
             <View style={styles.emptyWrap}>
-              <Ionicons name="chatbubble-outline" size={48} color="#64748b" />
+              <ReplyIcon size={48} color="#64748b" />
               <Text style={styles.emptyTitle}>No replies yet</Text>
               <Text style={styles.emptySub}>Be the first to share your thoughts.</Text>
             </View>
@@ -256,18 +233,18 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingBottom: 12,
     borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: colors.bg,
+    backgroundColor: '#000000',
   },
   headerTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '800' },
   preview: {
     paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: colors.bg,
+    backgroundColor: '#000000',
   },
   previewLabel: { color: '#71767b', fontSize: 13, fontWeight: '500', marginBottom: 2 },
   previewAuthor: { color: '#e7e9ea', fontSize: 15, fontWeight: '700' },
@@ -288,16 +265,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginBottom: 2, flexWrap: 'wrap',
   },
-  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
-  commentHandle: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  commentTime: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
+  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  commentHandle: { color: '#71767b', fontSize: 15 },
+  commentTime: { color: '#71767b', fontSize: 15 },
+  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
   /* Action bar — matches feed PostCard exactly */
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    marginLeft: -4,
+    marginTop: 12,
+    marginLeft: 0,
     maxWidth: 440,
     justifyContent: 'space-between',
   },
@@ -306,13 +283,13 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
-  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   /* Black themed input bar */
   inputBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingVertical: 10,
     borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: colors.bg,
+    backgroundColor: '#000000',
   },
   inputWrap: {
     flex: 1, backgroundColor: '#16181c',
@@ -333,7 +310,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: colors.bg,
+    backgroundColor: '#000000',
   },
   replyingBarText: {
     color: '#94a3b8',

@@ -11,24 +11,7 @@ import { CommentData, fetchPostComments, addPostComment } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Path, Polyline } from 'react-native-svg';
-
-function ReplyIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-    </Svg>
-  );
-}
-
-function RepostIcon({ size = 16, color = '#94a3b8' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="23 4 23 10 17 10" />
-      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-    </Svg>
-  );
-}
+import { ReplyIcon, RepostIcon as SharedRepostIcon } from '../components/Icons';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_H * 0.75;
@@ -61,7 +44,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     } else {
       Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
     }
-  }, [visible, postId]);
+  }, [visible]);
 
   const loadComments = async () => {
     setLoading(true);
@@ -104,7 +87,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={styles.backdropTouch} activeOpacity={1} onPress={onClose} />
-        <KeyboardAvoidingView style={styles.sheetContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.sheetContainer} behavior="padding">
           <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
             {/* Handle */}
             <View style={styles.handleWrap}><View style={styles.handle} /></View>
@@ -131,7 +114,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                   <View style={styles.emptyWrap}><ActivityIndicator color="#94a3b8" size="small" /></View>
                 ) : (
                   <View style={styles.emptyWrap}>
-                    <Ionicons name="chatbubble-outline" size={40} color="#64748b" />
+                    <ReplyIcon size={40} color="#64748b" />
                     <Text style={styles.emptyTitle}>No comments yet</Text>
                     <Text style={styles.emptySub}>Be the first to share your thoughts.</Text>
                   </View>
@@ -164,7 +147,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
                         <View style={styles.actionIconWrap}>
-                          {repostMap[item.id] ? <RepostIcon size={18} color="#10b981" /> : <RepostIcon size={18} color="#94a3b8" />}
+                          {repostMap[item.id] ? <SharedRepostIcon size={18} color={colors.repost} /> : <SharedRepostIcon size={18} color="#94a3b8" />}
                         </View>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
@@ -248,10 +231,10 @@ const styles = StyleSheet.create({
   commentRow: { flexDirection: 'row', gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
   commentBody: { flex: 1 },
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' },
-  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
-  commentHandle: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  commentTime: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
+  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  commentHandle: { color: '#71767b', fontSize: 15 },
+  commentTime: { color: '#71767b', fontSize: 15 },
+  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
   inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: '#000000' },
   inputWrap: { flex: 1, backgroundColor: '#16181c', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, maxHeight: 100, justifyContent: 'center' },
   input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },
@@ -260,8 +243,8 @@ const styles = StyleSheet.create({
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    marginLeft: -4,
+    marginTop: 12,
+    marginLeft: 0,
     maxWidth: 440,
     justifyContent: 'space-between',
   },
@@ -270,7 +253,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
-  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   replyingBar: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -7,34 +7,13 @@ import { fetchUserProfile, toggleFollow, checkFollowing, toggleLike, toggleBookm
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import Svg, { Path, Polyline } from 'react-native-svg';
-
-/* ── Reply Icon (X/Twitter-accurate centered chat bubble) ────────────── */
-function ReplyIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-    </Svg>
-  );
-}
-
-/* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
-function RepostIcon({ size = 18, color = '#71767b' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="23 4 23 10 17 10" />
-      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-    </Svg>
-  );
-}
-
+import { ReplyIcon, RepostIcon as SharedRepostIcon } from '../components/Icons';
 
 /* ── Replies type ──────────────────────────────────────────────── */
 interface Reply {
   id: string;
   postId: string;
   postCaption: string;
-  postMediaUrls: string[];
   postAuthorUsername: string;
   postAuthorDisplayName: string;
   content: string;
@@ -76,7 +55,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
   onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
+  onComment: (id: string, caption?: string) => void;
   navigation: any;
 }) {
   const currentUser = auth()?.currentUser;
@@ -164,7 +143,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             )}
           </View>
           {post.caption ? <HighlightedCaption text={post.caption} style={profileCardStyles.caption} /> : null}
-          {(post.mediaUrls?.length > 0) && (
+          {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={profileCardStyles.mediaContainer}>
                 <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" />
@@ -174,7 +153,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
           {/* Action bar — exact match to FeedScreen PostCard */}
           <View style={profileCardStyles.actions}>
             {/* Comment */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption, post.authorUsername, post.authorDisplayName)}>
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
               <View style={profileCardStyles.actionIconWrap}>
                 <ReplyIcon size={18} color="#94a3b8" />
               </View>
@@ -183,9 +162,9 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             {/* Repost */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleRepostPress}>
               <View style={profileCardStyles.actionIconWrap}>
-                <RepostIcon size={18} color={isReposted ? '#00ba7c' : '#94a3b8'} />
+                <SharedRepostIcon size={18} color={isReposted ? colors.repost : '#94a3b8'} />
               </View>
-              {localRepostCount > 0 ? <Text style={[profileCardStyles.actionCount, isReposted && { color: '#00ba7c' }]}>{localRepostCount}</Text> : null}
+              {localRepostCount > 0 ? <Text style={[profileCardStyles.actionCount, isReposted && { color: colors.repost }]}>{localRepostCount}</Text> : null}
             </TouchableOpacity>
             {/* Like */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
@@ -264,11 +243,11 @@ const profileCardStyles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderRadius: 16,
   },
-  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
-  username: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  dot: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  time: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
+  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  username: { color: '#71767b', fontSize: 15 },
+  dot: { color: '#71767b', fontSize: 15 },
+  time: { color: '#71767b', fontSize: 15 },
+  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
   mediaContainer: {
     marginTop: 12, borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
@@ -276,13 +255,13 @@ const profileCardStyles = StyleSheet.create({
   media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#111' },
   actions: {
     flexDirection: 'row', alignItems: 'center',
-    marginTop: 8, marginLeft: -4, maxWidth: 440,
+    marginTop: 12, marginLeft: 0, maxWidth: 440,
     justifyContent: 'space-between',
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
   actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  actionCount: { color: '#71767b', fontSize: 13, lineHeight: 16, marginLeft: 1 },
+  actionCount: { color: '#94a3b8', fontSize: 13, marginLeft: 2 },
   heartOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center', zIndex: 10,
@@ -296,7 +275,7 @@ const profileCardStyles = StyleSheet.create({
     color: '#3b82f6',
   },
   replyContextCaption: {
-    color: colors.textSecondary,
+    color: '#94a3b8',
     fontSize: 14,
     lineHeight: 20,
     marginTop: 2,
@@ -307,19 +286,6 @@ const profileCardStyles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
-  /* Parent post media shown in reply cards */
-  replyMediaContainer: {
-    marginTop: 10,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  replyMedia: {
-    width: '100%',
-    height: Math.min(SCREEN_W * 0.65, 380),
-    backgroundColor: '#111',
-  },
 });
 
 function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, onComment }: {
@@ -328,7 +294,7 @@ function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, o
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
   onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
+  onComment: (id: string, caption?: string) => void;
 }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
@@ -349,12 +315,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
   const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
   const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
 
-  // Filter out self-replies (user replying to their own post)
-  const filteredReplies = replies.filter(r =>
-    r.authorUsername.toLowerCase() !== r.postAuthorUsername.toLowerCase()
-  );
-
-  if (filteredReplies.length === 0) return (
+  if (replies.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
       <Ionicons name="chatbubble-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
       <Text style={{ color: '#94a3b8', fontSize: 15 }}>No replies yet</Text>
@@ -362,8 +323,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
   );
   return (
     <View>
-      {filteredReplies.map(reply => {
-        return (
+      {replies.map(reply => (
         <View key={reply.id} style={profileCardStyles.postCard}>
           <View style={profileCardStyles.contentRow}>
             <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={40} />
@@ -380,15 +340,10 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
               <Text style={profileCardStyles.replyingTo}>
                 Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
               </Text>
+              {reply.postCaption ? (
+                <Text style={profileCardStyles.replyContextCaption} numberOfLines={2}>{reply.postCaption}</Text>
+              ) : null}
               <Text style={profileCardStyles.caption}>{reply.content}</Text>
-              {/* Show parent post media if available */}
-              {reply.postMediaUrls?.length > 0 && (
-                <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
-                  <View style={profileCardStyles.replyMediaContainer}>
-                    <Image source={{ uri: reply.postMediaUrls[0] }} style={profileCardStyles.replyMedia} resizeMode="cover" />
-                  </View>
-                </TouchableOpacity>
-              )}
               <View style={profileCardStyles.actions}>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
                   <View style={profileCardStyles.actionIconWrap}>
@@ -397,7 +352,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <RepostIcon size={18} color={repostMap[reply.id] ? '#00ba7c' : '#94a3b8'} />
+                    <SharedRepostIcon size={18} color={repostMap[reply.id] ? colors.repost : '#94a3b8'} />
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
@@ -426,8 +381,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
             </View>
           </View>
         </View>
-      );
-    })}
+      ))}
     </View>
   );
 }
@@ -438,7 +392,7 @@ function LikedPostsGrid({ posts, navigation, onLike, onBookmark, onDelete, onRep
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
   onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
+  onComment: (id: string, caption?: string) => void;
 }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
@@ -558,7 +512,7 @@ export default function ProfileScreen({ route, navigation }: any) {
     setCanRefresh(offset <= 0);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, []);
 
   // Load replies when replies tab is active
   useEffect(() => {
@@ -576,7 +530,6 @@ export default function ProfileScreen({ route, navigation }: any) {
           const data = d.data();
           const postId = data.postId || '';
           let postCaption = '';
-          let postMediaUrls: string[] = [];
           let postAuthorUsername = '';
           let postAuthorDisplayName = '';
           if (postId) {
@@ -585,7 +538,6 @@ export default function ProfileScreen({ route, navigation }: any) {
               if (postSnap.exists) {
                 const pd = postSnap.data();
                 postCaption = pd.caption || '';
-                postMediaUrls = parseMediaUrls(pd.mediaUrls);
                 postAuthorUsername = pd.authorUsername || '';
                 postAuthorDisplayName = pd.authorDisplayName || '';
               }
@@ -595,7 +547,6 @@ export default function ProfileScreen({ route, navigation }: any) {
             id: d.id,
             postId,
             postCaption,
-            postMediaUrls,
             postAuthorUsername,
             postAuthorDisplayName,
             content: data.content || '',
@@ -828,17 +779,17 @@ export default function ProfileScreen({ route, navigation }: any) {
           <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
           <VerifiedBadge badge={user?.badge} isVerified={user?.isVerified} size={20} />
         </View>
-        <Text style={styles.handle}>@{user?.username || ''}</Text>
+        <Text style={styles.handle}>@{user?.username}</Text>
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
         <View style={styles.statsRow}>
           <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'following' } as never)}>
             <Text style={styles.statText}>
-              <Text style={styles.statNum}>{formatCount(followingCount)}</Text> Following
+              <Text style={styles.statNum}>{followingCount}</Text> Following
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'followers' } as never)}>
             <Text style={styles.statText}>
-              <Text style={styles.statNum}>{formatCount(followersCount)}</Text> Followers
+              <Text style={styles.statNum}>{followersCount}</Text> Followers
             </Text>
           </TouchableOpacity>
         </View>
@@ -948,5 +899,5 @@ const styles = StyleSheet.create({
   },
   /* Tab text: text-[15px] font-medium, active: text-[#e7e9ea] font-bold, inactive: text-[#94a3b8] */
   tabText: { color: '#94a3b8', fontWeight: '500', fontSize: 15 },
-  tabTextActive: { color: '#ffffff', fontWeight: '700' },
+  tabTextActive: { color: '#e7e9ea', fontWeight: '700' },
 });

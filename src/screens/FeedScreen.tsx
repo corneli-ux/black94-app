@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
   RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Dimensions, Share,
+  ActivityIndicator, Alert, Dimensions, Share, Image,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -12,28 +12,9 @@ import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
-import Svg, { Path, Polyline } from 'react-native-svg';
+import { ReplyIcon, RepostIcon as SharedRepostIcon } from '../components/Icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-
-/* ── Reply Icon (X/Twitter-accurate centered chat bubble) ────────────── */
-function ReplyIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-    </Svg>
-  );
-}
-
-/* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
-function RepostIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="23 4 23 10 17 10" />
-      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-    </Svg>
-  );
-}
 
 /* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
 function HighlightedCaption({ text, style }: { text: string; style: any }) {
@@ -248,7 +229,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={styles.mediaContainer}>
-                <RNImage
+                <Image
                   source={{ uri: post.mediaUrls[0] }}
                   style={styles.media}
                   resizeMode="cover"
@@ -272,7 +253,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             {/* Repost */}
             <TouchableOpacity style={styles.actionBtn} onPress={handleRepostPress}>
               <View style={styles.actionIconWrap}>
-                <RepostIcon
+                <SharedRepostIcon
                   size={18}
                   color={isReposted ? colors.repost : colors.textSecondary}
                 />
@@ -560,7 +541,7 @@ export default function FeedScreen({ navigation }: any) {
     }
   }, [currentUser?.uid]);
 
-  useEffect(() => { loadFeed(); }, [loadFeed]);
+  useEffect(() => { loadFeed(); }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -587,9 +568,6 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const handleRepost = async (postId: string, reposted: boolean) => {
-    setPosts(prev => prev.map(p => p.id === postId
-      ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
-      : p));
     try { await toggleRepost(postId, reposted); } catch {}
   };
 
@@ -658,7 +636,7 @@ export default function FeedScreen({ navigation }: any) {
               <Ionicons name="menu" size={22} color="#e7e9ea" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
+              <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
             </View>
             <TouchableOpacity
               style={styles.headerBtn}
@@ -698,7 +676,7 @@ export default function FeedScreen({ navigation }: any) {
             <Ionicons name="menu" size={22} color="#e7e9ea" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
+            <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
           </View>
           <TouchableOpacity
             style={styles.headerBtn}
@@ -750,6 +728,7 @@ export default function FeedScreen({ navigation }: any) {
           />
         }
         scrollEventThrottle={16}
+        nestedScrollEnabled={true}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
@@ -762,7 +741,7 @@ export default function FeedScreen({ navigation }: any) {
         ListEmptyComponent={
           <View style={{ alignItems: 'center', paddingTop: 80 }}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="chatbubble-outline" size={36} color={colors.textSecondary} />
+              <ReplyIcon size={36} color={colors.textSecondary} />
             </View>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 12 }}>No posts yet</Text>
             <Text style={{ color: colors.textSecondary, fontSize: 15, marginTop: 4 }}>When people post, their posts will show up here.</Text>
@@ -790,7 +769,7 @@ export default function FeedScreen({ navigation }: any) {
       <Modal visible={composeVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
         >
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setComposeVisible(false); setComposeImages([]); }} />
           <View style={styles.composeSheet}>
@@ -985,22 +964,18 @@ const styles = StyleSheet.create({
     color: '#e7e9ea',
     fontWeight: '700',
     fontSize: 15,
-    lineHeight: 20,
   },
   username: {
     color: '#71767b',
     fontSize: 15,
-    lineHeight: 20,
   },
   dot: {
     color: '#71767b',
     fontSize: 15,
-    lineHeight: 20,
   },
   time: {
     color: '#71767b',
     fontSize: 15,
-    lineHeight: 20,
   },
   moreBtn: {
     position: 'absolute',
@@ -1014,7 +989,7 @@ const styles = StyleSheet.create({
     color: '#e7e9ea',
     fontSize: 15,
     lineHeight: 20,
-    marginTop: 4,
+    marginTop: 2,
   },
   mediaContainer: {
     marginTop: 12,
@@ -1029,26 +1004,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#111',
   },
 
-  /* ── Action bar — X/Twitter exact spacing ── */
+  /* ── Action bar ── */
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    marginLeft: -4,
+    marginTop: 12,
+    marginLeft: 0,
     maxWidth: 440,
     justifyContent: 'space-between',
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
   actionIconWrap: {
     width: 34, height: 34, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center',
   },
   actionCount: {
-    color: '#71767b',
+    color: '#94a3b8',
     fontSize: 13,
-    lineHeight: 16,
-    marginLeft: 1,
+    marginLeft: 2,
   },
 
   /* ── Heart overlay ── */
