@@ -1,15 +1,14 @@
 import React from 'react';
 import Svg, { Path, Polyline, Circle, Rect, Line } from 'react-native-svg';
 
-/* ── Reply/Comment Icon ───────────────────────────────────────────────────
- *  Custom SVG that replaces Ionicons chatbubble-outline.
- *  Symmetric speech bubble with a small tail pointing bottom-left,
- *  designed for perfect visual alignment in the action bar.
+/* ── Reply / Chat Bubble Icon ────────────────────────────────────────────
+ *  Clean chat bubble outline with tail pointing bottom-LEFT.
+ *  Thin stroke, no fill.
  * ────────────────────────────────────────────────────────────────────────── */
 export function ReplyIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+      <Path d="M3 3h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2z" />
     </Svg>
   );
 }
@@ -53,12 +52,16 @@ export function ShareIcon({ size = 18, color = '#94a3b8' }: { size?: number; col
   );
 }
 
-/* ── Views / Analytics Icon ─────────────────────────────────────────────── */
-export function ViewsIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
+/* ── Chart / Bar Analytics Icon (replaces ViewsIcon) ──────────────────────
+ *  Three vertical bars of different heights.
+ *  No fill, stroke only.
+ * ────────────────────────────────────────────────────────────────────────── */
+export function ChartIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <Circle cx="12" cy="12" r="3" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8}>
+      <Rect x="3" y="12" width="4" height="9" rx="1" />
+      <Rect x="10" y="7" width="4" height="14" rx="1" />
+      <Rect x="17" y="3" width="4" height="18" rx="1" />
     </Svg>
   );
 }

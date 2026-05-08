@@ -13,7 +13,7 @@ import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ReplyIcon, RepostIcon, HeartIcon, BookmarkIcon,
-  ShareIcon, ViewsIcon, BackArrowIcon,
+  ShareIcon, ChartIcon, BackArrowIcon,
 } from '../components/Icons';
 
 interface PostCommentsScreenProps {
@@ -141,7 +141,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} disabled>
             <View style={styles.actionIconWrap}>
-              <ViewsIcon size={18} color="#94a3b8" />
+              <ChartIcon size={18} color="#94a3b8" />
             </View>
           </TouchableOpacity>
           <View style={styles.actionPair}>
@@ -247,7 +247,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             </TouchableOpacity>
             <TouchableOpacity style={styles.postActionBtn} disabled>
               <View style={styles.actionIconWrap}>
-                <ViewsIcon size={18} color="#94a3b8" />
+                <ChartIcon size={18} color="#94a3b8" />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.postActionBtn} disabled>

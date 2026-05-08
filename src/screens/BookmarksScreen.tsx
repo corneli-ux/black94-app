@@ -4,8 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
-import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls, toggleLike, toggleRepost } from '../lib/api';
 import { Post } from '../lib/api';

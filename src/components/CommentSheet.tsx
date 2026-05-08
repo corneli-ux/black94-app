@@ -13,7 +13,7 @@ import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ReplyIcon, RepostIcon as SharedRepostIcon,
-  HeartIcon, BookmarkIcon, ShareIcon, ViewsIcon,
+  HeartIcon, BookmarkIcon, ShareIcon, ChartIcon,
 } from '../components/Icons';
 
 const { height: SCREEN_H } = Dimensions.get('window');
@@ -160,7 +160,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} disabled>
                         <View style={styles.actionIconWrap}>
-                          <ViewsIcon size={18} color="#94a3b8" />
+                          <ChartIcon size={18} color="#94a3b8" />
                         </View>
                       </TouchableOpacity>
                       <View style={styles.actionPair}>

@@ -1,45 +1,23 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
-  RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Dimensions, Animated,
+  RefreshControl, ActivityIndicator, Alert, Dimensions, Animated,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post } from '../lib/api';
+import { toggleLike, toggleBookmark, toggleRepost, Post } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { useAppStore } from '../stores/app';
-import {
-  ReplyIcon, ImageIcon, CameraIcon, EmojiIcon, PollIcon,
-  LocationIcon, MoreIcon,
-} from '../components/Icons';
 import PostCard from '../components/PostCard';
+import { Avatar } from '../components/Avatar';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const CAPTION_EXPANDED_LINES = 3;
-const MAX_CAPTION_LENGTH = 4000;
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 
 const TABS = ['Discover', 'Network'] as const;
 type Tab = typeof TABS[number];
-
-/* ── Lazy image picker ── */
-async function openImagePicker() {
-  try {
-    const { launchImageLibrary } = require('expo-image-picker');
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      quality: 0.8,
-      selectionLimit: 4,
-    });
-    return result;
-  } catch (err) {
-    console.error('[Compose] Image picker not available:', err);
-    return { assets: [], didCancel: true, errorCode: 'unavailable', errorMessage: 'Image picker not available' };
-  }
-}
 
 /* ── Skeleton Loader ──────────────────────────────────────────────────── */
 
@@ -348,7 +326,7 @@ export default function FeedScreen({ navigation }: any) {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-              <View style={styles.avatarPlaceholder} />
+              <Avatar uri={storeUser?.profileImage} name={storeUser?.displayName} size={30} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
@@ -381,7 +359,7 @@ export default function FeedScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-            <View style={styles.avatarPlaceholder} />
+            <Avatar uri={storeUser?.profileImage} name={storeUser?.displayName} size={30} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
@@ -484,15 +462,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: colors.separator,
     backgroundColor: colors.bg,
   },
-  headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   logoImage: { width: 30, height: 30, resizeMode: 'contain' },
-  avatarPlaceholder: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
 
   /* ── Tabs ── */
   tabBar: {

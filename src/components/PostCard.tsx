@@ -1,18 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, Image as RNImage, TouchableOpacity, StyleSheet,
-  Alert, Share, Animated, Dimensions,
+  Alert, Share, Animated,
 } from 'react-native';
 import { Post } from '../lib/api';
 import {
   ReplyIcon, RepostIcon, HeartIcon, BookmarkIcon, ShareIcon,
-  ViewsIcon, MoreIcon, formatCount,
+  ChartIcon, MoreIcon, formatCount,
 } from './Icons';
 import { Avatar, VerifiedBadge } from './Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth } from '../lib/firebase';
 
-const SCREEN_W = Dimensions.get('window').width;
 const CAPTION_EXPANDED_LINES = 3;
 const INACTIVE = '#71767b';
 
@@ -142,11 +141,12 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
       {/* Main row: avatar + content */}
       <View style={PostCardStyles.contentRow}>
-        {/* Avatar */}
+        {/* Avatar — aligned to top with header, not stretched */}
         <TouchableOpacity
           onPress={navigateToProfile}
           activeOpacity={0.7}
           hitSlop={8}
+          style={PostCardStyles.avatarWrap}
         >
           <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
         </TouchableOpacity>
@@ -169,7 +169,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <Text style={PostCardStyles.time}>{timeAgo(post.createdAt)}</Text>
             </TouchableOpacity>
 
-            {/* More button — flex-end, NOT absolute */}
+            {/* More button */}
             <TouchableOpacity
               style={PostCardStyles.moreBtn}
               onPress={() => {
@@ -217,8 +217,10 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </TouchableOpacity>
           )}
 
-          {/* Action bar — evenly spaced across full width */}
+          {/* ── Action bar — rebuilt from scratch ──────────────────── */}
+          {/* Layout: [Reply] [Repost] [Like] [Chart] [Bookmark | Share] */}
           <View style={PostCardStyles.actions}>
+
             {/* Reply */}
             <TouchableOpacity
               style={PostCardStyles.actionBtn}
@@ -256,14 +258,14 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               ) : null}
             </TouchableOpacity>
 
-            {/* Views */}
+            {/* Chart / Analytics */}
             <TouchableOpacity style={PostCardStyles.actionBtn} disabled>
               <View style={PostCardStyles.actionIconWrap}>
-                <ViewsIcon size={18} color={INACTIVE} />
+                <ChartIcon size={18} color={INACTIVE} />
               </View>
             </TouchableOpacity>
 
-            {/* Bookmark + Share — grouped so they stay together at the end */}
+            {/* Bookmark + Share — grouped at the end */}
             <View style={PostCardStyles.actionPair}>
               <TouchableOpacity style={PostCardStyles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
                 <View style={PostCardStyles.actionIconWrap}>
@@ -292,39 +294,115 @@ export const PostCardStyles = StyleSheet.create({
     backgroundColor: '#000000',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 12,
-    paddingTop: 4,
+    paddingTop: 2,
     paddingBottom: 4,
+    paddingHorizontal: 12,
   },
-  contentRow: { flexDirection: 'row', gap: 10 },
-  contentColumn: { flex: 1, minWidth: 0 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  contentRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  contentColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  avatarWrap: {
+    alignSelf: 'flex-start',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   headerNameRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    flex: 1, flexWrap: 'nowrap', overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+    flexWrap: 'nowrap',
+    overflow: 'hidden',
   },
-  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  username: { color: '#71767b', fontSize: 15 },
-  dot: { color: '#71767b', fontSize: 15 },
-  time: { color: '#71767b', fontSize: 15 },
-  moreBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
-  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 0 },
-  seeMore: { color: '#2a7fff', fontSize: 15, fontWeight: '700', marginTop: 0 },
+  displayName: {
+    color: '#e7e9ea',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  username: {
+    color: '#71767b',
+    fontSize: 15,
+  },
+  dot: {
+    color: '#71767b',
+    fontSize: 15,
+  },
+  time: {
+    color: '#71767b',
+    fontSize: 15,
+  },
+  moreBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+  },
+  caption: {
+    color: '#e7e9ea',
+    fontSize: 15,
+    lineHeight: 20,
+    marginTop: 0,
+  },
+  seeMore: {
+    color: '#2a7fff',
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 0,
+  },
   mediaContainer: {
-    marginTop: 10, borderRadius: 16, overflow: 'hidden',
-    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)',
+    marginTop: 10,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#111111' },
+  media: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    backgroundColor: '#111111',
+  },
   actions: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center' },
-  actionPair: { flexDirection: 'row', alignItems: 'center' },
-  actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  actionCount: { color: '#71767b', fontSize: 13, marginLeft: 2 },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionPair: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCount: {
+    color: '#71767b',
+    fontSize: 13,
+    marginLeft: 2,
+  },
   heartOverlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    alignItems: 'center', justifyContent: 'center', zIndex: 10,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
 });
