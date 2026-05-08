@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Dimensions, Share, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -7,19 +7,10 @@ import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis, parseMediaUrls } from '../lib/api';
+import { tsToMillis, parseMediaUrls, toggleLike, toggleRepost } from '../lib/api';
 import { Post } from '../lib/api';
 import CommentSheet from '../components/CommentSheet';
-import { ReplyIcon, RepostIcon } from '../components/Icons';
-
-const { width: SCREEN_W } = Dimensions.get('window');
-
-const formatCount = (n: number | undefined): string => {
-  if (!n) return '';
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return n.toString();
-};
+import PostCard from '../components/PostCard';
 
 export default function BookmarksScreen() {
   const navigation = useNavigation();
@@ -104,7 +95,28 @@ export default function BookmarksScreen() {
       <FlatList
         data={bookmarks}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <FullPostCard post={item} navigation={navigation} onUnbookmark={() => setBookmarks(prev => prev.filter(p => p.id !== item.id))} onComment={(id) => setCommentPostId(id)} />}
+        renderItem={({ item }) => (
+          <PostCard
+            post={item}
+            navigation={navigation}
+            onLike={async (id, liked) => {
+              try { await toggleLike(id, liked); } catch {}
+            }}
+            onBookmark={(id) => {
+              setBookmarks(prev => prev.filter(p => p.id !== id));
+              try {
+                const uid = auth()?.currentUser?.uid; if (!uid) return;
+                firestore().collection('post_bookmarks').where('postId', '==', id).where('userId', '==', uid).get()
+                  .then(snap => { for (const d of snap.docs) d.ref.delete(); }).catch(() => {});
+              } catch {}
+            }}
+            onDelete={() => {}}
+            onRepost={async (id, reposted) => {
+              try { await toggleRepost(id, reposted); } catch {}
+            }}
+            onComment={(id) => setCommentPostId(id)}
+          />
+        )}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing && canRefresh} onRefresh={() => { if (canRefresh) handleRefresh(); }} tintColor={colors.accent} enabled={canRefresh} />}
@@ -135,111 +147,6 @@ export default function BookmarksScreen() {
   );
 }
 
-function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Post; navigation: any; onUnbookmark: () => void; onComment: (id: string) => void }) {
-  const [liked, setLiked] = useState(post.liked);
-  const [bookmarked, setBookmarked] = useState(true);
-  const [likeCount, setLikeCount] = useState(post.likeCount);
-  const [commentCount, setCommentCount] = useState(post.commentCount);
-  const [repostCount, setRepostCount] = useState(post.repostCount);
-  const [reposted, setReposted] = useState(post.reposted);
-
-  const handleLike = async () => {
-    const next = !liked; setLiked(next); setLikeCount(c => c + (next ? 1 : -1));
-    try {
-      const uid = auth()?.currentUser?.uid; if (!uid) return;
-      if (next) {
-        await firestore().collection('post_likes').add({ postId: post.id, userId: uid, createdAt: firestore.FieldValue.serverTimestamp() });
-        await firestore().collection('posts').doc(post.id).update({ likeCount: firestore.FieldValue.increment(1) });
-      } else {
-        const snap = await firestore().collection('post_likes').where('postId', '==', post.id).where('userId', '==', uid).get();
-        for (const d of snap.docs) await d.ref.delete();
-        await firestore().collection('posts').doc(post.id).update({ likeCount: firestore.FieldValue.increment(-1) });
-      }
-    } catch {}
-  };
-
-  const handleBookmark = async () => {
-    setBookmarked(false);
-    try {
-      const uid = auth()?.currentUser?.uid; if (!uid) return;
-      const snap = await firestore().collection('post_bookmarks').where('postId', '==', post.id).where('userId', '==', uid).get();
-      for (const d of snap.docs) await d.ref.delete();
-    } catch {}
-    onUnbookmark();
-  };
-
-  const handleComment = () => { onComment(post.id); };
-
-  const handleShare = async () => { try { await Share.share({ message: 'Check out this post on Black94!' }); } catch {} };
-
-  const handleRepost = async () => {
-    const next = !reposted; setReposted(next); setRepostCount(c => c + (next ? 1 : -1));
-    try {
-      const uid = auth()?.currentUser?.uid; if (!uid) return;
-      if (next) {
-        await firestore().collection('post_reposts').add({ postId: post.id, userId: uid, createdAt: firestore.FieldValue.serverTimestamp() });
-        await firestore().collection('posts').doc(post.id).update({ repostCount: firestore.FieldValue.increment(1) });
-      } else {
-        const snap = await firestore().collection('post_reposts').where('postId', '==', post.id).where('userId', '==', uid).get();
-        for (const d of snap.docs) await d.ref.delete();
-        await firestore().collection('posts').doc(post.id).update({ repostCount: firestore.FieldValue.increment(-1) });
-      }
-    } catch {}
-  };
-
-  return (
-    <View style={styles.postCard}>
-      <View style={styles.contentRow}>
-        <TouchableOpacity onPress={() => { if (post.authorId !== auth()?.currentUser?.uid) navigation.navigate('UserProfile', { userId: post.authorId }); }}>
-          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
-        </TouchableOpacity>
-        <View style={styles.contentColumn}>
-          <View style={styles.headerRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, flexWrap: 'nowrap', overflow: 'hidden' }}>
-              <Text style={styles.displayName} numberOfLines={1}>{post.authorDisplayName}</Text>
-              <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={18} />
-              <Text style={styles.handle}>@{post.authorUsername}</Text>
-              <Text style={styles.dot}>·</Text>
-              <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
-            </View>
-          </View>
-          {post.caption ? <Text style={styles.caption} numberOfLines={4}>{post.caption}</Text> : null}
-          {post.mediaUrls?.length > 0 && (
-            <View style={styles.mediaContainer}>
-              <Image source={{ uri: post.mediaUrls[0] }} style={styles.media} resizeMode="cover" />
-            </View>
-          )}
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
-              <View style={styles.actionIconWrap}><ReplyIcon size={18} color="#94a3b8" /></View>
-              {formatCount(commentCount) ? <Text style={styles.actionCount}>{formatCount(commentCount)}</Text> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleRepost}>
-              <View style={styles.actionIconWrap}><RepostIcon size={18} color={reposted ? colors.repost : '#94a3b8'} /></View>
-              {formatCount(repostCount) ? <Text style={[styles.actionCount, reposted && { color: colors.repost }]}>{formatCount(repostCount)}</Text> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-              <View style={styles.actionIconWrap}><Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? colors.like : '#94a3b8'} /></View>
-              {formatCount(likeCount) ? <Text style={[styles.actionCount, liked && { color: colors.like }]}>{formatCount(likeCount)}</Text> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} disabled>
-              <View style={styles.actionIconWrap}><Ionicons name="trending-up-outline" size={18} color="#94a3b8" /></View>
-            </TouchableOpacity>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
-                <View style={styles.actionIconWrap}><Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarked ? colors.bookmark : '#94a3b8'} /></View>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-                <View style={styles.actionIconWrap}><Ionicons name="share-outline" size={18} color="#94a3b8" /></View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   centered: { justifyContent: 'center', alignItems: 'center' },
@@ -249,21 +156,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  postCard: { backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12 },
-  contentRow: { flexDirection: 'row', gap: 12 },
-  contentColumn: { flex: 1, minWidth: 0 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  displayName: { color: colors.text, fontWeight: '700', fontSize: 15 },
-  handle: { color: colors.textSecondary, fontSize: 15 },
-  dot: { color: colors.textSecondary, fontSize: 15 },
-  time: { color: colors.textSecondary, fontSize: 15 },
-  caption: { color: colors.text, fontSize: 15, lineHeight: 20, marginTop: 2 },
-  mediaContainer: { marginTop: 12, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#111' },
-  actions: { flexDirection: 'row', alignItems: 'center', marginTop: 12, marginLeft: 0, maxWidth: 440, justifyContent: 'space-between' },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-  actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  actionCount: { color: '#94a3b8', fontSize: 13, marginLeft: 2 },
   emptyState: { alignItems: 'center', paddingTop: 100 },
   emptyList: { flexGrow: 1 },
   emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },

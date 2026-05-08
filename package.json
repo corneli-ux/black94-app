@@ -39,5 +39,8 @@
     "react-native-worklets": "0.5.1",
     "zustand": "^5.0.12"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
 }

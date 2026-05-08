@@ -2,41 +2,23 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
   RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Dimensions, Share, Animated,
+  ActivityIndicator, Alert, Dimensions, Animated,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
-import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
 import {
-  ReplyIcon, RepostIcon, HeartIcon, BookmarkIcon, ShareIcon,
-  ViewsIcon, ImageIcon, CameraIcon, EmojiIcon, PollIcon,
-  LocationIcon, formatCount, MoreIcon,
+  ReplyIcon, ImageIcon, CameraIcon, EmojiIcon, PollIcon,
+  LocationIcon, MoreIcon,
 } from '../components/Icons';
+import PostCard from '../components/PostCard';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CAPTION_EXPANDED_LINES = 3;
 const MAX_CAPTION_LENGTH = 4000;
-
-/* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
-function HighlightedCaption({ text, style }: { text: string; style: any }) {
-  const parts = text.split(/(#\w+|@\w+)/g);
-  return (
-    <Text style={style}>
-      {parts.map((part, i) =>
-        /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
-          <Text key={i} style={{ color: '#2a7fff' }}>{part}</Text>
-        ) : (
-          <Text key={i}>{part}</Text>
-        )
-      )}
-    </Text>
-  );
-}
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 
@@ -57,39 +39,6 @@ async function openImagePicker() {
     console.error('[Compose] Image picker not available:', err);
     return { assets: [], didCancel: true, errorCode: 'unavailable', errorMessage: 'Image picker not available' };
   }
-}
-
-/* ── Animated Heart Overlay ───────────────────────────────────────────── */
-function AnimatedHeart({ visible }: { visible: boolean }) {
-  const scale = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(scale, { toValue: 1.2, friction: 3, useNativeDriver: true, speed: 20 }),
-        Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
-      ]).start(() => {
-        Animated.parallel([
-          Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0, duration: 600, delay: 200, useNativeDriver: true }),
-        ]).start();
-      });
-    } else {
-      scale.setValue(0);
-      opacity.setValue(0);
-    }
-  }, [visible]);
-
-  if (!visible) return null;
-
-  return (
-    <View style={styles.heartOverlay} pointerEvents="none">
-      <Animated.View style={{ transform: [{ scale }], opacity }}>
-        <HeartIcon size={96} color="#f43f5e" filled />
-      </Animated.View>
-    </View>
-  );
 }
 
 /* ── Skeleton Loader ──────────────────────────────────────────────────── */
@@ -127,225 +76,6 @@ function SkeletonFeed() {
     </View>
   );
 }
-
-/* ── PostCard ─────────────────────────────────────────────────────────── */
-
-const INACTIVE = '#71767b';
-
-const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
-  post: Post;
-  onLike: (id: string, liked: boolean) => void;
-  onBookmark: (id: string, bookmarked: boolean) => void;
-  onDelete: (id: string) => void;
-  onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
-  navigation: any;
-}) {
-  const currentUser = auth()?.currentUser;
-  const [showHeart, setShowHeart] = useState(false);
-  const [captionExpanded, setCaptionExpanded] = useState(false);
-  const lastTapRef = useRef(0);
-
-  // Per-post optimistic repost state
-  const [isReposted, setIsReposted] = useState(post.reposted);
-  const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
-
-  React.useEffect(() => {
-    setIsReposted(post.reposted);
-    setLocalRepostCount(post.repostCount);
-  }, [post.reposted, post.repostCount]);
-
-  const handleDoubleTap = () => {
-    const now = Date.now();
-    if (now - lastTapRef.current < 300) {
-      if (!post.liked) {
-        onLike(post.id, post.liked);
-      }
-      setShowHeart(true);
-      setTimeout(() => setShowHeart(false), 900);
-    }
-    lastTapRef.current = now;
-  };
-
-  const handleRepostPress = () => {
-    const next = !isReposted;
-    setIsReposted(next);
-    setLocalRepostCount(prev => prev + (next ? 1 : -1));
-    onRepost(post.id, isReposted);
-  };
-
-  const handleShare = async () => {
-    try {
-      await Share.share({ message: 'Check out this post on Black94!' });
-    } catch {}
-  };
-
-  const navigateToComments = () => {
-    navigation.navigate('PostComments', {
-      postId: post.id,
-      postCaption: post.caption,
-      postAuthorUsername: post.authorUsername,
-      postAuthorDisplayName: post.authorDisplayName,
-    });
-  };
-
-  const navigateToProfile = () => {
-    if (post.authorId !== currentUser?.uid) {
-      navigation.navigate('UserProfile', { userId: post.authorId });
-    } else {
-      navigation.navigate('ProfileSelf');
-    }
-  };
-
-  const needsSeeMore = (post.caption?.length || 0) > 140;
-
-  return (
-    <View style={styles.postCard}>
-      <AnimatedHeart visible={showHeart} />
-
-      {/* Main row: avatar + content */}
-      <View style={styles.contentRow}>
-        {/* Avatar */}
-        <TouchableOpacity
-          onPress={navigateToProfile}
-          activeOpacity={0.7}
-          hitSlop={8}
-        >
-          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
-        </TouchableOpacity>
-
-        {/* Content column */}
-        <View style={styles.contentColumn}>
-          {/* Header row: name/badge/username/time ... moreBtn */}
-          <View style={styles.headerRow}>
-            <TouchableOpacity
-              onPress={navigateToProfile}
-              activeOpacity={0.7}
-              style={styles.headerNameRow}
-            >
-              <Text style={styles.displayName} numberOfLines={1}>
-                {post.authorDisplayName || post.authorUsername || 'User'}
-              </Text>
-              <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
-              <Text style={styles.username}>@{post.authorUsername || 'user'}</Text>
-              <Text style={styles.dot}>·</Text>
-              <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
-            </TouchableOpacity>
-
-            {/* More button — flex-end, NOT absolute */}
-            <TouchableOpacity
-              style={styles.moreBtn}
-              onPress={() => {
-                Alert.alert('Post', 'Delete this post?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
-                ]);
-              }}
-            >
-              <MoreIcon size={18} color={INACTIVE} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Caption — tappable to open comments */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={navigateToComments}
-          >
-            {post.caption ? (
-              <View>
-                <HighlightedCaption
-                  text={captionExpanded || !needsSeeMore ? post.caption : post.caption.slice(0, 140)}
-                  style={styles.caption}
-                  numberOfLines={captionExpanded ? undefined : CAPTION_EXPANDED_LINES}
-                />
-                {needsSeeMore && !captionExpanded && (
-                  <TouchableOpacity onPress={() => setCaptionExpanded(true)} hitSlop={8}>
-                    <Text style={styles.seeMore}>Show more</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : null}
-          </TouchableOpacity>
-
-          {/* Media image */}
-          {post.mediaUrls?.length > 0 && (
-            <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
-              <View style={styles.mediaContainer}>
-                <RNImage
-                  source={{ uri: post.mediaUrls[0] }}
-                  style={styles.media}
-                  resizeMode="cover"
-                />
-              </View>
-            </TouchableOpacity>
-          )}
-
-          {/* Action bar — evenly spaced across full width */}
-          <View style={styles.actions}>
-            {/* Reply */}
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={navigateToComments}
-            >
-              <View style={styles.actionIconWrap}>
-                <ReplyIcon size={18} color={INACTIVE} />
-              </View>
-              {formatCount(post.commentCount) ? (
-                <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Repost */}
-            <TouchableOpacity style={styles.actionBtn} onPress={handleRepostPress}>
-              <View style={styles.actionIconWrap}>
-                <RepostIcon size={18} color={isReposted ? '#10b981' : INACTIVE} />
-              </View>
-              {formatCount(localRepostCount) ? (
-                <Text style={[styles.actionCount, isReposted && { color: '#10b981' }]}>
-                  {formatCount(localRepostCount)}
-                </Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Heart / Like */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
-              <View style={styles.actionIconWrap}>
-                <HeartIcon size={18} color={post.liked ? '#f43f5e' : INACTIVE} filled={post.liked} />
-              </View>
-              {formatCount(post.likeCount) ? (
-                <Text style={[styles.actionCount, post.liked && { color: '#f43f5e' }]}>
-                  {formatCount(post.likeCount)}
-                </Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Views */}
-            <TouchableOpacity style={styles.actionBtn} disabled>
-              <View style={styles.actionIconWrap}>
-                <ViewsIcon size={18} color={INACTIVE} />
-              </View>
-            </TouchableOpacity>
-
-            {/* Bookmark + Share — grouped so they stay together at the end */}
-            <View style={styles.actionPair}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
-                <View style={styles.actionIconWrap}>
-                  <BookmarkIcon size={18} color={post.bookmarked ? '#ffffff' : INACTIVE} filled={post.bookmarked} />
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-                <View style={styles.actionIconWrap}>
-                  <ShareIcon size={18} color={INACTIVE} />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-});
 
 /* ── FeedScreen ───────────────────────────────────────────────────────── */
 
@@ -520,6 +250,33 @@ export default function FeedScreen({ navigation }: any) {
           post.liked = likedIds.has(post.id);
           post.bookmarked = bookmarkedIds.has(post.id);
           post.reposted = repostedIds.has(post.id);
+        }
+      }
+
+      // Backfill commentCount from actual post_comments collection for posts
+      // where the cached count is 0 or missing (older posts may not have it)
+      const postsWithZeroComments = newPosts.filter(p => !p.commentCount);
+      if (postsWithZeroComments.length > 0) {
+        try {
+          const commentCountPromises = postsWithZeroComments.map(async (post) => {
+            try {
+              const countSnap = await firestore()
+                .collection('post_comments')
+                .where('postId', '==', post.id)
+                .get();
+              const actualCount = countSnap.size;
+              if (actualCount > 0) {
+                post.commentCount = actualCount;
+                // Also backfill to Firestore so next load is fast
+                firestore().collection('posts').doc(post.id).update({
+                  commentCount: actualCount,
+                }).catch(() => {});
+              }
+            } catch {}
+          });
+          await Promise.all(commentCountPromises);
+        } catch (e) {
+          console.warn('[Feed] Comment count backfill failed:', e);
         }
       }
 
@@ -761,125 +518,6 @@ const styles = StyleSheet.create({
   tabIndicator: {
     position: 'absolute', bottom: 0,
     height: 2, backgroundColor: '#ffffff', borderRadius: 1,
-  },
-
-  /* ── Post Card ── */
-  postCard: {
-    backgroundColor: '#000000',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 12,
-  },
-  contentRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  contentColumn: {
-    flex: 1,
-    minWidth: 0,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flex: 1,
-    flexWrap: 'nowrap',
-    overflow: 'hidden',
-  },
-  displayName: {
-    color: '#e7e9ea',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  username: {
-    color: '#71767b',
-    fontSize: 15,
-  },
-  dot: {
-    color: '#71767b',
-    fontSize: 15,
-  },
-  time: {
-    color: '#71767b',
-    fontSize: 15,
-  },
-  moreBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-  },
-  caption: {
-    color: '#e7e9ea',
-    fontSize: 15,
-    lineHeight: 20,
-    marginTop: 2,
-  },
-  seeMore: {
-    color: '#2a7fff',
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  mediaContainer: {
-    marginTop: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  media: {
-    width: '100%',
-    height: Math.min(SCREEN_W * 0.85, 510),
-    backgroundColor: '#111111',
-  },
-
-  /* ── Action bar ── */
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionPair: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionCount: {
-    color: '#71767b',
-    fontSize: 13,
-    marginLeft: 2,
-  },
-
-  /* ── Heart overlay ── */
-  heartOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
   },
 
   /* ── Skeleton ── */
