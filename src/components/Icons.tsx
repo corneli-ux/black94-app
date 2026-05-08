@@ -52,15 +52,15 @@ export function ShareIcon({ size = 18, color = '#94a3b8' }: { size?: number; col
   );
 }
 
-/* ── Views / Eye Icon (X/Twitter style) ────────────────────────────────────
- *  Clean eye outline — X uses this for views/analytics.
- *  Simple, premium, recognizable.
+/* ── Analytics / Views Icon (premium 3-bar chart) ─────────────────────────
+ *  Clean bar chart — professional analytics feel.
  * ────────────────────────────────────────────────────────────────────────── */
 export function ChartIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M1 12s4-8 11-8 11 8 11 8-4 8-11-8-11 8-11 8 4 8 11 8z" />
-      <Circle cx="12" cy="12" r="3" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="12" width="4" height="9" rx="1" />
+      <Rect x="10" y="7" width="4" height="14" rx="1" />
+      <Rect x="17" y="3" width="4" height="18" rx="1" />
     </Svg>
   );
 }

@@ -625,6 +625,7 @@ export interface CommentData {
   authorIsVerified: boolean;
   authorBadge: string;
   content: string;
+  imageUrls?: string[];
   createdAt: number;
 }
 
@@ -649,6 +650,7 @@ export async function fetchPostComments(postId: string): Promise<CommentData[]> 
         authorIsVerified: data.authorIsVerified || false,
         authorBadge: data.authorBadge || '',
         content: data.content || '',
+        imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : undefined,
         createdAt: tsToMillis(data.createdAt),
       };
     });

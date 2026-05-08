@@ -203,14 +203,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         {state.routes.map((route: any, index: number) => {
           const isFocused = state.index === index;
           const label = route.name;
-          const isCompose = label === 'Compose';
 
           const onPress = () => {
-            if (isCompose) {
-              // Navigate to CreatePost as a modal
-              navigation.navigate('CreatePost');
-              return;
-            }
             const event = navigation.emit({
               type: 'tabPress',
               target: route.key,
@@ -227,22 +221,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               target: route.key,
             });
           };
-
-          if (isCompose) {
-            return (
-              <TouchableOpacity
-                key={route.key}
-                style={styles.composeTabBtn}
-                onPress={onPress}
-                onLongPress={onLongPress}
-                activeOpacity={0.8}
-              >
-                <View style={styles.composeFab}>
-                  <ComposeIcon size={24} color="#000000" />
-                </View>
-              </TouchableOpacity>
-            );
-          }
 
           return (
             <TouchableOpacity
@@ -281,7 +259,6 @@ function MainTabs() {
       <Tab.Screen name="Home" component={FeedScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="Messages" component={ChatListScreen} />
-      <Tab.Screen name="Compose" component={View} options={{ tabBarLabel: 'Compose' }} listeners={() => ({ tabPress: () => {} })} />
       <Tab.Screen name="Stories" component={StoriesScreen} />
     </Tab.Navigator>
   );

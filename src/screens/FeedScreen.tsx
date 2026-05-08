@@ -320,39 +320,28 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const tabBarHeight = 50 + (insets.bottom || 0);
+  const fabBottom = tabBarHeight + 16;
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <SafeAreaView edges={['top']}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-              <Avatar uri={storeUser?.profileImage} name={storeUser?.displayName} size={30} />
-            </TouchableOpacity>
-            <View style={styles.headerCenter}>
-              <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
-            </View>
-            <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('Settings')}>
-              <Ionicons name="settings-outline" size={20} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+  // Scroll-driven FAB visibility
+  const [fabVisible, setFabVisible] = useState(true);
+  const scrollOffset = useRef(0);
 
-        <View style={styles.tabBar}>
-          {TABS.map(tab => (
-            <TouchableOpacity key={tab} style={styles.tabItem} disabled>
-              <Text style={[styles.tabText, tab === 'Discover' ? styles.tabTextActive : styles.tabTextInactive]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <View style={[styles.tabIndicator, { left: SCREEN_W / 2 - 80, right: SCREEN_W / 2 - 80 }]} />
-        </View>
+  const handleScroll = useCallback((e: any) => {
+    try {
+      const y = e.nativeEvent?.contentOffset?.y ?? 0;
+      scrollY.setValue(y);
+      if (y > 80 && y > scrollOffset.current + 10) {
+        setFabVisible(false);
+      } else if (y < scrollOffset.current - 5 || y < 40) {
+        setFabVisible(true);
+      }
+      scrollOffset.current = y;
+    } catch {}
+  }, [scrollY]);
 
-        <SkeletonFeed />
-      </View>
-    );
-  }
+  // Remove skeleton loading screen — show feed directly with empty state
+  // This prevents the flash of skeleton lines on app open
+  const showContent = true;
 
   return (
     <View style={styles.container}>
@@ -415,13 +404,7 @@ export default function FeedScreen({ navigation }: any) {
         nestedScrollEnabled={true}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
-        onScroll={(e) => {
-          // Animated.event is deprecated; use direct value set instead
-          try {
-            const y = e.nativeEvent?.contentOffset?.y ?? 0;
-            scrollY.setValue(y);
-          } catch {}
-        }}
+        onScroll={handleScroll}
         ListFooterComponent={
           loadingMore ? (
             <View style={styles.loadMoreIndicator}>
@@ -446,6 +429,26 @@ export default function FeedScreen({ navigation }: any) {
         }
         contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
       />
+
+      {/* Floating Compose Button — hides on scroll down */}
+      <Animated.View
+        style={{
+          position: 'absolute',
+          right: 16,
+          bottom: fabBottom,
+          opacity: fabVisible ? 1 : 0,
+          transform: [{ translateY: fabVisible ? 0 : 80 }],
+        }}
+        pointerEvents={fabVisible ? 'auto' : 'none'}
+      >
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => navigation.navigate('CreatePost')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={28} color="#000000" />
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }
@@ -505,6 +508,18 @@ const styles = StyleSheet.create({
   skeletonDot: {
     width: 34, height: 34, borderRadius: 17,
     backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  /* ── FAB ── */
+  fab: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
 
   /* ── Load more ── */

@@ -281,12 +281,13 @@ export const PostCardStyles = StyleSheet.create({
     backgroundColor: '#000000',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.08)',
-    paddingTop: 12,
+    paddingTop: 4,
     paddingBottom: 4,
     paddingHorizontal: 12,
   },
   contentRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 8,
   },
   contentColumn: {
@@ -356,7 +357,7 @@ export const PostCardStyles = StyleSheet.create({
     marginTop: 0,
   },
   mediaContainer: {
-    marginTop: 10,
+    marginTop: 8,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 0.5,
@@ -371,7 +372,7 @@ export const PostCardStyles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 4,
     maxWidth: 425,
     marginLeft: -8,
   },
