@@ -123,12 +123,11 @@ export default function BusinessOrdersScreen() {
 
   // ── Status update handlers ─────────────────────────────────────────────
   const updateStatus = useCallback(
-    (orderId: string, newStatus: string, trackingNumber?: string) => {
+    async (orderId: string, newStatus: string, trackingNumber?: string) => {
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)),
       );
 
-      // Fire-and-forget Firestore update
       try {
         const update: Record<string, unknown> = {
           status: newStatus,
