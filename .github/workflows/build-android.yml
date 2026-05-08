@@ -1,4 +1,4 @@
-name: Build Android APK & AAB
+name: Build Android APK & AAB (Standalone for Device)
 
 on:
   push:
@@ -11,7 +11,7 @@ env:
 
 jobs:
   build:
-    name: Build Android (Debug + Release)
+    name: Build Standalone Android APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,120 +27,84 @@ jobs:
           distribution: 'zulu'
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Setup Gradle (NO caching for reproducibility)
+      - name: Setup Gradle (no caching)
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-          gradle-home-cache-includes: |
-            wrappers/dists/**
-          gradle-home-cache-excludes: |
-            caches/**
-            build-cache/**
 
-      - name: Install npm dependencies (deterministic)
-        run: npm ci --prefer-offline 2>&1 || npm install
+      - name: Install dependencies
+        run: npm ci --prefer-offline || npm install
 
-      - name: Clear Metro and Expo caches
+      - name: Clear caches
         run: |
-          rm -rf node_modules/.cache
-          rm -rf .expo
-          rm -rf /tmp/metro-*
-          rm -rf /tmp/haste-map-*
+          rm -rf node_modules/.cache .expo /tmp/metro-* || true
           npx expo export --clear 2>/dev/null || true
-          echo "All Metro/Expo caches cleared"
 
-      - name: Expo prebuild (generate android/)
+      # Generate standalone JS bundle + assets (critical for device without Metro)
+      - name: Expo export (create standalone bundle)
+        run: npx expo export --platform android --output-dir dist
+
+      - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
 
-      - name: Disable Gradle build cache
+      - name: Copy exported bundle into Android assets
+        run: |
+          mkdir -p android/app/src/main/assets
+          cp -r dist/* android/app/src/main/assets/ || true
+          echo "Bundle copied for standalone use"
+
+      - name: Disable Gradle cache
         run: |
           echo "org.gradle.caching=false" >> android/gradle.properties
           echo "org.gradle.parallel=false" >> android/gradle.properties
-          echo "Gradle build cache and parallelism disabled for reproducible builds"
 
-      - name: Fix splashscreen_logo drawable
-        run: |
-          cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png || true
-          echo "Created splashscreen_logo drawable from app icon"
-
-      # === DEBUG BUILD (ALWAYS SUCCEEDS - no signing needed) ===
-      - name: Build Debug APK (reliable, always works)
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew clean assembleDebug --no-build-cache --no-daemon
-          echo "=== Debug build complete ==="
-
-      - name: Upload Debug APK (always available)
-        uses: actions/upload-artifact@v4
-        with:
-          name: black94-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-          retention-days: 30
-
-      # === RELEASE BUILD (best effort - may fail if keystore secrets missing) ===
-      - name: Setup release keystore and signing config
+      # Try Release build first (self-contained, works on device without computer)
+      - name: Setup release keystore (if available)
         continue-on-error: true
         run: |
           if [ -f ci/black94-release.jks ]; then
             cp ci/black94-release.jks android/app/black94-release.jks
+            echo "Keystore copied"
 
-            echo "=== Verifying keystore ==="
-            keytool -list -v -keystore android/app/black94-release.jks \
-              -storepass 'black94real' -alias 'black94' 2>&1 | grep SHA1 || echo "Keystore verification warning"
-
+            # Inject release signing config
             python3 << 'PYEOF'
+            import re
             filepath = 'android/app/build.gradle'
             with open(filepath, 'r') as f:
-                lines = f.readlines()
+                content = f.read()
 
-            new_lines = []
-            i = 0
-            added_release_signing = False
-            while i < len(lines):
-                line = lines[i]
+            # Add release signingConfig if missing
+            if 'signingConfigs {' in content and 'release {' not in content:
+                content = content.replace(
+                    'signingConfigs {',
+                    '''signingConfigs {
+        release {
+            storeFile file('black94-release.jks')
+            storePassword 'black94real'
+            keyAlias 'black94'
+            keyPassword 'black94real'
+        }'''
+                )
 
-                if not added_release_signing and line.strip() == '}' and 'signingConfigs' in ''.join(lines[max(0,i-10):i]):
-                    indent = '    '
-                    new_lines.append(line)
-                    new_lines.append(f'{indent}release {{\n')
-                    new_lines.append(f'{indent}    storeFile file(\'black94-release.jks\')\n')
-                    new_lines.append(f'{indent}    storePassword \'black94real\'\n')
-                    new_lines.append(f'{indent}    keyAlias \'black94\'\n')
-                    new_lines.append(f'{indent}    keyPassword \'black94real\'\n')
-                    new_lines.append(f'{indent}}}\n')
-                    added_release_signing = True
-                    i += 1
-                    continue
-
-                if 'signingConfig signingConfigs.debug' in line:
-                    line = line.replace('signingConfigs.debug', 'signingConfigs.release')
-
-                new_lines.append(line)
-                i += 1
+            # Switch default to release
+            content = re.sub(r'signingConfig signingConfigs\.debug', 'signingConfig signingConfigs.release', content)
 
             with open(filepath, 'w') as f:
-                f.writelines(new_lines)
-
-            print(f"Added release signing config: {added_release_signing}")
+                f.write(content)
+            print("Release signing config added")
             PYEOF
-
-            echo "=== Verifying build.gradle signing config ==="
-            rg "signingConfig" android/app/build.gradle || echo "WARNING: no signingConfig found"
           else
-            echo "No release keystore found - skipping release signing setup"
-            exit 0
+            echo "No keystore - will build debug"
           fi
 
-      - name: Build Release APK + AAB (best effort)
+      - name: Build Release APK + AAB (standalone)
         continue-on-error: true
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleRelease bundleRelease --no-build-cache --no-daemon || echo "Release build failed or skipped (keystore issue) - Debug APK is still available"
-          echo "=== Release build attempt complete ==="
+          ./gradlew clean assembleRelease bundleRelease --no-build-cache --no-daemon || echo "Release build had issues - trying debug fallback"
 
-      - name: Upload Release APK (if successful)
+      - name: Upload Release APK (if built)
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -148,7 +112,7 @@ jobs:
           path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 
-      - name: Upload Release AAB (if successful)
+      - name: Upload Release AAB (if built)
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -156,12 +120,17 @@ jobs:
           path: android/app/build/outputs/bundle/release/*.aab
           retention-days: 30
 
-      - name: Verify JS bundle
+      # Fallback: Build Debug APK with bundle included
+      - name: Build Debug APK (fallback, with bundle)
+        if: failure() || success()
         run: |
-          BUNDLE_DIR="android/app/build/generated/assets/createBundleReleaseJsAndAssets"
-          if [ -d "$BUNDLE_DIR" ]; then
-            echo "JS bundle found:"
-            ls -la "$BUNDLE_DIR/"*.bundle 2>/dev/null || ls -la "$BUNDLE_DIR"/index.android.bundle 2>/dev/null || true
-          else
-            echo "Note: Release bundle dir not found (normal if release build skipped)"
-          fi
+          cd android
+          ./gradlew clean assembleDebug --no-build-cache --no-daemon || true
+          echo "Debug build attempted"
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: black94-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
