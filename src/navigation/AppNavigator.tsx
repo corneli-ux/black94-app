@@ -132,13 +132,6 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
           name={focused ? 'mail' : 'mail-outline'}
         />
       );
-    case 'Notifications':
-      return (
-        <Ionicons
-          {...iconProps}
-          name={focused ? 'notifications' : 'notifications-outline'}
-        />
-      );
     case 'Stories':
       return (
         <Ionicons
@@ -260,7 +253,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             >
               <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                 <TabIcon name={label} focused={isFocused} />
-                {label === 'Notifications' && (
+                {label === 'Messages' && (
                   <TabBarBadge count={useAppStore.getState().unreadNotificationCount} />
                 )}
               </View>
@@ -286,9 +279,9 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={FeedScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />
-      <Tab.Screen name="Compose" component={View} options={{ tabBarLabel: 'Compose' }} listeners={() => ({ tabPress: () => {} })} />
       <Tab.Screen name="Messages" component={ChatListScreen} />
-      <Tab.Screen name="Notifications" component={NotificationsScreen} />
+      <Tab.Screen name="Compose" component={View} options={{ tabBarLabel: 'Compose' }} listeners={() => ({ tabPress: () => {} })} />
+      <Tab.Screen name="Stories" component={StoriesScreen} />
     </Tab.Navigator>
   );
 }

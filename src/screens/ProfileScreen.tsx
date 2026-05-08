@@ -420,7 +420,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [following, setFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
-  const [tab, setTab] = useState<'posts' | 'replies' | 'highlights' | 'media' | 'likes' | 'store'>('posts');
+  const [tab, setTab] = useState<'posts' | 'replies' | 'media' | 'likes' | 'store'>('posts');
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
@@ -430,9 +430,9 @@ export default function ProfileScreen({ route, navigation }: any) {
   const isBusinessAccount = user?.role === 'business';
   const showStoreTab = isBusinessAccount;
 
-  const tabs: Array<'posts' | 'replies' | 'highlights' | 'media' | 'likes' | 'store'> = showStoreTab
+  const tabs: Array<'posts' | 'replies' | 'media' | 'likes' | 'store'> = showStoreTab
     ? ['posts', 'replies', 'media', 'likes', 'store']
-    : ['posts', 'replies', 'highlights', 'media', 'likes'];
+    : ['posts', 'replies', 'media', 'likes'];
 
   const load = useCallback(async () => {
     try {
@@ -827,12 +827,6 @@ export default function ProfileScreen({ route, navigation }: any) {
         </View>
       ) : tab === 'posts' && <PostGrid posts={posts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
-      {tab === 'highlights' && (
-        <View style={{ alignItems: 'center', paddingTop: 60 }}>
-          <Ionicons name="star-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
-          <Text style={{ color: '#94a3b8', fontSize: 15 }}>No highlights yet</Text>
-        </View>
-      )}
       {tab === 'media' && (
         <View>
           {posts.filter(p => p.mediaUrls?.length > 0).length > 0 ? (

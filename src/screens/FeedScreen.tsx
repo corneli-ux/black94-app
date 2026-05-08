@@ -130,6 +130,8 @@ function SkeletonFeed() {
 
 /* ── PostCard ─────────────────────────────────────────────────────────── */
 
+const INACTIVE = '#71767b';
+
 const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
   post: Post;
   onLike: (id: string, liked: boolean) => void;
@@ -178,22 +180,34 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     } catch {}
   };
 
+  const navigateToComments = () => {
+    navigation.navigate('PostComments', {
+      postId: post.id,
+      postCaption: post.caption,
+      postAuthorUsername: post.authorUsername,
+      postAuthorDisplayName: post.authorDisplayName,
+    });
+  };
+
+  const navigateToProfile = () => {
+    if (post.authorId !== currentUser?.uid) {
+      navigation.navigate('UserProfile', { userId: post.authorId });
+    } else {
+      navigation.navigate('ProfileSelf');
+    }
+  };
+
   const needsSeeMore = (post.caption?.length || 0) > 140;
 
   return (
     <View style={styles.postCard}>
       <AnimatedHeart visible={showHeart} />
 
+      {/* Main row: avatar + content */}
       <View style={styles.contentRow}>
         {/* Avatar */}
         <TouchableOpacity
-          onPress={() => {
-            if (post.authorId !== currentUser?.uid) {
-              navigation.navigate('UserProfile', { userId: post.authorId });
-            } else {
-              navigation.navigate('ProfileSelf');
-            }
-          }}
+          onPress={navigateToProfile}
           activeOpacity={0.7}
           hitSlop={8}
         >
@@ -201,25 +215,11 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
         </TouchableOpacity>
 
         {/* Content column */}
-        <TouchableOpacity
-          style={styles.contentColumn}
-          activeOpacity={0.7}
-          onPress={() => navigation.navigate('PostComments', {
-            postId: post.id, postCaption: post.caption,
-            postAuthorUsername: post.authorUsername,
-            postAuthorDisplayName: post.authorDisplayName,
-          })}
-        >
-          {/* Header row */}
+        <View style={styles.contentColumn}>
+          {/* Header row: name/badge/username/time ... moreBtn */}
           <View style={styles.headerRow}>
             <TouchableOpacity
-              onPress={() => {
-                if (post.authorId !== currentUser?.uid) {
-                  navigation.navigate('UserProfile', { userId: post.authorId });
-                } else {
-                  navigation.navigate('ProfileSelf');
-                }
-              }}
+              onPress={navigateToProfile}
               activeOpacity={0.7}
               style={styles.headerNameRow}
             >
@@ -232,7 +232,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
             </TouchableOpacity>
 
-            {/* More button */}
+            {/* More button — flex-end, NOT absolute */}
             <TouchableOpacity
               style={styles.moreBtn}
               onPress={() => {
@@ -242,27 +242,32 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                 ]);
               }}
             >
-              <MoreIcon size={18} color={colors.textSecondary} />
+              <MoreIcon size={18} color={INACTIVE} />
             </TouchableOpacity>
           </View>
 
-          {/* Caption with See More */}
-          {post.caption ? (
-            <View>
-              <HighlightedCaption
-                text={captionExpanded || !needsSeeMore ? post.caption : post.caption.slice(0, 140)}
-                style={styles.caption}
-                numberOfLines={captionExpanded ? undefined : CAPTION_EXPANDED_LINES}
-              />
-              {needsSeeMore && !captionExpanded && (
-                <TouchableOpacity onPress={() => setCaptionExpanded(true)} hitSlop={8}>
-                  <Text style={styles.seeMore}>Show more</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : null}
+          {/* Caption — tappable to open comments */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={navigateToComments}
+          >
+            {post.caption ? (
+              <View>
+                <HighlightedCaption
+                  text={captionExpanded || !needsSeeMore ? post.caption : post.caption.slice(0, 140)}
+                  style={styles.caption}
+                  numberOfLines={captionExpanded ? undefined : CAPTION_EXPANDED_LINES}
+                />
+                {needsSeeMore && !captionExpanded && (
+                  <TouchableOpacity onPress={() => setCaptionExpanded(true)} hitSlop={8}>
+                    <Text style={styles.seeMore}>Show more</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : null}
+          </TouchableOpacity>
 
-          {/* Media */}
+          {/* Media image */}
           {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={styles.mediaContainer}>
@@ -275,29 +280,25 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </TouchableOpacity>
           )}
 
-          {/* Action bar */}
+          {/* Action bar — evenly spaced across full width */}
           <View style={styles.actions}>
-            {/* Reply / Comment */}
+            {/* Reply */}
             <TouchableOpacity
               style={styles.actionBtn}
-              onPress={() => navigation.navigate('PostComments', {
-                postId: post.id, postCaption: post.caption,
-                postAuthorUsername: post.authorUsername,
-                postAuthorDisplayName: post.authorDisplayName,
-              })}
+              onPress={navigateToComments}
             >
               <View style={styles.actionIconWrap}>
-                <ReplyIcon size={18} color={colors.textSecondary} />
+                <ReplyIcon size={18} color={INACTIVE} />
               </View>
               {formatCount(post.commentCount) ? (
                 <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
               ) : null}
             </TouchableOpacity>
 
-            {/* Repost - Green accent */}
+            {/* Repost */}
             <TouchableOpacity style={styles.actionBtn} onPress={handleRepostPress}>
               <View style={styles.actionIconWrap}>
-                <RepostIcon size={18} color={isReposted ? '#10b981' : colors.textSecondary} />
+                <RepostIcon size={18} color={isReposted ? '#10b981' : INACTIVE} />
               </View>
               {formatCount(localRepostCount) ? (
                 <Text style={[styles.actionCount, isReposted && { color: '#10b981' }]}>
@@ -306,10 +307,10 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               ) : null}
             </TouchableOpacity>
 
-            {/* Like - Pink/Red fill when active */}
+            {/* Heart / Like */}
             <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
               <View style={styles.actionIconWrap}>
-                <HeartIcon size={18} color={post.liked ? '#f43f5e' : colors.textSecondary} filled={post.liked} />
+                <HeartIcon size={18} color={post.liked ? '#f43f5e' : INACTIVE} filled={post.liked} />
               </View>
               {formatCount(post.likeCount) ? (
                 <Text style={[styles.actionCount, post.liked && { color: '#f43f5e' }]}>
@@ -321,26 +322,26 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             {/* Views */}
             <TouchableOpacity style={styles.actionBtn} disabled>
               <View style={styles.actionIconWrap}>
-                <ViewsIcon size={18} color={colors.textSecondary} />
+                <ViewsIcon size={18} color={INACTIVE} />
               </View>
             </TouchableOpacity>
 
-            {/* Bookmark + Share */}
+            {/* Bookmark + Share — grouped so they stay together at the end */}
             <View style={styles.actionPair}>
               <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
                 <View style={styles.actionIconWrap}>
-                  <BookmarkIcon size={18} color={post.bookmarked ? '#ffffff' : colors.textSecondary} filled={post.bookmarked} />
+                  <BookmarkIcon size={18} color={post.bookmarked ? '#ffffff' : INACTIVE} filled={post.bookmarked} />
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
                 <View style={styles.actionIconWrap}>
-                  <ShareIcon size={18} color={colors.textSecondary} />
+                  <ShareIcon size={18} color={INACTIVE} />
                 </View>
               </TouchableOpacity>
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -764,66 +765,120 @@ const styles = StyleSheet.create({
 
   /* ── Post Card ── */
   postCard: {
-    backgroundColor: colors.bg,
+    backgroundColor: '#000000',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
-    paddingLeft: 12,
-    paddingRight: 12,
-    paddingTop: 8,
+    paddingHorizontal: 12,
+    paddingTop: 10,
     paddingBottom: 12,
   },
-  contentRow: { flexDirection: 'row', gap: 10 },
-  contentColumn: { flex: 1, minWidth: 0, position: 'relative' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerNameRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    flex: 1, flexWrap: 'nowrap', overflow: 'hidden',
+  contentRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
-  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  username: { color: '#71767b', fontSize: 15 },
-  dot: { color: '#71767b', fontSize: 15 },
-  time: { color: '#71767b', fontSize: 15 },
+  contentColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+    flexWrap: 'nowrap',
+    overflow: 'hidden',
+  },
+  displayName: {
+    color: '#e7e9ea',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  username: {
+    color: '#71767b',
+    fontSize: 15,
+  },
+  dot: {
+    color: '#71767b',
+    fontSize: 15,
+  },
+  time: {
+    color: '#71767b',
+    fontSize: 15,
+  },
   moreBtn: {
-    width: 32, height: 32,
-    alignItems: 'center', justifyContent: 'center',
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 16,
   },
   caption: {
-    color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2,
+    color: '#e7e9ea',
+    fontSize: 15,
+    lineHeight: 20,
+    marginTop: 2,
   },
   seeMore: {
-    color: '#2a7fff', fontSize: 15, fontWeight: '600',
+    color: '#2a7fff',
+    fontSize: 15,
+    fontWeight: '700',
     marginTop: 2,
   },
   mediaContainer: {
-    marginTop: 12, borderRadius: 16, overflow: 'hidden',
-    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)',
+    marginTop: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   media: {
     width: '100%',
     height: Math.min(SCREEN_W * 0.85, 510),
-    backgroundColor: '#111',
+    backgroundColor: '#111111',
   },
 
   /* ── Action bar ── */
   actions: {
-    flexDirection: 'row', alignItems: 'center',
-    marginTop: 10, marginLeft: -4, maxWidth: 440,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 10,
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-  actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionPair: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   actionIconWrap: {
-    width: 34, height: 34, borderRadius: 17,
-    alignItems: 'center', justifyContent: 'center',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionCount: { color: '#71767b', fontSize: 13, marginLeft: 2 },
+  actionCount: {
+    color: '#71767b',
+    fontSize: 13,
+    marginLeft: 2,
+  },
 
   /* ── Heart overlay ── */
   heartOverlay: {
     position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    alignItems: 'center', justifyContent: 'center',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
   },
 
