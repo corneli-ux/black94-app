@@ -1,12 +1,14 @@
 import React, { useEffect, useState, Component } from 'react';
 import { StatusBar, Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as WebBrowser from 'expo-web-browser';
 import * as Font from 'expo-font';
 
 // Initialize WebBrowser for OAuth callback handling
-WebBrowser.maybeCompleteAuthSession();
+// Wrap in try-catch for web compatibility
+try { WebBrowser.maybeCompleteAuthSession(); } catch (e) { console.warn('[WebBrowser]', e); }
 import { onAuthStateChanged, auth, restoreAuth, getValidToken } from './src/lib/firebase';
 import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
@@ -19,7 +21,8 @@ if (Text.defaultProps == null) {
 Text.defaultProps.style = { fontFamily: 'System', color: '#e7e9ea' };
 
 // Prevent native splash from auto-hiding before JS is ready
-SplashScreen.preventAutoHideAsync({ fade: true });
+// Wrap in try-catch — no-op on web
+try { SplashScreen.preventAutoHideAsync({ fade: true }); } catch (e) { console.warn('[Splash]', e); }
 
 /* ── Error Boundary ───────────────────────────────────────────────────────── */
 

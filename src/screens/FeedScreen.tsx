@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
   RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Dimensions, Share, Image,
+  ActivityIndicator, Alert, Dimensions, Share,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -229,7 +229,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={styles.mediaContainer}>
-                <Image
+                <RNImage
                   source={{ uri: post.mediaUrls[0] }}
                   style={styles.media}
                   resizeMode="cover"
@@ -636,7 +636,7 @@ export default function FeedScreen({ navigation }: any) {
               <Ionicons name="menu" size={22} color="#e7e9ea" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
+              <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
             </View>
             <TouchableOpacity
               style={styles.headerBtn}
@@ -676,7 +676,7 @@ export default function FeedScreen({ navigation }: any) {
             <Ionicons name="menu" size={22} color="#e7e9ea" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
+            <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
           </View>
           <TouchableOpacity
             style={styles.headerBtn}

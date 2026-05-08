@@ -27,13 +27,18 @@ const FIREBASE_REDIRECT_URIS = [
 
 /**
  * Generate a cryptographically random string for PKCE code_verifier.
+ * Uses native Web Crypto API on web, react-native-get-random-values on native.
  */
 function generateRandomString(length: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
   const array = new Uint8Array(length);
-  // react-native-get-random-values polyfills crypto.getRandomValues
-  const crypto = require('react-native-get-random-values').getRandomValues;
-  crypto(array);
+  // On web, use native crypto.getRandomValues; on native, use the polyfill
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(array);
+  } else {
+    const crypto = require('react-native-get-random-values').getRandomValues;
+    crypto(array);
+  }
   return Array.from(array, (v) => chars[v % chars.length]).join('');
 }
 
