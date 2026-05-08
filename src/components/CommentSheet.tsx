@@ -11,7 +11,10 @@ import { CommentData, fetchPostComments, addPostComment } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { ReplyIcon, RepostIcon as SharedRepostIcon } from '../components/Icons';
+import {
+  ReplyIcon, RepostIcon as SharedRepostIcon,
+  HeartIcon, BookmarkIcon, ShareIcon, ViewsIcon,
+} from '../components/Icons';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_H * 0.75;
@@ -152,18 +155,18 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
                         <View style={styles.actionIconWrap}>
-                          <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={18} color={likeMap[item.id] ? "#f43f5e" : "#94a3b8"} />
+                          <HeartIcon size={18} color={likeMap[item.id] ? "#f43f5e" : "#94a3b8"} filled={likeMap[item.id]} />
                         </View>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} disabled>
                         <View style={styles.actionIconWrap}>
-                          <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+                          <ViewsIcon size={18} color="#94a3b8" />
                         </View>
                       </TouchableOpacity>
                       <View style={styles.actionPair}>
                         <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
                           <View style={styles.actionIconWrap}>
-                            <Ionicons name={bookmarkMap[item.id] ? "bookmark" : "bookmark-outline"} size={18} color={bookmarkMap[item.id] ? "#ffffff" : "#94a3b8"} />
+                            <BookmarkIcon size={18} color={bookmarkMap[item.id] ? "#ffffff" : "#94a3b8"} filled={bookmarkMap[item.id]} />
                           </View>
                         </TouchableOpacity>
                       </View>

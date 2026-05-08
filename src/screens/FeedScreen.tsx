@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
   RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Dimensions, Share,
+  ActivityIndicator, Alert, Dimensions, Share, Animated,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -12,9 +12,15 @@ import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
-import { ReplyIcon, RepostIcon as SharedRepostIcon } from '../components/Icons';
+import {
+  ReplyIcon, RepostIcon, HeartIcon, BookmarkIcon, ShareIcon,
+  ViewsIcon, ImageIcon, CameraIcon, EmojiIcon, PollIcon,
+  LocationIcon, formatCount, MoreIcon,
+} from '../components/Icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+const CAPTION_EXPANDED_LINES = 3;
+const MAX_CAPTION_LENGTH = 4000;
 
 /* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
 function HighlightedCaption({ text, style }: { text: string; style: any }) {
@@ -23,7 +29,7 @@ function HighlightedCaption({ text, style }: { text: string; style: any }) {
     <Text style={style}>
       {parts.map((part, i) =>
         /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
-          <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+          <Text key={i} style={{ color: '#2a7fff' }}>{part}</Text>
         ) : (
           <Text key={i}>{part}</Text>
         )
@@ -32,19 +38,12 @@ function HighlightedCaption({ text, style }: { text: string; style: any }) {
   );
 }
 
-/* ── Helpers ──────────────────────────────────────────────────────────────── */
+/* ── Helpers ──────────────────────────────────────────────────────────── */
 
 const TABS = ['Discover', 'Network'] as const;
 type Tab = typeof TABS[number];
 
-function formatCount(n: number | undefined): string {
-  if (!n) return '';
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return n.toString();
-}
-
-/* ── Lazy image picker (avoids crashes if expo-image-picker not installed) ── */
+/* ── Lazy image picker ── */
 async function openImagePicker() {
   try {
     const { launchImageLibrary } = require('expo-image-picker');
@@ -60,28 +59,57 @@ async function openImagePicker() {
   }
 }
 
-/* ── Skeleton Loader ──────────────────────────────────────────────────────── */
+/* ── Animated Heart Overlay ───────────────────────────────────────────── */
+function AnimatedHeart({ visible }: { visible: boolean }) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scale, { toValue: 1.2, friction: 3, useNativeDriver: true, speed: 20 }),
+        Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+      ]).start(() => {
+        Animated.parallel([
+          Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0, duration: 600, delay: 200, useNativeDriver: true }),
+        ]).start();
+      });
+    } else {
+      scale.setValue(0);
+      opacity.setValue(0);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <View style={styles.heartOverlay} pointerEvents="none">
+      <Animated.View style={{ transform: [{ scale }], opacity }}>
+        <HeartIcon size={96} color="#f43f5e" filled />
+      </Animated.View>
+    </View>
+  );
+}
+
+/* ── Skeleton Loader ──────────────────────────────────────────────────── */
 
 function SkeletonCard() {
   return (
     <View style={[styles.postCard, { borderBottomColor: 'transparent' }]}>
       <View style={styles.contentRow}>
-        {/* Avatar placeholder */}
         <View style={styles.skeletonAvatar} />
         <View style={{ flex: 1, gap: 8 }}>
-          {/* Name + time */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={[styles.skeletonLine, { width: 100, height: 14 }]} />
             <View style={[styles.skeletonLine, { width: 60, height: 14 }]} />
           </View>
-          {/* Caption lines */}
           <View style={[styles.skeletonLine, { width: '90%', height: 14 }]} />
           <View style={[styles.skeletonLine, { width: '70%', height: 14 }]} />
           <View style={[styles.skeletonLine, { width: '40%', height: 14 }]} />
-          {/* Action bar dots */}
           <View style={{ flexDirection: 'row', marginTop: 12, gap: 56 }}>
-            {[0, 1, 2, 3, 4].map(i => (
-              <View key={i} style={[styles.skeletonDot]} />
+            {[0, 1, 2, 3].map(i => (
+              <View key={i} style={styles.skeletonDot} />
             ))}
           </View>
         </View>
@@ -100,7 +128,7 @@ function SkeletonFeed() {
   );
 }
 
-/* ── PostCard ─────────────────────────────────────────────────────────────── */
+/* ── PostCard ─────────────────────────────────────────────────────────── */
 
 const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
   post: Post;
@@ -113,13 +141,13 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 }) {
   const currentUser = auth()?.currentUser;
   const [showHeart, setShowHeart] = useState(false);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
   const lastTapRef = useRef(0);
 
   // Per-post optimistic repost state
   const [isReposted, setIsReposted] = useState(post.reposted);
   const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
 
-  // Sync when post prop changes
   React.useEffect(() => {
     setIsReposted(post.reposted);
     setLocalRepostCount(post.repostCount);
@@ -150,18 +178,14 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     } catch {}
   };
 
+  const needsSeeMore = (post.caption?.length || 0) > 140;
+
   return (
     <View style={styles.postCard}>
-      {/* Double-tap heart overlay */}
-      {showHeart && (
-        <View style={styles.heartOverlay} pointerEvents="none">
-          <Ionicons name="heart" size={96} color="#f43f5e" />
-        </View>
-      )}
+      <AnimatedHeart visible={showHeart} />
 
-      {/* Content row: avatar + content */}
       <View style={styles.contentRow}>
-        {/* Avatar — tap navigates to profile */}
+        {/* Avatar */}
         <TouchableOpacity
           onPress={() => {
             if (post.authorId !== currentUser?.uid) {
@@ -176,11 +200,15 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
         </TouchableOpacity>
 
-        {/* Content column — tap to open replies */}
+        {/* Content column */}
         <TouchableOpacity
           style={styles.contentColumn}
           activeOpacity={0.7}
-          onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}
+          onPress={() => navigation.navigate('PostComments', {
+            postId: post.id, postCaption: post.caption,
+            postAuthorUsername: post.authorUsername,
+            postAuthorDisplayName: post.authorDisplayName,
+          })}
         >
           {/* Header row */}
           <View style={styles.headerRow}>
@@ -205,24 +233,33 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </TouchableOpacity>
 
             {/* More button */}
-            {post.authorId === currentUser?.uid && (
-              <TouchableOpacity
-                style={styles.moreBtn}
-                onPress={() => {
-                  Alert.alert('Post', 'Delete this post?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
-                  ]);
-                }}
-              >
-                <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.moreBtn}
+              onPress={() => {
+                Alert.alert('Post', 'Delete this post?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+                ]);
+              }}
+            >
+              <MoreIcon size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
           </View>
 
-          {/* Caption */}
+          {/* Caption with See More */}
           {post.caption ? (
-            <HighlightedCaption text={post.caption} style={styles.caption} />
+            <View>
+              <HighlightedCaption
+                text={captionExpanded || !needsSeeMore ? post.caption : post.caption.slice(0, 140)}
+                style={styles.caption}
+                numberOfLines={captionExpanded ? undefined : CAPTION_EXPANDED_LINES}
+              />
+              {needsSeeMore && !captionExpanded && (
+                <TouchableOpacity onPress={() => setCaptionExpanded(true)} hitSlop={8}>
+                  <Text style={styles.seeMore}>Show more</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ) : null}
 
           {/* Media */}
@@ -240,8 +277,15 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
           {/* Action bar */}
           <View style={styles.actions}>
-            {/* Comment */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
+            {/* Reply / Comment */}
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={() => navigation.navigate('PostComments', {
+                postId: post.id, postCaption: post.caption,
+                postAuthorUsername: post.authorUsername,
+                postAuthorDisplayName: post.authorDisplayName,
+              })}
+            >
               <View style={styles.actionIconWrap}>
                 <ReplyIcon size={18} color={colors.textSecondary} />
               </View>
@@ -250,32 +294,25 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               ) : null}
             </TouchableOpacity>
 
-            {/* Repost */}
+            {/* Repost - Green accent */}
             <TouchableOpacity style={styles.actionBtn} onPress={handleRepostPress}>
               <View style={styles.actionIconWrap}>
-                <SharedRepostIcon
-                  size={18}
-                  color={isReposted ? colors.repost : colors.textSecondary}
-                />
+                <RepostIcon size={18} color={isReposted ? '#10b981' : colors.textSecondary} />
               </View>
               {formatCount(localRepostCount) ? (
-                <Text style={[styles.actionCount, isReposted && { color: colors.repost }]}>
+                <Text style={[styles.actionCount, isReposted && { color: '#10b981' }]}>
                   {formatCount(localRepostCount)}
                 </Text>
               ) : null}
             </TouchableOpacity>
 
-            {/* Like */}
+            {/* Like - Pink/Red fill when active */}
             <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
               <View style={styles.actionIconWrap}>
-                {post.liked ? (
-                  <Ionicons name="heart" size={18} color={colors.like} />
-                ) : (
-                  <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
-                )}
+                <HeartIcon size={18} color={post.liked ? '#f43f5e' : colors.textSecondary} filled={post.liked} />
               </View>
               {formatCount(post.likeCount) ? (
-                <Text style={[styles.actionCount, post.liked && { color: colors.like }]}>
+                <Text style={[styles.actionCount, post.liked && { color: '#f43f5e' }]}>
                   {formatCount(post.likeCount)}
                 </Text>
               ) : null}
@@ -284,7 +321,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             {/* Views */}
             <TouchableOpacity style={styles.actionBtn} disabled>
               <View style={styles.actionIconWrap}>
-                <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
+                <ViewsIcon size={18} color={colors.textSecondary} />
               </View>
             </TouchableOpacity>
 
@@ -292,17 +329,13 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             <View style={styles.actionPair}>
               <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
                 <View style={styles.actionIconWrap}>
-                  {post.bookmarked ? (
-                    <Ionicons name="bookmark" size={18} color={colors.bookmark} />
-                  ) : (
-                    <Ionicons name="bookmark-outline" size={18} color={colors.textSecondary} />
-                  )}
+                  <BookmarkIcon size={18} color={post.bookmarked ? '#ffffff' : colors.textSecondary} filled={post.bookmarked} />
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
                 <View style={styles.actionIconWrap}>
-                  <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
+                  <ShareIcon size={18} color={colors.textSecondary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -313,7 +346,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   );
 });
 
-/* ── FeedScreen ───────────────────────────────────────────────────────────── */
+/* ── FeedScreen ───────────────────────────────────────────────────────── */
 
 export default function FeedScreen({ navigation }: any) {
   const { user: storeUser } = useAppStore();
@@ -322,15 +355,12 @@ export default function FeedScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
-  const [composeVisible, setComposeVisible] = useState(false);
-  const [composeText, setComposeText] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [composeImages, setComposeImages] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('Discover');
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
   const lastDocRef = useRef<any>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const PAGE_SIZE = 10;
 
@@ -357,7 +387,6 @@ export default function FeedScreen({ navigation }: any) {
         if (append) { setLoadingMore(false); return; }
       }
 
-      // Save cursor for next page
       lastDocRef.current = snapshot.docs[snapshot.docs.length - 1];
 
       const userId = currentUser?.uid;
@@ -455,60 +484,30 @@ export default function FeedScreen({ navigation }: any) {
         for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
           const chunk = postIds.slice(i, i + CHUNK_SIZE);
           try {
-            // Try batch query first (needs composite index). If it fails
-            // (e.g., missing index), fall back to individual doc reads.
             let batchSucceeded = true;
             try {
               const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
                 firestore().collection('post_likes')
-                  .where('postId', 'in', chunk)
-                  .where('userId', '==', userId)
-                  .get(),
+                  .where('postId', 'in', chunk).where('userId', '==', userId).get(),
                 firestore().collection('post_bookmarks')
-                  .where('postId', 'in', chunk)
-                  .where('userId', '==', userId)
-                  .get(),
+                  .where('postId', 'in', chunk).where('userId', '==', userId).get(),
                 firestore().collection('post_reposts')
-                  .where('postId', 'in', chunk)
-                  .where('userId', '==', userId)
-                  .get(),
+                  .where('postId', 'in', chunk).where('userId', '==', userId).get(),
               ]);
-
-              for (const doc of likesSnap.docs) {
-                const d = doc.data();
-                if (d.postId) likedIds.add(d.postId);
-              }
-              for (const doc of bookmarksSnap.docs) {
-                const d = doc.data();
-                if (d.postId) bookmarkedIds.add(d.postId);
-              }
-              for (const doc of repostsSnap.docs) {
-                const d = doc.data();
-                if (d.postId) repostedIds.add(d.postId);
-              }
-
-              // Check if any result has the _missingIndex flag
+              for (const doc of likesSnap.docs) { if (doc.data().postId) likedIds.add(doc.data().postId); }
+              for (const doc of bookmarksSnap.docs) { if (doc.data().postId) bookmarkedIds.add(doc.data().postId); }
+              for (const doc of repostsSnap.docs) { if (doc.data().postId) repostedIds.add(doc.data().postId); }
               if ((likesSnap as any)._missingIndex || (bookmarksSnap as any)._missingIndex || (repostsSnap as any)._missingIndex) {
                 batchSucceeded = false;
               }
             } catch (batchErr) {
-              console.warn('[Feed] Batch interaction query failed, falling back to individual reads:', batchErr);
               batchSucceeded = false;
             }
-
-            // Fallback: individual reads using composite doc IDs
             if (!batchSucceeded) {
-              console.log('[Feed] Using individual interaction reads fallback');
               const individualPromises = chunk.flatMap(postId => [
-                firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => {
-                  if (snap.exists) likedIds.add(postId);
-                }).catch(() => {}),
-                firestore().collection('post_bookmarks').doc(`${postId}_${userId}`).get().then(snap => {
-                  if (snap.exists) bookmarkedIds.add(postId);
-                }).catch(() => {}),
-                firestore().collection('post_reposts').doc(`${postId}_${userId}`).get().then(snap => {
-                  if (snap.exists) repostedIds.add(postId);
-                }).catch(() => {}),
+                firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => { if (snap.exists) likedIds.add(postId); }).catch(() => {}),
+                firestore().collection('post_bookmarks').doc(`${postId}_${userId}`).get().then(snap => { if (snap.exists) bookmarkedIds.add(postId); }).catch(() => {}),
+                firestore().collection('post_reposts').doc(`${postId}_${userId}`).get().then(snap => { if (snap.exists) repostedIds.add(postId); }).catch(() => {}),
               ]);
               await Promise.all(individualPromises);
             }
@@ -516,7 +515,6 @@ export default function FeedScreen({ navigation }: any) {
             console.warn('[Feed] Batch interaction fetch failed for chunk:', e);
           }
         }
-
         for (const post of newPosts) {
           post.liked = likedIds.has(post.id);
           post.bookmarked = bookmarkedIds.has(post.id);
@@ -584,70 +582,25 @@ export default function FeedScreen({ navigation }: any) {
     navigation.navigate('PostComments', { postId, postCaption: caption || '', postAuthorUsername: authorUsername || '', postAuthorDisplayName: authorDisplayName || '' });
   };
 
-  const handleAddImages = async () => {
-    const remaining = 4 - composeImages.length;
-    if (remaining <= 0) {
-      Alert.alert('Limit reached', 'You can add up to 4 images.');
-      return;
-    }
-    const result = await openImagePicker();
-    if (result.didCancel || result.errorCode) return;
-    const assets = result.assets ?? [];
-    const newUris = assets
-      .filter((a: any) => a.uri)
-      .map((a: any) => a.uri)
-      .slice(0, remaining);
-    if (newUris.length > 0) {
-      setComposeImages(prev => [...prev, ...newUris]);
-    }
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setComposeImages(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handlePost = async () => {
-    if (!composeText.trim() && composeImages.length === 0) return;
-    setPosting(true);
-    try {
-      const mediaUrls = composeImages.length > 0 ? composeImages : [];
-      await createPost(composeText.trim(), mediaUrls);
-      setComposeText('');
-      setComposeImages([]);
-      setComposeVisible(false);
-      // Reload from scratch
-      lastDocRef.current = null;
-      setAllLoaded(false);
-      loadFeed(false);
-    } catch {
-      Alert.alert('Error', 'Failed to post');
-    } finally {
-      setPosting(false);
-    }
-  };
+  const tabBarHeight = 50 + (insets.bottom || 0);
 
   if (loading) {
     return (
       <View style={styles.container}>
-        {/* Header with logo */}
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-              <Ionicons name="menu" size={22} color="#e7e9ea" />
+              <View style={styles.avatarPlaceholder} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
             </View>
-            <TouchableOpacity
-              style={styles.headerBtn}
-              onPress={() => navigation.navigate('Settings')}
-            >
+            <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('Settings')}>
               <Ionicons name="settings-outline" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
         </SafeAreaView>
 
-        {/* Tabs */}
         <View style={styles.tabBar}>
           {TABS.map(tab => (
             <TouchableOpacity key={tab} style={styles.tabItem} disabled>
@@ -664,24 +617,18 @@ export default function FeedScreen({ navigation }: any) {
     );
   }
 
-  const tabBarHeight = 50 + (insets.bottom || 0);
-  const fabBottom = tabBarHeight + 8;
-
   return (
     <View style={styles.container}>
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-            <Ionicons name="menu" size={22} color="#e7e9ea" />
+            <View style={styles.avatarPlaceholder} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
           </View>
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => navigation.navigate('Settings')}
-          >
+          <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('Settings')}>
             <Ionicons name="settings-outline" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -731,6 +678,11 @@ export default function FeedScreen({ navigation }: any) {
         nestedScrollEnabled={true}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )
+        }
         ListFooterComponent={
           loadingMore ? (
             <View style={styles.loadMoreIndicator}>
@@ -753,124 +705,13 @@ export default function FeedScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
         }
-        contentContainerStyle={{ paddingBottom: fabBottom + 72 }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
       />
-
-      {/* FAB */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: fabBottom }]}
-        onPress={() => setComposeVisible(true)}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={24} color="#000000" />
-      </TouchableOpacity>
-
-      {/* Compose Modal */}
-      <Modal visible={composeVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior="padding"
-        >
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setComposeVisible(false); setComposeImages([]); }} />
-          <View style={styles.composeSheet}>
-            {/* Header */}
-            <View style={styles.composeHeader}>
-              {/* Cancel = X icon */}
-              <TouchableOpacity
-                style={styles.composeCloseBtn}
-                onPress={() => { setComposeVisible(false); setComposeImages([]); }}
-              >
-                <Ionicons name="close" size={20} color="#e7e9ea" />
-              </TouchableOpacity>
-              <Text style={styles.composeTitle}>New Post</Text>
-              <TouchableOpacity
-                style={[styles.postBtn, (!composeText.trim() && composeImages.length === 0) && styles.postBtnDisabled]}
-                onPress={handlePost}
-                disabled={posting || (!composeText.trim() && composeImages.length === 0)}
-              >
-                {posting
-                  ? <ActivityIndicator color="#000" size="small" />
-                  : <Text style={[styles.postBtnText, (!composeText.trim() && composeImages.length === 0) && styles.postBtnTextDisabled]}>Post</Text>
-                }
-              </TouchableOpacity>
-            </View>
-
-            {/* Body */}
-            <View style={styles.composeBody}>
-              <Avatar uri={storeUser?.profileImage || currentUser?.photoURL} name={storeUser?.displayName || currentUser?.displayName} size={38} />
-              <View style={{ flex: 1 }}>
-                <TextInput
-                  style={styles.composeInput}
-                  placeholder="What's on your mind?"
-                  placeholderTextColor="#64748b"
-                  value={composeText}
-                  onChangeText={setComposeText}
-                  multiline
-                  autoFocus
-                  maxLength={4000}
-                />
-
-                {/* Image preview grid */}
-                {composeImages.length > 0 && (
-                  <View style={styles.imagePreviewGrid}>
-                    {composeImages.map((uri, index) => (
-                      <View key={uri} style={styles.imagePreviewCard}>
-                        <RNImage source={{ uri }} style={styles.imagePreviewThumb} resizeMode="cover" />
-                        <TouchableOpacity
-                          style={styles.imageRemoveBtn}
-                          onPress={() => handleRemoveImage(index)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="close" size={12} color="#ffffff" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                    {composeImages.length < 4 && (
-                      <TouchableOpacity style={styles.imageAddCard} onPress={handleAddImages} activeOpacity={0.7}>
-                        <Ionicons name="add" size={24} color="rgba(255,255,255,0.5)" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-
-                {/* Action buttons row */}
-                <View style={styles.composeActions}>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={handleAddImages}>
-                    <Ionicons name="image-outline" size={20} color={colors.accent} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Camera', 'Camera capture coming soon!')}>
-                    <Ionicons name="camera-outline" size={20} color="#00ba7c" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('GIF', 'GIF picker coming soon!')}>
-                    <Ionicons name="film-outline" size={20} color="#f59e0b" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Emoji', 'Emoji picker coming soon!')}>
-                    <Ionicons name="happy-outline" size={20} color={colors.accent} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Poll', 'Poll creation coming soon!')}>
-                    <Ionicons name="stats-chart-outline" size={20} color="#8b5cf6" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Character count (only show when > 3400) */}
-                {composeText.length > 3400 && (
-                  <Text style={[
-                    styles.charCountBottom,
-                    composeText.length > 4000 * 0.95 && { color: colors.error },
-                  ]}>
-                    {composeText.length}/4000
-                  </Text>
-                )}
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
 
-/* ── Styles ───────────────────────────────────────────────────────────────── */
+/* ── Styles ───────────────────────────────────────────────────────────── */
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
@@ -878,14 +719,20 @@ const styles = StyleSheet.create({
   /* ── Header ── */
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10,
-    height: 56,
+    paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8,
+    height: 52,
     borderBottomWidth: 0.5, borderBottomColor: colors.separator,
     backgroundColor: colors.bg,
   },
   headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  logoImage: { width: 28, height: 28, resizeMode: 'contain' },
+  logoImage: { width: 30, height: 30, resizeMode: 'contain' },
+  avatarPlaceholder: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
 
   /* ── Tabs ── */
   tabBar: {
@@ -901,102 +748,54 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     position: 'relative',
   },
-  tabText: {
-    fontSize: 15,
-  },
-  tabTextActive: {
-    color: '#ffffff',
-    fontWeight: '700',
-  },
-  tabTextInactive: {
-    color: '#94a3b8',
-    fontWeight: '400',
-  },
+  tabText: { fontSize: 15 },
+  tabTextActive: { color: '#ffffff', fontWeight: '700' },
+  tabTextInactive: { color: '#94a3b8', fontWeight: '400' },
   tabUnderline: {
-    position: 'absolute',
-    bottom: 0,
-    left: 24,
-    right: 24,
-    height: 1,
-    backgroundColor: '#ffffff',
+    position: 'absolute', bottom: 0, left: 24, right: 24,
+    height: 2, backgroundColor: '#ffffff', borderRadius: 1,
   },
-  /* Only used in skeleton loading indicator */
   tabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    height: 1,
-    backgroundColor: '#ffffff',
+    position: 'absolute', bottom: 0,
+    height: 2, backgroundColor: '#ffffff', borderRadius: 1,
   },
 
-  /* ── Post Card — exact match to web UserPostCard ── */
+  /* ── Post Card ── */
   postCard: {
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingTop: 4,
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingTop: 8,
     paddingBottom: 12,
   },
-  contentRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  contentColumn: {
-    flex: 1,
-    minWidth: 0,
-    position: 'relative',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+  contentRow: { flexDirection: 'row', gap: 10 },
+  contentColumn: { flex: 1, minWidth: 0, position: 'relative' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flex: 1,
-    flexWrap: 'nowrap',
-    overflow: 'hidden',
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flex: 1, flexWrap: 'nowrap', overflow: 'hidden',
   },
-  displayName: {
-    color: '#e7e9ea',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  username: {
-    color: '#71767b',
-    fontSize: 15,
-  },
-  dot: {
-    color: '#71767b',
-    fontSize: 15,
-  },
-  time: {
-    color: '#71767b',
-    fontSize: 15,
-  },
+  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  username: { color: '#71767b', fontSize: 15 },
+  dot: { color: '#71767b', fontSize: 15 },
+  time: { color: '#71767b', fontSize: 15 },
   moreBtn: {
-    position: 'absolute',
-    top: 0,
-    right: -8,
     width: 32, height: 32,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: 16,
   },
   caption: {
-    color: '#e7e9ea',
-    fontSize: 15,
-    lineHeight: 20,
+    color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2,
+  },
+  seeMore: {
+    color: '#2a7fff', fontSize: 15, fontWeight: '600',
     marginTop: 2,
   },
   mediaContainer: {
-    marginTop: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    marginTop: 12, borderRadius: 16, overflow: 'hidden',
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)',
   },
   media: {
     width: '100%',
@@ -1006,11 +805,8 @@ const styles = StyleSheet.create({
 
   /* ── Action bar ── */
   actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    marginLeft: 0,
-    maxWidth: 440,
+    flexDirection: 'row', alignItems: 'center',
+    marginTop: 10, marginLeft: -4, maxWidth: 440,
     justifyContent: 'space-between',
   },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
@@ -1019,11 +815,7 @@ const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center',
   },
-  actionCount: {
-    color: '#94a3b8',
-    fontSize: 13,
-    marginLeft: 2,
-  },
+  actionCount: { color: '#71767b', fontSize: 13, marginLeft: 2 },
 
   /* ── Heart overlay ── */
   heartOverlay: {
@@ -1035,12 +827,11 @@ const styles = StyleSheet.create({
 
   /* ── Skeleton ── */
   skeletonAvatar: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
   skeletonLine: {
-    height: 14,
-    borderRadius: 4,
+    height: 14, borderRadius: 4,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
   skeletonDot: {
@@ -1048,139 +839,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
 
-  /* ── Load more indicator ── */
-  loadMoreIndicator: {
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-
-  /* ── FAB ── */
-  fab: {
-    position: 'absolute', right: 16,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#ffffff',
-    alignItems: 'center', justifyContent: 'center',
-    elevation: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5, shadowRadius: 8,
-    zIndex: 999,
-  },
+  /* ── Load more ── */
+  loadMoreIndicator: { paddingVertical: 20, alignItems: 'center' },
   emptyIcon: {
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center', justifyContent: 'center',
-  },
-
-  /* ── Compose Modal ── */
-  modalOverlay: { flex: 1, backgroundColor: 'transparent' },
-  composeSheet: {
-    backgroundColor: '#000000',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 16,
-    minHeight: 280,
-    maxHeight: '85%',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  composeHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-    paddingBottom: 12,
-  },
-  composeCloseBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  composeTitle: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 16,
-    position: 'absolute',
-    left: 0, right: 0,
-    textAlign: 'center',
-  },
-  composeBody: { flexDirection: 'row', gap: 14 },
-  composeInput: {
-    flex: 1,
-    color: '#e7e9ea',
-    fontSize: 17,
-    lineHeight: 24,
-    minHeight: 110,
-    textAlignVertical: 'top',
-  },
-  composeActions: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-  },
-  composeActionBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  charCountBottom: {
-    color: '#94a3b8',
-    fontSize: 13,
-    textAlign: 'right',
-    marginTop: 4,
-  },
-  postBtn: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  postBtnDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  postBtnText: { color: '#000000', fontWeight: '700' },
-  postBtnTextDisabled: { color: '#64748b' },
-
-  /* ── Image Preview Grid ── */
-  imagePreviewGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-  },
-  imagePreviewCard: {
-    width: '47%',
-    aspectRatio: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    position: 'relative',
-  },
-  imagePreviewThumb: {
-    width: '100%',
-    height: '100%',
-  },
-  imageRemoveBtn: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageAddCard: {
-    width: '47%',
-    aspectRatio: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

@@ -1,17 +1,20 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Image,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Image as RNImage,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { CommentData, fetchPostComments, addPostComment } from '../lib/api';
 import { useAppStore } from '../stores/app';
-import { auth } from '../lib/firebase';
+import { auth, firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { ReplyIcon, RepostIcon as SharedRepostIcon } from '../components/Icons';
+import {
+  ReplyIcon, RepostIcon, HeartIcon, BookmarkIcon,
+  ShareIcon, ViewsIcon, BackArrowIcon,
+} from '../components/Icons';
 
 interface PostCommentsScreenProps {
   route?: any;
@@ -30,8 +33,22 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   const [likeMap, setLikeMap] = useState<Record<string, boolean>>({});
   const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
   const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
+  const [captionExpanded, setCaptionExpanded] = useState(false);
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
+
+  // Fetch post data for full preview
+  const [postData, setPostData] = useState<any>(null);
+
+  useEffect(() => {
+    if (postId) {
+      firestore().collection('posts').doc(postId).get().then(docSnap => {
+        if (docSnap.exists) {
+          setPostData(docSnap.data());
+        }
+      }).catch(() => {});
+    }
+  }, [postId]);
 
   const loadComments = useCallback(async () => {
     setLoading(true);
@@ -42,7 +59,6 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 
   useEffect(() => { loadComments(); }, [loadComments]);
 
-  // Auto-set replyingTo when navigating from a post card with postAuthorUsername
   useEffect(() => {
     if (postAuthorUsername) {
       setReplyingTo({
@@ -85,6 +101,9 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
+  const fullCaption = postData?.caption || postCaption || '';
+  const needsSeeMore = fullCaption.length > 140;
+
   const renderComment = ({ item }: { item: CommentData }) => (
     <View style={styles.commentRow}>
       <Avatar uri={item.authorProfileImage || null} name={item.authorDisplayName || item.authorUsername} size={40} />
@@ -92,13 +111,12 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         <View style={styles.commentHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Text style={styles.commentName} numberOfLines={1}>{item.authorDisplayName || item.authorUsername}</Text>
-            <VerifiedBadge badge={item.authorBadge} isVerified={item.authorIsVerified} size={16} />
+            <VerifiedBadge badge={item.authorBadge} isVerified={item.authorIsVerified} size={14} />
             <Text style={styles.commentHandle}>@{item.authorUsername}</Text>
             <Text style={styles.commentTime}>{timeAgo(item.createdAt)}</Text>
           </View>
         </View>
         <Text style={styles.commentContent}>{item.content}</Text>
-        {/* Action bar — matches feed PostCard exactly */}
         <View style={styles.commentActions}>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => {
             setReplyingTo({
@@ -113,28 +131,28 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
             <View style={styles.actionIconWrap}>
-              {repostMap[item.id] ? <SharedRepostIcon size={18} color={colors.repost} /> : <SharedRepostIcon size={18} color="#94a3b8" />}
+              <RepostIcon size={18} color={repostMap[item.id] ? '#10b981' : '#94a3b8'} />
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
             <View style={styles.actionIconWrap}>
-              <Ionicons name={likeMap[item.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[item.id] ? '#f43f5e' : '#94a3b8'} />
+              <HeartIcon size={18} color={likeMap[item.id] ? '#f43f5e' : '#94a3b8'} filled={likeMap[item.id]} />
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.commentActionBtn} disabled>
             <View style={styles.actionIconWrap}>
-              <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+              <ViewsIcon size={18} color="#94a3b8" />
             </View>
           </TouchableOpacity>
           <View style={styles.actionPair}>
             <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name={bookmarkMap[item.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item.id] ? '#ffffff' : '#94a3b8'} />
+                <BookmarkIcon size={18} color={bookmarkMap[item.id] ? '#ffffff' : '#94a3b8'} filled={bookmarkMap[item.id]} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name="share-outline" size={18} color="#94a3b8" />
+                <ShareIcon size={18} color="#94a3b8" />
               </View>
             </TouchableOpacity>
           </View>
@@ -149,25 +167,102 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color="#e7e9ea" />
+            <BackArrowIcon size={22} color="#e7e9ea" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Replies</Text>
+          <Text style={styles.headerTitle}>Post</Text>
           <View style={{ width: 22 }} />
         </View>
       </SafeAreaView>
 
-      {/* Post caption preview */}
-      {postCaption ? (
-        <View style={styles.preview}>
-          <Text style={styles.previewLabel}>Replying to</Text>
-          {postAuthorDisplayName ? (
-            <Text style={styles.previewAuthor}>{postAuthorDisplayName} <Text style={styles.previewHandle}>@{postAuthorUsername}</Text></Text>
+      {/* Full post preview with See More */}
+      {(fullCaption || postData) ? (
+        <View style={styles.postPreview}>
+          <View style={styles.postPreviewHeader}>
+            <Avatar
+              uri={postData?.authorProfileImage || null}
+              name={postData?.authorDisplayName || postAuthorDisplayName || postAuthorUsername}
+              size={40}
+            />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={styles.postPreviewName} numberOfLines={1}>
+                  {postData?.authorDisplayName || postAuthorDisplayName || 'User'}
+                </Text>
+                <VerifiedBadge
+                  badge={postData?.authorBadge || ''}
+                  isVerified={postData?.authorIsVerified || false}
+                  size={14}
+                />
+              </View>
+              <Text style={styles.postPreviewHandle}>@{postData?.authorUsername || postAuthorUsername || 'user'}</Text>
+            </View>
+          </View>
+
+          {/* Caption with See More */}
+          {fullCaption ? (
+            <View style={styles.postCaptionWrap}>
+              <Text style={styles.postCaption} numberOfLines={captionExpanded ? undefined : 3}>
+                {fullCaption}
+              </Text>
+              {needsSeeMore && !captionExpanded && (
+                <TouchableOpacity onPress={() => setCaptionExpanded(true)} hitSlop={8}>
+                  <Text style={styles.seeMore}>Show more</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ) : null}
-          <Text style={styles.previewCaption} numberOfLines={2}>{postCaption}</Text>
+
+          {/* Post media */}
+          {postData?.mediaUrls?.length > 0 && (
+            <RNImage
+              source={{ uri: postData.mediaUrls[0] }}
+              style={styles.postMedia}
+              resizeMode="cover"
+            />
+          )}
+
+          {/* Post stats */}
+          <View style={styles.postStatsRow}>
+            <Text style={styles.postStatsText}>
+              {postData?.commentCount || 0} replies · {postData?.likeCount || 0} likes
+            </Text>
+          </View>
+
+          {/* Action bar */}
+          <View style={styles.postActions}>
+            <TouchableOpacity style={styles.postActionBtn} disabled>
+              <View style={styles.actionIconWrap}>
+                <ReplyIcon size={18} color="#94a3b8" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.postActionBtn} disabled>
+              <View style={styles.actionIconWrap}>
+                <RepostIcon size={18} color="#94a3b8" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.postActionBtn} disabled>
+              <View style={styles.actionIconWrap}>
+                <HeartIcon size={18} color="#94a3b8" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.postActionBtn} disabled>
+              <View style={styles.actionIconWrap}>
+                <ViewsIcon size={18} color="#94a3b8" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.postActionBtn} disabled>
+              <View style={styles.actionIconWrap}>
+                <ShareIcon size={18} color="#94a3b8" />
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : null}
 
-      {/* Comments list — flex:1 fills remaining space above input bar */}
+      {/* Separator */}
+      <View style={styles.separator} />
+
+      {/* Comments list */}
       <FlatList
         ref={listRef}
         style={{ flex: 1 }}
@@ -202,7 +297,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         </View>
       ) : null}
 
-      {/* Sticky input bar — KeyboardAvoidingView handles both platforms */}
+      {/* Sticky input bar */}
       <View style={[styles.inputBar, { paddingBottom: Math.max(8, insets.bottom || 0) }]}>
         <Avatar uri={user?.profileImage || null} name={user?.displayName} size={32} />
         <View style={styles.inputWrap}>
@@ -218,7 +313,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           />
         </View>
         <TouchableOpacity
-          style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
+          style={[styles.sendBtn, text.trim() ? styles.sendBtnActive : styles.sendBtnDisabled]}
           onPress={handleSend}
           disabled={!text.trim() || sending}
         >
@@ -234,6 +329,8 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000000' },
+
+  /* ── Header ── */
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingBottom: 12,
@@ -241,40 +338,82 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   headerTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '800' },
-  preview: {
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
+
+  /* ── Post Preview ── */
+  postPreview: {
     backgroundColor: '#000000',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
-  previewLabel: { color: '#71767b', fontSize: 13, fontWeight: '500', marginBottom: 2 },
-  previewAuthor: { color: '#e7e9ea', fontSize: 15, fontWeight: '700' },
-  previewHandle: { color: '#71767b', fontSize: 15, fontWeight: '400' },
-  previewCaption: { color: '#94a3b8', fontSize: 15, lineHeight: 21, marginTop: 4 },
+  postPreviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  postPreviewName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
+  postPreviewHandle: { color: '#71767b', fontSize: 14 },
+  postCaptionWrap: { marginBottom: 8 },
+  postCaption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20 },
+  seeMore: { color: '#2a7fff', fontSize: 15, fontWeight: '600', marginTop: 2 },
+  postMedia: {
+    width: '100%',
+    height: 220,
+    borderRadius: 16,
+    marginTop: 8,
+    backgroundColor: '#111',
+  },
+  postStatsRow: {
+    flexDirection: 'row',
+    marginTop: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingTop: 8,
+  },
+  postStatsText: { color: '#71767b', fontSize: 13 },
+  postActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    maxWidth: 360,
+    marginTop: 4,
+    paddingBottom: 4,
+  },
+  postActionBtn: { flexDirection: 'row', alignItems: 'center' },
+
+  /* ── Separator ── */
+  separator: {
+    height: 0.5,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  /* ── Comments ── */
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyListContent: { flexGrow: 1 },
   emptyWrap: { alignItems: 'center', paddingTop: 100 },
   emptyTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '700', marginTop: 12 },
   emptySub: { color: '#64748b', fontSize: 15, marginTop: 4 },
   commentRow: {
-    flexDirection: 'row', gap: 12,
+    flexDirection: 'row', gap: 10,
     paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   commentBody: { flex: 1, minWidth: 0 },
   commentHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
     marginBottom: 2, flexWrap: 'wrap',
   },
   commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
   commentHandle: { color: '#71767b', fontSize: 15 },
   commentTime: { color: '#71767b', fontSize: 15 },
   commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 2 },
-  /* Action bar — matches feed PostCard exactly */
+
+  /* ── Action bar ── */
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    marginLeft: 0,
+    marginTop: 10,
+    marginLeft: -4,
     maxWidth: 440,
     justifyContent: 'space-between',
   },
@@ -284,7 +423,8 @@ const styles = StyleSheet.create({
   },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
   commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-  /* Black themed input bar */
+
+  /* ── Input Bar ── */
   inputBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingVertical: 10,
@@ -299,9 +439,12 @@ const styles = StyleSheet.create({
   input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },
   sendBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
+  sendBtnActive: { backgroundColor: '#2a7fff' },
   sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
+
+  /* ── Replying bar ── */
   replyingBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -312,12 +455,6 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.06)',
     backgroundColor: '#000000',
   },
-  replyingBarText: {
-    color: '#94a3b8',
-    fontSize: 14,
-  },
-  replyingBarName: {
-    color: '#e7e9ea',
-    fontWeight: '700',
-  },
+  replyingBarText: { color: '#94a3b8', fontSize: 14 },
+  replyingBarName: { color: '#e7e9ea', fontWeight: '700' },
 });

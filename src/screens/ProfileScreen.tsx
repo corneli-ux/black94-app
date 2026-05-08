@@ -7,7 +7,11 @@ import { fetchUserProfile, toggleFollow, checkFollowing, toggleLike, toggleBookm
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import { ReplyIcon, RepostIcon as SharedRepostIcon } from '../components/Icons';
+import {
+  ReplyIcon, RepostIcon as SharedRepostIcon,
+  HeartIcon, BookmarkIcon, ShareIcon, ViewsIcon,
+  BackArrowIcon, MoreIcon,
+} from '../components/Icons';
 
 /* ── Replies type ──────────────────────────────────────────────── */
 interface Reply {
@@ -416,7 +420,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [following, setFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
-  const [tab, setTab] = useState<'posts' | 'replies' | 'likes' | 'store'>('posts');
+  const [tab, setTab] = useState<'posts' | 'replies' | 'highlights' | 'media' | 'likes' | 'store'>('posts');
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
@@ -426,9 +430,9 @@ export default function ProfileScreen({ route, navigation }: any) {
   const isBusinessAccount = user?.role === 'business';
   const showStoreTab = isBusinessAccount;
 
-  const tabs: Array<'posts' | 'replies' | 'likes' | 'store'> = showStoreTab
-    ? ['posts', 'store', 'likes']
-    : ['posts', 'replies', 'likes'];
+  const tabs: Array<'posts' | 'replies' | 'highlights' | 'media' | 'likes' | 'store'> = showStoreTab
+    ? ['posts', 'replies', 'media', 'likes', 'store']
+    : ['posts', 'replies', 'highlights', 'media', 'likes'];
 
   const load = useCallback(async () => {
     try {
@@ -507,10 +511,19 @@ export default function ProfileScreen({ route, navigation }: any) {
     }
   }, [targetUserId]);
 
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
     setCanRefresh(offset <= 0);
-  }, []);
+    // Hide/show header on scroll
+    const direction = offset - lastScrollY.current;
+    if (direction > 15 && headerVisible) setHeaderVisible(false);
+    if (direction < -15 && !headerVisible) setHeaderVisible(true);
+    if (offset < 50) setHeaderVisible(true);
+    lastScrollY.current = offset;
+  }, [headerVisible]);
 
   useEffect(() => { load(); }, []);
 
@@ -710,7 +723,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <BackArrowIcon size={22} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.topLogo}>Profile</Text>
           {isOwnProfile ? (
@@ -814,6 +827,30 @@ export default function ProfileScreen({ route, navigation }: any) {
         </View>
       ) : tab === 'posts' && <PostGrid posts={posts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
+      {tab === 'highlights' && (
+        <View style={{ alignItems: 'center', paddingTop: 60 }}>
+          <Ionicons name="star-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
+          <Text style={{ color: '#94a3b8', fontSize: 15 }}>No highlights yet</Text>
+        </View>
+      )}
+      {tab === 'media' && (
+        <View>
+          {posts.filter(p => p.mediaUrls?.length > 0).length > 0 ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 2 }}>
+              {posts.filter(p => p.mediaUrls?.length > 0).map(post => (
+                <TouchableOpacity key={post.id} onPress={() => navigation.navigate('PostComments', { postId: post.id })}>
+                  <Image source={{ uri: post.mediaUrls[0] }} style={{ width: SCREEN_W / 3, height: SCREEN_W / 3, backgroundColor: '#111' }} resizeMode="cover" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={{ alignItems: 'center', paddingTop: 60 }}>
+              <Ionicons name="image-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
+              <Text style={{ color: '#94a3b8', fontSize: 15 }}>No media yet</Text>
+            </View>
+          )}
+        </View>
+      )}
       {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'store' && (
         <View style={{ alignItems: 'center', paddingTop: 60 }}>

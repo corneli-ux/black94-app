@@ -31,7 +31,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const MAX_IMAGES = 4;
-const MAX_CAPTION_LENGTH = 500;
+const MAX_CAPTION_LENGTH = 4000;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const COLORS = {
@@ -265,7 +265,7 @@ const CreatePostScreen: React.FC = () => {
             style={styles.captionInput}
             value={caption}
             onChangeText={setCaption}
-            placeholder="What's on your mind?"
+            placeholder="What is happening?!"
             placeholderTextColor={COLORS.textMuted}
             multiline
             maxLength={MAX_CAPTION_LENGTH}
@@ -428,17 +428,17 @@ const styles = StyleSheet.create({
   },
   headerPostButton: {
     borderRadius: 20,
-    paddingHorizontal: 20,
+    paddingHorizontal: 22,
     paddingVertical: 8,
-    minWidth: 70,
+    minWidth: 76,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerPostActive: { backgroundColor: COLORS.primary },
-  headerPostInactive: { backgroundColor: COLORS.primaryDisabled },
+  headerPostActive: { backgroundColor: '#2a7fff' },
+  headerPostInactive: { backgroundColor: 'rgba(42,127,255,0.2)' },
   headerPostText: { fontSize: 15, fontWeight: '700' },
-  headerPostTextActive: { color: '#000000' },
-  headerPostTextInactive: { color: 'rgba(255, 255, 255, 0.5)' },
+  headerPostTextActive: { color: '#ffffff' },
+  headerPostTextInactive: { color: 'rgba(42,127,255,0.5)' },
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 16,
