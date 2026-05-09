@@ -52,14 +52,20 @@ export default function AuthScreen() {
 
     try {
       // ═══════════════════════════════════════════════════════════════════
-      // Platform-specific auth strategy:
-      //   Android → native first (web OAuth can't intercept HTTPS redirects)
-      //   iOS     → web OAuth first (ASWebAuthenticationSession is reliable)
+      // Auth strategy: try web OAuth first on ALL platforms.
+      //
+      // WHY: Native Google Sign-In on Android requires the APK signing
+      // certificate SHA-1 to be registered in Firebase Console. If it's
+      // not, native sign-in fails with DEVELOPER_ERROR and the user is stuck.
+      //
+      // Web OAuth uses a custom scheme redirect (black94://auth) which
+      // is intercepted by the deep linking system. It requires the redirect
+      // URI to be registered in Google Cloud Console.
+      //
+      // By trying web OAuth first, we give it the best chance of working.
+      // Native sign-in is the fallback for when web OAuth is unavailable.
       // ═══════════════════════════════════════════════════════════════════
-
-      // Android: try native first (cleaner UX, no project ID page)
-      // iOS: try web OAuth first (ASWebAuthenticationSession is reliable)
-      const strategies = Platform.OS === 'android' ? ['native', 'web'] : ['web', 'native'];
+      const strategies = ['web', 'native'];
 
       for (const strategy of strategies) {
         try {
@@ -83,31 +89,41 @@ export default function AuthScreen() {
             }
           }
         } catch (err: any) {
-          console.warn(`[AuthScreen] ${strategy} auth failed:`, err.message);
+          const errMsg = err?.message || String(err);
+          const errCode = err?.code;
+          console.warn(`[AuthScreen] ${strategy} auth failed:`, errMsg, 'code:', errCode);
           lastError = err;
-          // If user explicitly cancelled (code 12501), don't try another method
-          if (err.code === '12501' || err.message?.includes('cancelled')) {
+
+          // If user explicitly cancelled, don't try another method
+          const isUserCancelled =
+            errCode === '12501' || errCode === 12501 ||
+            errMsg.toLowerCase().includes('cancelled');
+          if (isUserCancelled) {
             console.log('[AuthScreen] User cancelled sign-in');
             return;
           }
-          // DEVELOPER_ERROR typically means SHA-1 not registered in Google Console
-          // Skip to next strategy instead of stopping
-          if (err.code === 'DEVELOPER_ERROR') {
-            console.log('[AuthScreen] DEVELOPER_ERROR — SHA-1 not registered, trying web OAuth');
+
+          // DEVELOPER_ERROR = APK signing SHA-1 not in Firebase Console
+          const isDevError =
+            errCode === 'DEVELOPER_ERROR' || errCode === 10 ||
+            errMsg.includes('DEVELOPER_ERROR') || errMsg.includes('10:');
+          if (isDevError) {
+            console.log('[AuthScreen] DEVELOPER_ERROR — trying next method');
             continue;
           }
-          // Continue to next strategy
+
+          // For any other error, try next strategy
+          console.log(`[AuthScreen] ${strategy} failed, trying next strategy...`);
         }
       }
 
-      // All methods failed
+      // All methods failed — show actual error to user
       console.error('[AuthScreen] All sign-in methods failed');
       if (lastError) {
+        const errorDetail = lastError.message || 'Unknown error';
         Alert.alert(
           'Sign In Failed',
-          Platform.OS === 'android'
-            ? 'Could not sign in with Google. Please make sure Google Play Services is installed and try again.'
-            : lastError.message || 'Something went wrong.',
+          `Could not sign in with Google.\n\nError: ${errorDetail}`,
         );
       }
     } finally {
