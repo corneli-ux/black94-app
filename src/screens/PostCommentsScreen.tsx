@@ -753,10 +753,10 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         data={comments}
         keyExtractor={(item: CommentData) => item.id}
         renderItem={renderComment}
-        contentContainerStyle={{
+        contentContainerStyle={
           comments.length === 0 && !loading ? styles.emptyListContent : undefined
-        }}
-        ListEmptyComponent={{
+        }
+        ListEmptyComponent={
           loading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color="#94a3b8" size="small" />
@@ -768,7 +768,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               <Text style={styles.emptySub}>Be the first to share your thoughts.</Text>
             </View>
           )
-        }}
+        }
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
         keyboardShouldPersistTaps="handled"
       />
@@ -806,11 +806,11 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             <TextInput
               ref={inputRef}
               style={styles.input}
-              placeholder={{
+              placeholder={
                 replyingTo
                   ? `Reply to @${replyingTo.username}...`
                   : 'Add a comment...'
-              }}
+              }
               placeholderTextColor="#64748b"
               value={text}
               onChangeText={setText}
@@ -1080,7 +1080,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#111',
   },
 
-  /* ── Action Bar — improved padding & alignment */}
+  /* ── Action Bar — improved padding & alignment */
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1352,7 +1352,7 @@ const styles = StyleSheet.create({
     color: '#555',
   },
 
-  /* ── Media Toolbar — improved spacing */}
+  /* ── Media Toolbar — improved spacing */
   mediaToolbar: {
     flexDirection: 'row',
     alignItems: 'center',
