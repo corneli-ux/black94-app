@@ -1,26 +1,49 @@
 /**
- * Google Web OAuth for iOS (via expo-web-browser).
+ * Google Web OAuth — uses expo-web-browser (Chrome Custom Tabs / Safari).
  *
- * Uses ASWebAuthenticationSession which can intercept HTTPS redirects
- * on iOS. On Android, AuthScreen uses native sign-in first with
- * WebView fallback — this file is NOT used on Android.
+ * Google BLOCKS OAuth from embedded WebViews (Error 403: disallowed_useragent).
+ * This module uses expo-web-browser which opens Chrome Custom Tabs on Android
+ * and ASWebAuthenticationSession on iOS — both are "secure browsers" allowed by Google.
  *
- * Redirect URI: https://black94.firebaseapp.com/__/auth/handler
- * This is pre-authorized for every Firebase project with web SDK configured.
- * PKCE prevents Firebase's handler from consuming our auth code.
+ * ANDROID FLOW (Chrome Custom Tabs):
+ *   1. Opens Google OAuth in Chrome Custom Tab
+ *   2. User authenticates
+ *   3. Google redirects to black94://auth?code=...
+ *   4. Chrome fires the deep link intent
+ *   5. expo-web-browser intercepts it and returns the URL
+ *   6. We exchange the auth code for an ID token using PKCE
+ *
+ *   REQUIREMENT: black94://auth must be registered in Google Cloud Console
+ *   as an "Authorized redirect URI" under APIs & Services > Credentials.
+ *
+ * IOS FLOW (ASWebAuthenticationSession):
+ *   1. Opens Google OAuth in system auth session
+ *   2. Google redirects to the Firebase HTTPS handler
+ *   3. ASWebAuthenticationSession intercepts the HTTPS redirect
+ *   4. We exchange the auth code for an ID token using PKCE
  */
 
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
 const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
-const FIREBASE_HANDLER = 'https://black94.firebaseapp.com/__/auth/handler';
-
-/* ─── PKCE: Random string generation ───────────────────────────────────────── */
 
 /**
- * Generate a random string for PKCE code_verifier.
- * Uses Math.random() — simple, zero native dependencies, sufficient entropy.
+ * Redirect URI per platform:
+ *   Android → black94://auth (custom scheme, intercepted by deep linking)
+ *   iOS → Firebase HTTPS handler (ASWebAuthenticationSession intercepts HTTPS)
+ */
+function getRedirectUri(): string {
+  if (Platform.OS === 'android') {
+    return 'black94://auth';
+  }
+  // iOS: ASWebAuthenticationSession can intercept HTTPS redirects
+  return 'https://black94.firebaseapp.com/__/auth/handler';
+}
+
+/**
+ * Generate random string for PKCE code_verifier.
+ * Uses Math.random() — zero native dependencies, no crash risk.
  */
 function generateCodeVerifier(length: number = 128): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
@@ -31,8 +54,9 @@ function generateCodeVerifier(length: number = 128): string {
   return Array.from(bytes, (b) => chars[b % chars.length]).join('');
 }
 
-/* ─── PKCE: Pure JS SHA-256 ──────────────────────────────────────────────── */
-
+/**
+ * Pure JS SHA-256 for PKCE code_challenge.
+ */
 function sha256(plain: string): string {
   const rr = (n: number, s: number) => (n >>> s) | (n << (32 - s));
 
@@ -40,9 +64,8 @@ function sha256(plain: string): string {
   let h4 = 0x510e527f | 0, h5 = 0x9b05688c | 0, h6 = 0x1f83d9ab | 0, h7 = 0x5be0cd19 | 0;
 
   const encoder = new TextEncoder();
-  const encoded = encoder.encode(plain);
-  const bitLen = encoded.length * 8;
-  const msg = Array.from(encoded);
+  const msg = Array.from(encoder.encode(plain));
+  const bitLen = msg.length * 8;
   msg.push(0x80);
   while (msg.length % 64 !== 56) msg.push(0);
   msg.push(0, 0, 0, 0, (bitLen >>> 24) & 0xff, (bitLen >>> 16) & 0xff, (bitLen >>> 8) & 0xff, bitLen & 0xff);
@@ -94,11 +117,11 @@ function sha256(plain: string): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/* ─── Main sign-in function ──────────────────────────────────────────────── */
-
 /**
- * Sign in with Google using web-based OAuth via expo-web-browser.
- * Designed for iOS where ASWebAuthenticationSession can intercept HTTPS redirects.
+ * Sign in with Google using expo-web-browser.
+ *
+ * On Android: Chrome Custom Tabs (allowed by Google's policy)
+ * On iOS: ASWebAuthenticationSession (allowed by Google's policy)
  *
  * Returns a Google ID token for Firebase signInWithIdp.
  */
@@ -109,14 +132,15 @@ export async function signInWithGoogleWeb(): Promise<string> {
     // warmUpAsync may fail in some environments — not critical
   }
 
+  const redirectUri = getRedirectUri();
   const codeVerifier = generateCodeVerifier(128);
   const codeChallenge = sha256(codeVerifier);
 
-  console.log('[GoogleWebAuth] Starting web OAuth on', Platform.OS);
+  console.log('[GoogleWebAuth] Starting on', Platform.OS, 'redirect:', redirectUri);
 
   const params = new URLSearchParams({
     client_id: WEB_CLIENT_ID,
-    redirect_uri: FIREBASE_HANDLER,
+    redirect_uri: redirectUri,
     response_type: 'code',
     scope: 'openid profile email',
     access_type: 'offline',
@@ -128,17 +152,16 @@ export async function signInWithGoogleWeb(): Promise<string> {
 
   console.log('[GoogleWebAuth] Opening browser...');
 
-  // openAuthSessionAsync uses:
-  //   - ASWebAuthenticationSession on iOS (intercepts HTTPS redirects)
-  //   - Chrome Custom Tabs on Android (CANNOT intercept HTTPS redirects)
-  const result = await WebBrowser.openAuthSessionAsync(authUrl, FIREBASE_HANDLER);
+  // openAuthSessionAsync opens Chrome Custom Tabs (Android) or
+  // ASWebAuthenticationSession (iOS). Both are "secure browsers" per Google's policy.
+  const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
   if (result.type !== 'success') {
-    console.log('[GoogleWebAuth] Browser session ended without success:', result.type);
-    throw new Error('Sign-in was cancelled');
+    console.log('[GoogleWebAuth] Session ended:', result.type);
+    throw new Error('Sign-in cancelled');
   }
 
-  console.log('[GoogleWebAuth] Browser returned URL');
+  console.log('[GoogleWebAuth] Got redirect URL');
 
   // Parse the redirect URL to extract the authorization code
   let code: string | null = null;
@@ -146,7 +169,7 @@ export async function signInWithGoogleWeb(): Promise<string> {
     const urlObj = new URL(result.url);
     code = urlObj.searchParams.get('code');
   } catch {
-    // URL parser may fail on some formats — use regex
+    // URL parser may fail on custom schemes — use regex
     const match = result.url.match(/[?&]code=([^&#]+)/);
     code = match ? match[1] : null;
   }
@@ -161,19 +184,19 @@ export async function signInWithGoogleWeb(): Promise<string> {
       const match = result.url.match(/[?&]error_description=([^&#]+)/);
       error = match ? decodeURIComponent(match[1]) : null;
     }
-    throw new Error(error || 'No authorization code in redirect');
+    throw new Error(error || 'No authorization code received from Google');
   }
 
   console.log('[GoogleWebAuth] Got auth code, exchanging for ID token...');
 
-  // Exchange authorization code for ID token using PKCE code_verifier
+  // Exchange authorization code for ID token using PKCE
   const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
       client_id: WEB_CLIENT_ID,
-      redirect_uri: FIREBASE_HANDLER,
+      redirect_uri: redirectUri,
       grant_type: 'authorization_code',
       code_verifier: codeVerifier,
     }).toString(),

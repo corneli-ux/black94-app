@@ -14,93 +14,75 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { signInWithGoogle } from '../lib/api';
 import { signInWithGoogleWeb } from '../lib/google-web-auth';
-import GoogleSignInWebView from '../components/GoogleSignInWebView';
+
+const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
 
 /**
  * AuthScreen — Login screen.
  *
- * Google Sign-In strategy (production-ready for Play Store):
+ * Google Sign-In strategy:
  *
  *   ANDROID:
- *     1. Try native Google Sign-In first (@react-native-google-signin)
- *        → Requires SHA-1 in Firebase Console (the proper way for Play Store)
- *     2. Fall back to WebView-based OAuth if native fails
- *        → Works without any console configuration
+ *     1. Native Google Sign-In SDK first (@react-native-google-signin)
+ *        → Official method for Play Store, requires SHA-1 in Firebase Console
+ *     2. Chrome Custom Tabs fallback (expo-web-browser)
+ *        → Requires black94://auth registered as redirect URI in Google Cloud Console
  *
- *   iOS:
- *     1. expo-web-browser OAuth (ASWebAuthenticationSession intercepts redirects)
+ *   IOS:
+ *     1. expo-web-browser (ASWebAuthenticationSession)
+ *        → Works with Firebase's pre-authorized HTTPS redirect URI
  *
- * WHY native first:
- *   Google Play Store expects apps to use the official Google Sign-In SDK.
- *   The WebView is a fallback for devices without Google Play Services.
+ * IMPORTANT: Google blocks OAuth from embedded WebViews (Error 403: disallowed_useragent).
+ * We use expo-web-browser which opens Chrome Custom Tabs / Safari — both are "secure browsers".
  */
 export default function AuthScreen() {
   const [isLoading, setIsLoading] = useState(false);
-  const [showWebView, setShowWebView] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const { setUser, setToken } = useAppStore();
   const insets = useSafeAreaInsets();
 
   /** Complete sign-in: exchange ID token for Firebase user */
   const completeSignIn = useCallback(async (idToken: string) => {
-    try {
-      console.log('[AuthScreen] Got ID token, signing in to Firebase...');
-      const user = await signInWithGoogle(idToken);
-      if (user) {
-        setUser(user);
-        setToken(user.id);
-      } else {
-        throw new Error('Firebase sign-in returned no user');
-      }
-    } catch (err: any) {
-      const msg = err?.message || String(err);
-      console.error('[AuthScreen] Firebase sign-in failed:', msg);
-      Alert.alert('Sign In Failed', msg);
+    const user = await signInWithGoogle(idToken);
+    if (user) {
+      setUser(user);
+      setToken(user.id);
+    } else {
+      throw new Error('Firebase sign-in returned no user');
     }
   }, [setUser, setToken]);
 
-  /** Try native Google Sign-In on Android */
+  /** Try native Google Sign-In */
   const tryNativeGoogleSignIn = useCallback(async (): Promise<string | null> => {
-    if (Platform.OS !== 'android') return null;
-
     try {
       const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
 
-      // Configure with web client ID for server-side auth
       GoogleSignin.configure({
-        webClientId: '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
+        webClientId: WEB_CLIENT_ID,
         offlineAccess: false,
         forceCodeForRefreshToken: false,
       });
 
-      // Check if Play Services are available
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
+      console.log('[AuthScreen] Play Services available, trying native sign-in...');
 
-      console.log('[AuthScreen] Play Services available, attempting native sign-in...');
-      const signInResult = await GoogleSignin.signIn();
+      const result = await GoogleSignin.signIn();
+      const idToken = result.data?.idToken;
 
-      if (signInResult.data?.idToken) {
-        console.log('[AuthScreen] Native Google sign-in succeeded');
-        return signInResult.data.idToken;
+      if (idToken) {
+        console.log('[AuthScreen] Native sign-in succeeded');
+        return idToken;
       }
 
-      // No ID token returned — this means SHA-1 mismatch or config issue
       console.warn('[AuthScreen] Native sign-in returned no ID token');
       return null;
     } catch (err: any) {
       const code = err?.code;
-      const message = err?.message || String(err);
-
-      // DEVELOPER_ERROR (code 10) = SHA-1 not registered in Firebase Console
       if (code === 'DEVELOPER_ERROR' || code === 10 || String(code) === '10') {
-        console.warn('[AuthScreen] DEVELOPER_ERROR — SHA-1 not registered in Firebase Console');
-        console.warn('[AuthScreen] Falling back to WebView sign-in');
-      } else if (err?.message?.includes('PLAY_SERVICES')) {
-        console.warn('[AuthScreen] Google Play Services not available, falling back to WebView');
+        console.warn('[AuthScreen] DEVELOPER_ERROR — SHA-1 not registered, falling back');
       } else {
-        console.warn('[AuthScreen] Native sign-in failed:', code, message);
+        console.warn('[AuthScreen] Native sign-in failed:', code, err?.message);
       }
-
       return null;
     }
   }, []);
@@ -111,91 +93,47 @@ export default function AuthScreen() {
     try {
       if (Platform.OS === 'android') {
         // ═══════════════════════════════════════════════════════════════
-        // ANDROID: Native first, WebView fallback
+        // ANDROID: Native first, Chrome Custom Tabs fallback
         // ═══════════════════════════════════════════════════════════════
 
         // Step 1: Try native Google Sign-In SDK
         const nativeToken = await tryNativeGoogleSignIn();
-
         if (nativeToken) {
-          // Native sign-in worked — complete the flow
           await completeSignIn(nativeToken);
-          setIsLoading(false);
           return;
         }
 
-        // Step 2: Native failed — use WebView fallback
-        console.log('[AuthScreen] Using WebView fallback (Android)');
-        setShowWebView(true);
-        return; // WebView handles the rest via callbacks
+        // Step 2: Fall back to Chrome Custom Tabs (expo-web-browser)
+        console.log('[AuthScreen] Using Chrome Custom Tabs (web OAuth)');
+        const webToken = await signInWithGoogleWeb();
+        if (webToken) {
+          await completeSignIn(webToken);
+          return;
+        }
+
+        throw new Error('All sign-in methods failed');
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // iOS: Use expo-web-browser OAuth
+      // IOS: expo-web-browser (ASWebAuthenticationSession)
       // ═══════════════════════════════════════════════════════════════
       console.log('[AuthScreen] Using web OAuth (iOS)');
       const idToken = await signInWithGoogleWeb();
       if (idToken) {
         await completeSignIn(idToken);
-      } else {
-        throw new Error('Failed to obtain Google ID token');
+        return;
       }
+
+      throw new Error('Failed to obtain Google ID token');
     } catch (err: any) {
       const errMsg = err?.message || String(err);
       console.error('[AuthScreen] Sign-in failed:', errMsg);
       Alert.alert('Sign In Failed', `Could not sign in with Google.\n\n${errMsg}`);
     } finally {
-      if (Platform.OS !== 'android') {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   }, [tryNativeGoogleSignIn, completeSignIn]);
 
-  /** WebView callbacks */
-  const handleWebViewToken = useCallback(async (idToken: string) => {
-    setShowWebView(false);
-    setIsLoading(false);
-    await completeSignIn(idToken);
-  }, [completeSignIn]);
-
-  const handleWebViewError = useCallback((error: string) => {
-    setShowWebView(false);
-    setIsLoading(false);
-    console.error('[AuthScreen] WebView sign-in error:', error);
-    Alert.alert('Sign In Failed', `Google sign-in failed: ${error}`);
-  }, []);
-
-  const handleWebViewCancel = useCallback(() => {
-    setShowWebView(false);
-    setIsLoading(false);
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // WebView mode: full-screen Google sign-in
-  // ═══════════════════════════════════════════════════════════════════
-  if (showWebView && Platform.OS === 'android') {
-    return (
-      <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#000000" />
-        <View style={styles.webViewHeader}>
-          <TouchableOpacity onPress={handleWebViewCancel} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
-          <Text style={styles.webViewTitle}>Sign in with Google</Text>
-          <View style={styles.closeButton} />
-        </View>
-        <GoogleSignInWebView
-          onToken={handleWebViewToken}
-          onError={handleWebViewError}
-          onCancel={handleWebViewCancel}
-        />
-      </View>
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // Normal auth screen
-  // ═══════════════════════════════════════════════════════════════════
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
@@ -313,35 +251,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
-
-  /* WebView header */
-  webViewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#1a1a1a',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
-  },
-  closeButton: {
-    width: 60,
-    height: 36,
-    justifyContent: 'center',
-  },
-  closeButtonText: {
-    color: '#4285F4',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  webViewTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
-  },
-
-  /* Brand */
   brandContainer: {
     alignItems: 'center',
     marginBottom: 32,
@@ -363,8 +272,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-
-  /* Google Button */
   googleButton: {
     width: '100%',
     maxWidth: 320,
@@ -385,8 +292,6 @@ const styles = StyleSheet.create({
     color: '#374151',
     letterSpacing: -0.1,
   },
-
-  /* Google Logo */
   googleLogoContainer: {
     width: 20,
     height: 20,
@@ -397,8 +302,6 @@ const styles = StyleSheet.create({
     width: '50%',
     height: '50%',
   },
-
-  /* Divider */
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -416,8 +319,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748b',
   },
-
-  /* Switch */
   switchButton: {
     marginTop: 16,
   },
@@ -429,8 +330,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
-
-  /* Terms */
   termsContainer: {
     marginTop: 16,
     maxWidth: 320,
