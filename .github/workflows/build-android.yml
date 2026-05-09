@@ -40,22 +40,8 @@ jobs:
           rm -rf node_modules/.cache .expo /tmp/metro-* || true
           npx expo export --clear 2>/dev/null || true
 
-      - name: Expo export (create standalone bundle)
-        run: npx expo export --platform android --output-dir dist
-
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
-
-      - name: Copy exported bundle into Android assets
-        run: |
-          mkdir -p android/app/src/main/assets
-          cp -r dist/* android/app/src/main/assets/ || true
-          echo "Bundle copied for standalone use"
-
-      - name: Disable Gradle cache
-        run: |
-          echo "org.gradle.caching=false" >> android/gradle.properties
-          echo "org.gradle.parallel=false" >> android/gradle.properties
 
       - name: Fix splashscreen_logo drawable
         run: |
@@ -63,8 +49,13 @@ jobs:
           cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
           echo "Created splashscreen_logo drawable"
 
+      - name: Disable Gradle cache
+        run: |
+          echo "org.gradle.caching=false" >> android/gradle.properties
+          echo "org.gradle.parallel=false" >> android/gradle.properties
+
       # === DEBUG BUILD (always succeeds, no signing needed) ===
-      - name: Build Debug APK
+      - name: Build Debug APK (standalone, no Metro needed)
         run: |
           cd android
           chmod +x gradlew
