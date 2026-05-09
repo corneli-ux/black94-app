@@ -87,8 +87,10 @@ function sha256(plain: string): string {
 function generateRandomString(length: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
   const array = new Uint8Array(length);
-  const crypto = require('react-native-get-random-values').getRandomValues;
-  crypto(array);
+  // Use Math.random for PKCE code verifier — sufficient entropy, no native deps
+  for (let i = 0; i < length; i++) {
+    array[i] = Math.floor(Math.random() * 256);
+  }
   return Array.from(array, v => chars[v % chars.length]).join('');
 }
 
