@@ -33,22 +33,27 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # Clean prebuild ensures fresh native project generation
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
 
-      # splashscreen_logo.png is referenced by the native splash screen code
       - name: Fix splashscreen_logo drawable
         run: |
           mkdir -p android/app/src/main/res/drawable
           cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
 
-      # ROOT CAUSE FIX: Build RELEASE APK, not Debug.
-      # Debug APKs always try to connect to Metro dev server (localhost:8081)
-      # to load JS -- they do NOT use the bundled file.
-      # Release APKs embed the JS bundle and load it directly from the APK.
-      # Gradle bundleReleaseJsAndAssets runs Metro internally to create
-      # index.android.bundle, then packages it into the APK.
+      # GOOGLE SIGN-IN FIX: Sign release APK with our release keystore.
+      # The keystore SHA-1 is registered in google-services.json so
+      # Google Sign-In works without any manual Firebase Console steps.
+      - name: Configure release signing
+        run: |
+          cp keystore/release.keystore android/release.keystore
+          cd android
+          # Inject release signing config into build.gradle (after prebuild)
+          sed -i 's|signingConfigs {|signingConfigs {\n        release {\n            storeFile file('\''../release.keystore'\'')\n            storePassword '\''black94release'\''\n            keyAlias '\''black94'\''\n            keyPassword '\''black94release'\''\n        }|' app/build.gradle
+          # Change release buildType to use release signingConfig
+          sed -i 's|signingConfig signingConfigs.debug|signingConfig signingConfigs.release|' app/build.gradle
+          echo "Release signing configured"
+
       - name: Build Release APK
         run: cd android && ./gradlew assembleRelease --no-daemon
 
