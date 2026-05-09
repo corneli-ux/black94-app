@@ -57,6 +57,12 @@ jobs:
           echo "org.gradle.caching=false" >> android/gradle.properties
           echo "org.gradle.parallel=false" >> android/gradle.properties
 
+      - name: Fix splashscreen_logo drawable
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
+          echo "Created splashscreen_logo drawable"
+
       # === DEBUG BUILD (always succeeds, no signing needed) ===
       - name: Build Debug APK
         run: |
