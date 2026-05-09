@@ -35,31 +35,34 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline || npm install
 
-      - name: Clear caches
-        run: |
-          rm -rf node_modules/.cache .expo /tmp/metro-* || true
-          npx expo export --clear 2>/dev/null || true
+      - name: Create JS bundle for Android
+        run: npx expo export --platform android --dev false --output-dir bundle
 
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
+
+      - name: Place JS bundle with correct filename
+        run: |
+          mkdir -p android/app/src/main/assets
+          cp bundle/index.bundle android/app/src/main/assets/index.android.bundle
+          echo "Placed index.android.bundle ($(du -h android/app/src/main/assets/index.android.bundle | cut -f1))"
 
       - name: Fix splashscreen_logo drawable
         run: |
           mkdir -p android/app/src/main/res/drawable
           cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
-          echo "Created splashscreen_logo drawable"
 
       - name: Disable Gradle cache
         run: |
           echo "org.gradle.caching=false" >> android/gradle.properties
           echo "org.gradle.parallel=false" >> android/gradle.properties
 
-      # === DEBUG BUILD (always succeeds, no signing needed) ===
-      - name: Build Debug APK (standalone, no Metro needed)
+      # === DEBUG BUILD (skip Gradle bundling - we already have the bundle) ===
+      - name: Build Debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleDebug --no-build-cache --no-daemon
+          ./gradlew assembleDebug -x bundleDebugJsAndAssets -x createBundleDebugJsAndAssets --no-build-cache --no-daemon
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -76,7 +79,7 @@ jobs:
             cp ../ci/black94-release.jks android/app/black94-release.jks
             cd android
             chmod +x gradlew
-            ./gradlew assembleRelease bundleRelease --no-build-cache --no-daemon
+            ./gradlew assembleRelease bundleRelease -x bundleReleaseJsAndAssets -x createBundleReleaseJsAndAssets --no-build-cache --no-daemon
           else
             echo "No keystore found, skipping release build"
           fi
