@@ -18,7 +18,8 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
-# Signing keys (NEVER commit these)
+# Signing keys
+!keystore/release.keystore (NEVER commit these)
 *.keystore
 /android/app/release.keystore
 
