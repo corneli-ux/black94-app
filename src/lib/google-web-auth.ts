@@ -1,70 +1,38 @@
 /**
- * Google Web OAuth — works without native Google Play Services or SHA-1 registration.
+ * Google Web OAuth for iOS (via expo-web-browser).
  *
- * Uses expo-web-browser to open Google's consent screen in the system browser.
- * On Android, the redirect is intercepted via the app's custom scheme (black94://auth).
- * On iOS, ASWebAuthenticationSession handles it natively.
+ * Uses ASWebAuthenticationSession which can intercept HTTPS redirects
+ * on iOS. On Android, AuthScreen uses native sign-in first with
+ * WebView fallback — this file is NOT used on Android.
  *
- * This flow does NOT require:
- *  - SHA-1 fingerprint registration in Google Console
- *  - Google Play Services on the device
- *  - Any native Google Sign-In SDK configuration
- *
- * It DOES require the redirect URI to be registered in Google Cloud Console.
- * Since we use the app's custom scheme (black94://auth), you must add it to
- * Google Console > APIs & Services > Credentials > Authorized redirect URIs.
+ * Redirect URI: https://black94.firebaseapp.com/__/auth/handler
+ * This is pre-authorized for every Firebase project with web SDK configured.
+ * PKCE prevents Firebase's handler from consuming our auth code.
  */
 
 import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-auth-session';
 import { Platform } from 'react-native';
 
 const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
+const FIREBASE_HANDLER = 'https://black94.firebaseapp.com/__/auth/handler';
 
-const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-
-/**
- * Get the redirect URI for the current platform.
- * 
- * Android: Uses the app's custom scheme (black94://auth) which is properly
- * intercepted by the deep linking system. This is the KEY fix — the previous
- * code used https://black94.web.app/__/auth/handler which Chrome Custom Tabs
- * cannot intercept on Android (it just navigates to that URL and Firebase
- * consumes the auth code).
- *
- * iOS: Uses the https:// Firebase redirect URI since ASWebAuthenticationSession
- * can intercept HTTPS redirects on iOS.
- */
-function getRedirectUri(): string {
-  if (Platform.OS === 'android') {
-    // Custom scheme — Android deep linking will intercept this
-    return makeRedirectUri({
-      scheme: 'black94',
-      path: 'auth',
-      preferLocalhost: false,
-    });
-  }
-  // iOS — ASWebAuthenticationSession intercepts https:// redirects fine
-  return 'https://black94.firebaseapp.com/__/auth/handler';
-}
+/* ─── PKCE: Random string generation ───────────────────────────────────────── */
 
 /**
- * Generate a cryptographically random string for PKCE code_verifier.
+ * Generate a random string for PKCE code_verifier.
+ * Uses Math.random() — simple, zero native dependencies, sufficient entropy.
  */
-function generateRandomString(length: number): string {
+function generateCodeVerifier(length: number = 128): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-  const array = new Uint8Array(length);
-  // Use Math.random for PKCE code verifier — sufficient entropy, no native deps
+  const bytes = new Uint8Array(length);
   for (let i = 0; i < length; i++) {
-    array[i] = Math.floor(Math.random() * 256);
+    bytes[i] = Math.floor(Math.random() * 256);
   }
-  return Array.from(array, v => chars[v % chars.length]).join('');
+  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
 }
 
-/**
- * SHA-256 hash for PKCE code_challenge (pure JS, no native deps).
- */
+/* ─── PKCE: Pure JS SHA-256 ──────────────────────────────────────────────── */
+
 function sha256(plain: string): string {
   const rr = (n: number, s: number) => (n >>> s) | (n << (32 - s));
 
@@ -126,29 +94,29 @@ function sha256(plain: string): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+/* ─── Main sign-in function ──────────────────────────────────────────────── */
+
 /**
- * Sign in with Google using web-based OAuth (no native Google Play Services).
+ * Sign in with Google using web-based OAuth via expo-web-browser.
+ * Designed for iOS where ASWebAuthenticationSession can intercept HTTPS redirects.
  *
- * Opens Google's consent screen in the system browser. After authentication,
- * Google redirects back. On Android this uses the app's custom scheme
- * (black94://auth) which is intercepted by the deep linking system.
- * On iOS, ASWebAuthenticationSession intercepts the HTTPS redirect.
- *
- * PKCE prevents the redirect handler from consuming our auth code.
  * Returns a Google ID token for Firebase signInWithIdp.
  */
 export async function signInWithGoogleWeb(): Promise<string> {
-  await WebBrowser.warmUpAsync();
+  try {
+    await WebBrowser.warmUpAsync();
+  } catch {
+    // warmUpAsync may fail in some environments — not critical
+  }
 
-  const redirectUri = getRedirectUri();
-  const codeVerifier = generateRandomString(128);
+  const codeVerifier = generateCodeVerifier(128);
   const codeChallenge = sha256(codeVerifier);
 
-  console.log('[GoogleWebAuth] redirect URI:', redirectUri, 'platform:', Platform.OS);
+  console.log('[GoogleWebAuth] Starting web OAuth on', Platform.OS);
 
   const params = new URLSearchParams({
     client_id: WEB_CLIENT_ID,
-    redirect_uri: redirectUri,
+    redirect_uri: FIREBASE_HANDLER,
     response_type: 'code',
     scope: 'openid profile email',
     access_type: 'offline',
@@ -156,72 +124,66 @@ export async function signInWithGoogleWeb(): Promise<string> {
     code_challenge_method: 'S256',
   });
 
-  const authUrl = `${GOOGLE_AUTH_URL}?${params.toString()}`;
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
-  console.log('[GoogleWebAuth] Opening browser for OAuth...');
+  console.log('[GoogleWebAuth] Opening browser...');
 
-  // openAuthSessionAsync opens in Chrome Custom Tabs (Android) or
-  // ASWebAuthenticationSession (iOS). The redirect URI determines how
-  // the browser returns control to the app.
-  const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+  // openAuthSessionAsync uses:
+  //   - ASWebAuthenticationSession on iOS (intercepts HTTPS redirects)
+  //   - Chrome Custom Tabs on Android (CANNOT intercept HTTPS redirects)
+  const result = await WebBrowser.openAuthSessionAsync(authUrl, FIREBASE_HANDLER);
 
   if (result.type !== 'success') {
-    console.log('[GoogleWebAuth] Browser session ended:', result.type);
-    throw new Error('cancelled');
+    console.log('[GoogleWebAuth] Browser session ended without success:', result.type);
+    throw new Error('Sign-in was cancelled');
   }
 
-  console.log('[GoogleWebAuth] Browser returned URL:', result.url);
+  console.log('[GoogleWebAuth] Browser returned URL');
 
   // Parse the redirect URL to extract the authorization code
-  let urlObj: URL;
+  let code: string | null = null;
   try {
-    urlObj = new URL(result.url);
+    const urlObj = new URL(result.url);
+    code = urlObj.searchParams.get('code');
   } catch {
-    // Handle Android deep link format (e.g. "black94://auth?code=...")
-    const hashIdx = result.url.indexOf('?');
-    if (hashIdx >= 0) {
-      const search = result.url.substring(hashIdx);
-      urlObj = new URL('https://dummy.com' + search);
-    } else {
-      throw new Error('Invalid redirect URL: ' + result.url);
-    }
+    // URL parser may fail on some formats — use regex
+    const match = result.url.match(/[?&]code=([^&#]+)/);
+    code = match ? match[1] : null;
   }
 
-  const code = urlObj.searchParams.get('code');
   if (!code) {
-    const error = urlObj.searchParams.get('error');
-    const errorDesc = urlObj.searchParams.get('error_description');
-    const msg = errorDesc || error || 'No authorization code in redirect';
-    console.error('[GoogleWebAuth] No code:', msg);
-    throw new Error(msg);
+    // Check for error in redirect
+    let error: string | null = null;
+    try {
+      const urlObj = new URL(result.url);
+      error = urlObj.searchParams.get('error_description') || urlObj.searchParams.get('error');
+    } catch {
+      const match = result.url.match(/[?&]error_description=([^&#]+)/);
+      error = match ? decodeURIComponent(match[1]) : null;
+    }
+    throw new Error(error || 'No authorization code in redirect');
   }
 
-  console.log('[GoogleWebAuth] Got authorization code, exchanging for ID token...');
+  console.log('[GoogleWebAuth] Got auth code, exchanging for ID token...');
 
-  // Exchange authorization code for ID token (using PKCE code_verifier)
-  const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+  // Exchange authorization code for ID token using PKCE code_verifier
+  const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
       client_id: WEB_CLIENT_ID,
-      redirect_uri: redirectUri,
+      redirect_uri: FIREBASE_HANDLER,
       grant_type: 'authorization_code',
       code_verifier: codeVerifier,
     }).toString(),
   });
 
-  const tokens = await tokenRes.json();
+  const tokens = await tokenResp.json();
 
-  if (!tokenRes.ok) {
-    const errMsg = tokens.error_description || tokens.error || `HTTP ${tokenRes.status}`;
+  if (!tokenResp.ok) {
+    const errMsg = tokens.error_description || tokens.error || `HTTP ${tokenResp.status}`;
     console.error('[GoogleWebAuth] Token exchange failed:', errMsg);
-    if (errMsg.includes('redirect_uri_mismatch')) {
-      throw new Error(
-        'Redirect URI not registered. Add "' + redirectUri +
-        '" in Google Cloud Console > APIs & Services > Credentials > Authorized redirect URIs.'
-      );
-    }
     throw new Error(errMsg);
   }
 

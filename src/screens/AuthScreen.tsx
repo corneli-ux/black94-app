@@ -16,20 +16,23 @@ import { signInWithGoogle } from '../lib/api';
 import { signInWithGoogleWeb } from '../lib/google-web-auth';
 import GoogleSignInWebView from '../components/GoogleSignInWebView';
 
-const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
-
 /**
- * AuthScreen — Login screen matching black94.web.app exactly.
+ * AuthScreen — Login screen.
  *
- * Google Sign-In strategy:
- *   Android: WebView-based OAuth (intercepts Firebase redirect, no console setup needed)
- *   iOS:     expo-web-browser OAuth (ASWebAuthenticationSession intercepts HTTPS redirects)
+ * Google Sign-In strategy (production-ready for Play Store):
  *
- * WHY WebView on Android:
- *   Chrome Custom Tabs cannot intercept HTTPS redirects on Android.
- *   Custom scheme redirects (black94://) require Google Cloud Console registration.
- *   WebView loads Google auth page, intercepts redirect to pre-authorized
- *   Firebase handler URL, extracts auth code — NO console configuration needed.
+ *   ANDROID:
+ *     1. Try native Google Sign-In first (@react-native-google-signin)
+ *        → Requires SHA-1 in Firebase Console (the proper way for Play Store)
+ *     2. Fall back to WebView-based OAuth if native fails
+ *        → Works without any console configuration
+ *
+ *   iOS:
+ *     1. expo-web-browser OAuth (ASWebAuthenticationSession intercepts redirects)
+ *
+ * WHY native first:
+ *   Google Play Store expects apps to use the official Google Sign-In SDK.
+ *   The WebView is a fallback for devices without Google Play Services.
  */
 export default function AuthScreen() {
   const [isLoading, setIsLoading] = useState(false);
@@ -38,35 +41,68 @@ export default function AuthScreen() {
   const { setUser, setToken } = useAppStore();
   const insets = useSafeAreaInsets();
 
-  /** Called when GoogleSignInWebView successfully gets an ID token */
-  const handleWebViewToken = useCallback(async (idToken: string) => {
-    setShowWebView(false);
+  /** Complete sign-in: exchange ID token for Firebase user */
+  const completeSignIn = useCallback(async (idToken: string) => {
     try {
-      console.log('[AuthScreen] WebView auth succeeded, signing in to Firebase...');
+      console.log('[AuthScreen] Got ID token, signing in to Firebase...');
       const user = await signInWithGoogle(idToken);
       if (user) {
         setUser(user);
         setToken(user.id);
+      } else {
+        throw new Error('Firebase sign-in returned no user');
       }
     } catch (err: any) {
-      console.error('[AuthScreen] Firebase sign-in failed:', err);
-      Alert.alert('Sign In Failed', err.message || 'Could not sign in to Firebase.');
-      setIsLoading(false);
+      const msg = err?.message || String(err);
+      console.error('[AuthScreen] Firebase sign-in failed:', msg);
+      Alert.alert('Sign In Failed', msg);
     }
   }, [setUser, setToken]);
 
-  /** Called when GoogleSignInWebView encounters an error */
-  const handleWebViewError = useCallback((error: string) => {
-    setShowWebView(false);
-    setIsLoading(false);
-    console.error('[AuthScreen] WebView sign-in error:', error);
-    Alert.alert('Sign In Failed', `Google sign-in failed: ${error}`);
-  }, []);
+  /** Try native Google Sign-In on Android */
+  const tryNativeGoogleSignIn = useCallback(async (): Promise<string | null> => {
+    if (Platform.OS !== 'android') return null;
 
-  /** Called when user closes/dismisses the WebView */
-  const handleWebViewCancel = useCallback(() => {
-    setShowWebView(false);
-    setIsLoading(false);
+    try {
+      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+
+      // Configure with web client ID for server-side auth
+      GoogleSignin.configure({
+        webClientId: '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
+        offlineAccess: false,
+        forceCodeForRefreshToken: false,
+      });
+
+      // Check if Play Services are available
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
+
+      console.log('[AuthScreen] Play Services available, attempting native sign-in...');
+      const signInResult = await GoogleSignin.signIn();
+
+      if (signInResult.data?.idToken) {
+        console.log('[AuthScreen] Native Google sign-in succeeded');
+        return signInResult.data.idToken;
+      }
+
+      // No ID token returned — this means SHA-1 mismatch or config issue
+      console.warn('[AuthScreen] Native sign-in returned no ID token');
+      return null;
+    } catch (err: any) {
+      const code = err?.code;
+      const message = err?.message || String(err);
+
+      // DEVELOPER_ERROR (code 10) = SHA-1 not registered in Firebase Console
+      if (code === 'DEVELOPER_ERROR' || code === 10 || String(code) === '10') {
+        console.warn('[AuthScreen] DEVELOPER_ERROR — SHA-1 not registered in Firebase Console');
+        console.warn('[AuthScreen] Falling back to WebView sign-in');
+      } else if (err?.message?.includes('PLAY_SERVICES')) {
+        console.warn('[AuthScreen] Google Play Services not available, falling back to WebView');
+      } else {
+        console.warn('[AuthScreen] Native sign-in failed:', code, message);
+      }
+
+      return null;
+    }
   }, []);
 
   const handleGoogleSignIn = useCallback(async () => {
@@ -75,44 +111,64 @@ export default function AuthScreen() {
     try {
       if (Platform.OS === 'android') {
         // ═══════════════════════════════════════════════════════════════
-        // ANDROID: Use WebView to handle Google OAuth.
-        //
-        // This bypasses both native sign-in (needs SHA-1 in Firebase) and
-        // Chrome Custom Tabs (can't intercept HTTPS redirects).
-        // The WebView intercepts Google's redirect to the pre-authorized
-        // Firebase handler URL, extracts the auth code, and exchanges it.
+        // ANDROID: Native first, WebView fallback
         // ═══════════════════════════════════════════════════════════════
-        console.log('[AuthScreen] Using WebView-based Google sign-in (Android)');
+
+        // Step 1: Try native Google Sign-In SDK
+        const nativeToken = await tryNativeGoogleSignIn();
+
+        if (nativeToken) {
+          // Native sign-in worked — complete the flow
+          await completeSignIn(nativeToken);
+          setIsLoading(false);
+          return;
+        }
+
+        // Step 2: Native failed — use WebView fallback
+        console.log('[AuthScreen] Using WebView fallback (Android)');
         setShowWebView(true);
         return; // WebView handles the rest via callbacks
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // iOS: Use expo-web-browser OAuth.
-      // ASWebAuthenticationSession can intercept HTTPS redirects.
+      // iOS: Use expo-web-browser OAuth
       // ═══════════════════════════════════════════════════════════════
       console.log('[AuthScreen] Using web OAuth (iOS)');
       const idToken = await signInWithGoogleWeb();
       if (idToken) {
-        console.log('[AuthScreen] Web OAuth succeeded, signing in to Firebase...');
-        const user = await signInWithGoogle(idToken);
-        if (user) {
-          setUser(user);
-          setToken(user.id);
-          return;
-        }
+        await completeSignIn(idToken);
+      } else {
+        throw new Error('Failed to obtain Google ID token');
       }
-      throw new Error('Failed to obtain Google ID token');
     } catch (err: any) {
       const errMsg = err?.message || String(err);
       console.error('[AuthScreen] Sign-in failed:', errMsg);
-      Alert.alert('Sign In Failed', `Could not sign in with Google.\n\nError: ${errMsg}`);
+      Alert.alert('Sign In Failed', `Could not sign in with Google.\n\n${errMsg}`);
     } finally {
       if (Platform.OS !== 'android') {
         setIsLoading(false);
       }
     }
-  }, [setUser, setToken]);
+  }, [tryNativeGoogleSignIn, completeSignIn]);
+
+  /** WebView callbacks */
+  const handleWebViewToken = useCallback(async (idToken: string) => {
+    setShowWebView(false);
+    setIsLoading(false);
+    await completeSignIn(idToken);
+  }, [completeSignIn]);
+
+  const handleWebViewError = useCallback((error: string) => {
+    setShowWebView(false);
+    setIsLoading(false);
+    console.error('[AuthScreen] WebView sign-in error:', error);
+    Alert.alert('Sign In Failed', `Google sign-in failed: ${error}`);
+  }, []);
+
+  const handleWebViewCancel = useCallback(() => {
+    setShowWebView(false);
+    setIsLoading(false);
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════
   // WebView mode: full-screen Google sign-in
@@ -126,7 +182,7 @@ export default function AuthScreen() {
             <Text style={styles.closeButtonText}>Close</Text>
           </TouchableOpacity>
           <Text style={styles.webViewTitle}>Sign in with Google</Text>
-          <View style={styles.closeButton} /> {/* Spacer for centering */}
+          <View style={styles.closeButton} />
         </View>
         <GoogleSignInWebView
           onToken={handleWebViewToken}
@@ -144,7 +200,7 @@ export default function AuthScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <View style={[styles.inner, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        {/* ── Brand: Logo + Title + Subtitle ─────────────────────────── */}
+        {/* Brand */}
         <View style={styles.brandContainer}>
           <BrandLogo />
           <Text style={styles.title}>{mode === 'signin' ? 'Welcome Back' : 'Create Account'}</Text>
@@ -155,7 +211,7 @@ export default function AuthScreen() {
           </Text>
         </View>
 
-        {/* ── Google Sign-In Button ─────────────────────────────────── */}
+        {/* Google Sign-In Button */}
         <TouchableOpacity
           style={styles.googleButton}
           onPress={handleGoogleSignIn}
@@ -174,30 +230,28 @@ export default function AuthScreen() {
           )}
         </TouchableOpacity>
 
-        {/* ── Divider ("or") ────────────────────────────────────────── */}
+        {/* Divider */}
         <View style={styles.dividerRow}>
           <View style={styles.divider} />
           <Text style={styles.dividerText}>or</Text>
           <View style={styles.divider} />
         </View>
 
-        {/* ── Switch between Sign In / Sign Up ───────────────────────── */}
+        {/* Switch mode */}
         <TouchableOpacity
           style={styles.switchButton}
           activeOpacity={0.7}
           onPress={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
         >
           <Text style={styles.switchText}>
-            {mode === 'signin'
-              ? 'New to Black94? '
-              : 'Already have an account? '}
+            {mode === 'signin' ? 'New to Black94? ' : 'Already have an account? '}
             <Text style={styles.switchLink}>
               {mode === 'signin' ? 'Create Account' : 'Sign In'}
             </Text>
           </Text>
         </TouchableOpacity>
 
-        {/* ── Terms ─────────────────────────────────────────────────── */}
+        {/* Terms */}
         <View style={styles.termsContainer}>
           <Text style={styles.termsText}>
             By signing in, you agree to our{' '}
