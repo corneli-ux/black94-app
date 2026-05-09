@@ -15,19 +15,38 @@ import { Avatar, VerifiedBadge } from './Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth } from '../lib/firebase';
 
-/* ── Constants ─────────────────────────────────────────────────────────────── */
-const INACTIVE = '#71767b';
+/* ═══════════════════════════════════════════════════════════════════════════════
+   X-App PostCard — Pixel-perfect rebuild
+   ═══════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Helpers ───────────────────────────────────────────────────────────────── */
-const formatCount = (count: number): string => {
-  if (count >= 1_000_000) return (count / 1_000_000).toFixed(1) + 'M';
-  if (count >= 10_000) return Math.floor(count / 1_000) + 'K';
-  if (count >= 1_000) return (count / 1_000).toFixed(1) + 'K';
-  return count.toString();
+/* ── Color Tokens ──────────────────────────────────────────────────────────── */
+const C = {
+  bg: '#000000',
+  text: '#e7e9ea',
+  textSecondary: '#71767b',
+  textLink: '#1d9bf0',
+  likeActive: '#f91880',
+  repostActive: '#00ba7c',
+  bookmarkActive: '#1d9bf0',
+  divider: '#2f3336',
+  ripple: 'rgba(255,255,255,0.04)',
 };
 
-/* ── Double-tap Star Overlay ──────────────────────────────────────────────── */
-function AnimatedStar({ visible }: { visible: boolean }) {
+/* ── Helpers ───────────────────────────────────────────────────────────────── */
+const formatCount = (n: number): string => {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 10_000) return Math.floor(n / 1_000) + 'K';
+  if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return n.toString();
+};
+
+/* Feather icon wrapper — fill prop IS supported at runtime but missing from types */
+function FIcon(props: { name: string; size: number; color: string; fill?: string | boolean }) {
+  return <Feather {...(props as any)} />;
+}
+
+/* ── Double-Tap Heart Overlay ──────────────────────────────────────────────── */
+function AnimatedHeart({ visible }: { visible: boolean }) {
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -35,27 +54,27 @@ function AnimatedStar({ visible }: { visible: boolean }) {
     if (visible) {
       Animated.parallel([
         Animated.spring(scale, {
-          toValue: 1.3,
+          toValue: 1.4,
           friction: 3,
           useNativeDriver: true,
-          speed: 20,
+          speed: 18,
         }),
         Animated.timing(opacity, {
           toValue: 1,
-          duration: 150,
+          duration: 120,
           useNativeDriver: true,
         }),
       ]).start(() => {
         Animated.parallel([
           Animated.spring(scale, {
-            toValue: 1,
+            toValue: 1.1,
             friction: 4,
             useNativeDriver: true,
           }),
           Animated.timing(opacity, {
             toValue: 0,
-            duration: 600,
-            delay: 200,
+            duration: 500,
+            delay: 250,
             useNativeDriver: true,
           }),
         ]).start();
@@ -69,9 +88,9 @@ function AnimatedStar({ visible }: { visible: boolean }) {
   if (!visible) return null;
 
   return (
-    <View style={S.starOverlay} pointerEvents="none">
+    <View style={S.heartOverlay} pointerEvents="none">
       <Animated.View style={{ transform: [{ scale }], opacity }}>
-        <Feather name="star" size={96} color="#f4d03f" fill="#f4d03f" />
+        <FIcon name="heart" size={80} color={C.likeActive} fill={C.likeActive} />
       </Animated.View>
     </View>
   );
@@ -99,7 +118,7 @@ const PostCard = React.memo(function PostCard({
   navigation,
 }: PostCardProps) {
   const currentUser = auth()?.currentUser;
-  const [showStar, setShowStar] = useState(false);
+  const [showHeart, setShowHeart] = useState(false);
   const lastTapRef = useRef(0);
 
   // Optimistic state
@@ -107,7 +126,9 @@ const PostCard = React.memo(function PostCard({
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [isReposted, setIsReposted] = useState(post.reposted);
   const [repostCount, setRepostCount] = useState(post.repostCount);
+  const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
 
+  // Sync from props
   useEffect(() => {
     setIsLiked(post.liked);
     setLikeCount(post.likeCount);
@@ -118,6 +139,11 @@ const PostCard = React.memo(function PostCard({
     setRepostCount(post.repostCount);
   }, [post.reposted, post.repostCount]);
 
+  useEffect(() => {
+    setIsBookmarked(post.bookmarked);
+  }, [post.bookmarked]);
+
+  /* ── Navigation ─────────────────────────────────────── */
   const goProfile = () => {
     if (post.authorId === currentUser?.uid) {
       navigation.navigate('ProfileSelf');
@@ -130,20 +156,22 @@ const PostCard = React.memo(function PostCard({
     onComment(post.id, post.caption, post.authorUsername, post.authorDisplayName);
   };
 
+  /* ── Double Tap ─────────────────────────────────────── */
   const handleDoubleTap = () => {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
-      if (!post.liked) {
+      if (!isLiked) {
         setIsLiked(true);
         setLikeCount((c) => c + 1);
         onLike(post.id, post.liked);
       }
-      setShowStar(true);
-      setTimeout(() => setShowStar(false), 900);
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 900);
     }
     lastTapRef.current = now;
   };
 
+  /* ── Actions ────────────────────────────────────────── */
   const handleLike = () => {
     const next = !isLiked;
     setIsLiked(next);
@@ -158,14 +186,16 @@ const PostCard = React.memo(function PostCard({
     onRepost(post.id, isReposted);
   };
 
+  const handleBookmark = () => {
+    const next = !isBookmarked;
+    setIsBookmarked(next);
+    onBookmark(post.id, post.bookmarked);
+  };
+
   const handleShare = async () => {
     try {
       await Share.share({ message: 'Check out this post on Black94!' });
     } catch {}
-  };
-
-  const handleBookmark = () => {
-    onBookmark(post.id, post.bookmarked);
   };
 
   const handleMore = () => {
@@ -175,71 +205,69 @@ const PostCard = React.memo(function PostCard({
     ]);
   };
 
-  const stopProp = (callback: () => void) => (e: any) => {
+  const stop = (cb: () => void) => (e: any) => {
     e?.stopPropagation?.();
-    callback();
+    cb();
   };
 
+  /* ── Render ─────────────────────────────────────────── */
   return (
     <Pressable
       style={S.container}
       onPress={goComments}
-      android_ripple={{ color: '#1f2937', borderless: false }}
+      android_ripple={{ color: C.ripple, borderless: false }}
     >
-      <AnimatedStar visible={showStar} />
+      <AnimatedHeart visible={showHeart} />
 
-      {/* Header: Avatar + Content */}
-      <View style={S.header}>
-        <Pressable onPress={stopProp(goProfile)} hitSlop={8}>
+      {/* ─ Row: Avatar | Content ─ */}
+      <View style={S.row}>
+        {/* Avatar */}
+        <Pressable onPress={stop(goProfile)} hitSlop={8} style={S.avatarWrap}>
           <Avatar
             uri={post.authorProfileImage}
             name={post.authorDisplayName}
-            size={40}
+            size={48}
           />
         </Pressable>
 
-        <View style={S.headerContent}>
-          {/* User Row */}
+        {/* Content Column */}
+        <View style={S.content}>
+          {/* User Info Row */}
           <View style={S.userRow}>
-            <Pressable
-              onPress={stopProp(goProfile)}
-              style={S.namePress}
-            >
-              <Text style={S.name} numberOfLines={1}>
+            <Pressable onPress={stop(goProfile)} style={S.namePress} hitSlop={4}>
+              <Text style={S.displayName} numberOfLines={1}>
                 {post.authorDisplayName || post.authorUsername || 'User'}
               </Text>
             </Pressable>
             <VerifiedBadge
               badge={post.authorBadge}
               isVerified={post.authorIsVerified}
-              size={14}
+              size={18}
             />
-            <Text style={S.handle}>@{post.authorUsername || 'user'}</Text>
+            <Text style={S.username} numberOfLines={1}>
+              @{post.authorUsername || 'user'}
+            </Text>
             <Text style={S.dot}>·</Text>
-            <Text style={S.timestamp}>{timeAgo(post.createdAt)}</Text>
+            <Text style={S.time}>{timeAgo(post.createdAt)}</Text>
 
-            {/* More button */}
-            <View style={{ flex: 1 }} />
-            <Pressable
-              onPress={stopProp(handleMore)}
-              hitSlop={10}
-              style={S.moreBtn}
-            >
-              <Feather name="more-horizontal" size={18} color={INACTIVE} />
+            {/* Spacer + More */}
+            <View style={S.userRowSpacer} />
+            <Pressable onPress={stop(handleMore)} hitSlop={10} style={S.moreBtn}>
+              <Feather name="more-horizontal" size={18} color={C.textSecondary} />
             </Pressable>
           </View>
 
-          {/* Post Content */}
+          {/* Caption */}
           {post.caption ? (
-            <Text style={S.content} numberOfLines={4}>
+            <Text style={S.caption} numberOfLines={6}>
               {post.caption}
             </Text>
           ) : null}
 
           {/* Media */}
           {post.mediaUrls?.length > 0 && (
-            <Pressable onPress={stopProp(handleDoubleTap)}>
-              <View style={S.mediaContainer}>
+            <Pressable onPress={stop(handleDoubleTap)} style={S.mediaWrap}>
+              <View style={S.mediaBorder}>
                 <Image
                   source={{ uri: post.mediaUrls[0] }}
                   style={S.media}
@@ -249,90 +277,63 @@ const PostCard = React.memo(function PostCard({
             </Pressable>
           )}
 
-          {/* Action Bar */}
+          {/* ── Action Buttons Strip ── */}
           <View style={S.actions}>
-            {/* Reply */}
-            <Pressable
-              style={S.actionButton}
-              onPress={stopProp(goComments)}
-            >
-              <Feather name="message-circle" size={18} color={INACTIVE} />
+            {/* Comment */}
+            <Pressable style={S.actionBtn} onPress={stop(goComments)}>
+              <Feather name="message-circle" size={18} color={C.textSecondary} />
               {post.commentCount > 0 && (
-                <Text style={S.actionCount}>
-                  {formatCount(post.commentCount)}
-                </Text>
+                <Text style={S.actionCount}>{formatCount(post.commentCount)}</Text>
               )}
             </Pressable>
 
             {/* Repost */}
-            <Pressable
-              style={S.actionButton}
-              onPress={stopProp(handleRepost)}
-            >
+            <Pressable style={S.actionBtn} onPress={stop(handleRepost)}>
               <Feather
                 name="repeat"
                 size={18}
-                color={isReposted ? '#00ba7c' : INACTIVE}
+                color={isReposted ? C.repostActive : C.textSecondary}
               />
               {repostCount > 0 && (
-                <Text
-                  style={[
-                    S.actionCount,
-                    isReposted && { color: '#00ba7c' },
-                  ]}
-                >
+                <Text style={[S.actionCount, isReposted && { color: C.repostActive }]}>
                   {formatCount(repostCount)}
                 </Text>
               )}
             </Pressable>
 
-            {/* Like (Star) */}
-            <Pressable
-              style={S.actionButton}
-              onPress={stopProp(handleLike)}
-            >
-              <Feather
-                name="star"
+            {/* Like */}
+            <Pressable style={S.actionBtn} onPress={stop(handleLike)}>
+              <FIcon
+                name="heart"
                 size={18}
-                color={isLiked ? '#f4d03f' : INACTIVE}
-                fill={isLiked ? '#f4d03f' : 'none'}
+                color={isLiked ? C.likeActive : C.textSecondary}
+                fill={isLiked ? C.likeActive : 'none'}
               />
               {likeCount > 0 && (
-                <Text
-                  style={[
-                    S.actionCount,
-                    isLiked && { color: '#f4d03f' },
-                  ]}
-                >
+                <Text style={[S.actionCount, isLiked && { color: C.likeActive }]}>
                   {formatCount(likeCount)}
                 </Text>
               )}
             </Pressable>
 
-            {/* Views */}
-            <Pressable style={S.actionButton} onPress={stopProp(() => {})}>
-              <Feather name="eye" size={18} color={INACTIVE} />
+            {/* Views / Analytics */}
+            <Pressable style={S.actionBtn} onPress={stop(() => {})}>
+              <Feather name="bar-chart-2" size={18} color={C.textSecondary} />
             </Pressable>
 
             {/* Bookmark */}
-            <Pressable
-              style={S.actionButton}
-              onPress={stopProp(handleBookmark)}
-            >
-              <Feather
+            <Pressable style={S.actionBtn} onPress={stop(handleBookmark)}>
+              <FIcon
                 name="bookmark"
                 size={18}
-                color={post.bookmarked ? '#1d9bf0' : INACTIVE}
-                fill={post.bookmarked ? '#1d9bf0' : 'none'}
+                color={isBookmarked ? C.bookmarkActive : C.textSecondary}
+                fill={isBookmarked ? C.bookmarkActive : 'none'}
               />
             </Pressable>
 
             {/* Share */}
-            <Pressable
-              style={S.actionButton}
-              onPress={stopProp(handleShare)}
-            >
-              <Feather name="share" size={18} color={INACTIVE} />
+            <Pressable style={S.actionBtn} onPress={stop(handleShare)}>
+              <Feather name="share-2" size={18} color={C.textSecondary} />
             </Pressable>
           </View>
         </View>
@@ -344,94 +345,134 @@ const PostCard = React.memo(function PostCard({
 export default PostCard;
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   Styles
+   Styles — X App Pixel-Perfect
    ═══════════════════════════════════════════════════════════════════════════════ */
 const S = StyleSheet.create({
   container: {
-    backgroundColor: '#000000',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    backgroundColor: C.bg,
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2f3336',
+    borderBottomColor: C.divider,
   },
-  header: {
+
+  /* ── Row: Avatar + Content ── */
+  row: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
   },
-  headerContent: {
+  avatarWrap: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+
+  /* ── Content column ── */
+  content: {
     flex: 1,
+    minWidth: 0,
   },
+
+  /* ── User info row ── */
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 2,
+    flexWrap: 'nowrap',
   },
   namePress: {
-    marginRight: 2,
+    marginRight: 4,
   },
-  name: {
-    color: '#e7e9ea',
+  displayName: {
     fontSize: 15,
     fontWeight: '700',
+    color: C.text,
+    lineHeight: 20,
   },
-  handle: {
-    color: '#71767b',
+  username: {
     fontSize: 15,
-    marginLeft: 4,
+    fontWeight: '400',
+    color: C.textSecondary,
+    lineHeight: 20,
   },
   dot: {
-    color: '#71767b',
+    fontSize: 15,
+    color: C.textSecondary,
     marginHorizontal: 4,
-    fontSize: 15,
+    lineHeight: 20,
   },
-  timestamp: {
-    color: '#71767b',
+  time: {
     fontSize: 15,
+    fontWeight: '400',
+    color: C.textSecondary,
+    lineHeight: 20,
+  },
+  userRowSpacer: {
+    flex: 1,
+    minWidth: 8,
   },
   moreBtn: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 9999,
   },
-  content: {
-    color: '#e7e9ea',
+
+  /* ── Caption ── */
+  caption: {
     fontSize: 15,
+    fontWeight: '400',
+    color: C.text,
     lineHeight: 20,
+    marginTop: 2,
     marginBottom: 8,
+    letterSpacing: 0.1,
   },
-  mediaContainer: {
+
+  /* ── Media ── */
+  mediaWrap: {
     marginTop: 8,
     marginBottom: 4,
-    borderRadius: 16,
-    overflow: 'hidden',
+  },
+  mediaBorder: {
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2f3336',
+    borderColor: C.divider,
+    overflow: 'hidden',
   },
   media: {
     width: '100%',
     aspectRatio: 16 / 9,
     backgroundColor: '#16181c',
   },
+
+  /* ── Action Buttons ── */
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
-    paddingRight: 20,
+    alignItems: 'center',
+    marginTop: 12,
+    paddingRight: 8,
   },
-  actionButton: {
+  actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    marginRight: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    minWidth: 36,
   },
   actionCount: {
-    color: '#71767b',
     fontSize: 13,
+    fontWeight: '400',
+    color: C.textSecondary,
     marginLeft: 6,
+    lineHeight: 18,
   },
-  starOverlay: {
-    position: 'absolute',
+
+  /* ── Double-tap heart overlay ── */
+  heartOverlay: {
+    position: 'absolute' as const,
     top: 0,
     left: 0,
     right: 0,
@@ -442,10 +483,16 @@ const S = StyleSheet.create({
   },
 });
 
-/* Backward compat */
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Backward-compat Exports
+   ═══════════════════════════════════════════════════════════════════════════════ */
 export { formatCount };
 export const PostCardStyles = S;
-export function HighlightedCaption({ text, style, numberOfLines }: { text: string; style: any; numberOfLines?: number }) {
+export function HighlightedCaption({ text, style, numberOfLines }: {
+  text: string;
+  style: any;
+  numberOfLines?: number;
+}) {
   return (
     <Text style={style} numberOfLines={numberOfLines}>
       {text}
