@@ -289,7 +289,7 @@ export default function EditProfileScreen({ navigation }: any) {
                 source={
                   profileImage
                     ? { uri: profileImage }
-                    : null
+                    : undefined as any
                 }
                 style={styles.avatarImage}
               />

@@ -109,7 +109,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
   // Progress bar animation
   useEffect(() => {
     if (stories.length === 0 || isPaused) {
-      Animated.timing(progressAnim).stop();
+      progressAnim.stopAnimation();
       return;
     }
 

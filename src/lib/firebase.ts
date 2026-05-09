@@ -179,7 +179,7 @@ async function _getValidToken(): Promise<string> {
     _idToken = data.id_token;
     _refreshToken = data.refresh_token || _refreshToken;
     _persistAuth(); // Persist refreshed tokens
-    return _idToken;
+    return _idToken as string;
   } catch (e: any) {
     // Refresh failed — clear everything only if refresh token is truly dead
     _idToken = null;
@@ -427,8 +427,8 @@ class CompatCollectionRef {
         return this;
       }
       const data = docOrValue.data();
-      cursorValues = orderConstraints.map(c => {
-        const val = data[c.field];
+      cursorValues = orderConstraints.map((c: any) => {
+        const val = data[(c as any).field];
         // Firestore timestamps come back as ISO strings from _fromFsValue
         // Convert them back to the format Firestore expects for cursors
         if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(val)) {
@@ -495,7 +495,7 @@ class CompatCollectionRef {
     // Build startAfter cursor
     const startAfterConstraints = this._constraints.filter(c => c.type === 'startAfter');
     if (startAfterConstraints.length > 0) {
-      const cursorValues = startAfterConstraints[0].cursorValues;
+      const cursorValues: any[] = startAfterConstraints[0].cursorValues || [];
       structuredQuery.startAt = {
         values: cursorValues.map((v: any) => {
           if (v && typeof v === 'object' && v.__fs_type === 'timestamp') {
@@ -696,15 +696,16 @@ class CompatWriteBatch {
    COMPAT — Firestore
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function firestore(): any {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const firestore: any = function firestore(): any {
   const instance: any = (path: string) => new CompatCollectionRef(path);
   instance.collection = (path: string) => new CompatCollectionRef(path);
   instance.batch = () => new CompatWriteBatch();
   return instance;
-}
+};
 
 // Static access: api.ts uses firestore.FieldValue.serverTimestamp()
-(firestore as any).FieldValue = { serverTimestamp: _serverTimestamp, increment: _increment };
+firestore.FieldValue = { serverTimestamp: _serverTimestamp, increment: _increment };
 
 /* ═══════════════════════════════════════════════════════════════════════════
    HELPERS

@@ -94,7 +94,7 @@ function register(
   // Return unsubscribe
   return () => {
     const entry = listeners.get(id);
-    if (entry?.timerId !== null) {
+    if (entry && entry?.timerId !== null) {
       clearInterval(entry.timerId);
     }
     listeners.delete(id);

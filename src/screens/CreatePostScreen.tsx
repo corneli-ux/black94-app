@@ -155,11 +155,11 @@ const CreatePostScreen: React.FC = () => {
   // ── GIF picker (opens image picker filtered to GIF) ────────────────────
 
   const handleGIF = useCallback(() => {
-    navigation.navigate('GifPicker' as never, {
+    (navigation as any).navigate('GifPicker', {
       onSelect: (gifUrl: string) => {
-        setSelectedImages((prev) => [...prev, gifUrl]);
+        setSelectedImages((prev: string[]) => [...prev, gifUrl]);
       },
-    } as never);
+    });
   }, [navigation]);
 
   // ── Emoji ────────────────────────────────────────────────────────────

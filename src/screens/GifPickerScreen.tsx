@@ -163,7 +163,7 @@ export default function GifPickerScreen() {
 
     setLoadingMore(true);
     try {
-      const items = q ? await searchGifs(q, nextPos ?? undefined) : await fetchTrending(nextPos ?? undefined);
+      const items = q ? await searchGifs(q, nextPos ? Number(nextPos) : undefined) : await fetchTrending(nextPos ? Number(nextPos) : undefined);
       setGifs((prev) => [...prev, ...items]);
     } catch {
       // Silently fail on load more

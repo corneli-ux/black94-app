@@ -247,6 +247,7 @@ const styles = StyleSheet.create({
   featuredText: { color: colors.accentGold, fontSize: 11, fontWeight: '600' },
   productActions: { alignItems: 'flex-end', gap: 6 },
   actionBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  actionBtnText: { fontSize: 12, fontWeight: '600' },
   activeBtn: { borderColor: colors.accentGreen },
   inactiveBtn: { borderColor: colors.border },
   activeBtnText: { color: colors.accentGreen, fontSize: 12, fontWeight: '600' },

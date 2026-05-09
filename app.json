@@ -3,6 +3,7 @@
     "name": "Black94",
     "slug": "black94",
     "version": "1.8.3",
+    "platforms": ["android", "ios", "web"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -30,10 +31,6 @@
         "CAMERA"
       ],
       "softwareKeyboardLayoutMode": "resize",
-      "navigationBar": {
-        "backgroundColor": "#000000",
-        "barStyle": "light-content"
-      },
       "splash": {
         "backgroundColor": "#000000"
       }

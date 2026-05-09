@@ -334,15 +334,14 @@ function DrawerNavigator() {
       screenOptions={{
         headerShown: false,
         drawerStyle: { backgroundColor: colors.bg, width: '72%' },
-        screenStyle: { backgroundColor: '#000000' },
         overlayColor: 'rgba(0,0,0,0.7)',
         // Disable swipe/drag gestures on web — they cause pointer-event conflicts
         // that crash the entire feed after login.
-        gestureEnabled: Platform.OS !== 'web',
-        swipeEnabled: Platform.OS !== 'web',
+        gestureEnabled: false,
+        swipeEnabled: false,
         // Use 'front' drawer type for more predictable web rendering
-        drawerType: Platform.OS === 'web' ? 'front' : 'front',
-      }}
+        drawerType: 'front' as any,
+      } as any}
     >
       <Drawer.Screen name="MainTabs" component={MainTabs} />
       <Drawer.Screen name="Explore" component={LazyScreen(ExploreScreen)} />
@@ -428,7 +427,7 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer theme={DarkTheme}>
+    <NavigationContainer theme={DarkTheme as any}>
       {user ? (
         <AppStack />
       ) : (

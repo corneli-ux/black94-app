@@ -241,7 +241,7 @@ export default function BusinessOrdersScreen() {
                     }
                   }}
                   activeOpacity={0.7}>
-                  <Ionicons name={action.icon} size={16} color={colors.primary} />
+                  <Ionicons name={action.icon as any} size={16} color={colors.primary} />
                   <Text style={styles.actionBtnText}>{action.label}</Text>
                 </TouchableOpacity>
               ))}

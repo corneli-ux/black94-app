@@ -16,7 +16,7 @@ export default function SearchScreen({ route, navigation }: any) {
   const [searched, setSearched] = useState(false);
   const [tab, setTab] = useState<'people' | 'posts'>('people');
   const [focused, setFocused] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setUsers([]); setPosts([]); setSearched(false); return; }

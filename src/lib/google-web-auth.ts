@@ -60,11 +60,12 @@ function sha256(plain: string): string {
   let h7 = 0x5be0cd19 | 0;
 
   const encoder = new TextEncoder();
-  const msg = encoder.encode(plain);
-  const len = msg.length;
+  const encoded = encoder.encode(plain);
+  const len = encoded.length;
 
-  // Pre-processing: adding padding bits
+  // Pre-processing: adding padding bits — convert to mutable array
   const bitLen = len * 8;
+  const msg = Array.from(encoded);
   msg.push(0x80);
   while (msg.length % 64 !== 56) msg.push(0);
   // Append bit length as 64-bit big-endian (JS only has 32-bit ops, so split)

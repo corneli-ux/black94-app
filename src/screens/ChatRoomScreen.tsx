@@ -38,7 +38,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           if (chatDoc.exists) {
             const data = chatDoc.data();
             const otherId = data.user1Id === currentUser?.uid ? data.user2Id : data.user1Id;
-            let otherUser = null;
+            let otherUser: any = null;
             try {
               const otherSnap = await firestore().collection('users').doc(otherId).get();
               if (otherSnap.exists) {

@@ -124,19 +124,21 @@ export default function ChatListScreen({ navigation }: any) {
   }, []);
 
   const getLastMessageContent = (item: Chat): string => {
-    if (typeof item.lastMessage === 'string') {
-      return item.lastMessage;
+    const msg = item.lastMessage as any;
+    if (typeof msg === 'string') {
+      return msg;
     }
-    if (item.lastMessage?.content) return item.lastMessage.content;
-    if (item.lastMessage?.text) return item.lastMessage.text;
-    if (item.lastMessage) return JSON.stringify(item.lastMessage)?.slice(0, 50);
+    if (msg?.content) return msg.content;
+    if (msg?.text) return msg.text;
+    if (msg) return JSON.stringify(msg)?.slice(0, 50);
     return 'No messages yet';
   };
 
   const getLastMessageTime = (item: Chat): number => {
+    const msg = item.lastMessage as any;
     if (item.lastMessageTime) return item.lastMessageTime;
-    if (item.lastMessage && typeof item.lastMessage === 'object' && item.lastMessage.createdAt) {
-      return new Date(item.lastMessage.createdAt).getTime();
+    if (msg && typeof msg === 'object' && msg.createdAt) {
+      return new Date(msg.createdAt).getTime();
     }
     return 0;
   };
@@ -430,7 +432,7 @@ const styles = StyleSheet.create({
   },
   avatarWrap: {
     position: 'relative',
-    shrink: 0,
+    flexShrink: 0,
   },
   chatInfo: {
     flex: 1,

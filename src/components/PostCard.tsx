@@ -16,7 +16,7 @@ const CAPTION_EXPANDED_LINES = 3;
 const INACTIVE = '#71767b';
 
 /* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
-export function HighlightedCaption({ text, style }: { text: string; style: any }) {
+export function HighlightedCaption({ text, style, numberOfLines }: { text: string; style: any; numberOfLines?: number }) {
   const parts = text.split(/(#\w+|@\w+)/g);
   return (
     <Text style={style}>

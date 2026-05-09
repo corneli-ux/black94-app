@@ -34,6 +34,7 @@ interface ChatItem {
   user1Id: string;
   user2Id: string;
   lastMessage?: string;
+  lastMessageTime?: number;
   createdAt: string;
   updatedAt: string;
   otherUser?: {
@@ -166,8 +167,12 @@ export default function DualPaneChatScreen({ navigation }: any) {
 
       // Sort chats by lastMessageTime descending
       enriched.sort((a, b) => {
-        const tA = a.lastMessageTime?.seconds ? a.lastMessageTime.seconds * 1000 : (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0);
-        const tB = b.lastMessageTime?.seconds ? b.lastMessageTime.seconds * 1000 : (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0);
+        const tA = a.lastMessageTime
+          ? typeof a.lastMessageTime === 'number' ? a.lastMessageTime : new Date(String(a.lastMessageTime)).getTime()
+          : 0;
+        const tB = b.lastMessageTime
+          ? typeof b.lastMessageTime === 'number' ? b.lastMessageTime : new Date(String(b.lastMessageTime)).getTime()
+          : 0;
         return tB - tA;
       });
 
