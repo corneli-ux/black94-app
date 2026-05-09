@@ -1,37 +1,62 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, Image as RNImage, TouchableOpacity, StyleSheet,
-  Alert, Share, Animated,
+  View,
+  Text,
+  Image as RNImage,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Share,
+  Animated,
 } from 'react-native';
 import { Post } from '../lib/api';
 import {
-  ReplyIcon, RepostIcon, HeartIcon, BookmarkIcon, ShareIcon,
-  ChartIcon, MoreIcon, formatCount,
+  ReplyIcon,
+  RepostIcon,
+  HeartIcon,
+  BookmarkIcon,
+  ShareIcon,
+  MoreIcon,
+  formatCount,
 } from './Icons';
 import { Avatar, VerifiedBadge } from './Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth } from '../lib/firebase';
 
-const CAPTION_EXPANDED_LINES = 3;
+/* ── Constants ─────────────────────────────────────────────────────────────── */
 const INACTIVE = '#71767b';
+const HOVER_REPLY = '#1d9bf0';
+const HOVER_REPOST = '#00ba7c';
+const HOVER_LIKE = '#f91880';
+const HOVER_BOOKMARK = '#1d9bf0';
 
-/* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
-export function HighlightedCaption({ text, style, numberOfLines }: { text: string; style: any; numberOfLines?: number }) {
+/* ── Hashtag / Mention Highlighted Text ────────────────────────────────────── */
+export function HighlightedCaption({
+  text,
+  style,
+  numberOfLines,
+}: {
+  text: string;
+  style: any;
+  numberOfLines?: number;
+}) {
   const parts = text.split(/(#\w+|@\w+)/g);
   return (
-    <Text style={style}>
+    <Text style={style} numberOfLines={numberOfLines}>
       {parts.map((part, i) =>
         /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
-          <Text key={i} style={{ color: '#1d9bf0' }}>{part}</Text>
+          <Text key={i} style={{ color: '#1d9bf0' }}>
+            {part}
+          </Text>
         ) : (
           <Text key={i}>{part}</Text>
-        )
+        ),
       )}
     </Text>
   );
 }
 
-/* ── Animated Heart Overlay ───────────────────────────────────────────── */
+/* ── Double-tap Heart Overlay ─────────────────────────────────────────────── */
 function AnimatedHeart({ visible }: { visible: boolean }) {
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -39,12 +64,30 @@ function AnimatedHeart({ visible }: { visible: boolean }) {
   useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.spring(scale, { toValue: 1.2, friction: 3, useNativeDriver: true, speed: 20 }),
-        Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.spring(scale, {
+          toValue: 1.2,
+          friction: 3,
+          useNativeDriver: true,
+          speed: 20,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
       ]).start(() => {
         Animated.parallel([
-          Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0, duration: 600, delay: 200, useNativeDriver: true }),
+          Animated.spring(scale, {
+            toValue: 1,
+            friction: 4,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 600,
+            delay: 200,
+            useNativeDriver: true,
+          }),
         ]).start();
       });
     } else {
@@ -56,7 +99,7 @@ function AnimatedHeart({ visible }: { visible: boolean }) {
   if (!visible) return null;
 
   return (
-    <View style={PostCardStyles.heartOverlay} pointerEvents="none">
+    <View style={S.heartOverlay} pointerEvents="none">
       <Animated.View style={{ transform: [{ scale }], opacity }}>
         <HeartIcon size={96} color="#f91880" filled />
       </Animated.View>
@@ -64,7 +107,42 @@ function AnimatedHeart({ visible }: { visible: boolean }) {
   );
 }
 
-/* ── PostCard Props ───────────────────────────────────────────────────── */
+/* ── Action Button (reusable) ─────────────────────────────────────────────── */
+function ActionButton({
+  icon,
+  count,
+  activeColor,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  count?: number;
+  activeColor: string;
+  onPress: () => void;
+}) {
+  const isActive = !!activeColor;
+  return (
+    <TouchableOpacity
+      style={S.actionBtn}
+      onPress={onPress}
+      activeOpacity={0.6}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+    >
+      {icon}
+      {count !== undefined && count > 0 && (
+        <Text
+          style={[
+            S.actionCount,
+            isActive && { color: activeColor },
+          ]}
+        >
+          {formatCount(count)}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+/* ── Props ─────────────────────────────────────────────────────────────────── */
 interface PostCardProps {
   post: Post;
   onLike: (id: string, liked: boolean) => void;
@@ -75,38 +153,61 @@ interface PostCardProps {
   navigation: any;
 }
 
-/* ── PostCard Component ──────────────────────────────────────────────── */
-const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: PostCardProps) {
+/* ── PostCard ──────────────────────────────────────────────────────────────── */
+const PostCard = React.memo(function PostCard({
+  post,
+  onLike,
+  onBookmark,
+  onDelete,
+  onRepost,
+  onComment,
+  navigation,
+}: PostCardProps) {
   const currentUser = auth()?.currentUser;
   const [showHeart, setShowHeart] = useState(false);
-  const [captionExpanded, setCaptionExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const lastTapRef = useRef(0);
 
-  // Per-post optimistic repost state
+  // Optimistic repost
   const [isReposted, setIsReposted] = useState(post.reposted);
-  const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
+  const [repostCount, setRepostCount] = useState(post.repostCount);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setIsReposted(post.reposted);
-    setLocalRepostCount(post.repostCount);
+    setRepostCount(post.repostCount);
   }, [post.reposted, post.repostCount]);
+
+  const goProfile = () => {
+    if (post.authorId === currentUser?.uid) {
+      navigation.navigate('ProfileSelf');
+    } else {
+      navigation.navigate('UserProfile', { userId: post.authorId });
+    }
+  };
+
+  const goComments = () => {
+    navigation.navigate('PostComments', {
+      postId: post.id,
+      postCaption: post.caption,
+      postAuthorUsername: post.authorUsername,
+      postAuthorDisplayName: post.authorDisplayName,
+    });
+  };
 
   const handleDoubleTap = () => {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
-      if (!post.liked) {
-        onLike(post.id, post.liked);
-      }
+      if (!post.liked) onLike(post.id, post.liked);
       setShowHeart(true);
       setTimeout(() => setShowHeart(false), 900);
     }
     lastTapRef.current = now;
   };
 
-  const handleRepostPress = () => {
+  const handleRepost = () => {
     const next = !isReposted;
     setIsReposted(next);
-    setLocalRepostCount(prev => prev + (next ? 1 : -1));
+    setRepostCount((c) => c + (next ? 1 : -1));
     onRepost(post.id, isReposted);
   };
 
@@ -116,156 +217,149 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     } catch {}
   };
 
-  const navigateToComments = () => {
-    navigation.navigate('PostComments', {
-      postId: post.id,
-      postCaption: post.caption,
-      postAuthorUsername: post.authorUsername,
-      postAuthorDisplayName: post.authorDisplayName,
-    });
+  const handleMore = () => {
+    Alert.alert('Post', 'Delete this post?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+    ]);
   };
 
-  const navigateToProfile = () => {
-    if (post.authorId !== currentUser?.uid) {
-      navigation.navigate('UserProfile', { userId: post.authorId });
-    } else {
-      navigation.navigate('ProfileSelf');
-    }
-  };
-
-  const needsSeeMore = (post.caption?.length || 0) > 140;
+  const longCaption = (post.caption?.length || 0) > 140;
 
   return (
-    <View style={PostCardStyles.postCard}>
+    <View style={S.card}>
       <AnimatedHeart visible={showHeart} />
 
-      {/* Main row: avatar + content — name top-aligned with avatar */}
-      <View style={PostCardStyles.contentRow}>
-        {/* Avatar — aligned to top, level with display name */}
+      {/* ── Row: avatar + content ──────────────────────────────────── */}
+      <View style={S.row}>
+
+        {/* Avatar */}
         <TouchableOpacity
-          onPress={navigateToProfile}
+          onPress={goProfile}
           activeOpacity={0.7}
           hitSlop={8}
-          style={PostCardStyles.avatarWrap}
         >
-          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
+          <Avatar
+            uri={post.authorProfileImage}
+            name={post.authorDisplayName}
+            size={40}
+          />
         </TouchableOpacity>
 
-        {/* Content column — tight to the right of avatar */}
-        <View style={PostCardStyles.contentColumn}>
-          {/* Header row: name/badge/username/time ... moreBtn */}
-          <View style={PostCardStyles.headerRow}>
+        {/* Content column */}
+        <View style={S.body}>
+
+          {/* ── Header ────────────────────────────────────────────── */}
+          <View style={S.header}>
             <TouchableOpacity
-              onPress={navigateToProfile}
+              onPress={goProfile}
               activeOpacity={0.7}
-              style={PostCardStyles.headerNameRow}
+              style={S.nameRow}
             >
-              <Text style={PostCardStyles.displayName} numberOfLines={1}>
+              <Text style={S.name} numberOfLines={1}>
                 {post.authorDisplayName || post.authorUsername || 'User'}
               </Text>
-              <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
-              <Text style={PostCardStyles.username}>@{post.authorUsername || 'user'}</Text>
-              <Text style={PostCardStyles.dot}>·</Text>
-              <Text style={PostCardStyles.time}>{timeAgo(post.createdAt)}</Text>
+              <VerifiedBadge
+                badge={post.authorBadge}
+                isVerified={post.authorIsVerified}
+                size={16}
+              />
+              <Text style={S.handle}>
+                @{post.authorUsername || 'user'}
+              </Text>
+              <Text style={S.dot}>·</Text>
+              <Text style={S.time}>{timeAgo(post.createdAt)}</Text>
             </TouchableOpacity>
 
-            {/* More button */}
             <TouchableOpacity
-              style={PostCardStyles.moreBtn}
-              onPress={() => {
-                Alert.alert('Post', 'Delete this post?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
-                ]);
-              }}
+              onPress={handleMore}
+              hitSlop={10}
+              style={S.moreWrap}
             >
               <MoreIcon size={18} color={INACTIVE} />
             </TouchableOpacity>
           </View>
 
-          {/* Caption — immediately below header, no extra margin */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={navigateToComments}
-          >
-            {post.caption ? (
-              <View>
-                <HighlightedCaption
-                  text={captionExpanded || !needsSeeMore ? post.caption : post.caption.slice(0, 140)}
-                  style={PostCardStyles.caption}
-                  numberOfLines={captionExpanded ? undefined : CAPTION_EXPANDED_LINES}
-                />
-                {needsSeeMore && !captionExpanded && (
-                  <TouchableOpacity onPress={() => setCaptionExpanded(true)} hitSlop={8}>
-                    <Text style={PostCardStyles.seeMore}>Show more</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : null}
-          </TouchableOpacity>
+          {/* ── Caption ───────────────────────────────────────────── */}
+          {post.caption ? (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={goComments}
+            >
+              <HighlightedCaption
+                text={expanded || !longCaption ? post.caption : post.caption.slice(0, 140)}
+                style={S.caption}
+                numberOfLines={expanded ? undefined : 3}
+              />
+              {longCaption && !expanded && (
+                <TouchableOpacity
+                  onPress={() => setExpanded(true)}
+                  hitSlop={8}
+                >
+                  <Text style={S.showMore}>Show more</Text>
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+          ) : null}
 
-          {/* Media image — improved for tall images like X */}
+          {/* ── Media ─────────────────────────────────────────────── */}
           {post.mediaUrls?.length > 0 && (
-            <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
-              <View style={PostCardStyles.mediaContainer}>
+            <TouchableOpacity
+              activeOpacity={0.95}
+              onPress={handleDoubleTap}
+            >
+              <View style={S.mediaWrap}>
                 <RNImage
                   source={{ uri: post.mediaUrls[0] }}
-                  style={PostCardStyles.media}
+                  style={S.media}
                   resizeMode="cover"
                 />
               </View>
             </TouchableOpacity>
           )}
 
-          {/* ── Action bar — X-style: left-aligned, under content ──── */}
-          <View style={PostCardStyles.actions}>
-
-            {/* Reply */}
-            <TouchableOpacity
-              style={PostCardStyles.actionBtn}
-              onPress={navigateToComments}
-            >
-              <ReplyIcon size={18} color={INACTIVE} />
-              {formatCount(post.commentCount) ? (
-                <Text style={PostCardStyles.actionCount}>{formatCount(post.commentCount)}</Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Repost */}
-            <TouchableOpacity style={PostCardStyles.actionBtn} onPress={handleRepostPress}>
-              <RepostIcon size={18} color={isReposted ? '#00ba7c' : INACTIVE} />
-              {formatCount(localRepostCount) ? (
-                <Text style={[PostCardStyles.actionCount, isReposted && { color: '#00ba7c' }]}>
-                  {formatCount(localRepostCount)}
-                </Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Heart / Like */}
-            <TouchableOpacity style={PostCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
-              <HeartIcon size={18} color={post.liked ? '#f91880' : INACTIVE} filled={post.liked} />
-              {formatCount(post.likeCount) ? (
-                <Text style={[PostCardStyles.actionCount, post.liked && { color: '#f91880' }]}>
-                  {formatCount(post.likeCount)}
-                </Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Analytics / Views */}
-            <TouchableOpacity style={PostCardStyles.actionBtn} disabled>
-              <ChartIcon size={18} color={INACTIVE} />
-            </TouchableOpacity>
-
-            {/* Bookmark + Share */}
-            <View style={PostCardStyles.actionPair}>
-              <TouchableOpacity style={PostCardStyles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
-                <BookmarkIcon size={18} color={post.bookmarked ? '#1d9bf0' : INACTIVE} filled={post.bookmarked} />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={PostCardStyles.actionBtn} onPress={handleShare}>
-                <ShareIcon size={18} color={INACTIVE} />
-              </TouchableOpacity>
-            </View>
+          {/* ── Action Bar ────────────────────────────────────────── */}
+          <View style={S.actions}>
+            <ActionButton
+              icon={<ReplyIcon size={18} color={INACTIVE} />}
+              count={post.commentCount}
+              activeColor=""
+              onPress={goComments}
+            />
+            <ActionButton
+              icon={<RepostIcon size={18} color={isReposted ? HOVER_REPOST : INACTIVE} />}
+              count={repostCount}
+              activeColor={isReposted ? HOVER_REPOST : ''}
+              onPress={handleRepost}
+            />
+            <ActionButton
+              icon={
+                <HeartIcon
+                  size={18}
+                  color={post.liked ? HOVER_LIKE : INACTIVE}
+                  filled={post.liked}
+                />
+              }
+              count={post.likeCount}
+              activeColor={post.liked ? HOVER_LIKE : ''}
+              onPress={() => onLike(post.id, post.liked)}
+            />
+            <ActionButton
+              icon={<ShareIcon size={18} color={INACTIVE} />}
+              activeColor=""
+              onPress={handleShare}
+            />
+            <ActionButton
+              icon={
+                <BookmarkIcon
+                  size={18}
+                  color={post.bookmarked ? HOVER_BOOKMARK : INACTIVE}
+                  filled={post.bookmarked}
+                />
+              }
+              activeColor={post.bookmarked ? HOVER_BOOKMARK : ''}
+              onPress={() => onBookmark(post.id, post.bookmarked)}
+            />
           </View>
         </View>
       </View>
@@ -275,35 +369,37 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
 export default PostCard;
 
-/* ── PostCard Styles — X/Twitter-matched with better padding & tall image support ─────────────────────────────── */
-export const PostCardStyles = StyleSheet.create({
-  postCard: {
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Styles — pixel-perfect X/Twitter dark mode
+   ═══════════════════════════════════════════════════════════════════════════════ */
+const S = StyleSheet.create({
+  /* Card */
+  card: {
     backgroundColor: '#000000',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.08)',
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingHorizontal: 16,  // Increased from 12 for better breathing room
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  contentRow: {
+
+  /* Layout */
+  row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 12,
   },
-  contentColumn: {
+  body: {
     flex: 1,
     minWidth: 0,
   },
-  avatarWrap: {
-    alignSelf: 'flex-start',
-    marginTop: -1,
-  },
-  headerRow: {
+
+  /* Header */
+  header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerNameRow: {
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -311,88 +407,86 @@ export const PostCardStyles = StyleSheet.create({
     flexWrap: 'nowrap',
     overflow: 'hidden',
   },
-  /* X uses Inter — tight lineHeight so text top-edge aligns with avatar top */
-  displayName: {
-    fontFamily: 'Inter-Bold',
-    color: '#e7e9ea',
+  moreWrap: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+  },
+
+  /* Typography */
+  name: {
     fontWeight: '700',
     fontSize: 15,
-    lineHeight: 18,
+    color: '#e7e9ea',
+    lineHeight: 20,
   },
-  username: {
-    fontFamily: 'Inter-Regular',
+  handle: {
     color: '#71767b',
     fontSize: 15,
     lineHeight: 20,
   },
   dot: {
-    fontFamily: 'Inter-Regular',
     color: '#71767b',
     fontSize: 15,
+    lineHeight: 20,
   },
   time: {
-    fontFamily: 'Inter-Regular',
     color: '#71767b',
     fontSize: 15,
+    lineHeight: 20,
   },
-  moreBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 999,
-  },
-  /* Caption immediately follows header — gap = same as line spacing within text */
   caption: {
-    fontFamily: 'Inter-Regular',
     color: '#e7e9ea',
     fontSize: 15,
     lineHeight: 20,
     marginTop: 2,
   },
-  seeMore: {
-    fontFamily: 'Inter-Regular',
+  showMore: {
     color: '#1d9bf0',
     fontSize: 15,
-    marginTop: 0,
+    lineHeight: 20,
+    marginTop: 2,
   },
-  mediaContainer: {
-    marginTop: 8,
+
+  /* Media */
+  mediaWrap: {
+    marginTop: 10,
     borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
   media: {
     width: '100%',
-    maxHeight: 420,  // Prevents tall images from dominating the screen (X-style)
-    backgroundColor: '#111111',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#16181c',
   },
-  /* ── Action bar — X style: left-aligned, no space-between ── */
+
+  /* Action Bar — X style: evenly spread, left-aligned icons */
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 6,
+    alignItems: 'center',
+    marginTop: 12,
     maxWidth: 425,
-    marginLeft: -8,
+    marginLeft: -10,
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 34,
-    minWidth: 34,
+    gap: 2,
     paddingHorizontal: 6,
-  },
-  actionPair: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingVertical: 4,
   },
   actionCount: {
-    fontFamily: 'Inter-Regular',
     color: '#71767b',
     fontSize: 13,
-    marginLeft: 2,
+    lineHeight: 16,
   },
+
+  /* Heart overlay */
   heartOverlay: {
     position: 'absolute',
     top: 0,
@@ -404,3 +498,6 @@ export const PostCardStyles = StyleSheet.create({
     zIndex: 10,
   },
 });
+
+/* Keep exported name for backward compat (not used externally, but safe) */
+export const PostCardStyles = S;
