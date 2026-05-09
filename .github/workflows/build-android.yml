@@ -1,4 +1,4 @@
-name: Build Android APK & AAB (Standalone for Device)
+name: Build Android APK (Standalone - No Metro Needed)
 
 on:
   push:
@@ -27,77 +27,34 @@ jobs:
           distribution: 'zulu'
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Setup Gradle (no caching)
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: false
 
       - name: Install dependencies
-        run: npm ci --prefer-offline || npm install
+        run: npm install
 
-      - name: Create JS bundle for Android
-        run: npx expo export --platform android --dev false --output-dir bundle
-
+      # Clean prebuild ensures fresh native project generation
       - name: Expo prebuild
         run: npx expo prebuild --platform android --clean
 
-      - name: Place JS bundle with correct filename
-        run: |
-          mkdir -p android/app/src/main/assets
-          cp bundle/index.bundle android/app/src/main/assets/index.android.bundle
-          echo "Placed index.android.bundle ($(du -h android/app/src/main/assets/index.android.bundle | cut -f1))"
-
+      # splashscreen_logo.png is referenced by the native splash screen code
       - name: Fix splashscreen_logo drawable
         run: |
           mkdir -p android/app/src/main/res/drawable
           cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
 
-      - name: Disable Gradle cache
-        run: |
-          echo "org.gradle.caching=false" >> android/gradle.properties
-          echo "org.gradle.parallel=false" >> android/gradle.properties
-
-      # === DEBUG BUILD (skip Gradle bundling - we already have the bundle) ===
-      - name: Build Debug APK
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug -x bundleDebugJsAndAssets -x createBundleDebugJsAndAssets --no-build-cache --no-daemon
-
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: black94-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-          retention-days: 30
-
-      # === RELEASE BUILD (best effort, needs keystore) ===
-      - name: Build Release APK + AAB
-        continue-on-error: true
-        run: |
-          if [ -f ../ci/black94-release.jks ]; then
-            cp ../ci/black94-release.jks android/app/black94-release.jks
-            cd android
-            chmod +x gradlew
-            ./gradlew assembleRelease bundleRelease -x bundleReleaseJsAndAssets -x createBundleReleaseJsAndAssets --no-build-cache --no-daemon
-          else
-            echo "No keystore found, skipping release build"
-          fi
+      # ROOT CAUSE FIX: Build RELEASE APK, not Debug.
+      # Debug APKs always try to connect to Metro dev server (localhost:8081)
+      # to load JS -- they do NOT use the bundled file.
+      # Release APKs embed the JS bundle and load it directly from the APK.
+      # Gradle bundleReleaseJsAndAssets runs Metro internally to create
+      # index.android.bundle, then packages it into the APK.
+      - name: Build Release APK
+        run: cd android && ./gradlew assembleRelease --no-daemon
 
       - name: Upload Release APK
-        if: success()
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: black94-release-apk
           path: android/app/build/outputs/apk/release/*.apk
-          retention-days: 30
-
-      - name: Upload Release AAB
-        if: success()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: black94-release-aab
-          path: android/app/build/outputs/bundle/release/*.aab
           retention-days: 30
