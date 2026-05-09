@@ -15,25 +15,36 @@ import { useAppStore } from '../stores/app';
 import { signInWithGoogle } from '../lib/api';
 import { signInWithGoogleWeb } from '../lib/google-web-auth';
 
+/**
+ * Web client ID from Firebase Console.
+ * Used by native Google Sign-In SDK to obtain the ID token.
+ */
 const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
 
 /**
- * AuthScreen — Login screen.
+ * AuthScreen — Login / Sign-up screen.
  *
- * Google Sign-In strategy:
- *
- *   ANDROID:
- *     1. Native Google Sign-In SDK first (@react-native-google-signin)
- *        → Official method for Play Store, requires SHA-1 in Firebase Console
- *     2. Chrome Custom Tabs fallback (expo-web-browser)
- *        → Requires black94://auth registered as redirect URI in Google Cloud Console
- *
- *   IOS:
- *     1. expo-web-browser (ASWebAuthenticationSession)
- *        → Works with Firebase's pre-authorized HTTPS redirect URI
- *
- * IMPORTANT: Google blocks OAuth from embedded WebViews (Error 403: disallowed_useragent).
- * We use expo-web-browser which opens Chrome Custom Tabs / Safari — both are "secure browsers".
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │ GOOGLE SIGN-IN STRATEGY                                     │
+ * │                                                             │
+ * │   ANDROID:                                                  │
+ * │     Native Google Sign-In SDK ONLY.                         │
+ * │     • Stays entirely within the app (no browser).           │
+ * │     • Uses @react-native-google-signin/google-signin.       │
+ * │     • Requires SHA-1 registered in Firebase Console.        │
+ * │     • Requires Google Play Services on the device.          │
+ * │                                                             │
+ * │     WHY NO BROWSER FALLBACK?                                │
+ * │     Browser-based OAuth uses redirect_uri=black94://auth    │
+ * │     (custom scheme). Google REJECTS custom scheme redirect  │
+ * │     URIs for web clients — only HTTPS is allowed.           │
+ * │     Error 400: invalid_request is UNFIXABLE in code.        │
+ * │                                                             │
+ * │   IOS:                                                      │
+ * │     expo-web-browser (ASWebAuthenticationSession).          │
+ * │     • Uses HTTPS redirect URI (Firebase handler).           │
+ * │     • Stays within the app — system managed.                │
+ * └─────────────────────────────────────────────────────────────┘
  */
 export default function AuthScreen() {
   const [isLoading, setIsLoading] = useState(false);
@@ -41,50 +52,68 @@ export default function AuthScreen() {
   const { setUser, setToken } = useAppStore();
   const insets = useSafeAreaInsets();
 
-  /** Complete sign-in: exchange ID token for Firebase user */
+  /** Exchange ID token for Firebase user and update store */
   const completeSignIn = useCallback(async (idToken: string) => {
+    console.log('[AuthScreen] Completing sign-in with ID token...');
     const user = await signInWithGoogle(idToken);
     if (user) {
       setUser(user);
       setToken(user.id);
+      console.log('[AuthScreen] Sign-in complete for:', user.email);
     } else {
       throw new Error('Firebase sign-in returned no user');
     }
   }, [setUser, setToken]);
 
-  /** Try native Google Sign-In */
-  const tryNativeGoogleSignIn = useCallback(async (): Promise<string | null> => {
-    try {
-      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+  /**
+   * Android: Native Google Sign-In.
+   * Stays entirely within the app — no browser opened.
+   */
+  const androidNativeSignIn = useCallback(async (): Promise<string> => {
+    console.log('[AuthScreen] Starting native Google Sign-In (Android)...');
 
-      GoogleSignin.configure({
-        webClientId: WEB_CLIENT_ID,
-        offlineAccess: false,
-        forceCodeForRefreshToken: false,
-      });
+    const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
 
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
-      console.log('[AuthScreen] Play Services available, trying native sign-in...');
+    // Configure native Google Sign-In
+    // - webClientId: Required to get the ID token (uses the Web OAuth client)
+    // - offlineAccess: false (we don't need refresh tokens from Google, Firebase handles this)
+    // - forceCodeForRefreshToken: false (we need ID token, not auth code)
+    GoogleSignin.configure({
+      webClientId: WEB_CLIENT_ID,
+      offlineAccess: false,
+      forceCodeForRefreshToken: false,
+      scopes: ['profile', 'email'],
+    });
+    console.log('[AuthScreen] GoogleSignin configured with webClientId');
 
-      const result = await GoogleSignin.signIn();
-      const idToken = result.data?.idToken;
+    // Step 1: Verify Google Play Services is available
+    // showPlayServicesUpdateDialog: true → prompts user to update if outdated
+    const playServicesAvailable = await GoogleSignin.hasPlayServices({
+      showPlayServicesUpdateDialog: true,
+    });
+    console.log('[AuthScreen] Play Services available:', playServicesAvailable);
 
-      if (idToken) {
-        console.log('[AuthScreen] Native sign-in succeeded');
-        return idToken;
-      }
+    // Step 2: Sign in — shows the Google account picker (native UI, within app)
+    const result = await GoogleSignin.signIn();
+    console.log('[AuthScreen] Native signIn returned, keys:', Object.keys(result));
 
-      console.warn('[AuthScreen] Native sign-in returned no ID token');
-      return null;
-    } catch (err: any) {
-      const code = err?.code;
-      if (code === 'DEVELOPER_ERROR' || code === 10 || String(code) === '10') {
-        console.warn('[AuthScreen] DEVELOPER_ERROR — SHA-1 not registered, falling back');
-      } else {
-        console.warn('[AuthScreen] Native sign-in failed:', code, err?.message);
-      }
-      return null;
+    // Step 3: Extract ID token
+    // @react-native-google-signin v14+ wraps response in .data
+    // Older versions return idToken directly on the result object
+    const idToken = result.data?.idToken || (result as any).idToken;
+
+    if (!idToken) {
+      console.error('[AuthScreen] No ID token in sign-in result:', JSON.stringify(result));
+      throw new Error(
+        'Google Sign-In succeeded but returned no ID token.\n\n' +
+        'This is a temporary issue. Please try again.\n\n' +
+        'If it persists, clear Google Play Services cache:\n' +
+        'Settings → Apps → Google Play Services → Storage → Clear Cache'
+      );
     }
+
+    console.log('[AuthScreen] Got ID token (length:', idToken.length, ')');
+    return idToken;
   }, []);
 
   const handleGoogleSignIn = useCallback(async () => {
@@ -92,47 +121,102 @@ export default function AuthScreen() {
 
     try {
       if (Platform.OS === 'android') {
-        // ═══════════════════════════════════════════════════════════════
-        // ANDROID: Native first, Chrome Custom Tabs fallback
-        // ═══════════════════════════════════════════════════════════════
-
-        // Step 1: Try native Google Sign-In SDK
-        const nativeToken = await tryNativeGoogleSignIn();
-        if (nativeToken) {
-          await completeSignIn(nativeToken);
-          return;
-        }
-
-        // Step 2: Fall back to Chrome Custom Tabs (expo-web-browser)
-        console.log('[AuthScreen] Using Chrome Custom Tabs (web OAuth)');
-        const webToken = await signInWithGoogleWeb();
-        if (webToken) {
-          await completeSignIn(webToken);
-          return;
-        }
-
-        throw new Error('All sign-in methods failed');
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // IOS: expo-web-browser (ASWebAuthenticationSession)
-      // ═══════════════════════════════════════════════════════════════
-      console.log('[AuthScreen] Using web OAuth (iOS)');
-      const idToken = await signInWithGoogleWeb();
-      if (idToken) {
+        // ═══════════════════════════════════════════════════════
+        // ANDROID: Native Google Sign-In SDK ONLY
+        // No browser. No WebView. Stays within the app.
+        // ═══════════════════════════════════════════════════════
+        const idToken = await androidNativeSignIn();
         await completeSignIn(idToken);
         return;
       }
 
-      throw new Error('Failed to obtain Google ID token');
+      // ═══════════════════════════════════════════════════════
+      // IOS: expo-web-browser (ASWebAuthenticationSession)
+      // Uses HTTPS redirect URI — stays within app experience.
+      // ═══════════════════════════════════════════════════════
+      console.log('[AuthScreen] Using web OAuth (iOS)');
+      const idToken = await signInWithGoogleWeb();
+      await completeSignIn(idToken);
     } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      console.error('[AuthScreen] Sign-in failed:', errMsg);
-      Alert.alert('Sign In Failed', `Could not sign in with Google.\n\n${errMsg}`);
+      const code = err?.code;
+      const message = err?.message || String(err);
+
+      console.error('[AuthScreen] Sign-in error:', {
+        code,
+        message,
+        name: err?.name,
+        stack: err?.stack?.slice(0, 500),
+      });
+
+      // ── DEVELOPER_ERROR (code 10) ──
+      // SHA-1 not registered in Google Cloud Console / Firebase Console
+      // OR the app's package name doesn't match
+      if (code === 'DEVELOPER_ERROR' || code === 10 || String(code) === '10') {
+        Alert.alert(
+          'Google Sign-In Setup Required',
+          'The app\'s signing certificate needs to be registered.\n\n' +
+          'Go to Firebase Console:\n' +
+          '1. Open project "black94"\n' +
+          '2. Project Settings → Android App\n' +
+          '3. Add this SHA-1 fingerprint:\n\n' +
+          'F5:3F:0D:14:74:1D:8F:88:17:7E:49:AA:B8:2F:D0:2B:A2:D6:DD:C4\n\n' +
+          'After adding, download the updated google-services.json\n' +
+          'and rebuild the app.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // ── SIGN_IN_CANCELLED (code 12501) ──
+      // User pressed back / cancelled the account picker — not an error
+      if (String(code) === '12501') {
+        console.log('[AuthScreen] User cancelled sign-in');
+        return;
+      }
+
+      // ── Play Services errors ──
+      if (
+        message?.includes('Play Services') ||
+        message?.includes('GOOGLE_PLAY_SERVICES') ||
+        message?.includes('ConnectionResult')
+      ) {
+        Alert.alert(
+          'Google Play Services Required',
+          'Google Sign-In requires Google Play Services.\n\n' +
+          'Please:\n' +
+          '1. Update Google Play Services in Play Store\n' +
+          '2. Restart your device\n' +
+          '3. Try again',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // ── Network / timeout errors ──
+      if (
+        message?.includes('network') ||
+        message?.includes('timeout') ||
+        message?.includes('ETIMEOUT') ||
+        message?.includes('ECONNREFUSED')
+      ) {
+        Alert.alert(
+          'Connection Error',
+          'Could not connect to Google. Please check your internet connection and try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // ── All other errors ──
+      Alert.alert(
+        'Sign In Failed',
+        message || 'An unknown error occurred. Please try again.',
+        [{ text: 'OK' }]
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [tryNativeGoogleSignIn, completeSignIn]);
+  }, [androidNativeSignIn, completeSignIn]);
 
   return (
     <View style={styles.container}>
