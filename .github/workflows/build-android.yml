@@ -57,27 +57,35 @@ jobs:
           echo "org.gradle.caching=false" >> android/gradle.properties
           echo "org.gradle.parallel=false" >> android/gradle.properties
 
-      - name: Setup release keystore (if available)
-        continue-on-error: true
-        run: |
-          if [ -f ci/black94-release.jks ]; then
-            cp ci/black94-release.jks android/app/black94-release.jks
-            echo "Keystore copied"
-            sed -i '/signingConfigs {/a\        release {\n            storeFile file('\''black94-release.jks'\'')\n            storePassword '\''black94real'\''\n            keyAlias '\''black94'\''\n            keyPassword '\''black94real'\''\n        }' android/app/build.gradle
-            sed -i 's/signingConfig signingConfigs\.debug/signingConfig signingConfigs.release/' android/app/build.gradle
-            echo "Release signing config added"
-          else
-            echo "No keystore - will build debug"
-          fi
-
-      - name: Build Release APK + AAB (standalone)
-        continue-on-error: true
+      # === DEBUG BUILD (always succeeds, no signing needed) ===
+      - name: Build Debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleRelease bundleRelease --no-build-cache --no-daemon || echo "Release build had issues - trying debug fallback"
+          ./gradlew clean assembleDebug --no-build-cache --no-daemon
 
-      - name: Upload Release APK (if built)
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: black94-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      # === RELEASE BUILD (best effort, needs keystore) ===
+      - name: Build Release APK + AAB
+        continue-on-error: true
+        run: |
+          if [ -f ../ci/black94-release.jks ]; then
+            cp ../ci/black94-release.jks android/app/black94-release.jks
+            cd android
+            chmod +x gradlew
+            ./gradlew assembleRelease bundleRelease --no-build-cache --no-daemon
+          else
+            echo "No keystore found, skipping release build"
+          fi
+
+      - name: Upload Release APK
+        if: success()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -85,24 +93,11 @@ jobs:
           path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 
-      - name: Upload Release AAB (if built)
+      - name: Upload Release AAB
+        if: success()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: black94-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
-          retention-days: 30
-
-      - name: Build Debug APK (fallback, with bundle)
-        if: failure() || success()
-        run: |
-          cd android
-          ./gradlew clean assembleDebug --no-build-cache --no-daemon || true
-          echo "Debug build attempted"
-
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: black94-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
