@@ -41,18 +41,12 @@ jobs:
           mkdir -p android/app/src/main/res/drawable
           cp assets/icon.png android/app/src/main/res/drawable/splashscreen_logo.png
 
-      # GOOGLE SIGN-IN FIX: Sign release APK with our release keystore.
-      # The keystore SHA-1 is registered in google-services.json so
-      # Google Sign-In works without any manual Firebase Console steps.
+      # GOOGLE SIGN-IN: Sign with deterministic release keystore.
+      # keystore/release.keystore SHA-1 is in google-services.json.
       - name: Configure release signing
         run: |
           cp keystore/release.keystore android/release.keystore
-          cd android
-          # Inject release signing config into build.gradle (after prebuild)
-          sed -i 's|signingConfigs {|signingConfigs {\n        release {\n            storeFile file('\''../release.keystore'\'')\n            storePassword '\''black94release'\''\n            keyAlias '\''black94'\''\n            keyPassword '\''black94release'\''\n        }|' app/build.gradle
-          # Change release buildType to use release signingConfig
-          sed -i 's|signingConfig signingConfigs.debug|signingConfig signingConfigs.release|' app/build.gradle
-          echo "Release signing configured"
+          python3 scripts/setup-release-signing.py android/app/build.gradle
 
       - name: Build Release APK
         run: cd android && ./gradlew assembleRelease --no-daemon
