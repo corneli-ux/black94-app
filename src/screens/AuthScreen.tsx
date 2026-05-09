@@ -14,158 +14,138 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { signInWithGoogle } from '../lib/api';
 import { signInWithGoogleWeb } from '../lib/google-web-auth';
+import GoogleSignInWebView from '../components/GoogleSignInWebView';
 
 const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
 
 /**
  * AuthScreen — Login screen matching black94.web.app exactly.
  *
- * Auth strategy:
- *   Android: Primary = native Google Sign-In (reliable, no redirect issues)
- *            Fallback = web OAuth (for devices without Play Services)
- *   iOS:     Primary = web OAuth (ASWebAuthenticationSession works perfectly)
- *            Fallback = native Google Sign-In
+ * Google Sign-In strategy:
+ *   Android: WebView-based OAuth (intercepts Firebase redirect, no console setup needed)
+ *   iOS:     expo-web-browser OAuth (ASWebAuthenticationSession intercepts HTTPS redirects)
  *
- * Web layout (from page source):
- *   bg-[#000000], min-h-screen, flex flex-col items-center justify-center
- *   max-w-[420px] w-full, px-6
- *
- *   1) Logo image (w-20 h-20 = 80x80, mb-5 = 20px)
- *   2) "Welcome Back" heading (text-3xl, font-bold, text-white, tracking-tight)
- *   3) "Sign in to continue to Black94." subtitle (text-sm, text-[#94a3b8], mt-2)
- *   4) Google button (w-full max-w-[320px], h-[52px], rounded-full, bg-white)
- *      - Google SVG logo (h-5 w-5 = 20x20)
- *      - "Sign in with Google" text (text-[15px], font-semibold, text-gray-700)
- *   5) Divider row (mt-6 = 24px, "or" text-[12px] text-[#64748b])
- *   6) Switch link (mt-4 = 16px, text-[14px])
- *   7) Terms text (mt-4 = 16px, text-[11px], text-center)
+ * WHY WebView on Android:
+ *   Chrome Custom Tabs cannot intercept HTTPS redirects on Android.
+ *   Custom scheme redirects (black94://) require Google Cloud Console registration.
+ *   WebView loads Google auth page, intercepts redirect to pre-authorized
+ *   Firebase handler URL, extracts auth code — NO console configuration needed.
  */
 export default function AuthScreen() {
   const [isLoading, setIsLoading] = useState(false);
+  const [showWebView, setShowWebView] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const { setUser, setToken } = useAppStore();
   const insets = useSafeAreaInsets();
 
-  const handleGoogleSignIn = useCallback(async () => {
-    setIsLoading(true);
-    let lastError: Error | null = null;
-
+  /** Called when GoogleSignInWebView successfully gets an ID token */
+  const handleWebViewToken = useCallback(async (idToken: string) => {
+    setShowWebView(false);
     try {
-      // ═══════════════════════════════════════════════════════════════════
-      // Auth strategy: try web OAuth first on ALL platforms.
-      //
-      // WHY: Native Google Sign-In on Android requires the APK signing
-      // certificate SHA-1 to be registered in Firebase Console. If it's
-      // not, native sign-in fails with DEVELOPER_ERROR and the user is stuck.
-      //
-      // Web OAuth uses a custom scheme redirect (black94://auth) which
-      // is intercepted by the deep linking system. It requires the redirect
-      // URI to be registered in Google Cloud Console.
-      //
-      // By trying web OAuth first, we give it the best chance of working.
-      // Native sign-in is the fallback for when web OAuth is unavailable.
-      // ═══════════════════════════════════════════════════════════════════
-      const strategies = ['web', 'native'];
-
-      for (const strategy of strategies) {
-        try {
-          console.log(`[AuthScreen] Trying ${strategy} Google sign-in...`);
-
-          let idToken: string | null = null;
-
-          if (strategy === 'native') {
-            idToken = await nativeGoogleSignIn();
-          } else {
-            idToken = await signInWithGoogleWeb();
-          }
-
-          if (idToken) {
-            console.log(`[AuthScreen] ${strategy} auth succeeded, signing in to Firebase...`);
-            const user = await signInWithGoogle(idToken);
-            if (user) {
-              setUser(user);
-              setToken(user.id);
-              return; // Success!
-            }
-          }
-        } catch (err: any) {
-          const errMsg = err?.message || String(err);
-          const errCode = err?.code;
-          console.warn(`[AuthScreen] ${strategy} auth failed:`, errMsg, 'code:', errCode);
-          lastError = err;
-
-          // If user explicitly cancelled, don't try another method
-          const isUserCancelled =
-            errCode === '12501' || errCode === 12501 ||
-            errMsg.toLowerCase().includes('cancelled');
-          if (isUserCancelled) {
-            console.log('[AuthScreen] User cancelled sign-in');
-            return;
-          }
-
-          // DEVELOPER_ERROR = APK signing SHA-1 not in Firebase Console
-          const isDevError =
-            errCode === 'DEVELOPER_ERROR' || errCode === 10 ||
-            errMsg.includes('DEVELOPER_ERROR') || errMsg.includes('10:');
-          if (isDevError) {
-            console.log('[AuthScreen] DEVELOPER_ERROR — trying next method');
-            continue;
-          }
-
-          // For any other error, try next strategy
-          console.log(`[AuthScreen] ${strategy} failed, trying next strategy...`);
-        }
+      console.log('[AuthScreen] WebView auth succeeded, signing in to Firebase...');
+      const user = await signInWithGoogle(idToken);
+      if (user) {
+        setUser(user);
+        setToken(user.id);
       }
-
-      // All methods failed — show actual error to user
-      console.error('[AuthScreen] All sign-in methods failed');
-      if (lastError) {
-        const errorDetail = lastError.message || 'Unknown error';
-        Alert.alert(
-          'Sign In Failed',
-          `Could not sign in with Google.\n\nError: ${errorDetail}`,
-        );
-      }
-    } finally {
+    } catch (err: any) {
+      console.error('[AuthScreen] Firebase sign-in failed:', err);
+      Alert.alert('Sign In Failed', err.message || 'Could not sign in to Firebase.');
       setIsLoading(false);
     }
   }, [setUser, setToken]);
 
-  /** Native Google Sign-In — reliable on Android with registered SHA-1 */
-  async function nativeGoogleSignIn(): Promise<string> {
-    const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+  /** Called when GoogleSignInWebView encounters an error */
+  const handleWebViewError = useCallback((error: string) => {
+    setShowWebView(false);
+    setIsLoading(false);
+    console.error('[AuthScreen] WebView sign-in error:', error);
+    Alert.alert('Sign In Failed', `Google sign-in failed: ${error}`);
+  }, []);
 
-    GoogleSignin.configure({
-      scopes: ['email', 'profile'],
-      webClientId: WEB_CLIENT_ID,
-      offlineAccess: true,
-      forceCodeForRefreshToken: true,
-    });
+  /** Called when user closes/dismisses the WebView */
+  const handleWebViewCancel = useCallback(() => {
+    setShowWebView(false);
+    setIsLoading(false);
+  }, []);
 
-    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    const userInfo = await GoogleSignin.signIn();
+  const handleGoogleSignIn = useCallback(async () => {
+    setIsLoading(true);
 
-    // Get ID token from sign-in result
-    let idToken = userInfo.data?.idToken;
-    if (!idToken) {
-      try {
-        const tokens = await GoogleSignin.getTokens();
-        idToken = tokens.idToken;
-      } catch (e) {
-        console.warn('[AuthScreen] getTokens failed:', e);
+    try {
+      if (Platform.OS === 'android') {
+        // ═══════════════════════════════════════════════════════════════
+        // ANDROID: Use WebView to handle Google OAuth.
+        //
+        // This bypasses both native sign-in (needs SHA-1 in Firebase) and
+        // Chrome Custom Tabs (can't intercept HTTPS redirects).
+        // The WebView intercepts Google's redirect to the pre-authorized
+        // Firebase handler URL, extracts the auth code, and exchanges it.
+        // ═══════════════════════════════════════════════════════════════
+        console.log('[AuthScreen] Using WebView-based Google sign-in (Android)');
+        setShowWebView(true);
+        return; // WebView handles the rest via callbacks
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // iOS: Use expo-web-browser OAuth.
+      // ASWebAuthenticationSession can intercept HTTPS redirects.
+      // ═══════════════════════════════════════════════════════════════
+      console.log('[AuthScreen] Using web OAuth (iOS)');
+      const idToken = await signInWithGoogleWeb();
+      if (idToken) {
+        console.log('[AuthScreen] Web OAuth succeeded, signing in to Firebase...');
+        const user = await signInWithGoogle(idToken);
+        if (user) {
+          setUser(user);
+          setToken(user.id);
+          return;
+        }
+      }
+      throw new Error('Failed to obtain Google ID token');
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      console.error('[AuthScreen] Sign-in failed:', errMsg);
+      Alert.alert('Sign In Failed', `Could not sign in with Google.\n\nError: ${errMsg}`);
+    } finally {
+      if (Platform.OS !== 'android') {
+        setIsLoading(false);
       }
     }
-    if (!idToken) throw new Error('Failed to obtain Google ID token from native sign-in');
-    return idToken;
+  }, [setUser, setToken]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // WebView mode: full-screen Google sign-in
+  // ═══════════════════════════════════════════════════════════════════
+  if (showWebView && Platform.OS === 'android') {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
+        <View style={styles.webViewHeader}>
+          <TouchableOpacity onPress={handleWebViewCancel} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+          <Text style={styles.webViewTitle}>Sign in with Google</Text>
+          <View style={styles.closeButton} /> {/* Spacer for centering */}
+        </View>
+        <GoogleSignInWebView
+          onToken={handleWebViewToken}
+          onError={handleWebViewError}
+          onCancel={handleWebViewCancel}
+        />
+      </View>
+    );
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Normal auth screen
+  // ═══════════════════════════════════════════════════════════════════
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <View style={[styles.inner, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         {/* ── Brand: Logo + Title + Subtitle ─────────────────────────── */}
         <View style={styles.brandContainer}>
-          {/* Using the same icon.png from assets (same image as web /logo.png) */}
           <BrandLogo />
           <Text style={styles.title}>{mode === 'signin' ? 'Welcome Back' : 'Create Account'}</Text>
           <Text style={styles.subtitle}>
@@ -186,7 +166,6 @@ export default function AuthScreen() {
             <ActivityIndicator color="#555555" size="small" />
           ) : (
             <View style={styles.googleButtonContent}>
-              {/* Google "G" logo — multicolor SVG rendered as 4 colored blocks */}
               <GoogleLogo />
               <Text style={styles.googleButtonText}>
                 {mode === 'signin' ? 'Sign in with Google' : 'Sign up with Google'}
@@ -218,7 +197,7 @@ export default function AuthScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* ── Terms (normal flow, matching web mt-4) ───────────────── */}
+        {/* ── Terms ─────────────────────────────────────────────────── */}
         <View style={styles.termsContainer}>
           <Text style={styles.termsText}>
             By signing in, you agree to our{' '}
@@ -245,7 +224,6 @@ export default function AuthScreen() {
 
 /* ─── Sub-components ───────────────────────────────────────────────────────── */
 
-/** Brand logo using the app icon from assets */
 function BrandLogo() {
   const { Image } = require('react-native');
   return (
@@ -258,27 +236,18 @@ function BrandLogo() {
   );
 }
 
-/**
- * Google "G" logo — multi-color version matching the web SVG.
- * The web uses a 4-color SVG (blue top-left, red top-right, yellow bottom-left, green bottom-right).
- * We replicate this with overlapping colored quarter-circles.
- */
 function GoogleLogo() {
   return (
     <View style={styles.googleLogoContainer}>
-      {/* Blue quadrant (top-left) */}
       <View style={[styles.googleQuad, { backgroundColor: '#4285F4', borderTopLeftRadius: 10, borderBottomLeftRadius: 0, borderTopRightRadius: 0, borderBottomRightRadius: 0 }]} />
-      {/* Red quadrant (top-right) */}
       <View style={[styles.googleQuad, { backgroundColor: '#EA4335', position: 'absolute', top: 0, right: 0, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderTopRightRadius: 10, borderBottomRightRadius: 0 }]} />
-      {/* Yellow quadrant (bottom-left) */}
       <View style={[styles.googleQuad, { backgroundColor: '#FBBC05', position: 'absolute', bottom: 0, left: 0, borderTopLeftRadius: 0, borderBottomLeftRadius: 10, borderTopRightRadius: 0, borderBottomRightRadius: 0 }]} />
-      {/* Green quadrant (bottom-right) */}
       <View style={[styles.googleQuad, { backgroundColor: '#34A853', position: 'absolute', bottom: 0, right: 0, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderTopRightRadius: 0, borderBottomRightRadius: 10 }]} />
     </View>
   );
 }
 
-/* ─── Styles — pixel-perfect match to black94.web.app ──────────────────────── */
+/* ─── Styles ──────────────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -288,55 +257,82 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24, // web: px-6 = 24px
+    paddingHorizontal: 24,
   },
 
-  /* Brand — web: mb-8 = 32px container margin */
+  /* WebView header */
+  webViewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#1a1a1a',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  closeButton: {
+    width: 60,
+    height: 36,
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    color: '#4285F4',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  webViewTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+
+  /* Brand */
   brandContainer: {
     alignItems: 'center',
-    marginBottom: 32, // web: mb-8
+    marginBottom: 32,
   },
   logo: {
-    width: 80,   // web: w-20
-    height: 80,  // web: h-20
-    marginBottom: 20, // web: mb-5
+    width: 80,
+    height: 80,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 30,     // web: text-3xl
-    fontWeight: '700', // web: font-bold
+    fontSize: 30,
+    fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: -0.5, // web: tracking-tight
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 14,     // web: text-sm
-    color: '#94a3b8', // web: text-[#94a3b8]
-    marginTop: 8,     // web: mt-2
+    fontSize: 14,
+    color: '#94a3b8',
+    marginTop: 8,
     textAlign: 'center',
   },
 
-  /* Google Button — web: rounded-full, bg-white, h-[52px], max-w-[320px] */
+  /* Google Button */
   googleButton: {
     width: '100%',
-    maxWidth: 320,    // web: max-w-[320px]
-    height: 52,       // web: h-[52px]
+    maxWidth: 320,
+    height: 52,
     backgroundColor: '#FFFFFF',
-    borderRadius: 26,  // web: rounded-full (pill shape)
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
   },
   googleButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,          // web: gap-3 = 12px
+    gap: 12,
   },
   googleButtonText: {
-    fontSize: 15,     // web: text-[15px]
-    fontWeight: '600', // web: font-semibold
-    color: '#374151', // web: text-gray-700
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
     letterSpacing: -0.1,
   },
 
-  /* Google Logo — 20x20 (web: h-5 w-5 = 20px) */
+  /* Google Logo */
   googleLogoContainer: {
     width: 20,
     height: 20,
@@ -348,31 +344,31 @@ const styles = StyleSheet.create({
     height: '50%',
   },
 
-  /* Divider — web: mt-6 = 24px, gap-3 = 12px */
+  /* Divider */
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
     maxWidth: 320,
-    marginTop: 24,    // web: mt-6
-    gap: 12,          // web: gap-3
+    marginTop: 24,
+    gap: 12,
   },
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)', // web: bg-white/[0.08]
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   dividerText: {
-    fontSize: 12,     // web: text-[12px]
-    color: '#64748b', // web: text-[#64748b]
+    fontSize: 12,
+    color: '#64748b',
   },
 
-  /* Switch text — web: mt-4 = 16px */
+  /* Switch */
   switchButton: {
-    marginTop: 16,    // web: mt-4
+    marginTop: 16,
   },
   switchText: {
-    fontSize: 14,     // web: text-[14px]
+    fontSize: 14,
     color: '#94a3b8',
   },
   switchLink: {
@@ -380,18 +376,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  /* Terms — web: mt-4 = 16px, normal flow (NOT absolute) */
+  /* Terms */
   termsContainer: {
-    marginTop: 16,    // web: mt-4
+    marginTop: 16,
     maxWidth: 320,
     width: '100%',
     alignItems: 'center',
   },
   termsText: {
-    fontSize: 11,     // web: text-[11px]
-    color: '#64748b', // web: text-[#64748b]
+    fontSize: 11,
+    color: '#64748b',
     textAlign: 'center',
-    lineHeight: 18,   // web: leading-relaxed
+    lineHeight: 18,
   },
   termsLink: {
     color: '#FFFFFF',
