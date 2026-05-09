@@ -8,6 +8,7 @@ import {
   Alert,
   Share,
   Animated,
+  ImageResizeMode,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Post } from '../lib/api';
@@ -38,6 +39,14 @@ const formatCount = (n: number): string => {
   if (n >= 10_000) return Math.floor(n / 1_000) + 'K';
   if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
   return n.toString();
+};
+
+/* Clamp image aspect ratio to sane bounds so no card becomes unusably tall or short */
+const clampRatio = (w: number, h: number): number => {
+  if (!w || !h) return 16 / 9;
+  const ratio = w / h;
+  // min ~ 0.56 (9:16 portrait), max ~ 2.0 (2:1 wide)
+  return Math.max(0.56, Math.min(2.0, ratio));
 };
 
 /* Feather icon wrapper — fill prop IS supported at runtime but missing from types */
@@ -121,6 +130,9 @@ const PostCard = React.memo(function PostCard({
   const [showHeart, setShowHeart] = useState(false);
   const lastTapRef = useRef(0);
 
+  // Dynamic image aspect ratio — null = not yet measured, falls back to 16/9
+  const [mediaRatio, setMediaRatio] = useState<number | null>(null);
+
   // Optimistic state
   const [isLiked, setIsLiked] = useState(post.liked);
   const [likeCount, setLikeCount] = useState(post.likeCount);
@@ -169,6 +181,14 @@ const PostCard = React.memo(function PostCard({
       setTimeout(() => setShowHeart(false), 900);
     }
     lastTapRef.current = now;
+  };
+
+  /* ── Image Load — measure natural dimensions ── */
+  const handleMediaLoad = (e: any) => {
+    const src = e.nativeEvent?.source;
+    if (src?.width && src?.height) {
+      setMediaRatio(clampRatio(src.width, src.height));
+    }
   };
 
   /* ── Actions ────────────────────────────────────────── */
@@ -221,18 +241,18 @@ const PostCard = React.memo(function PostCard({
 
       {/* ─ Row: Avatar | Content ─ */}
       <View style={S.row}>
-        {/* Avatar */}
+        {/* Avatar — top-aligned, no extra margin */}
         <Pressable onPress={stop(goProfile)} hitSlop={8} style={S.avatarWrap}>
           <Avatar
             uri={post.authorProfileImage}
             name={post.authorDisplayName}
-            size={48}
+            size={40}
           />
         </Pressable>
 
         {/* Content Column */}
         <View style={S.content}>
-          {/* User Info Row */}
+          {/* User Info Row — aligns top of text with top of avatar */}
           <View style={S.userRow}>
             <Pressable onPress={stop(goProfile)} style={S.namePress} hitSlop={4}>
               <Text style={S.displayName} numberOfLines={1}>
@@ -242,7 +262,7 @@ const PostCard = React.memo(function PostCard({
             <VerifiedBadge
               badge={post.authorBadge}
               isVerified={post.authorIsVerified}
-              size={18}
+              size={16}
             />
             <Text style={S.username} numberOfLines={1}>
               @{post.authorUsername || 'user'}
@@ -257,21 +277,25 @@ const PostCard = React.memo(function PostCard({
             </Pressable>
           </View>
 
-          {/* Caption */}
+          {/* Caption — 0px gap from userRow, text lineHeight provides natural spacing */}
           {post.caption ? (
             <Text style={S.caption} numberOfLines={6}>
               {post.caption}
             </Text>
           ) : null}
 
-          {/* Media */}
+          {/* Media — 0px gap from caption/name, dynamic aspect ratio from actual image */}
           {post.mediaUrls?.length > 0 && (
             <Pressable onPress={stop(handleDoubleTap)} style={S.mediaWrap}>
               <View style={S.mediaBorder}>
                 <Image
                   source={{ uri: post.mediaUrls[0] }}
-                  style={S.media}
+                  style={[
+                    S.media,
+                    mediaRatio ? { aspectRatio: mediaRatio } : undefined,
+                  ]}
                   resizeMode="cover"
+                  onLoad={handleMediaLoad}
                 />
               </View>
             </Pressable>
@@ -318,7 +342,7 @@ const PostCard = React.memo(function PostCard({
 
             {/* Views / Analytics */}
             <Pressable style={S.actionBtn} onPress={stop(() => {})}>
-              <Feather name="bar-chart-2" size={18} color={C.textSecondary} />
+              <Feather name="trending-up" size={18} color={C.textSecondary} />
             </Pressable>
 
             {/* Bookmark */}
@@ -352,9 +376,10 @@ const S = StyleSheet.create({
     backgroundColor: C.bg,
     paddingLeft: 16,
     paddingRight: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingTop: 10,
+    paddingBottom: 10,
+    /* 1px thread line between cards */
+    borderBottomWidth: 1,
     borderBottomColor: C.divider,
   },
 
@@ -364,8 +389,8 @@ const S = StyleSheet.create({
     alignItems: 'flex-start',
   },
   avatarWrap: {
-    marginRight: 12,
-    marginTop: 2,
+    marginRight: 10,
+    /* No marginTop — avatar top edge aligns with name text top edge */
   },
 
   /* ── Content column ── */
@@ -379,6 +404,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'nowrap',
+    /* No marginBottom — 1px gap to content handled by caption/media marginTop */
   },
   namePress: {
     marginRight: 4,
@@ -419,20 +445,20 @@ const S = StyleSheet.create({
     borderRadius: 9999,
   },
 
-  /* ── Caption ── */
+  /* ── Caption — sits flush against userRow ── */
   caption: {
     fontSize: 15,
     fontWeight: '400',
     color: C.text,
     lineHeight: 20,
-    marginTop: 2,
-    marginBottom: 8,
+    marginTop: 1,   /* 1px gap from userRow */
+    marginBottom: 0,
     letterSpacing: 0.1,
   },
 
-  /* ── Media ── */
+  /* ── Media — dynamic aspect ratio, flush against caption or userRow ── */
   mediaWrap: {
-    marginTop: 8,
+    marginTop: 1,   /* 1px gap from caption or userRow */
     marginBottom: 4,
   },
   mediaBorder: {
@@ -443,7 +469,7 @@ const S = StyleSheet.create({
   },
   media: {
     width: '100%',
-    aspectRatio: 16 / 9,
+    aspectRatio: 16 / 9,  /* fallback until onLoad measures real ratio */
     backgroundColor: '#16181c',
   },
 
@@ -452,7 +478,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 10,
     paddingRight: 8,
   },
   actionBtn: {
