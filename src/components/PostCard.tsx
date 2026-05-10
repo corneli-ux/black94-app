@@ -376,8 +376,8 @@ const S = StyleSheet.create({
     backgroundColor: C.bg,
     paddingLeft: 16,
     paddingRight: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 0,
+    paddingBottom: 0,
     /* 1px thread line between cards */
     borderBottomWidth: 1,
     borderBottomColor: C.divider,
@@ -390,7 +390,7 @@ const S = StyleSheet.create({
   },
   avatarWrap: {
     marginRight: 10,
-    /* No marginTop — avatar top edge aligns with name text top edge */
+    marginTop: 10,
   },
 
   /* ── Content column ── */
@@ -404,7 +404,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'nowrap',
-    /* No marginBottom — 1px gap to content handled by caption/media marginTop */
+    marginTop: 2,
   },
   namePress: {
     marginRight: 4,
@@ -451,14 +451,14 @@ const S = StyleSheet.create({
     fontWeight: '400',
     color: C.text,
     lineHeight: 20,
-    marginTop: 1,   /* 1px gap from userRow */
+    marginTop: 0,
     marginBottom: 0,
     letterSpacing: 0.1,
   },
 
   /* ── Media — dynamic aspect ratio, flush against caption or userRow ── */
   mediaWrap: {
-    marginTop: 1,   /* 1px gap from caption or userRow */
+    marginTop: 0,
     marginBottom: 4,
   },
   mediaBorder: {
@@ -479,13 +479,14 @@ const S = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 10,
+    marginLeft: -12,
     paddingRight: 8,
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingHorizontal: 2,
     minWidth: 36,
   },
   actionCount: {
