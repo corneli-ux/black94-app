@@ -20,17 +20,25 @@ import { auth } from '../lib/firebase';
    X-App PostCard — Pixel-perfect rebuild
    ═══════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Color Tokens ──────────────────────────────────────────────────────────── */
+/* ── Color Tokens — polished & refined ────────────────────────────────────── */
 const C = {
   bg: '#000000',
   text: '#e7e9ea',
-  textSecondary: '#71767b',
+  textDim: '#d6d9db',
+  textSecondary: '#8b8f93',
   textLink: '#1d9bf0',
   likeActive: '#f91880',
+  likeGlow: 'rgba(249,24,128,0.15)',
   repostActive: '#00ba7c',
+  repostGlow: 'rgba(0,186,124,0.15)',
   bookmarkActive: '#1d9bf0',
+  bookmarkGlow: 'rgba(29,155,240,0.15)',
   divider: '#2f3336',
-  ripple: 'rgba(255,255,255,0.04)',
+  dividerSoft: 'rgba(47,51,54,0.6)',
+  ripple: 'rgba(255,255,255,0.06)',
+  mediaBg: '#16181c',
+  mediaBorder: '#333639',
+  actionHover: 'rgba(255,255,255,0.07)',
 };
 
 /* ── Helpers ───────────────────────────────────────────────────────────────── */
@@ -305,7 +313,7 @@ const PostCard = React.memo(function PostCard({
           <View style={S.actions}>
             {/* Comment */}
             <Pressable style={S.actionBtn} onPress={stop(goComments)}>
-              <Feather name="message-circle" size={18} color={C.textSecondary} />
+              <Feather name="message-circle" size={17} color={C.textSecondary} />
               {post.commentCount > 0 && (
                 <Text style={S.actionCount}>{formatCount(post.commentCount)}</Text>
               )}
@@ -315,7 +323,7 @@ const PostCard = React.memo(function PostCard({
             <Pressable style={S.actionBtn} onPress={stop(handleRepost)}>
               <Feather
                 name="repeat"
-                size={18}
+                size={17}
                 color={isReposted ? C.repostActive : C.textSecondary}
               />
               {repostCount > 0 && (
@@ -329,7 +337,7 @@ const PostCard = React.memo(function PostCard({
             <Pressable style={S.actionBtn} onPress={stop(handleLike)}>
               <FIcon
                 name="heart"
-                size={18}
+                size={17}
                 color={isLiked ? C.likeActive : C.textSecondary}
                 fill={isLiked ? C.likeActive : 'none'}
               />
@@ -342,14 +350,14 @@ const PostCard = React.memo(function PostCard({
 
             {/* Views / Analytics */}
             <Pressable style={S.actionBtn} onPress={stop(() => {})}>
-              <Feather name="trending-up" size={18} color={C.textSecondary} />
+              <Feather name="trending-up" size={17} color={C.textSecondary} />
             </Pressable>
 
             {/* Bookmark */}
             <Pressable style={S.actionBtn} onPress={stop(handleBookmark)}>
               <FIcon
                 name="bookmark"
-                size={18}
+                size={17}
                 color={isBookmarked ? C.bookmarkActive : C.textSecondary}
                 fill={isBookmarked ? C.bookmarkActive : 'none'}
               />
@@ -357,7 +365,7 @@ const PostCard = React.memo(function PostCard({
 
             {/* Share */}
             <Pressable style={S.actionBtn} onPress={stop(handleShare)}>
-              <Feather name="share-2" size={18} color={C.textSecondary} />
+              <Feather name="share-2" size={17} color={C.textSecondary} />
             </Pressable>
           </View>
         </View>
@@ -378,9 +386,9 @@ const S = StyleSheet.create({
     paddingRight: 16,
     paddingTop: 0,
     paddingBottom: 0,
-    /* 1px thread line between cards */
+    /* 1px thread line between cards — slightly softer */
     borderBottomWidth: 1,
-    borderBottomColor: C.divider,
+    borderBottomColor: C.dividerSoft,
   },
 
   /* ── Row: Avatar + Content ── */
@@ -390,7 +398,7 @@ const S = StyleSheet.create({
   },
   avatarWrap: {
     marginRight: 10,
-    marginTop: 10,
+    marginTop: 12,
   },
 
   /* ── Content column ── */
@@ -399,12 +407,12 @@ const S = StyleSheet.create({
     minWidth: 0,
   },
 
-  /* ── User info row ── */
+  /* ── User info row — height matches lineHeight so no dead space below text ── */
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'nowrap',
-    marginTop: 2,
+    marginTop: 0,
   },
   namePress: {
     marginRight: 4,
@@ -414,6 +422,7 @@ const S = StyleSheet.create({
     fontWeight: '700',
     color: C.text,
     lineHeight: 20,
+    letterSpacing: 0.2,
   },
   username: {
     fontSize: 15,
@@ -438,62 +447,63 @@ const S = StyleSheet.create({
     minWidth: 8,
   },
   moreBtn: {
-    width: 32,
-    height: 32,
+    width: 24,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 9999,
   },
 
-  /* ── Caption — sits flush against userRow ── */
+  /* ── Caption — tight against name, no dead gap ── */
   caption: {
     fontSize: 15,
     fontWeight: '400',
     color: C.text,
     lineHeight: 20,
-    marginTop: 0,
+    marginTop: -2,
     marginBottom: 0,
     letterSpacing: 0.1,
   },
 
-  /* ── Media — dynamic aspect ratio, flush against caption or userRow ── */
+  /* ── Media — dynamic aspect ratio, tight against caption or name ── */
   mediaWrap: {
-    marginTop: 0,
+    marginTop: -2,
     marginBottom: 4,
   },
   mediaBorder: {
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: C.divider,
+    borderColor: C.mediaBorder,
     overflow: 'hidden',
   },
   media: {
     width: '100%',
-    aspectRatio: 16 / 9,  /* fallback until onLoad measures real ratio */
-    backgroundColor: '#16181c',
+    aspectRatio: 16 / 9,
+    backgroundColor: C.mediaBg,
   },
 
-  /* ── Action Buttons ── */
+  /* ── Action Buttons — comment icon aligned with content column ── */
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
-    marginLeft: -12,
-    paddingRight: 8,
+    marginTop: 8,
+    marginLeft: 0,
+    paddingRight: 4,
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 2,
-    minWidth: 36,
+    minWidth: 32,
+    borderRadius: 9999,
   },
   actionCount: {
     fontSize: 13,
-    fontWeight: '400',
+    fontWeight: '500',
     color: C.textSecondary,
-    marginLeft: 6,
+    marginLeft: 5,
     lineHeight: 18,
   },
 
