@@ -116,7 +116,7 @@ export default function App() {
               setLoading(false);
               // Set a preliminary user immediately so the app doesn't flash login screen
               // even if the full profile fetch is slow
-              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
               // Cancel safety timeout since auth is validated
               clearTimeout(safetyTimer);
               // Fetch full profile in background and update
@@ -153,12 +153,12 @@ export default function App() {
             setUser(null); setToken(fbUser.uid); setLoading(false);
             fetchUserProfile(fbUser.uid).then(profile => {
               if (profile) { setUser(profile); } else {
-                setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+                setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
               }
               setIsReady(true);
             }).catch(err => {
               console.warn('[App] Profile fetch failed, using Firebase data:', err);
-              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
               setIsReady(true);
             });
           } else {
