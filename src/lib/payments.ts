@@ -21,9 +21,9 @@ export interface PaymentPlan {
 
 export const PLANS: PaymentPlan[] = [
   {
-    id: 'pro_monthly',
-    name: 'Pro Monthly',
-    amount: 49900,
+    id: 'premium',
+    name: 'Premium',
+    amount: 44900, // ₹449/month
     currency: 'INR',
     duration: 'monthly',
     features: [
@@ -38,21 +38,22 @@ export const PLANS: PaymentPlan[] = [
     ],
   },
   {
-    id: 'pro_yearly',
-    name: 'Pro Yearly',
-    amount: 499000,
+    id: 'business',
+    name: 'Business',
+    amount: 159900, // ₹1599/month
     currency: 'INR',
-    duration: 'yearly',
+    duration: 'monthly',
     features: [
-      '25 posts per day',
-      '10 stories per day',
-      '50 shop products',
-      '100 CRM leads',
-      'Analytics dashboard',
-      'Priority support',
+      'Unlimited posts per day',
+      'Unlimited stories per day',
+      '500 shop products',
+      '500 CRM leads',
+      'Advanced analytics dashboard',
+      'Dedicated support',
       'Paid ads access',
       'Affiliate program',
-      '2 months free (save ₹998)',
+      'Custom branding',
+      'API access',
     ],
   },
 ];

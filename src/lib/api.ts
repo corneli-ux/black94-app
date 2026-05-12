@@ -532,6 +532,20 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   const userId = currentUser()?.uid;
   if (!userId) return;
 
+  // ── Nuclear Block Check: prevent messaging if either user blocked the other ──
+  try {
+    const [iBlockedThem, theyBlockedMe] = await Promise.all([
+      firestore().collection('blocks').doc(`${userId}_${receiverId}`).get(),
+      firestore().collection('blocks').doc(`${receiverId}_${userId}`).get(),
+    ]);
+    if (iBlockedThem.exists || theyBlockedMe.exists) {
+      console.log('[Messages] Blocked — message not sent');
+      return;
+    }
+  } catch (e) {
+    console.warn('[Messages] Block check failed, allowing message:', e);
+  }
+
   await firestore().collection('chats').doc(chatId).collection('messages').add({
     chatId,
     senderId: userId,
@@ -555,6 +569,218 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     [receiverUnreadField]: firestore.FieldValue.increment(1),
     [senderUnreadField]: 0,
   });
+}
+
+/* ── Nuclear Block ─────────────────────────────────────────────────────────── */
+
+export async function blockUser(targetUserId: string): Promise<boolean> {
+  const userId = currentUser()?.uid;
+  if (!userId) return false;
+
+  const blockDocId = `${userId}_${targetUserId}`;
+  const blockedByDocId = `${targetUserId}_${userId}`;
+
+  try {
+    // Write block docs (双向索引)
+    await Promise.all([
+      firestore().collection('blocks').doc(blockDocId).set({
+        blockerId: userId,
+        blockedId: targetUserId,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      }),
+      firestore().collection('blockedBy').doc(blockedByDocId).set({
+        blockerId: userId,
+        blockedId: targetUserId,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      }),
+    ]);
+
+    // Delete all messages in chats between these two users
+    const chatSnapshots = await Promise.all([
+      firestore().collection('chats').where('user1Id', '==', userId).where('user2Id', '==', targetUserId).get(),
+      firestore().collection('chats').where('user1Id', '==', targetUserId).where('user2Id', '==', userId).get(),
+    ]);
+
+    const chatIds = [
+      ...chatSnapshots[0].docs.map(d => d.id),
+      ...chatSnapshots[1].docs.map(d => d.id),
+    ];
+
+    // Delete all messages in each chat
+    for (const chatId of chatIds) {
+      try {
+        const messagesSnapshot = await firestore()
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .limit(500)
+          .get();
+
+        const deletePromises = messagesSnapshot.docs.map(docSnap =>
+          firestore().collection('chats').doc(chatId).collection('messages').doc(docSnap.id).delete()
+        );
+        await Promise.all(deletePromises);
+        console.log(`[Block] Deleted ${messagesSnapshot.docs.length} messages in chat ${chatId}`);
+      } catch (e) {
+        console.warn(`[Block] Failed to delete messages for chat ${chatId}:`, e);
+      }
+    }
+
+    console.log(`[Block] User ${targetUserId} blocked successfully`);
+    return true;
+  } catch (e) {
+    console.error('[Block] Failed to block user:', e);
+    return false;
+  }
+}
+
+export async function unblockUser(targetUserId: string): Promise<boolean> {
+  const userId = currentUser()?.uid;
+  if (!userId) return false;
+
+  try {
+    await Promise.all([
+      firestore().collection('blocks').doc(`${userId}_${targetUserId}`).delete(),
+      firestore().collection('blockedBy').doc(`${targetUserId}_${userId}`).delete(),
+    ]);
+    console.log(`[Block] User ${targetUserId} unblocked successfully`);
+    return true;
+  } catch (e) {
+    console.error('[Block] Failed to unblock user:', e);
+    return false;
+  }
+}
+
+export async function isBlockedByMe(targetUserId: string): Promise<boolean> {
+  const userId = currentUser()?.uid;
+  if (!userId) return false;
+
+  try {
+    const docSnap = await firestore().collection('blocks').doc(`${userId}_${targetUserId}`).get();
+    return docSnap.exists;
+  } catch (e) {
+    console.warn('[Block] Failed to check block status:', e);
+    return false;
+  }
+}
+
+export async function fetchBlockedUsers(): Promise<string[]> {
+  const userId = currentUser()?.uid;
+  if (!userId) return [];
+
+  try {
+    const snapshot = await firestore()
+      .collection('blocks')
+      .where('blockerId', '==', userId)
+      .get();
+
+    return snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return data.blockedId || '';
+    }).filter(Boolean);
+  } catch (e) {
+    console.warn('[Block] Failed to fetch blocked users:', e);
+    return [];
+  }
+}
+
+/* ── Hybrid Search ────────────────────────────────────────────────────────── */
+
+export interface SearchResult {
+  users: User[];
+  posts: Post[];
+  webResults: any[];
+}
+
+export async function hybridSearch(query: string): Promise<SearchResult> {
+  const result: SearchResult = { users: [], posts: [], webResults: [] };
+  if (!query.trim()) return result;
+
+  const q = query.trim();
+  const qLower = q.toLowerCase();
+
+  try {
+    // ── 1. Local Firestore: search users by username/displayName prefix ──
+    // Firestore 'startsWith' requires >= 2 chars; prefix range query workaround
+    let userSnapshots: any;
+    if (qLower.length >= 2) {
+      const endStr = qLower.slice(0, -1) + String.fromCharCode(qLower.charCodeAt(qLower.length - 1) + 1);
+      userSnapshots = await Promise.all([
+        firestore().collection('users').where('usernameLower', '>=', qLower).where('usernameLower', '<', endStr).limit(10).get(),
+        firestore().collection('users').where('displayNameLower', '>=', qLower).where('displayNameLower', '<', endStr).limit(10).get(),
+      ]);
+    } else {
+      // Too short for prefix range — skip user search
+      userSnapshots = [{ docs: [] }, { docs: [] }];
+    }
+
+    const seenUserIds = new Set<string>();
+    for (const snap of userSnapshots) {
+      for (const docSnap of snap.docs) {
+        if (seenUserIds.has(docSnap.id)) continue;
+        seenUserIds.add(docSnap.id);
+        const data = docSnap.data();
+        result.users.push({
+          id: docSnap.id,
+          email: data.email || '',
+          username: data.username || '',
+          displayName: data.displayName || '',
+          bio: data.bio || '',
+          profileImage: data.profileImage || null,
+          coverImage: data.coverImage || null,
+          role: data.role || 'personal',
+          badge: data.badge || '',
+          subscription: data.subscription || 'free',
+          isVerified: data.isVerified || false,
+          createdAt: tsToMillis(data.createdAt),
+        });
+      }
+    }
+
+    // ── 2. Local Firestore: search posts by caption prefix ──
+    let postSnap: any;
+    if (qLower.length >= 2) {
+      const endStr = qLower.slice(0, -1) + String.fromCharCode(qLower.charCodeAt(qLower.length - 1) + 1);
+      postSnap = await firestore().collection('posts').where('captionLower', '>=', qLower).where('captionLower', '<', endStr).limit(20).get();
+    } else {
+      postSnap = { docs: [] };
+    }
+
+    result.posts = postSnap.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        authorId: data.authorId || '',
+        authorUsername: data.authorUsername || '',
+        authorDisplayName: data.authorDisplayName || '',
+        authorProfileImage: data.authorProfileImage || null,
+        authorBadge: data.authorBadge || '',
+        authorIsVerified: data.authorIsVerified || false,
+        caption: data.caption || '',
+        mediaUrls: parseMediaUrls(data.mediaUrls),
+        likeCount: data.likeCount || 0,
+        commentCount: data.commentCount || 0,
+        repostCount: data.repostCount || 0,
+        liked: false,
+        bookmarked: false,
+        reposted: false,
+        createdAt: tsToMillis(data.createdAt),
+      };
+    });
+
+    // ── 3. Firestore: cached web results ──
+    const webSnap = await firestore()
+      .collection('web_results')
+      .where('query', '==', qLower)
+      .limit(5)
+      .get();
+
+    result.webResults = webSnap.docs.map(docSnap => docSnap.data());
+  } catch (e) {
+    console.warn('[Search] Hybrid search error:', e);
+  }
+
+  return result;
 }
 
 /* ── User ─────────────────────────────────────────────────────────────────── */
@@ -703,4 +929,154 @@ export async function addPostComment(postId: string, content: string): Promise<C
     content: content.trim(),
     createdAt: Date.now(),
   };
+}
+
+/* ── AI Messaging Helper ──────────────────────────────────────────────────── */
+
+/**
+ * Generates a smart AI-like reply based on the last 10 messages in a chat.
+ * This is a keyword-matching placeholder that can be replaced with a real
+ * AI API (e.g. OpenAI, Gemini) later.
+ */
+export async function generateAIReply(chatId: string, lastMessage: string): Promise<string | null> {
+  try {
+    // 1. Read the last 10 messages from the chat (ordered by createdAt desc)
+    const snapshot = await firestore()
+      .collection('chats')
+      .doc(chatId)
+      .collection('messages')
+      .orderBy('createdAt', 'desc')
+      .limit(10)
+      .get();
+
+    if (snapshot.empty) return null;
+
+    // 2. Build a simple context string from recent messages
+    const messages = snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        senderId: data.senderId || '',
+        content: data.content || '',
+        createdAt: tsToMillis(data.createdAt),
+      };
+    });
+
+    // Reverse so oldest is first for context building
+    messages.reverse();
+
+    const contextSummary = messages
+      .map(m => `${m.senderId === currentUser()?.uid ? 'You' : 'Customer'}: ${m.content}`)
+      .join('\n');
+
+    console.log('[AI Reply] Context:\n', contextSummary);
+
+    // 3. Keyword-based smart response matching
+    const lower = lastMessage.toLowerCase();
+
+    if (/price|cost|how much|pricing|rate|quote/i.test(lower)) {
+      return 'Our team will get back to you with pricing details shortly. Thank you for your interest!';
+    }
+    if (/\bhello\b|\bhi\b|\bhey\b|\bgreetings\b|\byo\b/i.test(lower)) {
+      return 'Hello! Welcome to our store. How can I help you today?';
+    }
+    if (/\border\b|\bshipping\b|\bdelivery\b|\btrack\b|\bshipment\b/i.test(lower)) {
+      return 'Your order is being processed. You\'ll receive tracking details via email shortly.';
+    }
+    if (/\breturn\b|\brefund\b|\bexchange\b|\bmoney back\b|\bcancel order\b/i.test(lower)) {
+      return 'Our return policy allows returns within 7 days. Please share your order ID and we\'ll assist you.';
+    }
+    if (/\bthank/i.test(lower)) {
+      return 'You\'re welcome! Feel free to reach out anytime. We\'re happy to help!';
+    }
+    if (/\bsorry\b|\bapologize\b|\bproblem\b|\bissue\b|\bwrong\b/i.test(lower)) {
+      return 'We\'re sorry for the inconvenience. Our team is looking into this and will resolve it as soon as possible.';
+    }
+
+    // Default fallback
+    return 'Thank you for your message. Our team will respond shortly during business hours.';
+  } catch (e) {
+    console.error('[AI Reply] Failed to generate reply:', e);
+    return null;
+  }
+}
+
+/* ── AI Follow-up System ──────────────────────────────────────────────────── */
+
+/**
+ * Checks for leads assigned to a user that haven't been followed up on in >24h.
+ * For each stale lead, writes an auto-follow-up notification and updates the
+ * lead's lastFollowUpAt timestamp.
+ */
+export async function checkAndSendFollowUps(userId: string): Promise<void> {
+  try {
+    const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+
+    // Firestore doesn't support != on arrays, so query each status separately
+    const [newSnap, contactedSnap] = await Promise.all([
+      firestore()
+        .collection('leads')
+        .where('assignedTo', '==', userId)
+        .where('status', '==', 'new')
+        .get(),
+      firestore()
+        .collection('leads')
+        .where('assignedTo', '==', userId)
+        .where('status', '==', 'contacted')
+        .get(),
+    ]);
+
+    const allLeads = [...newSnap.docs, ...contactedSnap.docs];
+
+    for (const docSnap of allLeads) {
+      const leadData = docSnap.data();
+      const leadId = docSnap.id;
+      const lastFollowUpAt = leadData.lastFollowUpAt
+        ? tsToMillis(leadData.lastFollowUpAt)
+        : 0;
+
+      // Only process leads whose last follow-up is older than 24 hours (or never)
+      if (lastFollowUpAt > twentyFourHoursAgo) continue;
+
+      const leadName = leadData.name || leadData.companyName || 'Lead';
+      const statusLabel = leadData.status === 'new' ? 'new' : 'contacted';
+
+      console.log(`[Follow-up] Sending auto follow-up for lead ${leadId} (${leadName}, status: ${statusLabel})`);
+
+      // Write a follow-up notification
+      const notificationId = `${leadId}_followup`;
+      try {
+        await firestore()
+          .collection('notifications')
+          .doc(notificationId)
+          .set({
+            type: 'follow_up_reminder',
+            leadId,
+            leadName,
+            assignedTo: userId,
+            message: `Follow-up reminder: ${leadName} (${statusLabel}) hasn't been contacted in over 24 hours.`,
+            status: leadData.status,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+            read: false,
+          });
+      } catch (notifErr) {
+        console.warn(`[Follow-up] Failed to write notification for lead ${leadId}:`, notifErr);
+      }
+
+      // Update the lead's lastFollowUpAt to now
+      try {
+        await firestore()
+          .collection('leads')
+          .doc(leadId)
+          .update({
+            lastFollowUpAt: firestore.FieldValue.serverTimestamp(),
+          });
+      } catch (updateErr) {
+        console.warn(`[Follow-up] Failed to update lastFollowUpAt for lead ${leadId}:`, updateErr);
+      }
+    }
+
+    console.log(`[Follow-up] Processed ${allLeads.length} leads for user ${userId}`);
+  } catch (e) {
+    console.error('[Follow-up] checkAndSendFollowUps error:', e);
+  }
 }

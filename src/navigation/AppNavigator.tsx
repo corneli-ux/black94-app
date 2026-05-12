@@ -1,5 +1,5 @@
-import React, { Suspense, lazy, useState, useEffect, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Animated, Platform } from 'react-native';
+import React, { Suspense, lazy } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -8,9 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
-import { ComposeIcon } from '../components/Icons';
 
-/* ── Dark Navigation Theme ── */
+/* ── Dark Navigation Theme — prevents white flash on transitions ── */
 const DarkTheme = {
   ...DefaultTheme,
   dark: true,
@@ -39,6 +38,7 @@ import SearchScreen from '../screens/SearchScreen';
 import ChatListScreen from '../screens/ChatListScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import StoriesScreen from '../screens/StoriesScreen';
+import AnonymousChatScreen from '../screens/AnonymousChatScreen';
 
 // Lazy load all other screens
 const ChatRoomScreen = lazy(() => import('../screens/ChatRoomScreen'));
@@ -71,10 +71,8 @@ const UserProfileScreen = lazy(() => import('../screens/UserProfileScreen'));
 const StoryViewerScreen = lazy(() => import('../screens/StoryViewerScreen'));
 const StoryCreatorScreen = lazy(() => import('../screens/StoryCreatorScreen'));
 const CreatePostScreen = lazy(() => import('../screens/CreatePostScreen'));
-const GifPickerScreen = lazy(() => import('../screens/GifPickerScreen'));
 const ArticleViewScreen = lazy(() => import('../screens/ArticleViewScreen'));
 const AudioCallScreen = lazy(() => import('../screens/AudioCallScreen'));
-const AnonymousChatScreen = lazy(() => import('../screens/AnonymousChatScreen'));
 const DualPaneChatScreen = lazy(() => import('../screens/DualPaneChatScreen'));
 const CrmLeadsScreen = lazy(() => import('../screens/CrmLeadsScreen'));
 const CrmDealsScreen = lazy(() => import('../screens/CrmDealsScreen'));
@@ -108,15 +106,17 @@ function LazyScreen(Component: any) {
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   const iconProps: { size: number; color: string } = {
     size: 24,
-    color: focused ? '#ffffff' : '#71767b',
+    color: '#ffffff',
   };
 
+  // Match web's Lucide icons with Ionicons equivalents
   switch (name) {
     case 'Home':
       return (
         <Ionicons
           {...iconProps}
           name={focused ? 'home' : 'home-outline'}
+          strokeWidth={focused ? 2.4 : 2.2}
         />
       );
     case 'Search':
@@ -130,7 +130,21 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       return (
         <Ionicons
           {...iconProps}
-          name={focused ? 'mail' : 'mail-outline'}
+          name={focused ? 'chatbubble' : 'chatbubble-outline'}
+        />
+      );
+    case 'Notifications':
+      return (
+        <Ionicons
+          {...iconProps}
+          name={focused ? 'notifications' : 'notifications-outline'}
+        />
+      );
+    case 'AnonymousChat':
+      return (
+        <Ionicons
+          {...iconProps}
+          name={focused ? 'eye' : 'eye-outline'}
         />
       );
     case 'Stories':
@@ -155,111 +169,47 @@ function TabBarBadge({ count }: { count: number }) {
   );
 }
 
-/* ── Custom Tab Bar with floating compose button ── */
-function CustomTabBar({ state, descriptors, navigation }: any) {
-  const insets = useSafeAreaInsets();
-  const [visible, setVisible] = useState(true);
-  const translateY = useState(new Animated.Value(0))[0];
-
-  const showTabBar = useCallback(() => {
-    setVisible(true);
-    Animated.spring(translateY, {
-      toValue: 0,
-      useNativeDriver: true,
-      speed: 14,
-      bounciness: 0,
-    }).start();
-  }, [translateY]);
-
-  const hideTabBar = useCallback(() => {
-    setVisible(false);
-    Animated.spring(translateY, {
-      toValue: 100,
-      useNativeDriver: true,
-      speed: 14,
-      bounciness: 0,
-    }).start();
-  }, [translateY]);
-
-  // Expose show/hide to screens via navigation params
-  useEffect(() => {
-    navigation?.setParams?.({ showTabBar, hideTabBar });
-  }, [navigation, showTabBar, hideTabBar]);
-
-  const tabBarHeight = 50 + (insets.bottom || 0);
-
-  return (
-    <Animated.View
-      style={[
-        styles.customTabBarContainer,
-        {
-          height: tabBarHeight,
-          paddingBottom: insets.bottom || 0,
-          transform: [{ translateY }],
-        },
-      ]}
-    >
-      <View style={styles.customTabBarInner}>
-        {state.routes.map((route: any, index: number) => {
-          const isFocused = state.index === index;
-          const label = route.name;
-
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
-
-          const onLongPress = () => {
-            navigation.emit({
-              type: 'tabLongPress',
-              target: route.key,
-            });
-          };
-
-          return (
-            <TouchableOpacity
-              key={route.key}
-              style={styles.tabBtn}
-              onPress={onPress}
-              onLongPress={onLongPress}
-              activeOpacity={0.7}
-            >
-              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                <TabIcon name={label} focused={isFocused} />
-                {label === 'Messages' && (
-                  <TabBarBadge count={useAppStore.getState().unreadNotificationCount} />
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </Animated.View>
-  );
-}
-
 function MainTabs() {
+  const { unreadNotificationCount, user } = useAppStore();
   const insets = useSafeAreaInsets();
   const tabBarHeight = 50 + (insets.bottom || 0);
   return (
     <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { display: 'none' }, // Hidden since we use custom tab bar
+        tabBarStyle: {
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: '#000000',
+          borderTopWidth: 0.5,
+          borderTopColor: 'rgba(255,255,255,0.06)',
+          height: tabBarHeight,
+          paddingBottom: insets.bottom || 0,
+          elevation: 8,
+        },
+        tabBarShowLabel: false,
         sceneStyle: { paddingBottom: tabBarHeight },
       }}
     >
-      <Tab.Screen name="Home" component={FeedScreen} />
-      <Tab.Screen name="Search" component={SearchScreen} />
-      <Tab.Screen name="Messages" component={ChatListScreen} />
-      <Tab.Screen name="Stories" component={StoriesScreen} />
+      <Tab.Screen name="Home" component={FeedScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Home" focused={focused} /> }} />
+      <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Search" focused={focused} /> }} />
+      <Tab.Screen name="Messages" component={ChatListScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Messages" focused={focused} /> }} />
+      <Tab.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <View>
+              <TabIcon name="Notifications" focused={focused} />
+              <TabBarBadge count={unreadNotificationCount} />
+            </View>
+          ),
+        }}
+      />
+      <Tab.Screen name="Stories" component={StoriesScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Stories" focused={focused} /> }} />
+      <Tab.Screen name="AnonymousChat" component={AnonymousChatScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="AnonymousChat" focused={focused} /> }} />
     </Tab.Navigator>
   );
 }
@@ -268,12 +218,9 @@ function CustomDrawerContent({ navigation }: any) {
   const { user } = useAppStore();
   const insets = useSafeAreaInsets();
 
+  // Drawer only has items NOT already in the bottom tab bar
   const navItems = [
-    { label: 'Home', icon: 'home-outline', screen: 'MainTabs' },
     { label: 'Explore', icon: 'search-outline', screen: 'Explore' },
-    { label: 'Notifications', icon: 'notifications-outline', screen: 'NotificationsTab' },
-    { label: 'Messages', icon: 'mail-outline', screen: 'MessagesTab' },
-    { label: 'Stories', icon: 'radio-outline', screen: 'StoriesTab' },
     { label: 'Profile', icon: 'person-outline', screen: 'ProfileSelf' },
     { label: 'Bookmarks', icon: 'bookmark-outline', screen: 'Bookmarks' },
     { label: 'Cart', icon: 'cart-outline', screen: 'Cart' },
@@ -334,20 +281,12 @@ function DrawerNavigator() {
       screenOptions={{
         headerShown: false,
         drawerStyle: { backgroundColor: colors.bg, width: '72%' },
+        screenStyle: { backgroundColor: '#000000' },
         overlayColor: 'rgba(0,0,0,0.7)',
-        // Disable swipe/drag gestures on web — they cause pointer-event conflicts
-        // that crash the entire feed after login.
-        gestureEnabled: false,
-        swipeEnabled: false,
-        // Use 'front' drawer type for more predictable web rendering
-        drawerType: 'front' as any,
-      } as any}
+      }}
     >
       <Drawer.Screen name="MainTabs" component={MainTabs} />
       <Drawer.Screen name="Explore" component={LazyScreen(ExploreScreen)} />
-      <Drawer.Screen name="NotificationsTab" component={NotificationsScreen} />
-      <Drawer.Screen name="MessagesTab" component={ChatListScreen} />
-      <Drawer.Screen name="StoriesTab" component={StoriesScreen} />
       <Drawer.Screen name="ProfileSelf" component={LazyScreen(ProfileScreen)} initialParams={{}} />
       <Drawer.Screen name="Bookmarks" component={LazyScreen(BookmarksScreen)} />
       <Drawer.Screen name="Cart" component={LazyScreen(CartScreen)} />
@@ -379,7 +318,6 @@ function AppStack() {
       <Stack.Screen name="WriteArticle" component={LazyScreen(WriteArticleScreen)} />
       {/* Posts & Stories */}
       <Stack.Screen name="CreatePost" component={LazyScreen(CreatePostScreen)} options={{ presentation: 'modal' }} />
-      <Stack.Screen name="GifPicker" component={LazyScreen(GifPickerScreen)} options={{ presentation: 'modal' }} />
       <Stack.Screen name="StoryViewer" component={LazyScreen(StoryViewerScreen)} />
       <Stack.Screen name="StoryCreator" component={LazyScreen(StoryCreatorScreen)} />
       {/* Articles */}
@@ -427,7 +365,7 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer theme={DarkTheme as any}>
+    <NavigationContainer theme={DarkTheme}>
       {user ? (
         <AppStack />
       ) : (
@@ -440,52 +378,20 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  /* ── Custom Tab Bar ── */
-  customTabBarContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#000000',
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    zIndex: 1000,
-  },
-  customTabBarInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    flex: 1,
-  },
-  tabBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 50,
-  },
-  composeTabBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 50,
-  },
-  composeFab: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-  },
+  drawer: { flex: 1, backgroundColor: colors.bg, paddingTop: 20 },
+  drawerLogo: { paddingHorizontal: 20, paddingVertical: 16, marginBottom: 8 },
+  drawerLogoText: { color: colors.text, fontSize: 24, fontWeight: '800' },
+  drawerItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 18 },
+  drawerIcon: { fontSize: 24, width: 30, textAlign: 'center' },
+  drawerLabel: { color: colors.text, fontSize: 17, fontWeight: '600' },
+  drawerSpacer: { flex: 1, minHeight: 40 },
+  drawerUser: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, borderTopWidth: 0.5, borderTopColor: colors.border },
+  drawerUserName: { color: colors.text, fontWeight: '700', fontSize: 15 },
+  drawerUserHandle: { color: colors.textSecondary, fontSize: 14 },
   tabBadge: {
     position: 'absolute',
-    top: -2,
-    right: -12,
+    top: 4,
+    right: -10,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
@@ -499,15 +405,4 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-
-  /* ── Drawer ── */
-  drawer: { flex: 1, backgroundColor: colors.bg, paddingTop: 20 },
-  drawerLogo: { paddingHorizontal: 20, paddingVertical: 16, marginBottom: 8 },
-  drawerLogoText: { color: colors.text, fontSize: 24, fontWeight: '800' },
-  drawerItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 18 },
-  drawerLabel: { color: colors.text, fontSize: 17, fontWeight: '600' },
-  drawerSpacer: { flex: 1, minHeight: 40 },
-  drawerUser: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, borderTopWidth: 0.5, borderTopColor: colors.border },
-  drawerUserName: { color: colors.text, fontWeight: '700', fontSize: 15 },
-  drawerUserHandle: { color: colors.textSecondary, fontSize: 14 },
 });

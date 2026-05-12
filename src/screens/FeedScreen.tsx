@@ -1,40 +1,376 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, Dimensions, Animated,
+  RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, Dimensions, Share, Image,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { toggleLike, toggleBookmark, toggleRepost, Post } from '../lib/api';
+import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
+import { Avatar, VerifiedBadge } from '../components/Avatar';
+import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
-import PostCard from '../components/PostCard';
-import { ReplyIcon } from '../components/Icons';
-import { Avatar } from '../components/Avatar';
+import Svg, { Path, Polyline } from 'react-native-svg';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-/* ── Helpers ──────────────────────────────────────────────────────────── */
+/* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
+function RepostIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="23 4 23 10 17 10" />
+      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+    </Svg>
+  );
+}
+
+/* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
+function HighlightedCaption({ text, style }: { text: string; style: any }) {
+  const parts = text.split(/(#\w+|@\w+)/g);
+  return (
+    <Text style={style}>
+      {parts.map((part, i) =>
+        /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
+          <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+        ) : (
+          <Text key={i}>{part}</Text>
+        )
+      )}
+    </Text>
+  );
+}
+
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
 
 const TABS = ['Discover', 'Network'] as const;
 type Tab = typeof TABS[number];
 
-/* ── FeedScreen ───────────────────────────────────────────────────────── */
+function formatCount(n: number | undefined): string {
+  if (!n) return '';
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return n.toString();
+}
 
-export default function FeedScreen({ navigation, route }: any) {
+/* ── Lazy image picker (avoids crashes if expo-image-picker not installed) ── */
+async function openImagePicker() {
+  try {
+    const { launchImageLibrary } = require('expo-image-picker');
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      quality: 0.8,
+      selectionLimit: 4,
+    });
+    return result;
+  } catch (err) {
+    console.error('[Compose] Image picker not available:', err);
+    return { assets: [], didCancel: true, errorCode: 'unavailable', errorMessage: 'Image picker not available' };
+  }
+}
+
+/* ── Skeleton Loader ──────────────────────────────────────────────────────── */
+
+function SkeletonCard() {
+  return (
+    <View style={[styles.postCard, { borderBottomColor: 'transparent' }]}>
+      <View style={styles.contentRow}>
+        {/* Avatar placeholder */}
+        <View style={styles.skeletonAvatar} />
+        <View style={{ flex: 1, gap: 8 }}>
+          {/* Name + time */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={[styles.skeletonLine, { width: 100, height: 14 }]} />
+            <View style={[styles.skeletonLine, { width: 60, height: 14 }]} />
+          </View>
+          {/* Caption lines */}
+          <View style={[styles.skeletonLine, { width: '90%', height: 14 }]} />
+          <View style={[styles.skeletonLine, { width: '70%', height: 14 }]} />
+          <View style={[styles.skeletonLine, { width: '40%', height: 14 }]} />
+          {/* Action bar dots */}
+          <View style={{ flexDirection: 'row', marginTop: 12, gap: 56 }}>
+            {[0, 1, 2, 3, 4].map(i => (
+              <View key={i} style={[styles.skeletonDot]} />
+            ))}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function SkeletonFeed() {
+  return (
+    <View>
+      {[0, 1, 2, 3, 4].map(i => (
+        <SkeletonCard key={i} />
+      ))}
+    </View>
+  );
+}
+
+/* ── PostCard ─────────────────────────────────────────────────────────────── */
+
+const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
+  post: Post;
+  onLike: (id: string, liked: boolean) => void;
+  onBookmark: (id: string, bookmarked: boolean) => void;
+  onDelete: (id: string) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
+  navigation: any;
+}) {
+  const currentUser = auth()?.currentUser;
+  const [showHeart, setShowHeart] = useState(false);
+  const lastTapRef = useRef(0);
+
+  // Per-post optimistic repost state
+  const [isReposted, setIsReposted] = useState(post.reposted);
+  const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
+
+  // Sync when post prop changes
+  React.useEffect(() => {
+    setIsReposted(post.reposted);
+    setLocalRepostCount(post.repostCount);
+  }, [post.reposted, post.repostCount]);
+
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!post.liked) {
+        onLike(post.id, post.liked);
+      }
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 900);
+    }
+    lastTapRef.current = now;
+  };
+
+  const handleRepostPress = () => {
+    const next = !isReposted;
+    setIsReposted(next);
+    setLocalRepostCount(prev => prev + (next ? 1 : -1));
+    onRepost(post.id, isReposted);
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({ message: 'Check out this post on Black94!' });
+    } catch {}
+  };
+
+  return (
+    <View style={styles.postCard}>
+      {/* Double-tap heart overlay */}
+      {showHeart && (
+        <View style={styles.heartOverlay} pointerEvents="none">
+          <Ionicons name="heart" size={96} color="#f43f5e" />
+        </View>
+      )}
+
+      {/* Content row: avatar + content */}
+      <View style={styles.contentRow}>
+        {/* Avatar — tap navigates to profile */}
+        <TouchableOpacity
+          onPress={() => {
+            if (post.authorId !== currentUser?.uid) {
+              navigation.navigate('UserProfile', { userId: post.authorId });
+            } else {
+              navigation.navigate('ProfileSelf');
+            }
+          }}
+          activeOpacity={0.7}
+          hitSlop={8}
+        >
+          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
+        </TouchableOpacity>
+
+        {/* Content column — tap to open replies */}
+        <TouchableOpacity
+          style={styles.contentColumn}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}
+        >
+          {/* Header row */}
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              onPress={() => {
+                if (post.authorId !== currentUser?.uid) {
+                  navigation.navigate('UserProfile', { userId: post.authorId });
+                } else {
+                  navigation.navigate('ProfileSelf');
+                }
+              }}
+              activeOpacity={0.7}
+              style={styles.headerNameRow}
+            >
+              <Text style={styles.displayName} numberOfLines={1}>
+                {post.authorDisplayName || post.authorUsername || 'User'}
+              </Text>
+              <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
+              <Text style={styles.username}>@{post.authorUsername || 'user'}</Text>
+              <Text style={styles.dot}>·</Text>
+              <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
+            </TouchableOpacity>
+
+            {/* More button */}
+            {post.authorId === currentUser?.uid && (
+              <TouchableOpacity
+                style={styles.moreBtn}
+                onPress={() => {
+                  Alert.alert('Post', 'Delete this post?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+                  ]);
+                }}
+              >
+                <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Caption */}
+          {post.caption ? (
+            <HighlightedCaption text={post.caption} style={styles.caption} />
+          ) : null}
+
+          {/* Media */}
+          {post.mediaUrls?.length > 0 && (
+            <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
+              <View style={styles.mediaContainer}>
+                <Image
+                  source={{ uri: post.mediaUrls[0] }}
+                  style={styles.media}
+                  resizeMode="cover"
+                />
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Action bar */}
+          <View style={styles.actions}>
+            {/* Comment */}
+            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
+              <View style={styles.actionIconWrap}>
+                <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
+              </View>
+              {formatCount(post.commentCount) ? (
+                <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
+              ) : null}
+            </TouchableOpacity>
+
+            {/* Repost */}
+            <TouchableOpacity style={styles.actionBtn} onPress={handleRepostPress}>
+              <View style={styles.actionIconWrap}>
+                <RepostIcon
+                  size={18}
+                  color={isReposted ? colors.repost : colors.textSecondary}
+                />
+              </View>
+              {formatCount(localRepostCount) ? (
+                <Text style={[styles.actionCount, isReposted && { color: colors.repost }]}>
+                  {formatCount(localRepostCount)}
+                </Text>
+              ) : null}
+            </TouchableOpacity>
+
+            {/* Like */}
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
+              <View style={styles.actionIconWrap}>
+                {post.liked ? (
+                  <Ionicons name="heart" size={18} color={colors.like} />
+                ) : (
+                  <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
+                )}
+              </View>
+              {formatCount(post.likeCount) ? (
+                <Text style={[styles.actionCount, post.liked && { color: colors.like }]}>
+                  {formatCount(post.likeCount)}
+                </Text>
+              ) : null}
+            </TouchableOpacity>
+
+            {/* Views */}
+            <TouchableOpacity style={styles.actionBtn} disabled>
+              <View style={styles.actionIconWrap}>
+                <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Bookmark + Share */}
+            <View style={styles.actionPair}>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
+                <View style={styles.actionIconWrap}>
+                  {post.bookmarked ? (
+                    <Ionicons name="bookmark" size={18} color={colors.bookmark} />
+                  ) : (
+                    <Ionicons name="bookmark-outline" size={18} color={colors.textSecondary} />
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
+                <View style={styles.actionIconWrap}>
+                  <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
+/* ── AdCard ──────────────────────────────────────────────────────────────── */
+
+function AdCard({ ad }: { ad: any }) {
+  return (
+    <View style={styles.adCard}>
+      <View style={styles.adBadgeRow}>
+        <Ionicons name="megaphone-outline" size={14} color={colors.accentGold} />
+        <Text style={styles.adBadgeText}>Promoted</Text>
+      </View>
+      <View style={styles.adBody}>
+        <Text style={styles.adHeadline} numberOfLines={1}>{ad.headline || 'Ad'}</Text>
+        {ad.description ? <Text style={styles.adDescription} numberOfLines={2}>{ad.description}</Text> : null}
+        {ad.ctaText ? (
+          <TouchableOpacity style={styles.adCtaBtn} activeOpacity={0.7}>
+            <Text style={styles.adCtaText}>{ad.ctaText}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      <Text style={styles.adSponsored}>Sponsored</Text>
+    </View>
+  );
+}
+
+/* ── Feed item union type ────────────────────────────────────────────────── */
+
+type FeedItem =
+  | { type: 'post'; id: string; post: Post }
+  | { type: 'ad'; id: string; ad: any };
+
+/* ── FeedScreen ───────────────────────────────────────────────────────────── */
+
+export default function FeedScreen({ navigation }: any) {
   const { user: storeUser } = useAppStore();
   const [posts, setPosts] = useState<Post[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
+  const [composeVisible, setComposeVisible] = useState(false);
+  const [composeText, setComposeText] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [composeImages, setComposeImages] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('Discover');
+  const [ads, setAds] = useState<any[]>([]);
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
   const lastDocRef = useRef<any>(null);
-  const scrollY = useRef(new Animated.Value(0)).current;
 
   const PAGE_SIZE = 10;
 
@@ -61,6 +397,7 @@ export default function FeedScreen({ navigation, route }: any) {
         if (append) { setLoadingMore(false); return; }
       }
 
+      // Save cursor for next page
       lastDocRef.current = snapshot.docs[snapshot.docs.length - 1];
 
       const userId = currentUser?.uid;
@@ -112,7 +449,7 @@ export default function FeedScreen({ navigation, route }: any) {
       // Batch fetch author profiles
       const uniqueAuthorIds = [...new Set(newPosts.map(p => p.authorId).filter(Boolean))];
       const authorProfileMap: Record<string, any> = {};
-      const CHUNK_SIZE = 10;
+      const CHUNK_SIZE = 30;
 
       for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
         const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
@@ -158,30 +495,60 @@ export default function FeedScreen({ navigation, route }: any) {
         for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
           const chunk = postIds.slice(i, i + CHUNK_SIZE);
           try {
+            // Try batch query first (needs composite index). If it fails
+            // (e.g., missing index), fall back to individual doc reads.
             let batchSucceeded = true;
             try {
               const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
                 firestore().collection('post_likes')
-                  .where('postId', 'in', chunk).where('userId', '==', userId).get(),
+                  .where('postId', 'in', chunk)
+                  .where('userId', '==', userId)
+                  .get(),
                 firestore().collection('post_bookmarks')
-                  .where('postId', 'in', chunk).where('userId', '==', userId).get(),
+                  .where('postId', 'in', chunk)
+                  .where('userId', '==', userId)
+                  .get(),
                 firestore().collection('post_reposts')
-                  .where('postId', 'in', chunk).where('userId', '==', userId).get(),
+                  .where('postId', 'in', chunk)
+                  .where('userId', '==', userId)
+                  .get(),
               ]);
-              for (const doc of likesSnap.docs) { if (doc.data().postId) likedIds.add(doc.data().postId); }
-              for (const doc of bookmarksSnap.docs) { if (doc.data().postId) bookmarkedIds.add(doc.data().postId); }
-              for (const doc of repostsSnap.docs) { if (doc.data().postId) repostedIds.add(doc.data().postId); }
+
+              for (const doc of likesSnap.docs) {
+                const d = doc.data();
+                if (d.postId) likedIds.add(d.postId);
+              }
+              for (const doc of bookmarksSnap.docs) {
+                const d = doc.data();
+                if (d.postId) bookmarkedIds.add(d.postId);
+              }
+              for (const doc of repostsSnap.docs) {
+                const d = doc.data();
+                if (d.postId) repostedIds.add(d.postId);
+              }
+
+              // Check if any result has the _missingIndex flag
               if ((likesSnap as any)._missingIndex || (bookmarksSnap as any)._missingIndex || (repostsSnap as any)._missingIndex) {
                 batchSucceeded = false;
               }
             } catch (batchErr) {
+              console.warn('[Feed] Batch interaction query failed, falling back to individual reads:', batchErr);
               batchSucceeded = false;
             }
+
+            // Fallback: individual reads using composite doc IDs
             if (!batchSucceeded) {
+              console.log('[Feed] Using individual interaction reads fallback');
               const individualPromises = chunk.flatMap(postId => [
-                firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => { if (snap.exists) likedIds.add(postId); }).catch(() => {}),
-                firestore().collection('post_bookmarks').doc(`${postId}_${userId}`).get().then(snap => { if (snap.exists) bookmarkedIds.add(postId); }).catch(() => {}),
-                firestore().collection('post_reposts').doc(`${postId}_${userId}`).get().then(snap => { if (snap.exists) repostedIds.add(postId); }).catch(() => {}),
+                firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => {
+                  if (snap.exists) likedIds.add(postId);
+                }).catch(() => {}),
+                firestore().collection('post_bookmarks').doc(`${postId}_${userId}`).get().then(snap => {
+                  if (snap.exists) bookmarkedIds.add(postId);
+                }).catch(() => {}),
+                firestore().collection('post_reposts').doc(`${postId}_${userId}`).get().then(snap => {
+                  if (snap.exists) repostedIds.add(postId);
+                }).catch(() => {}),
               ]);
               await Promise.all(individualPromises);
             }
@@ -189,36 +556,11 @@ export default function FeedScreen({ navigation, route }: any) {
             console.warn('[Feed] Batch interaction fetch failed for chunk:', e);
           }
         }
+
         for (const post of newPosts) {
           post.liked = likedIds.has(post.id);
           post.bookmarked = bookmarkedIds.has(post.id);
           post.reposted = repostedIds.has(post.id);
-        }
-      }
-
-      // Backfill commentCount from actual post_comments collection for posts
-      // where the cached count is 0 or missing (older posts may not have it)
-      const postsWithZeroComments = newPosts.filter(p => !p.commentCount);
-      if (postsWithZeroComments.length > 0) {
-        try {
-          const commentCountPromises = postsWithZeroComments.map(async (post) => {
-            try {
-              const countSnap = await firestore()
-                .collection('post_comments')
-                .where('postId', '==', post.id)
-                .get();
-              const actualCount = countSnap.size;
-              if (actualCount > 0) {
-                post.commentCount = actualCount;
-                firestore().collection('posts').doc(post.id).update({
-                  commentCount: actualCount,
-                }).catch(() => {});
-              }
-            } catch {}
-          });
-          await Promise.all(commentCountPromises);
-        } catch (e) {
-          console.warn('[Feed] Comment count backfill failed:', e);
         }
       }
 
@@ -238,6 +580,24 @@ export default function FeedScreen({ navigation, route }: any) {
       setLoadingMore(false);
     }
   }, [currentUser?.uid]);
+
+  // Fetch active ad campaigns
+  useEffect(() => {
+    (async () => {
+      try {
+        const adSnap = await firestore()
+          .collection('adCampaigns')
+          .where('status', '==', 'active')
+          .limit(5)
+          .get();
+        const adList = adSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+        setAds(adList);
+        console.log(`[Ads] Loaded ${adList.length} active campaigns`);
+      } catch (e) {
+        console.warn('[Ads] Failed to fetch ad campaigns:', e);
+      }
+    })();
+  }, []);
 
   useEffect(() => { loadFeed(); }, []);
 
@@ -282,40 +642,103 @@ export default function FeedScreen({ navigation, route }: any) {
     navigation.navigate('PostComments', { postId, postCaption: caption || '', postAuthorUsername: authorUsername || '', postAuthorDisplayName: authorDisplayName || '' });
   };
 
-  const tabBarHeight = 50 + (insets.bottom || 0);
-  const fabBottom = tabBarHeight + 16;
+  const handleAddImages = async () => {
+    const remaining = 4 - composeImages.length;
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', 'You can add up to 4 images.');
+      return;
+    }
+    const result = await openImagePicker();
+    if (result.didCancel || result.errorCode) return;
+    const assets = result.assets ?? [];
+    const newUris = assets
+      .filter((a: any) => a.uri)
+      .map((a: any) => a.uri)
+      .slice(0, remaining);
+    if (newUris.length > 0) {
+      setComposeImages(prev => [...prev, ...newUris]);
+    }
+  };
 
-  /* ── Scroll-driven FAB + Tab Bar visibility ─────────────────────────── */
-  const [fabVisible, setFabVisible] = useState(true);
-  const [tabBarVisible, setTabBarVisible] = useState(true);
-  const scrollOffset = useRef(0);
+  const handleRemoveImage = (index: number) => {
+    setComposeImages(prev => prev.filter((_, i) => i !== index));
+  };
 
-  const hideTabBar = route?.params?.hideTabBar;
-  const showTabBar = route?.params?.showTabBar;
-
-  const handleScroll = useCallback((e: any) => {
+  const handlePost = async () => {
+    if (!composeText.trim() && composeImages.length === 0) return;
+    setPosting(true);
     try {
-      const y = e.nativeEvent?.contentOffset?.y ?? 0;
-      scrollY.setValue(y);
+      const mediaUrls = composeImages.length > 0 ? composeImages : [];
+      await createPost(composeText.trim(), mediaUrls);
+      setComposeText('');
+      setComposeImages([]);
+      setComposeVisible(false);
+      // Reload from scratch
+      lastDocRef.current = null;
+      setAllLoaded(false);
+      loadFeed(false);
+    } catch {
+      Alert.alert('Error', 'Failed to post');
+    } finally {
+      setPosting(false);
+    }
+  };
 
-      if (y > 80 && y > scrollOffset.current + 10) {
-        // Scrolling down — hide both FAB and tab bar
-        setFabVisible(false);
-        if (tabBarVisible) {
-          setTabBarVisible(false);
-          hideTabBar?.();
-        }
-      } else if (y < scrollOffset.current - 5 || y < 40) {
-        // Scrolling up or near top — show both FAB and tab bar
-        setFabVisible(true);
-        if (!tabBarVisible) {
-          setTabBarVisible(true);
-          showTabBar?.();
-        }
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        {/* Header with logo */}
+        <SafeAreaView edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
+              <Ionicons name="menu" size={22} color="#e7e9ea" />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
+            </View>
+            <TouchableOpacity
+              style={styles.headerBtn}
+              onPress={() => navigation.navigate('Settings')}
+            >
+              <Ionicons name="settings-outline" size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+
+        {/* Tabs */}
+        <View style={styles.tabBar}>
+          {TABS.map(tab => (
+            <TouchableOpacity key={tab} style={styles.tabItem} disabled>
+              <Text style={[styles.tabText, tab === 'Discover' ? styles.tabTextActive : styles.tabTextInactive]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <View style={[styles.tabIndicator, { left: SCREEN_W / 2 - 80, right: SCREEN_W / 2 - 80 }]} />
+        </View>
+
+        <SkeletonFeed />
+      </View>
+    );
+  }
+
+  // Build interleaved feed: posts with ads inserted after every 5th post
+  const feedItems: FeedItem[] = (() => {
+    if (ads.length === 0) return posts.map(p => ({ type: 'post' as const, id: p.id, post: p }));
+    const items: FeedItem[] = [];
+    let adIndex = 0;
+    posts.forEach((post, idx) => {
+      items.push({ type: 'post', id: post.id, post });
+      if ((idx + 1) % 5 === 0 && adIndex < ads.length) {
+        items.push({ type: 'ad', id: `ad_${ads[adIndex].id}_${idx}`, ad: ads[adIndex] });
+        adIndex++;
       }
-      scrollOffset.current = y;
-    } catch {}
-  }, [scrollY, tabBarVisible, hideTabBar, showTabBar]);
+    });
+    return items;
+  })();
+
+  const tabBarHeight = 50 + (insets.bottom || 0);
+  const fabBottom = tabBarHeight + 8;
 
   return (
     <View style={styles.container}>
@@ -323,12 +746,15 @@ export default function FeedScreen({ navigation, route }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-            <Avatar uri={storeUser?.profileImage} name={storeUser?.displayName} size={30} />
+            <Ionicons name="menu" size={22} color="#e7e9ea" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <RNImage source={require('../../assets/icon.png')} style={styles.logoImage} />
+            <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
           </View>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('Settings')}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => navigation.navigate('Settings')}
+          >
             <Ionicons name="settings-outline" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -353,19 +779,24 @@ export default function FeedScreen({ navigation, route }: any) {
       {/* Feed */}
       <FlatList
         ref={flatListRef}
-        data={posts}
+        data={feedItems}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <PostCard
-            post={item}
-            onLike={handleLike}
-            onBookmark={handleBookmark}
-            onDelete={handleDelete}
-            onRepost={handleRepost}
-            onComment={handleComment}
-            navigation={navigation}
-          />
-        )}
+        renderItem={({ item }) => {
+          if (item.type === 'ad') {
+            return <AdCard ad={item.ad} />;
+          }
+          return (
+            <PostCard
+              post={item.post}
+              onLike={handleLike}
+              onBookmark={handleBookmark}
+              onDelete={handleDelete}
+              onRepost={handleRepost}
+              onComment={handleComment}
+              navigation={navigation}
+            />
+          );
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -378,7 +809,6 @@ export default function FeedScreen({ navigation, route }: any) {
         nestedScrollEnabled={true}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
-        onScroll={handleScroll}
         ListFooterComponent={
           loadingMore ? (
             <View style={styles.loadMoreIndicator}>
@@ -387,55 +817,138 @@ export default function FeedScreen({ navigation, route }: any) {
           ) : null
         }
         ListEmptyComponent={
-          loading ? (
-            /* Loading state — clean spinner, no skeleton lines */
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color={colors.accent} size="large" />
+          <View style={{ alignItems: 'center', paddingTop: 80 }}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="chatbubble-outline" size={36} color={colors.textSecondary} />
             </View>
-          ) : (
-            /* True empty state — only shown after loading completes with no posts */
-            <View style={styles.emptyContainer}>
-              <View style={styles.emptyIcon}>
-                <ReplyIcon size={36} color={colors.textSecondary} />
-              </View>
-              <Text style={styles.emptyTitle}>No posts yet</Text>
-              <Text style={styles.emptySubtitle}>When people post, their posts will show up here.</Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                onPress={() => { lastDocRef.current = null; setAllLoaded(false); loadFeed(false); }}
-              >
-                <Text style={styles.retryButtonText}>Tap to retry</Text>
-              </TouchableOpacity>
-            </View>
-          )
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 12 }}>No posts yet</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 15, marginTop: 4 }}>When people post, their posts will show up here.</Text>
+            <TouchableOpacity
+              style={{ marginTop: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, borderRadius: 8 }}
+              onPress={() => { lastDocRef.current = null; setAllLoaded(false); loadFeed(false); }}
+            >
+              <Text style={{ color: colors.accent, fontSize: 14 }}>Tap to retry</Text>
+            </TouchableOpacity>
+          </View>
         }
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 20 }}
+        contentContainerStyle={{ paddingBottom: fabBottom + 72 }}
       />
 
-      {/* Floating Compose Button — hides on scroll down */}
-      <Animated.View
-        style={{
-          position: 'absolute',
-          right: 16,
-          bottom: fabBottom,
-          opacity: fabVisible ? 1 : 0,
-          transform: [{ translateY: fabVisible ? 0 : 80 }],
-        }}
-        pointerEvents={fabVisible ? 'auto' : 'none'}
+      {/* FAB */}
+      <TouchableOpacity
+        style={[styles.fab, { bottom: fabBottom }]}
+        onPress={() => setComposeVisible(true)}
+        activeOpacity={0.8}
       >
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => navigation.navigate('CreatePost')}
-          activeOpacity={0.8}
+        <Ionicons name="add" size={24} color="#000000" />
+      </TouchableOpacity>
+
+      {/* Compose Modal */}
+      <Modal visible={composeVisible} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior="padding"
         >
-          <Ionicons name="add" size={28} color="#000000" />
-        </TouchableOpacity>
-      </Animated.View>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setComposeVisible(false); setComposeImages([]); }} />
+          <View style={styles.composeSheet}>
+            {/* Header */}
+            <View style={styles.composeHeader}>
+              {/* Cancel = X icon */}
+              <TouchableOpacity
+                style={styles.composeCloseBtn}
+                onPress={() => { setComposeVisible(false); setComposeImages([]); }}
+              >
+                <Ionicons name="close" size={20} color="#e7e9ea" />
+              </TouchableOpacity>
+              <Text style={styles.composeTitle}>New Post</Text>
+              <TouchableOpacity
+                style={[styles.postBtn, (!composeText.trim() && composeImages.length === 0) && styles.postBtnDisabled]}
+                onPress={handlePost}
+                disabled={posting || (!composeText.trim() && composeImages.length === 0)}
+              >
+                {posting
+                  ? <ActivityIndicator color="#000" size="small" />
+                  : <Text style={[styles.postBtnText, (!composeText.trim() && composeImages.length === 0) && styles.postBtnTextDisabled]}>Post</Text>
+                }
+              </TouchableOpacity>
+            </View>
+
+            {/* Body */}
+            <View style={styles.composeBody}>
+              <Avatar uri={storeUser?.profileImage || currentUser?.photoURL} name={storeUser?.displayName || currentUser?.displayName} size={38} />
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  style={styles.composeInput}
+                  placeholder="What's on your mind?"
+                  placeholderTextColor="#64748b"
+                  value={composeText}
+                  onChangeText={setComposeText}
+                  multiline
+                  autoFocus
+                  maxLength={4000}
+                />
+
+                {/* Image preview grid */}
+                {composeImages.length > 0 && (
+                  <View style={styles.imagePreviewGrid}>
+                    {composeImages.map((uri, index) => (
+                      <View key={uri} style={styles.imagePreviewCard}>
+                        <RNImage source={{ uri }} style={styles.imagePreviewThumb} resizeMode="cover" />
+                        <TouchableOpacity
+                          style={styles.imageRemoveBtn}
+                          onPress={() => handleRemoveImage(index)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="close" size={12} color="#ffffff" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    {composeImages.length < 4 && (
+                      <TouchableOpacity style={styles.imageAddCard} onPress={handleAddImages} activeOpacity={0.7}>
+                        <Ionicons name="add" size={24} color="rgba(255,255,255,0.5)" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Action buttons row */}
+                <View style={styles.composeActions}>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={handleAddImages}>
+                    <Ionicons name="image-outline" size={20} color={colors.accent} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Camera', 'Camera capture coming soon!')}>
+                    <Ionicons name="camera-outline" size={20} color="#00ba7c" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('GIF', 'GIF picker coming soon!')}>
+                    <Ionicons name="film-outline" size={20} color="#f59e0b" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Emoji', 'Emoji picker coming soon!')}>
+                    <Ionicons name="happy-outline" size={20} color={colors.accent} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Poll', 'Poll creation coming soon!')}>
+                    <Ionicons name="stats-chart-outline" size={20} color="#8b5cf6" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Character count (only show when > 3400) */}
+                {composeText.length > 3400 && (
+                  <Text style={[
+                    styles.charCountBottom,
+                    composeText.length > 4000 * 0.95 && { color: colors.error },
+                  ]}>
+                    {composeText.length}/4000
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
 
-/* ── Styles ───────────────────────────────────────────────────────────── */
+/* ── Styles ───────────────────────────────────────────────────────────────── */
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
@@ -443,14 +956,14 @@ const styles = StyleSheet.create({
   /* ── Header ── */
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8,
-    height: 52,
+    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10,
+    height: 56,
     borderBottomWidth: 0.5, borderBottomColor: colors.separator,
     backgroundColor: colors.bg,
   },
-  headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  logoImage: { width: 30, height: 30, resizeMode: 'contain' },
+  logoImage: { width: 28, height: 28, resizeMode: 'contain' },
 
   /* ── Tabs ── */
   tabBar: {
@@ -466,71 +979,355 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     position: 'relative',
   },
-  tabText: { fontSize: 15, fontFamily: 'Inter-Regular' },
-  tabTextActive: { color: '#ffffff', fontWeight: '700', fontFamily: 'Inter-Bold' },
-  tabTextInactive: { color: '#94a3b8', fontWeight: '400', fontFamily: 'Inter-Regular' },
+  tabText: {
+    fontSize: 15,
+  },
+  tabTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  tabTextInactive: {
+    color: '#94a3b8',
+    fontWeight: '400',
+  },
   tabUnderline: {
-    position: 'absolute', bottom: 0, left: 24, right: 24,
-    height: 2, backgroundColor: '#ffffff', borderRadius: 1,
+    position: 'absolute',
+    bottom: 0,
+    left: 24,
+    right: 24,
+    height: 1,
+    backgroundColor: '#ffffff',
+  },
+  /* Only used in skeleton loading indicator */
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: 1,
+    backgroundColor: '#ffffff',
   },
 
-  /* ── Loading state ── */
-  loadingContainer: {
+  /* ── Post Card — exact match to web UserPostCard ── */
+  postCard: {
+    backgroundColor: colors.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  contentRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  contentColumn: {
     flex: 1,
+    minWidth: 0,
+    position: 'relative',
+  },
+  headerRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 120,
-    paddingBottom: 120,
+    justifyContent: 'space-between',
+  },
+  headerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+    flexWrap: 'nowrap',
+    overflow: 'hidden',
+  },
+  displayName: {
+    color: '#e7e9ea',
+    fontWeight: '700',
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  username: {
+    color: '#71767b',
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  dot: {
+    color: '#71767b',
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  time: {
+    color: '#71767b',
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  moreBtn: {
+    position: 'absolute',
+    top: 0,
+    right: -8,
+    width: 32, height: 32,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: 16,
+  },
+  caption: {
+    color: '#e7e9ea',
+    fontSize: 15,
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  mediaContainer: {
+    marginTop: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  media: {
+    width: '100%',
+    height: Math.min(SCREEN_W * 0.85, 510),
+    backgroundColor: '#111',
   },
 
-  /* ── Empty state ── */
-  emptyContainer: {
+  /* ── Action bar — X/Twitter exact spacing ── */
+  actions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 80,
-    paddingBottom: 40,
+    marginTop: 8,
+    marginLeft: -4,
+    maxWidth: 440,
+    justifyContent: 'space-between',
+  },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
+  actionIconWrap: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  actionCount: {
+    color: '#71767b',
+    fontSize: 13,
+    lineHeight: 16,
+    marginLeft: 1,
+  },
+
+  /* ── Heart overlay ── */
+  heartOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+    zIndex: 10,
+  },
+
+  /* ── Skeleton ── */
+  skeletonAvatar: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  skeletonLine: {
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  skeletonDot: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  /* ── Load more indicator ── */
+  loadMoreIndicator: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+
+  /* ── FAB ── */
+  fab: {
+    position: 'absolute', right: 16,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: '#ffffff',
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5, shadowRadius: 8,
+    zIndex: 999,
   },
   emptyIcon: {
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center', justifyContent: 'center',
   },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 18,
+
+  /* ── Ad Card ── */
+  adCard: {
+    backgroundColor: colors.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accentGold,
+  },
+  adBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  adBadgeText: {
+    color: colors.accentGold,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  adBody: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    padding: 14,
+    marginBottom: 6,
+  },
+  adHeadline: {
+    color: '#e7e9ea',
+    fontSize: 16,
     fontWeight: '700',
-    marginTop: 12,
-    fontFamily: 'Inter-Bold',
+    lineHeight: 22,
+    marginBottom: 4,
   },
-  emptySubtitle: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    marginTop: 4,
-    fontFamily: 'Inter-Regular',
-  },
-  retryButton: {
-    marginTop: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: colors.accent,
+  adDescription: {
+    color: '#94a3b8',
     fontSize: 14,
+    lineHeight: 19,
+    marginBottom: 10,
+  },
+  adCtaBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  adCtaText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  adSponsored: {
+    color: '#71767b',
+    fontSize: 11,
+    marginTop: 4,
   },
 
-  /* ── FAB ── */
-  fab: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#FFFFFF',
+  /* ── Compose Modal ── */
+  modalOverlay: { flex: 1, backgroundColor: 'transparent' },
+  composeSheet: {
+    backgroundColor: '#000000',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    minHeight: 280,
+    maxHeight: '85%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  composeHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+    paddingBottom: 12,
+  },
+  composeCloseBtn: {
+    width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    backgroundColor: 'transparent',
   },
+  composeTitle: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 16,
+    position: 'absolute',
+    left: 0, right: 0,
+    textAlign: 'center',
+  },
+  composeBody: { flexDirection: 'row', gap: 14 },
+  composeInput: {
+    flex: 1,
+    color: '#e7e9ea',
+    fontSize: 17,
+    lineHeight: 24,
+    minHeight: 110,
+    textAlignVertical: 'top',
+  },
+  composeActions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  composeActionBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  charCountBottom: {
+    color: '#94a3b8',
+    fontSize: 13,
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  postBtn: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  postBtnDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  postBtnText: { color: '#000000', fontWeight: '700' },
+  postBtnTextDisabled: { color: '#64748b' },
 
-  /* ── Load more ── */
-  loadMoreIndicator: { paddingVertical: 20, alignItems: 'center' },
+  /* ── Image Preview Grid ── */
+  imagePreviewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  imagePreviewCard: {
+    width: '47%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    position: 'relative',
+  },
+  imagePreviewThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  imageRemoveBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageAddCard: {
+    width: '47%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
