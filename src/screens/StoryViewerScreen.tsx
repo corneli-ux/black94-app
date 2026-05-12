@@ -10,9 +10,9 @@ import {
   PanResponder,
   StatusBar,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
+import { auth } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { timeAgo } from '../utils/timeAgo';
 
@@ -35,16 +35,17 @@ interface StoryItem {
 
 export default function StoryViewerScreen({ navigation, route }: any) {
   const { storyIds, startIndex = 0, storyGroupId } = route.params || {};
-  const insets = useSafeAreaInsets();
 
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [isPaused, setIsPaused] = useState(false);
   const [selectedPollOption, setSelectedPollOption] = useState<string | null>(null);
   const [pollOptions, setPollOptions] = useState<StoryItem['pollOptions']>(undefined);
+  const [userVote, setUserVote] = useState<number | null>(null);
 
   const panResponderRef = useRef<any>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const currentUser = auth()?.currentUser;
 
   // Load stories
   useEffect(() => {
@@ -97,19 +98,48 @@ export default function StoryViewerScreen({ navigation, route }: any) {
     loadStories();
   }, [storyIds, storyGroupId]);
 
-  // Reset state when story changes
+  // Check if user already voted when story changes
   useEffect(() => {
     const currentStory = stories[currentIndex];
-    if (currentStory) {
+    if (currentStory && currentUser && currentStory.id) {
       setSelectedPollOption(null);
       setPollOptions(currentStory.pollOptions);
+
+      // Check if user already voted
+      const checkVote = async () => {
+        try {
+          const voteDoc = await firestore()
+            .collection('stories')
+            .doc(currentStory.id)
+            .collection('votes')
+            .doc(currentUser.uid)
+            .get();
+          if (voteDoc.exists) {
+            const voteData = voteDoc.data();
+            setUserVote(voteData.optionIndex ?? null);
+            // Highlight the selected option
+            if (voteData.optionIndex != null) {
+              const opts = currentStory.pollOptions;
+              if (opts && opts.length > voteData.optionIndex) {
+                setSelectedPollOption(opts[voteData.optionIndex].id);
+              }
+            }
+          } else {
+            setUserVote(null);
+          }
+        } catch (e) {
+          console.warn('[StoryViewerScreen] Failed to check vote:', e);
+          setUserVote(null);
+        }
+      };
+      checkVote();
     }
   }, [currentIndex, stories]);
 
   // Progress bar animation
   useEffect(() => {
     if (stories.length === 0 || isPaused) {
-      progressAnim.stopAnimation();
+      Animated.timing(progressAnim).stop();
       return;
     }
 
@@ -176,16 +206,56 @@ export default function StoryViewerScreen({ navigation, route }: any) {
   }, []);
 
   const handlePollVote = useCallback((optionId: string) => {
-    if (selectedPollOption) return; // Already voted
-    setSelectedPollOption(optionId);
-    setPollOptions((prev) =>
-      prev?.map((opt) =>
-        opt.id === optionId
-          ? { ...opt, votes: opt.votes + 1 }
-          : opt,
-      ),
-    );
-  }, [selectedPollOption]);
+    if (selectedPollOption || !currentUser) return;
+
+    const currentStory = stories[currentIndex];
+    if (!currentStory) return;
+
+    // Find the option index
+    const optionIndex = currentStory.pollOptions?.findIndex(o => o.id === optionId) ?? -1;
+    if (optionIndex < 0) return;
+
+    // Save vote to Firestore
+    const doVote = async () => {
+      try {
+        // Save the vote
+        await firestore()
+          .collection('stories')
+          .doc(currentStory.id)
+          .collection('votes')
+          .doc(currentUser.uid)
+          .set({
+            optionIndex,
+            votedAt: firestore.FieldValue.serverTimestamp(),
+          });
+
+        // Increment vote count on the story doc
+        const pollOpts = [...(currentStory.pollOptions || [])];
+        if (pollOpts[optionIndex]) {
+          pollOpts[optionIndex] = {
+            ...pollOpts[optionIndex],
+            votes: pollOpts[optionIndex].votes + 1,
+          };
+        }
+
+        await firestore()
+          .collection('stories')
+          .doc(currentStory.id)
+          .update({
+            pollOptions: pollOpts,
+          });
+
+        // Update local state
+        setSelectedPollOption(optionId);
+        setUserVote(optionIndex);
+        setPollOptions(pollOpts);
+      } catch (e) {
+        console.error('[StoryViewerScreen] Vote failed:', e);
+      }
+    };
+
+    doVote();
+  }, [selectedPollOption, currentUser, currentIndex, stories]);
 
   const handleClose = useCallback(() => {
     navigation.goBack();
@@ -205,10 +275,8 @@ export default function StoryViewerScreen({ navigation, route }: any) {
   const isPollStory = currentStory.format === 'poll' && currentStory.pollOptions;
   const isImageStory = !isTextStory && !isPollStory && currentStory.mediaUrl;
 
-  // Group stories by author for progress bars
   const progressBars = stories.map((_, i) => i);
 
-  // Compute poll totals
   const totalVotes = pollOptions?.reduce((sum, o) => sum + o.votes, 0) ?? 0;
 
   return (
@@ -238,7 +306,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
       )}
 
       {/* Progress Bars */}
-      <View style={[styles.progressContainer, { top: insets.top + 8 }]}>
+      <View style={styles.progressContainer}>
         {progressBars.map((_, i) => (
           <View key={i} style={styles.progressTrack}>
             {i < currentIndex ? (
@@ -261,7 +329,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
       </View>
 
       {/* Author Bar */}
-      <View style={[styles.authorBar, { top: insets.top + 18 }]}>
+      <View style={styles.authorBar}>
         <View style={styles.authorInfo}>
           <Image
             source={
@@ -367,7 +435,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
 
       {/* Swipe up hint */}
       <View style={styles.swipeHintContainer}>
-        <Text style={styles.swipeHint}>Swipe down to dismiss</Text>
+        <Text style={styles.swipeHint}>Swipe up to dismiss</Text>
       </View>
 
       {/* Pause indicator */}
@@ -442,7 +510,7 @@ const styles = StyleSheet.create({
   progressTrack: {
     flex: 1,
     height: 2.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255,0.2)',
     borderRadius: 1.25,
     overflow: 'hidden',
   },
@@ -505,7 +573,7 @@ const styles = StyleSheet.create({
   },
   authorUsername: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255,0.8)',
   },
   authorMeta: {
     flexDirection: 'row',
@@ -514,13 +582,13 @@ const styles = StyleSheet.create({
   },
   storyTime: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: 'rgba(255, 255,255,0.6)',
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -551,25 +619,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   pollOption: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255,255,0.1)',
     borderRadius: 10,
     marginBottom: 8,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   pollOptionSelected: {
     borderColor: colors.accent,
   },
   pollOptionVoted: {
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   pollOptionFill: {
     position: 'absolute',
     top: 0,
     left: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   pollOptionContent: {
     flexDirection: 'row',
@@ -589,11 +657,11 @@ const styles = StyleSheet.create({
   pollVotePercent: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255,255,255,0.8)',
   },
   pollVoteCount: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     marginTop: 8,
   },
@@ -607,7 +675,7 @@ const styles = StyleSheet.create({
   },
   swipeHint: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.4)',
+    color: 'rgba(255,255,255,0.4)',
   },
   pauseIndicator: {
     position: 'absolute',
@@ -619,6 +687,6 @@ const styles = StyleSheet.create({
   },
   pauseText: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255,255,255,0.8)',
   },
 });

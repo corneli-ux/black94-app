@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,  } from 'react-native';
+import React, { useState, useMemo, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -9,6 +9,193 @@ import { useAppStore } from '../stores/app';
 
 const READING_WPM = 200;
 
+/* ── Markdown helpers ──────────────────────────────────────────────────── */
+
+function insertMarkdownMarker(content: string, selectionStart: number, selectionEnd: number, prefix: string, suffix: string): { content: string; newCursor: number } {
+  if (selectionStart === selectionEnd) {
+    // No selection — insert markers at cursor position
+    const before = content.slice(0, selectionStart);
+    const after = content.slice(selectionStart);
+    return {
+      content: before + prefix + suffix + after,
+      newCursor: selectionStart + prefix.length,
+    };
+  }
+  const selectedText = content.slice(selectionStart, selectionEnd);
+  const before = content.slice(0, selectionStart);
+  const after = content.slice(selectionEnd);
+  return {
+    content: before + prefix + selectedText + suffix + after,
+    newCursor: selectionEnd + prefix.length + suffix.length,
+  };
+}
+
+function insertMarkdownAtLineStart(content: string, selectionStart: number, marker: string): { content: string; newCursor: number } {
+  // Find the beginning of the current line
+  let lineStart = selectionStart;
+  if (lineStart > 0 && content[lineStart - 1] === '\n') lineStart--;
+  while (lineStart > 0 && content[lineStart - 1] !== '\n') {
+    lineStart--;
+  }
+  const before = content.slice(0, lineStart);
+  const after = content.slice(lineStart);
+  // Find end of the current line
+  const lineEnd = after.indexOf('\n');
+  const line = lineEnd >= 0 ? after.slice(0, lineEnd) : after;
+  const restOfContent = lineEnd >= 0 ? after.slice(lineEnd) : '';
+
+  return {
+    content: before + marker + line + restOfContent,
+    newCursor: selectionStart + marker.length,
+  };
+}
+
+function insertMarkdownListAtLineStart(content: string, selectionStart: number, marker: string): { content: string; newCursor: number } {
+  let lineStart = selectionStart;
+  if (lineStart > 0 && content[lineStart - 1] === '\n') lineStart--;
+  while (lineStart > 0 && content[lineStart - 1] !== '\n') {
+    lineStart--;
+  }
+  const before = content.slice(0, lineStart);
+  const after = content.slice(lineStart);
+  const lineEnd = after.indexOf('\n');
+  const line = lineEnd >= 0 ? after.slice(0, lineEnd) : after;
+  const restOfContent = lineEnd >= 0 ? after.slice(lineEnd) : '';
+
+  return {
+    content: before + marker + line + restOfContent,
+    newCursor: selectionStart + marker.length,
+  };
+}
+
+function renderMarkdownToReact(md: string): React.ReactNode[] {
+  const lines = md.split('\n');
+  const elements: React.ReactNode[] = [];
+  let inList = false;
+  let listType = '';
+  let listKey = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    // Unordered list items
+    if (/^[-*]\s+/.test(line)) {
+      if (!inList || listType !== 'ul') {
+        inList = true;
+        listType = 'ul';
+        listKey++;
+      }
+      line = line.replace(/^[-*]\s+/, '');
+      elements.push(
+        <View key={`li-${listKey}-${i}`} style={styles.previewListItem}>
+          <Text style={styles.previewBullet}>•</Text>
+          <Text style={styles.previewListItemText}>{renderInlineMarkdown(line)}</Text>
+        </View>
+      );
+      continue;
+    }
+
+    // Ordered list items
+    if (/^\d+\.\s+/.test(line)) {
+      if (!inList || listType !== 'ol') {
+        inList = true;
+        listType = 'ol';
+        listKey++;
+      }
+      line = line.replace(/^\d+\.\s+/, '');
+      elements.push(
+        <View key={`oli-${listKey}-${i}`} style={styles.previewListItem}>
+          <Text style={styles.previewBullet}>{listKey}.</Text>
+          <Text style={styles.previewListItemText}>{renderInlineMarkdown(line)}</Text>
+        </View>
+      );
+      listKey++;
+      continue;
+    }
+
+    // End list
+    if (inList) {
+      inList = false;
+      listType = '';
+    }
+
+    // Empty line
+    if (line.trim() === '') {
+      elements.push(<View key={`blank-${i}`} style={{ height: 10 }} />);
+      continue;
+    }
+
+    // Blockquote
+    if (line.startsWith('> ')) {
+      line = line.slice(2);
+      elements.push(
+        <View key={`bq-${i}`} style={styles.previewBlockquote}>
+          <View style={styles.previewBlockquoteBar} />
+          <Text style={styles.previewBlockquoteText}>{renderInlineMarkdown(line)}</Text>
+        </View>
+      );
+      continue;
+    }
+
+    // Headings
+    if (line.startsWith('## ')) {
+      elements.push(
+        <Text key={`h2-${i}`} style={styles.previewH2}>
+          {renderInlineMarkdown(line.slice(3))}
+        </Text>
+      );
+      continue;
+    }
+    if (line.startsWith('# ')) {
+      elements.push(
+        <Text key={`h1-${i}`} style={styles.previewH1}>
+          {renderInlineMarkdown(line.slice(2))}
+        </Text>
+      );
+      continue;
+    }
+
+    // Regular paragraph
+    elements.push(
+      <Text key={`p-${i}`} style={styles.previewParagraph}>
+        {renderInlineMarkdown(line)}
+      </Text>
+    );
+  }
+
+  return elements;
+}
+
+function renderInlineMarkdown(text: string): string {
+  // Strip markdown markers for preview
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1') // Bold
+    .replace(/\*(.+?)\*/g, '$1')   // Italic
+    .replace(/#{1,6}\s/g, '')      // Headings
+    .replace(/^>\s?/gm, '')        // Blockquote
+    .replace(/^[-*]\s+/gm, '')    // UL
+    .replace(/^\d+\.\s+/gm, '');   // OL
+}
+
+interface ToolbarAction {
+  icon: string;
+  label: string;
+  prefix?: string;
+  suffix?: string;
+  lineMarker?: string;
+  listMarker?: string;
+}
+
+const TOOLBAR_ACTIONS: ToolbarAction[] = [
+  { icon: 'bold', label: 'Bold', prefix: '**', suffix: '**' },
+  { icon: 'italic', label: 'Italic', prefix: '*', suffix: '*' },
+  { icon: 'format-h1', label: 'H1', lineMarker: '# ' },
+  { icon: 'format-h2', label: 'H2', lineMarker: '## ' },
+  { icon: 'list', label: 'Bullet', listMarker: '- ' },
+  { icon: 'list-number', label: 'Number', listMarker: '1. ' },
+  { icon: 'text', label: 'Quote', lineMarker: '> ' },
+];
+
 export default function WriteArticleScreen() {
   const navigation = useNavigation();
   const { user } = useAppStore();
@@ -16,12 +203,21 @@ export default function WriteArticleScreen() {
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
+  const [inputRef] = useState<{ selectionStart: number; selectionEnd: number }>({ selectionStart: 0, selectionEnd: 0 });
 
-  /* ── Word count & reading time ──────────────────────────────────────── */
   const wordCount = useMemo(() => {
     const text = `${title} ${content}`.trim();
     if (!text) return 0;
-    return text.split(/\s+/).filter(Boolean).length;
+    // Strip markdown markers from word count
+    const cleanText = text
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/#{1,6}\s/g, '')
+      .replace(/^>\s?/gm, '')
+      .replace(/^[-*]\s+/gm, '')
+      .replace(/^\d+\.\s+/gm, '');
+    return cleanText.split(/\s+/).filter(Boolean).length;
   }, [title, content]);
 
   const readingTime = useMemo(() => {
@@ -29,7 +225,23 @@ export default function WriteArticleScreen() {
     return Math.max(1, Math.ceil(wordCount / READING_WPM));
   }, [wordCount]);
 
-  /* ── Save article ──────────────────────────────────────────────────── */
+  const handleToolbarAction = (action: ToolbarAction) => {
+    const { selectionStart, selectionEnd } = inputRef;
+    let result: { content: string; newCursor: number };
+
+    if (action.prefix && action.suffix) {
+      result = insertMarkdownMarker(content, selectionStart, selectionEnd, action.prefix, action.suffix);
+    } else if (action.lineMarker) {
+      result = insertMarkdownAtLineStart(content, selectionStart, action.lineMarker);
+    } else if (action.listMarker) {
+      result = insertMarkdownListAtLineStart(content, selectionStart, action.listMarker);
+    } else {
+      return;
+    }
+
+    setContent(result.content);
+  };
+
   const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert('Title Required', 'Please enter a title for your article.');
@@ -94,6 +306,17 @@ export default function WriteArticleScreen() {
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Write Article</Text>
+        <TouchableOpacity
+          onPress={() => setIsPreview(!isPreview)}
+          style={styles.previewToggle}
+          hitSlop={8}
+        >
+          <Ionicons
+            name={isPreview ? 'create-outline' : 'eye-outline'}
+            size={20}
+            color={colors.accent}
+          />
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={handleSave}
           disabled={saving || !title.trim() || !content.trim()}
@@ -162,17 +385,48 @@ export default function WriteArticleScreen() {
           {/* Divider */}
           <View style={styles.divider} />
 
+          {/* Toolbar */}
+          <View style={styles.toolbar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolbarScroll}>
+              {TOOLBAR_ACTIONS.map((action, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.toolbarBtn}
+                  onPress={() => handleToolbarAction(action)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name={action.icon as any} size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
           {/* Content */}
-          <TextInput
-            style={styles.contentInput}
-            placeholder="Write your article here…"
-            placeholderTextColor={colors.textMuted}
-            value={content}
-            onChangeText={setContent}
-            multiline
-            textAlignVertical="top"
-            maxLength={50000}
-          />
+          {!isPreview ? (
+            <TextInput
+              style={styles.contentInput}
+              placeholder="Write your article here…"
+              placeholderTextColor={colors.textMuted}
+              value={content}
+              onChangeText={setContent}
+              onSelectionChange={(e) => {
+                inputRef.selectionStart = e.nativeEvent.selectionStart;
+                inputRef.selectionEnd = e.nativeEvent.selectionEnd;
+              }}
+              multiline
+              textAlignVertical="top"
+              maxLength={50000}
+            />
+          ) : (
+            <View style={styles.previewContainer}>
+              <Text style={styles.previewLabel}>Preview</Text>
+              {content.trim() ? (
+                renderMarkdownToReact(content)
+              ) : (
+                <Text style={styles.previewEmpty}>Start writing to see a preview…</Text>
+              )}
+            </View>
+          )}
         </ScrollView>
 
         {/* Bottom Stats Bar */}
@@ -206,6 +460,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: { fontSize: 17, fontWeight: '600', color: colors.text },
+  previewToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   saveBtn: {
     backgroundColor: colors.accent,
     borderRadius: 20,
@@ -267,12 +528,117 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginVertical: 16,
   },
+  toolbar: {
+    flexDirection: 'row',
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
+    paddingBottom: 10,
+    marginBottom: 12,
+  },
+  toolbarScroll: {
+    gap: 4,
+    paddingRight: 20,
+  },
+  toolbarBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 2,
+  },
   contentInput: {
     color: colors.text,
     fontSize: 16,
     lineHeight: 24,
     minHeight: 400,
     textAlignVertical: 'top',
+  },
+  previewContainer: {
+    minHeight: 400,
+    padding: 4,
+  },
+  previewLabel: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 12,
+    textTransform: 'uppercase' as const,
+  },
+  previewEmpty: {
+    color: colors.textMuted,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  previewH1: {
+    color: colors.text,
+    fontSize: 26,
+    fontWeight: '800',
+    lineHeight: 32,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  previewH2: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 28,
+    marginBottom: 6,
+    marginTop: 6,
+  },
+  previewParagraph: {
+    color: colors.text,
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 4,
+  },
+  previewListItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 4,
+    paddingLeft: 8,
+  },
+  previewBullet: {
+    color: colors.accent,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '700',
+  },
+  previewListItemText: {
+    color: colors.text,
+    fontSize: 16,
+    lineHeight: 24,
+    flex: 1,
+  },
+  previewBlockquote: {
+    flexDirection: 'row',
+    gap: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+    paddingLeft: 12,
+    paddingVertical: 8,
+    marginVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 0,
+  },
+  previewBlockquoteBar: {
+    width: 3,
+    borderRadius: 1.5,
+    backgroundColor: colors.accent,
+    position: 'absolute',
+    left: 0,
+    top: 8,
+    bottom: 8,
+  },
+  previewBlockquoteText: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    lineHeight: 22,
+    fontStyle: 'italic',
   },
   statsBar: {
     flexDirection: 'row',

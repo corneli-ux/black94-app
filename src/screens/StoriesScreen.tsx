@@ -173,7 +173,7 @@ export default function StoriesScreen({ navigation }: any) {
               refreshing={refreshing && canRefresh}
               onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }}
               tintColor={colors.accent}
-              enabled={true}
+              enabled={false}
               progressViewOffset={-10}
             />
           }
@@ -243,7 +243,7 @@ export default function StoriesScreen({ navigation }: any) {
                 onPress={() => {
                   const authorStoryList = stories.filter(s => s.authorId === story.authorId);
                   setAuthorStories(authorStoryList);
-                  setStoryIndex(Math.max(0, authorStoryList.findIndex(s => s.id === story.id)));
+                  setStoryIndex(authorStoryList.findIndex(s => s.id === story.id) || 0);
                   setViewingStory(story);
                 }}
               >
@@ -282,7 +282,7 @@ export default function StoriesScreen({ navigation }: any) {
       )}
 
       {/* Story Viewer Modal */}
-      <Modal visible={!!viewingStory} animationType="fade" transparent statusBarTranslucent onRequestClose={() => setViewingStory(null)}>
+      <Modal visible={!!viewingStory} animationType="fade" transparent statusBarTranslucent>
         {viewingStory && (
           <View style={styles.viewerContainer}>
             {/* Progress bars */}

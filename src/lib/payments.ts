@@ -1,20 +1,49 @@
 /**
  * payments.ts — Razorpay payment integration for premium subscriptions
  *
- * Provides plan definitions and a payment initiation function that tries
- * the native Razorpay module if available, and returns a clear error
- * message if the module is not installed.
+ * Provides plan definitions, payment initiation via Razorpay, and a
+ * post-payment verification function that activates the subscription in
+ * Firestore and creates a subscription record.
  */
+
+import { firestore, auth } from './firebase';
+import { fetchUserProfile } from './api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface PaymentPlan {
   id: string;
   name: string;
-  amount: number; // in paise (e.g., 49900 = ₹499)
+  amount: number; // in paise (e.g., 44900 = ₹449)
   currency: string;
   duration: 'monthly' | 'yearly';
   features: string[];
+}
+
+export interface InitiatePaymentOptions {
+  plan: PaymentPlan;
+  userId: string;
+  userEmail: string;
+  userPhone?: string;
+  userName?: string;
+}
+
+export interface PaymentResult {
+  success: boolean;
+  paymentId?: string;
+  error?: string;
+}
+
+export interface SubscriptionRecord {
+  userId: string;
+  planId: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  paymentId: string;
+  status: 'active' | 'cancelled' | 'expired';
+  activatedAt: number;
+  duration: 'monthly' | 'yearly';
 }
 
 // ── Plan definitions ───────────────────────────────────────────────────────
@@ -58,21 +87,15 @@ export const PLANS: PaymentPlan[] = [
   },
 ];
 
+// ── Plan limits (for usage bars) ──────────────────────────────────────────
+
+export const PLAN_LIMITS: Record<string, { posts: number; stories: number; products: number; storage: number }> = {
+  free: { posts: 5, stories: 3, products: 0, storage: 50 },
+  premium: { posts: 25, stories: 10, products: 50, storage: 500 },
+  business: { posts: -1, stories: -1, products: 500, storage: 5000 },
+};
+
 // ── Payment initiation ────────────────────────────────────────────────────
-
-interface InitiatePaymentOptions {
-  plan: PaymentPlan;
-  userId: string;
-  userEmail: string;
-  userPhone?: string;
-  userName?: string;
-}
-
-interface PaymentResult {
-  success: boolean;
-  paymentId?: string;
-  error?: string;
-}
 
 /**
  * Initiates a Razorpay payment for the given plan.
@@ -98,11 +121,15 @@ export async function initiatePayment(
   }
 
   return new Promise<PaymentResult>((resolve) => {
+    // TODO: Replace this test key with your Razorpay live key before production release.
+    // Get your key from https://dashboard.razorpay.com/settings/api-keys
+    const RAZORPAY_KEY = 'rzp_test_XXXXXXXXXXXXXX';
+
     const razorpayOptions = {
-      description: `${plan.name} subscription`,
+      description: `${plan.name} subscription — Black94`,
       image: '',
       currency: plan.currency,
-      key: 'rzp_test_XXXXXXXXXXXXXX', // Replace with your Razorpay test/live key
+      key: RAZORPAY_KEY,
       amount: plan.amount,
       name: 'Black94 Premium',
       prefill: {
@@ -121,7 +148,6 @@ export async function initiatePayment(
     try {
       Razorpay.open(razorpayOptions)
         .then((data: any) => {
-          // data.razorpay_payment_id contains the payment identifier
           if (data?.razorpay_payment_id) {
             resolve({
               success: true,
@@ -135,7 +161,6 @@ export async function initiatePayment(
           }
         })
         .catch((err: any) => {
-          // Razorpay codes: NETWORK_ERROR, INVALID_OPTIONS, PAYMENT_CANCELLED, etc.
           const code = err?.code || err?.description || '';
           if (code === 'PAYMENT_CANCELLED') {
             resolve({
@@ -158,11 +183,80 @@ export async function initiatePayment(
   });
 }
 
+// ── Post-payment verification & activation ────────────────────────────────
+
+/**
+ * Verifies a successful payment and activates the subscription in Firestore.
+ *
+ * Steps:
+ *  1. Updates `users/{uid}` with subscription, badge, and role (business).
+ *  2. Creates a `subscriptions/{paymentId}` document for record keeping.
+ *  3. Returns the fully updated user object from Firestore.
+ */
+export async function verifyAndActivateSubscription(
+  userId: string,
+  planId: string,
+  paymentId: string,
+): Promise<import('./api').User | null> {
+  const currentUid = auth()?.currentUser?.uid;
+  if (!currentUid) throw new Error('Not authenticated');
+
+  // ── Determine badge & role based on plan ──
+  const badge = planId === 'business' ? 'gold' : 'blue';
+  const role = planId === 'business' ? 'business' : undefined; // keep existing role for premium
+
+  // ── 1. Update the user document ──
+  const userUpdate: Record<string, any> = {
+    subscription: planId,
+    badge,
+    updatedAt: firestore.FieldValue.serverTimestamp(),
+  };
+
+  // Business plan upgrades role to 'business'
+  if (role) {
+    userUpdate.role = role;
+  }
+
+  await firestore()
+    .collection('users')
+    .doc(userId)
+    .update(userUpdate);
+
+  console.log(`[Payments] Updated user ${userId}: subscription=${planId}, badge=${badge}`);
+
+  // ── 2. Create subscription record ──
+  const plan = PLANS.find((p) => p.id === planId);
+  const now = Date.now();
+
+  const subscriptionData: Record<string, any> = {
+    userId,
+    planId,
+    planName: plan?.name || planId,
+    amount: plan?.amount || 0,
+    currency: plan?.currency || 'INR',
+    paymentId,
+    status: 'active',
+    activatedAt: new Date().toISOString(),
+    duration: plan?.duration || 'monthly',
+  };
+
+  await firestore()
+    .collection('subscriptions')
+    .doc(paymentId)
+    .set(subscriptionData);
+
+  console.log(`[Payments] Created subscription record: ${paymentId}`);
+
+  // ── 3. Fetch and return the updated user profile ──
+  const updatedUser = await fetchUserProfile(userId);
+  return updatedUser;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 /**
  * Formats an amount in paise to a human-readable INR string.
- * Example: 49900 → "₹499"
+ * Example: 44900 → "₹449"
  */
 export function formatAmount(paise: number): string {
   return `₹${(paise / 100).toLocaleString('en-IN')}`;

@@ -149,7 +149,7 @@ export default function NotificationsScreen({ navigation }: any) {
       <View style={styles.content}>
         <Text style={styles.text}>
           <Text style={styles.bold}>{item.actorDisplayName}</Text>
-          <VerifiedBadge badge={item.actorBadge} isVerified={item.actorIsVerified} size={13} />
+          <VerifiedBadge badge={item.actorIsVerified} isVerified={!!item.actorIsVerified} size={13} />
           <Text style={styles.action}>
             {item.type === 'like' && ' liked your post'}
             {item.type === 'comment' && ' commented on your post'}
@@ -196,7 +196,7 @@ export default function NotificationsScreen({ navigation }: any) {
               refreshing={refreshing && canRefresh}
               onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }}
               tintColor={colors.accent}
-              enabled={canRefresh}
+              enabled={false}
               progressViewOffset={-10}
             />
           }

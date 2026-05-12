@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, RefreshControl,  } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, RefreshControl, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -12,18 +13,19 @@ interface Affiliate {
   id: string;
   name: string;
   profileImage: string | null;
-  badge: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
+  badge: 'None' | 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
   commissionRate: number;
   totalCommissionsEarned: number;
   status: 'Active' | 'Revoked';
   joinedAt: number;
 }
 
-const BADGE_CONFIG: Record<string, { color: string; bg: string }> = {
-  Bronze: { color: '#CD7F32', bg: 'rgba(205,127,50,0.15)' },
-  Silver: { color: '#C0C0C0', bg: 'rgba(192,192,192,0.15)' },
-  Gold: { color: colors.accentGold, bg: 'rgba(255,215,0,0.15)' },
-  Platinum: { color: '#E5E4E2', bg: 'rgba(229,228,226,0.15)' },
+const BADGE_CONFIG: Record<string, { color: string; bg: string; icon: string }> = {
+  None: { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', icon: 'ribbon-outline' },
+  Bronze: { color: '#CD7F32', bg: 'rgba(205,127,50,0.15)', icon: 'medal-outline' },
+  Silver: { color: '#C0C0C0', bg: 'rgba(192,192,192,0.15)', icon: 'medal-outline' },
+  Gold: { color: colors.accentGold, bg: 'rgba(255,215,0,0.15)', icon: 'trophy-outline' },
+  Platinum: { color: '#E5E4E2', bg: 'rgba(229,228,226,0.15)', icon: 'diamond-outline' },
 };
 
 function formatINR(amount: number): string {
@@ -76,6 +78,16 @@ export default function AffiliatesScreen({ navigation }: any) {
 
   useEffect(() => { load(); }, []);
 
+  // Badge tier counts for summary
+  const getBadgeCounts = useCallback(() => {
+    const counts: Record<string, number> = { None: 0, Bronze: 0, Silver: 0, Gold: 0, Platinum: 0 };
+    for (const a of affiliates) {
+      const tier = a.badge || 'None';
+      counts[tier] = (counts[tier] || 0) + 1;
+    }
+    return counts;
+  }, [affiliates]);
+
   const renderItem = ({ item }: { item: Affiliate }) => {
     const badgeCfg = BADGE_CONFIG[item.badge] || BADGE_CONFIG.Bronze;
     return (
@@ -85,21 +97,26 @@ export default function AffiliatesScreen({ navigation }: any) {
           <View style={styles.cardInfo}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={styles.affiliateName}>{item.name}</Text>
-              <View style={[styles.badgePill, { backgroundColor: badgeCfg.bg }]}>
-                <Text style={[styles.badgePillText, { color: badgeCfg.color }]}>{item.badge}</Text>
-              </View>
             </View>
             <Text style={styles.joinDate}>Joined {timeAgo(item.joinedAt)}</Text>
+          </View>
+
+          {/* Prominent badge tier display */}
+          <View style={[styles.badgeDisplay, { backgroundColor: badgeCfg.bg, borderColor: badgeCfg.color }]}>
+            <Ionicons name={badgeCfg.icon as any} size={14} color={badgeCfg.color} />
+            <Text style={[styles.badgeDisplayText, { color: badgeCfg.color }]}>
+              {item.badge}
+            </Text>
           </View>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Commission Rate</Text>
+            <Text style={styles.statLabel}>Commission</Text>
             <Text style={styles.statValue}>{item.commissionRate}%</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Total Earned</Text>
+            <Text style={styles.statLabel}>Earned</Text>
             <Text style={styles.statValue}>{formatINR(item.totalCommissionsEarned)}</Text>
           </View>
           <View style={styles.statBox}>
@@ -121,40 +138,86 @@ export default function AffiliatesScreen({ navigation }: any) {
     );
   };
 
+  // Badge breakdown section
+  const renderBadgeBreakdown = () => {
+    const counts = getBadgeCounts();
+    const tierEntries = Object.entries(counts).filter(([, count]) => count > 0);
+    if (tierEntries.length === 0) return null;
+
+    return (
+      <View style={styles.badgeBreakdown}>
+        <Text style={styles.badgeBreakdownLabel}>Badge Breakdown</Text>
+        <View style={styles.badgeBreakdownRow}>
+          {Object.entries(BADGE_CONFIG).map(([tier, cfg]) => {
+            const count = counts[tier] || 0;
+            if (count === 0) return null;
+            return (
+              <View key={tier} style={styles.badgeBreakdownItem}>
+                <View style={[styles.badgeBreakdownPill, { backgroundColor: cfg.bg }]}>
+                  <Text style={[styles.badgeBreakdownPillText, { color: cfg.color }]}>{tier}</Text>
+                </View>
+                <Text style={styles.badgeBreakdownCount}>{count}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
+            <Ionicons name="arrow-back" size={22} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Affiliates</Text>
-          <View style={{ width: 32 }} />
+          {/* Assign Badges button in header */}
+          <TouchableOpacity
+            style={styles.assignBadgeBtn}
+            onPress={() => navigation.navigate('AssignBadge')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="ribbon-outline" size={20} color={colors.accentGold} />
+            <Text style={styles.assignBadgeBtnText}>Badges</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
       {/* Summary bar */}
       {!loading && affiliates.length > 0 && (
-        <View style={styles.summaryBar}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryNumber}>{affiliates.length}</Text>
-            <Text style={styles.summaryLabel}>Total</Text>
+        <>
+          <View style={styles.summaryBar}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryNumber}>{affiliates.length}</Text>
+              <Text style={styles.summaryLabel}>Total</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryNumber}>
+                {affiliates.filter(a => a.status === 'Active').length}
+              </Text>
+              <Text style={styles.summaryLabel}>Active</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryNumber}>
+                {formatINR(affiliates.reduce((sum, a) => sum + a.totalCommissionsEarned, 0))}
+              </Text>
+              <Text style={styles.summaryLabel}>Paid Out</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Ionicons name="ribbon-outline" size={14} color={colors.accentGold} style={{ marginBottom: 2 }} />
+              <Text style={styles.summaryNumber}>
+                {affiliates.filter(a => a.badge && a.badge !== 'None').length}
+              </Text>
+              <Text style={styles.summaryLabel}>Badged</Text>
+            </View>
           </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryNumber}>
-              {affiliates.filter(a => a.status === 'Active').length}
-            </Text>
-            <Text style={styles.summaryLabel}>Active</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryNumber}>
-              {formatINR(affiliates.reduce((sum, a) => sum + a.totalCommissionsEarned, 0))}
-            </Text>
-            <Text style={styles.summaryLabel}>Paid Out</Text>
-          </View>
-        </View>
+          {renderBadgeBreakdown()}
+        </>
       )}
 
       {loading ? (
@@ -179,11 +242,19 @@ export default function AffiliatesScreen({ navigation }: any) {
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>🤝</Text>
+              <Ionicons name="people-outline" size={48} color="#64748b" />
               <Text style={styles.emptyTitle}>No affiliates yet</Text>
               <Text style={styles.emptyText}>
                 Invite affiliates to promote your products and earn commissions.
               </Text>
+              <TouchableOpacity
+                style={styles.emptyActionBtn}
+                onPress={() => navigation.navigate('AssignBadge')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={20} color={colors.accent} />
+                <Text style={styles.emptyActionBtnText}>Add Team Members & Assign Badges</Text>
+              </TouchableOpacity>
             </View>
           }
         />
@@ -200,17 +271,73 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
   backBtn: { padding: 4 },
-  backIcon: { color: colors.text, fontSize: 24 },
-  headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700', flex: 1 },
+  assignBadgeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,215,0,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.25)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  assignBadgeBtnText: {
+    color: colors.accentGold,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   summaryBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-    paddingVertical: 16, paddingHorizontal: 20,
+    paddingVertical: 16, paddingHorizontal: 16,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
-  summaryItem: { alignItems: 'center' },
+  summaryItem: { alignItems: 'center', gap: 2 },
   summaryNumber: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  summaryLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '500', marginTop: 2 },
+  summaryLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '500', marginTop: 2 },
   summaryDivider: { width: 1, height: 32, backgroundColor: colors.border },
+
+  /* ── Badge Breakdown ── */
+  badgeBreakdown: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
+  },
+  badgeBreakdownLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  badgeBreakdownRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  badgeBreakdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  badgeBreakdownPill: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  badgeBreakdownPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  badgeBreakdownCount: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
   listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
   card: {
     backgroundColor: colors.surface, borderRadius: 14,
@@ -218,11 +345,27 @@ const styles = StyleSheet.create({
     padding: 16, marginBottom: 12,
   },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  cardInfo: { flex: 1 },
+  cardInfo: { flex: 1, minWidth: 0 },
   affiliateName: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  badgePill: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  badgePillText: { fontSize: 11, fontWeight: '700' },
   joinDate: { color: colors.textSecondary, fontSize: 12, marginTop: 3 },
+
+  /* ── Prominent Badge Display ── */
+  badgeDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 80,
+    justifyContent: 'center',
+  },
+  badgeDisplayText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
   statsRow: { flexDirection: 'row', marginTop: 14, gap: 8 },
   statBox: {
     flex: 1, backgroundColor: colors.bg, borderRadius: 10,
@@ -232,8 +375,24 @@ const styles = StyleSheet.create({
   statValue: { color: colors.text, fontSize: 16, fontWeight: '700', marginTop: 4 },
   statusBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginTop: 4 },
   statusText: { fontSize: 12, fontWeight: '700' },
-  emptyState: { alignItems: 'center', paddingTop: 100 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  emptyState: { alignItems: 'center', paddingTop: 100, paddingHorizontal: 32 },
+  emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 16, marginBottom: 8 },
   emptyText: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', paddingHorizontal: 40 },
+  emptyActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(42,127,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(42,127,255,0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 24,
+  },
+  emptyActionBtnText: {
+    color: colors.accent,
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

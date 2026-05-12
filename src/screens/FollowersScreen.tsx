@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { firestore } from '../lib/firebase';
 import { auth } from '../lib/firebase';
@@ -37,7 +36,7 @@ export default function FollowersScreen({ route, navigation }: any) {
       const userField = mode === 'followers' ? 'followerId' : 'followingId';
       const snap = await collection.where(field, '==', targetUserId).limit(100).get();
 
-      const userIds: string[] = [...new Set(snap.docs.map((d: any) => d.data()[userField]).filter(Boolean) as string[])];
+      const userIds = [...new Set(snap.docs.map(d => d.data()[userField]).filter(Boolean))];
       if (userIds.length === 0) { setUsers([]); setLoading(false); return; }
 
       const CHUNK = 30;
@@ -59,7 +58,7 @@ export default function FollowersScreen({ route, navigation }: any) {
         }
       }
 
-      const list: FollowerUser[] = userIds.map((uid: string) => {
+      const list: FollowerUser[] = userIds.map(uid => {
         const d = userMap[uid] || {};
         return {
           id: uid, username: d.username || '', displayName: d.displayName || '', profileImage: d.profileImage || null,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Dimensions, Alert } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Dimensions,  } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -51,7 +51,6 @@ function formatINR(amount: number): string {
 
 export default function StorefrontScreen({ route, navigation }: any) {
   const { userId } = route.params;
-  if (!userId) { Alert.alert('Error', 'User not found'); navigation.goBack(); return null; }
   const [owner, setOwner] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);

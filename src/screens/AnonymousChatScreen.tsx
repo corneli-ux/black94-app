@@ -180,8 +180,7 @@ export default function AnonymousChatScreen() {
     setChatState('searching');
     setMessages([]);
     setElapsed(0);
-    const newName = generateUsername();
-    setStrangerName(newName);
+    setStrangerName(generateUsername());
 
     setTimeout(() => {
       setChatState('connected');
@@ -191,14 +190,14 @@ export default function AnonymousChatScreen() {
         setMessages([
           {
             id: `msg_${++msgIdCounter}`,
-            content: `Hey! I'm ${newName}. What's up? 😄`,
+            content: `Hey! I'm ${strangerName}. What's up? 😄`,
             isMine: false,
             timestamp: Date.now(),
           },
         ]);
       }, 600);
     }, 2000 + Math.random() * 2000);
-  }, [cleanup, startTimer]);
+  }, [cleanup, startTimer, strangerName]);
 
   // ── Send message ───────────────────────────────────────────────────────
   const handleSend = useCallback(() => {
@@ -278,7 +277,7 @@ export default function AnonymousChatScreen() {
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.landingContainer}>
           <View style={styles.landingIcon}>
-            <Ionicons name="eye-off-outline" size={64} color={colors.primary} />
+            <Ionicons name="incognito-outline" size={64} color={colors.primary} />
           </View>
           <Text style={styles.landingTitle}>Anonymous Chat</Text>
           <Text style={styles.landingSubtitle}>
@@ -341,7 +340,7 @@ export default function AnonymousChatScreen() {
         <View style={styles.chatHeader}>
           <View style={styles.chatHeaderInfo}>
             <View style={styles.anonAvatar}>
-              <Ionicons name="eye-off" size={18} color={colors.white} />
+              <Ionicons name="incognito" size={18} color={colors.white} />
             </View>
             <View>
               <Text style={styles.chatHeaderName}>{strangerName}</Text>
@@ -386,7 +385,7 @@ export default function AnonymousChatScreen() {
               style={styles.nextBtn}
               onPress={handleNext}
               activeOpacity={0.7}>
-              <Ionicons name="play-forward" size={20} color={colors.primary} />
+              <Ionicons name="skip-forward" size={20} color={colors.primary} />
               <Text style={styles.nextBtnText}>Next</Text>
             </TouchableOpacity>
             <TouchableOpacity

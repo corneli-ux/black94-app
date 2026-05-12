@@ -6,7 +6,6 @@ import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
 import { User, Post, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
-import PostCard from '../components/PostCard';
 
 export default function SearchScreen({ route, navigation }: any) {
   const [query, setQuery] = useState('');
@@ -16,7 +15,7 @@ export default function SearchScreen({ route, navigation }: any) {
   const [searched, setSearched] = useState(false);
   const [tab, setTab] = useState<'people' | 'posts'>('people');
   const [focused, setFocused] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setUsers([]); setPosts([]); setSearched(false); return; }
@@ -113,15 +112,12 @@ export default function SearchScreen({ route, navigation }: any) {
   );
 
   const renderPostItem = ({ item }: { item: Post }) => (
-    <PostCard
-      post={item}
-      navigation={navigation}
-      onLike={() => {}}
-      onBookmark={() => {}}
-      onDelete={() => {}}
-      onRepost={() => {}}
-      onComment={() => {}}
-    />
+    <View style={styles.postRow}>
+      <View style={styles.postTextWrap}>
+        <Text style={styles.postCaption} numberOfLines={3}>{item.caption}</Text>
+        <Text style={styles.postAuthor}>by @{item.authorUsername}</Text>
+      </View>
+    </View>
   );
 
   return (
@@ -148,7 +144,7 @@ export default function SearchScreen({ route, navigation }: any) {
           onChangeText={q => setQuery(q)}
           returnKeyType="search"
           onSubmitEditing={() => doSearch(query)}
-          autoFocus={false}
+          autoFocus={true}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
@@ -273,6 +269,11 @@ const styles = StyleSheet.create({
   userName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
   userHandle: { color: '#94a3b8', fontSize: 14 },
   userBio: { color: '#94a3b8', fontSize: 13, marginTop: 2 },
+  /* Post row: caption 15px, author handle 13px */
+  postRow: { paddingHorizontal: 16, paddingVertical: 12 },
+  postTextWrap: {},
+  postCaption: { color: '#e7e9ea', fontSize: 15, lineHeight: 22 },
+  postAuthor: { color: '#94a3b8', fontSize: 13, marginTop: 4 },
   /* Empty state: icon in 64x64 circle, bg white/4%, title, subtitle */
   emptyState: {
     flex: 1, alignItems: 'center', justifyContent: 'center',

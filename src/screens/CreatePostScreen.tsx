@@ -20,34 +20,34 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { ImagePickerResponse, launchImageLibrary } from 'react-native-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
-import { uploadFile, getFilePath } from '../lib/storage';
-import { auth } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { ImageIcon, GIFIcon, EmojiIcon, CameraIcon } from '../components/Icons';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const MAX_IMAGES = 4;
-const MAX_CAPTION_LENGTH = 4000;
+const MAX_CAPTION_LENGTH = 500;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const COLORS = {
   bg: '#000000',
   surface: '#16181c',
+  surfaceLight: '#18181b',
   textPrimary: '#e7e9ea',
   textSecondary: '#94a3b8',
   textMuted: '#64748b',
   primary: '#FFFFFF',
+  primaryDisabled: 'rgba(255, 255, 255, 0.25)',
   red: '#f43f5e',
-  accent: '#2a7fff',
-  green: '#00ba7c',
-  amber: '#f59e0b',
   border: 'rgba(255, 255, 255, 0.06)',
+  borderLight: 'rgba(255, 255, 255, 0.08)',
+  accent: '#1d9bf0',
+  green: '#00ba7c',
 } as const;
 
 // ── Emoji data ───────────────────────────────────────────────────────────────
@@ -59,21 +59,20 @@ const EMOJI_CATEGORIES = [
   { name: 'Objects', icon: '\uD83C\uDF89', emojis: ['\uD83D\uDD25','\u2B50','\uD83C\uDF1F','\uD83D\uDCAB','\u2728','\u26A1','\uD83C\uDF89','\uD83C\uDF8A','\uD83C\uDF88','\uD83C\uDF81','\uD83C\uDFC6','\uD83E\uDD47','\uD83E\uDD48','\uD83E\uDD49','\u26BD','\uD83C\uDFC0','\uD83C\uDFC8','\u26BE','\uD83C\uDFAE','\uD83C\uDFAF','\uD83C\uDFB5','\uD83C\uDFB6','\uD83C\uDFB8','\uD83C\uDFB4','\uD83C\uDFAC','\uD83D\uDCF7','\uD83D\uDCF1','\uD83D\uDCBB','\uD83D\uDCA1','\uD83D\uDCCC','\u2705','\u274C','\u26A1'] },
 ];
 
-// ── Image picker helper (uses expo-image-picker) ─────────────────────────────
+// ── Image picker helper (lazy import to avoid crash if library not linked) ────
 
-async function openImagePicker(limit: number) {
+async function openImagePicker(limit: number): Promise<ImagePickerResponse> {
   try {
-    const { launchImageLibrary } = require('expo-image-picker');
-    const result = await launchImageLibrary({
-      mediaTypes: ['images'],
-      quality: 0.85,
-      allowsMultipleSelection: limit > 1,
+    const { launchImageLibrary } = require('react-native-image-picker');
+    const result: ImagePickerResponse = await (launchImageLibrary as typeof launchImageLibrary)({
+      mediaType: 'mixed',
+      quality: 0.8,
       selectionLimit: limit,
     });
     return result;
   } catch (err) {
     console.error('[CreatePost] Image picker not available:', err);
-    return { canceled: true, assets: [] };
+    return { assets: [], didCancel: true, errorCode: 'unavailable', errorMessage: 'Image picker not available' };
   }
 }
 
@@ -98,7 +97,6 @@ const CreatePostScreen: React.FC = () => {
   const [caption, setCaption] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeEmojiCat, setActiveEmojiCat] = useState(0);
 
@@ -118,12 +116,12 @@ const CreatePostScreen: React.FC = () => {
     }
 
     const result = await openImagePicker(remaining);
-    if (result.canceled) return;
+    if (result.didCancel || result.errorCode) return;
 
     const assets = result.assets ?? [];
     const newUris = assets
-      .filter((a: any) => a.uri)
-      .map((a: any) => a.uri as string)
+      .filter((a) => a.uri)
+      .map((a) => a.uri!)
       .slice(0, remaining);
 
     if (newUris.length > 0) {
@@ -134,33 +132,6 @@ const CreatePostScreen: React.FC = () => {
   const handleRemoveImage = useCallback((index: number) => {
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   }, []);
-
-  // ── Camera (opens image picker in camera mode) ─────────────────────────
-
-  const handleCamera = useCallback(async () => {
-    try {
-      const { launchCamera } = require('expo-image-picker');
-      const result = await launchCamera({
-        mediaTypes: ['images'],
-        quality: 0.85,
-      });
-      if (result.canceled || !result.assets?.length) return;
-      const uri = result.assets[0].uri;
-      if (uri) setSelectedImages((prev) => [...prev, uri]);
-    } catch (err) {
-      Alert.alert('Camera', 'Camera not available on this device.');
-    }
-  }, []);
-
-  // ── GIF picker (opens image picker filtered to GIF) ────────────────────
-
-  const handleGIF = useCallback(() => {
-    (navigation as any).navigate('GifPicker', {
-      onSelect: (gifUrl: string) => {
-        setSelectedImages((prev: string[]) => [...prev, gifUrl]);
-      },
-    });
-  }, [navigation]);
 
   // ── Emoji ────────────────────────────────────────────────────────────
 
@@ -174,25 +145,10 @@ const CreatePostScreen: React.FC = () => {
     if (!canPost || !user) return;
     setPosting(true);
     try {
-      // Upload images to Firebase Storage first
-      let mediaUrls = selectedImages;
-      if (selectedImages.length > 0) {
-        setUploading(true);
-        const uid = auth()?.currentUser?.uid || user.id;
-        const uploadPromises = selectedImages.map((uri) => {
-          const filename = uri.split('/').pop() || `image_${Date.now()}.jpg`;
-          const path = getFilePath('posts', filename, uid);
-          return uploadFile(uri, path);
-        });
-        mediaUrls = await Promise.all(uploadPromises);
-        setUploading(false);
-      }
-
-      await createPost(caption.trim(), mediaUrls);
+      await createPost(caption.trim(), selectedImages);
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err) {
-      setUploading(false);
       console.error('[CreatePost] Failed to create post:', err);
       Alert.alert(
         'Post failed',
@@ -206,9 +162,26 @@ const CreatePostScreen: React.FC = () => {
   // ── Character count color ─────────────────────────────────────────────
 
   const charCountColor = useMemo(() => {
+    if (captionLength >= MAX_CAPTION_LENGTH) return COLORS.red;
     if (captionLength >= MAX_CAPTION_LENGTH * 0.9) return COLORS.red;
     return COLORS.textMuted;
   }, [captionLength]);
+
+  // ── Image grid ────────────────────────────────────────────────────────
+
+  const imageGridItems = useMemo(
+    () => [
+      ...selectedImages.map((uri, i) => ({
+        _type: 'image' as const,
+        uri,
+        index: i,
+      })),
+      ...(selectedImages.length < MAX_IMAGES
+        ? [{ _type: 'add' as const }]
+        : []),
+    ],
+    [selectedImages],
+  );
 
   // ── Header right action ───────────────────────────────────────────────
 
@@ -224,13 +197,7 @@ const CreatePostScreen: React.FC = () => {
         activeOpacity={0.7}
       >
         {posting ? (
-          uploading ? (
-            <Text style={[styles.headerPostText, styles.headerPostTextActive]}>
-              Uploading...
-            </Text>
-          ) : (
-            <ActivityIndicator size="small" color="#ffffff" />
-          )
+          <ActivityIndicator size="small" color="#ffffff" />
         ) : (
           <Text
             style={[
@@ -245,7 +212,7 @@ const CreatePostScreen: React.FC = () => {
         )}
       </TouchableOpacity>
     ),
-    [canPost, posting, uploading, handlePost],
+    [canPost, posting, handlePost],
   );
 
   return (
@@ -255,7 +222,7 @@ const CreatePostScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-        {/* Header */}
+        {/* Custom header */}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -298,7 +265,7 @@ const CreatePostScreen: React.FC = () => {
             style={styles.captionInput}
             value={caption}
             onChangeText={setCaption}
-            placeholder="What is happening?!"
+            placeholder="What's on your mind?"
             placeholderTextColor={COLORS.textMuted}
             multiline
             maxLength={MAX_CAPTION_LENGTH}
@@ -307,40 +274,61 @@ const CreatePostScreen: React.FC = () => {
             scrollEnabled={false}
           />
 
-          {/* Character count — subtle, right-aligned */}
-          {captionLength > 0 && (
-            <View style={styles.charCountRow}>
-              <Text style={[styles.charCount, { color: charCountColor }]}>
-                {MAX_CAPTION_LENGTH - captionLength} characters left
-              </Text>
+          {/* Character count */}
+          <View style={styles.charCountRow}>
+            <Text style={[styles.charCount, { color: charCountColor }]}>
+              {captionLength}/{MAX_CAPTION_LENGTH}
+            </Text>
+          </View>
+
+          {/* Image grid */}
+          {imageGridItems.length > 0 && (
+            <View style={styles.imageGrid}>
+              {imageGridItems.map((item, i) => {
+                if (item._type === 'add') {
+                  return (
+                    <TouchableOpacity
+                      key="add"
+                      style={styles.addImageCard}
+                      onPress={handleAddImages}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="image-outline" size={28} color={COLORS.primary} />
+                      <Text style={styles.addImageText}>Add Photo</Text>
+                    </TouchableOpacity>
+                  );
+                }
+
+                return (
+                  <View key={item.uri} style={styles.imageCard}>
+                    <Image
+                      source={{ uri: item.uri }}
+                      style={styles.imageThumb}
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity
+                      style={styles.removeImageBtn}
+                      onPress={() => handleRemoveImage(item.index)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close" size={12} color="#ffffff" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
             </View>
           )}
 
-          {/* Image preview strip — horizontal scroll, compact thumbnails */}
-          {selectedImages.length > 0 && (
-            <View style={styles.imageStrip}>
-              {selectedImages.map((uri, i) => (
-                <View key={uri} style={styles.imageThumbCard}>
-                  <Image source={{ uri }} style={styles.imageThumb} resizeMode="cover" />
-                  <TouchableOpacity
-                    style={styles.removeImageBtn}
-                    onPress={() => handleRemoveImage(i)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close" size={11} color="#ffffff" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              {selectedImages.length < MAX_IMAGES && (
-                <TouchableOpacity
-                  style={styles.addMoreCard}
-                  onPress={handleAddImages}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="add" size={22} color={COLORS.textSecondary} />
-                </TouchableOpacity>
-              )}
-            </View>
+          {/* Add photos button (when no images selected) */}
+          {selectedImages.length === 0 && (
+            <TouchableOpacity
+              style={styles.addPhotoButton}
+              onPress={handleAddImages}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="image-outline" size={22} color={COLORS.accent} />
+              <Text style={styles.addPhotoText}>Add Photos</Text>
+            </TouchableOpacity>
           )}
 
           {/* Emoji Picker Panel */}
@@ -373,23 +361,23 @@ const CreatePostScreen: React.FC = () => {
           )}
         </ScrollView>
 
-        {/* Bottom action bar — compact icon row */}
+        {/* Bottom action bar - sticky above keyboard */}
         <View style={[styles.bottomBar, { paddingBottom: Math.max(8, insets.bottom) }]}>
           <View style={styles.bottomBarActions}>
             <TouchableOpacity style={styles.bottomActionBtn} onPress={handleAddImages}>
-              <ImageIcon size={22} color={COLORS.accent} />
+              <Ionicons name="image-outline" size={22} color={COLORS.accent} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomActionBtn} onPress={handleCamera}>
-              <CameraIcon size={22} color={COLORS.green} />
+            <TouchableOpacity style={styles.bottomActionBtn} onPress={() => Alert.alert('Camera', 'Camera capture coming soon!')}>
+              <Ionicons name="camera-outline" size={22} color={COLORS.green} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomActionBtn} onPress={handleGIF}>
-              <GIFIcon size={22} color={COLORS.amber} />
+            <TouchableOpacity style={styles.bottomActionBtn} onPress={() => Alert.alert('GIF', 'GIF picker coming soon!')}>
+              <Ionicons name="film-outline" size={22} color="#f59e0b" />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.bottomActionBtn, showEmojiPicker && styles.bottomActionBtnActive]}
               onPress={() => { setShowEmojiPicker(!showEmojiPicker); }}
             >
-              <EmojiIcon size={22} color={showEmojiPicker ? COLORS.amber : COLORS.accent} />
+              <Ionicons name="happy-outline" size={22} color={showEmojiPicker ? '#f59e0b' : COLORS.accent} />
             </TouchableOpacity>
             <View style={{ flex: 1 }} />
             {captionLength > 0 && (
@@ -423,14 +411,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   headerBack: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
   },
   headerTitle: {
@@ -441,105 +429,115 @@ const styles = StyleSheet.create({
   headerPostButton: {
     borderRadius: 20,
     paddingHorizontal: 20,
-    paddingVertical: 6,
-    minWidth: 72,
+    paddingVertical: 8,
+    minWidth: 70,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerPostActive: { backgroundColor: COLORS.accent },
-  headerPostInactive: { backgroundColor: 'rgba(42,127,255,0.2)' },
-  headerPostText: { fontSize: 14, fontWeight: '700' },
-  headerPostTextActive: { color: '#ffffff' },
-  headerPostTextInactive: { color: 'rgba(42,127,255,0.5)' },
-
+  headerPostActive: { backgroundColor: COLORS.primary },
+  headerPostInactive: { backgroundColor: COLORS.primaryDisabled },
+  headerPostText: { fontSize: 15, fontWeight: '700' },
+  headerPostTextActive: { color: '#000000' },
+  headerPostTextInactive: { color: 'rgba(255, 255, 255, 0.5)' },
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 16,
   },
   authorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   authorInfo: { flex: 1 },
   displayName: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
   username: { fontSize: 13, color: COLORS.textSecondary },
-
   captionInput: {
     fontSize: 17,
     color: '#e7e9ea',
     lineHeight: 24,
-    minHeight: 100,
-    maxHeight: 280,
+    minHeight: 120,
+    maxHeight: 300,
     padding: 0,
     margin: 0,
   },
-
   charCountRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 16,
   },
-  charCount: { fontSize: 12, fontWeight: '500' },
-
-  /* ── Image strip: horizontal, compact ── */
-  imageStrip: {
+  charCount: { fontSize: 13, fontWeight: '500' },
+  imageGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 12,
-    paddingRight: 4,
+    marginBottom: 16,
   },
-  imageThumbCard: {
-    width: 72,
-    height: 72,
-    borderRadius: 10,
+  imageCard: {
+    width: '47%',
+    aspectRatio: 1,
+    borderRadius: 12,
     overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     position: 'relative',
   },
   imageThumb: { width: '100%', height: '100%' },
   removeImageBtn: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  addMoreCard: {
-    width: 72,
-    height: 72,
-    borderRadius: 10,
+  addImageCard: {
+    width: '47%',
+    aspectRatio: 1,
+    borderRadius: 12,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: 'rgba(255, 255, 255, 0.15)',
     backgroundColor: COLORS.surface,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 8,
   },
+  addImageText: { fontSize: 13, color: COLORS.textSecondary },
+  addPhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: COLORS.surface,
+  },
+  addPhotoText: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
 
-  /* ── Emoji Picker ── */
+  /* Emoji Picker */
   emojiPickerPanel: {
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     padding: 8,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   emojiCategoryBar: {
     flexDirection: 'row',
     gap: 4,
     marginBottom: 8,
     borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
     paddingBottom: 8,
   },
   emojiCategoryBtn: {
@@ -554,22 +552,22 @@ const styles = StyleSheet.create({
   emojiBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
   emojiCharacter: { fontSize: 22 },
 
-  /* ── Bottom Action Bar ── */
+  /* Bottom Action Bar - sticky */
   bottomBar: {
     backgroundColor: '#000000',
     borderTopWidth: 0.5,
-    borderTopColor: COLORS.border,
-    paddingHorizontal: 12,
-    paddingTop: 8,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 16,
+    paddingTop: 10,
   },
-  bottomBarActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  bottomActionBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  bottomBarActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bottomActionBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   bottomActionBtnActive: { backgroundColor: 'rgba(245, 158, 11, 0.15)' },
 
   /* Character Circle */
   charCircle: { alignItems: 'center', justifyContent: 'center' },
-  charCircleTrack: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  charCircleText: { fontSize: 9, fontWeight: '700' },
+  charCircleTrack: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  charCircleText: { fontSize: 10, fontWeight: '700' },
 });
 
 export default CreatePostScreen;

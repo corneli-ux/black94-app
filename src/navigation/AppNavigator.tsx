@@ -80,6 +80,8 @@ const CrmOrdersScreen = lazy(() => import('../screens/CrmOrdersScreen'));
 const CrmAnalyticsScreen = lazy(() => import('../screens/CrmAnalyticsScreen'));
 const FollowersScreen = lazy(() => import('../screens/FollowersScreen'));
 const PostCommentsScreen = lazy(() => import('../screens/PostCommentsScreen'));
+const PaidChatScreen = lazy(() => import('../screens/PaidChatScreen'));
+const AssignBadgeScreen = lazy(() => import('../screens/AssignBadgeScreen'));
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -334,6 +336,7 @@ function AppStack() {
       <Stack.Screen name="CreateAd" component={LazyScreen(CreateAdScreen)} />
       <Stack.Screen name="Salary" component={LazyScreen(SalaryScreen)} />
       <Stack.Screen name="Affiliates" component={LazyScreen(AffiliatesScreen)} />
+      <Stack.Screen name="AssignBadge" component={LazyScreen(AssignBadgeScreen)} />
       <Stack.Screen name="Performance" component={LazyScreen(PerformanceScreen)} />
       {/* CRM */}
       <Stack.Screen name="CrmLeads" component={LazyScreen(CrmLeadsScreen)} />
@@ -348,6 +351,7 @@ function AppStack() {
       <Stack.Screen name="PremiumDashboard" component={LazyScreen(PremiumDashboardScreen)} />
       <Stack.Screen name="Followers" component={LazyScreen(FollowersScreen)} />
       <Stack.Screen name="PostComments" component={LazyScreen(PostCommentsScreen)} />
+      <Stack.Screen name="PaidChat" component={LazyScreen(PaidChatScreen)} />
     </Stack.Navigator>
   );
 }

@@ -11,6 +11,36 @@ import { User } from '../lib/api';
 
 const LINK_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 
+function generateQRPattern(text: string): number[][] {
+  const size = 21;
+  const grid: number[][] = Array.from({ length: size }, () => Array(size).fill(0));
+
+  // Add finder patterns (3 corners)
+  const drawFinder = (x: number, y: number) => {
+    for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) {
+      if (i === 0 || i === 6 || j === 0 || j === 6 || (i >= 2 && i <= 4 && j >= 2 && j <= 4)) {
+        grid[y + i][x + j] = 1;
+      }
+    }
+  };
+  drawFinder(0, 0);
+  drawFinder(size - 7, 0);
+  drawFinder(0, size - 7);
+
+  // Fill data area deterministically from text
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (grid[y][x] === 0) {
+        hash = (hash * 1103515245 + 12345) & 0x7fffffff;
+        grid[y][x] = hash % 3 === 0 ? 1 : 0;
+      }
+    }
+  }
+  return grid;
+}
+
 export default function ShareProfileScreen({ route, navigation }: any) {
   const currentUser = auth()?.currentUser;
   const targetUserId = route?.params?.userId || currentUser?.uid;
@@ -166,29 +196,27 @@ export default function ShareProfileScreen({ route, navigation }: any) {
         </Text>
       </View>
 
-      {/* Profile Link Card */}
+      {/* QR Code Placeholder */}
       <View style={styles.qrSection}>
-        <Text style={styles.sectionLabel}>Profile Link</Text>
-        <View style={styles.qrPlaceholder}>
-          <View style={styles.qrCardInner}>
-            <View style={styles.qrIconRow}>
-              <Text style={styles.qrInitial}>{initial}</Text>
-              <Text style={styles.qrCardHandle}>@{user.username}</Text>
+        <Text style={styles.sectionLabel}>QR Code</Text>
+        {(() => {
+          const pattern = generateQRPattern(shareLink);
+          const cellSize = 6;
+          return (
+            <View style={styles.qrContainer}>
+              {pattern.map((row, y) => (
+                <View key={y} style={{ flexDirection: 'row' }}>
+                  {row.map((cell, x) => (
+                    <View key={x} style={{
+                      width: cellSize, height: cellSize,
+                      backgroundColor: cell ? '#FFFFFF' : '#1a1a1a',
+                    }} />
+                  ))}
+                </View>
+              ))}
             </View>
-            <Text style={styles.qrLinkText} numberOfLines={1}>
-              black94.app/u/{user.username}
-            </Text>
-            <TouchableOpacity
-              onPress={handleCopyLink}
-              style={[styles.qrCopyBtn, copied && styles.qrCopyBtnCopied]}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.qrCopyBtnText, copied && styles.qrCopyBtnTextCopied]}>
-                {copied ? '✓ Copied' : 'Copy Link'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          );
+        })()}
       </View>
 
       {/* Link Section */}
@@ -264,23 +292,7 @@ const styles = StyleSheet.create({
   joinedText: { color: colors.textSecondary, fontSize: 13, marginTop: 8 },
   qrSection: { paddingHorizontal: 16, marginTop: 24 },
   sectionLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 10, textTransform: 'uppercase' },
-  qrPlaceholder: {
-    width: '100%', borderRadius: 16, backgroundColor: colors.surface,
-    borderWidth: 1, borderColor: colors.border,
-    padding: 20, alignSelf: 'center',
-  },
-  qrCardInner: { alignItems: 'center' },
-  qrIconRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  qrInitial: { color: colors.accent, fontSize: 36, fontWeight: '800' },
-  qrCardHandle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  qrLinkText: { color: colors.textSecondary, fontSize: 13, marginBottom: 16, textAlign: 'center' },
-  qrCopyBtn: {
-    backgroundColor: colors.accent, borderRadius: 10,
-    paddingHorizontal: 24, paddingVertical: 10,
-  },
-  qrCopyBtnCopied: { backgroundColor: colors.accentGreen },
-  qrCopyBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  qrCopyBtnTextCopied: { color: '#fff' },
+  qrContainer: { padding: 12, backgroundColor: '#1a1a1a', borderRadius: 12, alignSelf: 'center' },
   linkSection: { paddingHorizontal: 16, marginTop: 28 },
   linkRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   linkBox: {

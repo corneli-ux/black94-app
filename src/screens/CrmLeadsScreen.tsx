@@ -65,7 +65,7 @@ const STATUSES: Array<{ key: string; label: string; color: string }> = [
 ];
 
 const CrmLeadsScreen: React.FC = () => {
-  const uid = auth()?.currentUser?.uid ?? '';
+  const uid = auth().currentUser?.uid ?? '';
   const [leads, setLeads] = useState<CrmLead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<CrmLead[]>([]);
   const [loading, setLoading] = useState(true);

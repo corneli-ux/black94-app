@@ -65,7 +65,7 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { (navigation as any).navigate('Profile'); } }}>
+        <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { navigation.navigate('Profile'); } }}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
@@ -127,24 +127,24 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
-            <SettingsLink icon="lock-closed" label="Privacy Settings" onPress={() => { try { navigation.navigate('PrivacySettings' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
-            <SettingsLink icon="share-social" label="Share Profile" onPress={() => { try { navigation.navigate('ShareProfile' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
+            <SettingsLink icon="lock-closed" label="Privacy Settings" onPress={() => navigation.navigate('PrivacySettings' as never)} />
+            <SettingsLink icon="share-social" label="Share Profile" onPress={() => navigation.navigate('ShareProfile' as never)} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Business</Text>
           <View style={styles.card}>
-            <SettingsLink icon="storefront" label="My Store" onPress={() => { try { navigation.navigate('MyStore' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
-            <SettingsLink icon="newspaper" label="Write Article" onPress={() => { try { navigation.navigate('WriteArticle' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
+            <SettingsLink icon="storefront" label="My Store" onPress={() => navigation.navigate('MyStore' as never)} />
+            <SettingsLink icon="newspaper" label="Write Article" onPress={() => navigation.navigate('WriteArticle' as never)} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tools</Text>
           <View style={styles.card}>
-            <SettingsLink icon="bar-chart" label="Business Dashboard" onPress={() => { try { navigation.navigate('BusinessDashboard' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
-            <SettingsLink icon="megaphone" label="Ads Manager" onPress={() => { try { navigation.navigate('AdsManager' as never); } catch { Alert.alert('Coming Soon', 'This feature is coming soon!'); } }} />
+            <SettingsLink icon="bar-chart" label="Business Dashboard" onPress={() => navigation.navigate('BusinessDashboard' as never)} />
+            <SettingsLink icon="megaphone" label="Ads Manager" onPress={() => navigation.navigate('AdsManager' as never)} />
           </View>
         </View>
 

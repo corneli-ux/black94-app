@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Alert, } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchChatList, Chat } from '../lib/api';
+import { fetchChatList, Chat, fetchUserPrivacySettings, checkFollowing, searchUsers, User } from '../lib/api';
 import { auth, firestore, getValidToken } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -19,6 +19,13 @@ export default function ChatListScreen({ navigation }: any) {
   const [canRefresh, setCanRefresh] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('chat');
   const currentUser = auth()?.currentUser;
+
+  // Compose modal state
+  const [composeModalVisible, setComposeModalVisible] = useState(false);
+  const [composeSearch, setComposeSearch] = useState('');
+  const [composeResults, setComposeResults] = useState<User[]>([]);
+  const [composeSearching, setComposeSearching] = useState(false);
+  const [composeChecking, setComposeChecking] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -38,6 +45,147 @@ export default function ChatListScreen({ navigation }: any) {
   }, []);
 
   useEffect(() => { load(); }, []);
+
+  const handleCompose = useCallback(() => {
+    setComposeModalVisible(true);
+    setComposeSearch('');
+    setComposeResults([]);
+  }, []);
+
+  const handleComposeSearch = useCallback(async (query: string) => {
+    setComposeSearch(query);
+    if (!query.trim() || query.trim().length < 2) {
+      setComposeResults([]);
+      setComposeSearching(false);
+      return;
+    }
+    setComposeSearching(true);
+    try {
+      const results = await searchUsers(query);
+      // Exclude current user from results
+      const filtered = results.filter(u => u.id !== currentUser?.uid);
+      setComposeResults(filtered);
+    } catch (e) {
+      console.error('[ChatList] Compose search error:', e);
+      setComposeResults([]);
+    } finally {
+      setComposeSearching(false);
+    }
+  }, [currentUser]);
+
+  const handleSelectUser = useCallback(async (targetUser: User) => {
+    setComposeChecking(targetUser.id);
+    try {
+      const privacy = await fetchUserPrivacySettings(targetUser.id);
+
+      if (privacy.dmPermission === 'no one') {
+        Alert.alert('Cannot Message', "This user doesn't accept messages.");
+        setComposeChecking(null);
+        return;
+      }
+
+      if (privacy.dmPermission === 'followers_only') {
+        const isFollowing = await checkFollowing(targetUser.id);
+        if (!isFollowing) {
+          Alert.alert('Cannot Message', 'You can only message users you follow.');
+          setComposeChecking(null);
+          return;
+        }
+      }
+
+      if (privacy.dmPermission === 'paid') {
+        // Try dynamic import of PaidChatScreen — fallback to normal chat
+        setComposeModalVisible(false);
+        setComposeChecking(null);
+        try {
+          // Dynamic import to handle the case where PaidChatScreen may not exist yet
+          const PaidChatScreen = await import('../screens/PaidChatScreen');
+          navigation.navigate('PaidChat', { targetUser });
+          return;
+        } catch (e) {
+          console.warn('[ChatList] PaidChatScreen not available, falling back to normal chat:', e);
+          // Fall through to normal chat creation
+        }
+      }
+
+      // Allowed — create or find existing chat
+      setComposeModalVisible(false);
+      setComposeChecking(null);
+      await createOrOpenChat(targetUser);
+    } catch (e) {
+      console.error('[ChatList] DM permission check error:', e);
+      Alert.alert('Error', 'Could not check messaging permissions. Please try again.');
+    } finally {
+      setComposeChecking(null);
+    }
+  }, [navigation, currentUser]);
+
+  const createOrOpenChat = useCallback(async (targetUser: User) => {
+    const myId = currentUser?.uid;
+    if (!myId) return;
+
+    try {
+      // Check if a chat already exists between the two users
+      const [snap1, snap2] = await Promise.all([
+        firestore().collection('chats')
+          .where('user1Id', '==', myId)
+          .where('user2Id', '==', targetUser.id)
+          .limit(1)
+          .get(),
+        firestore().collection('chats')
+          .where('user1Id', '==', targetUser.id)
+          .where('user2Id', '==', myId)
+          .limit(1)
+          .get(),
+      ]);
+
+      const existingChat = [...snap1.docs, ...snap2.docs][0];
+
+      if (existingChat) {
+        const chatData = existingChat.data();
+        const chatObj: Chat = {
+          id: existingChat.id,
+          user1Id: chatData.user1Id,
+          user2Id: chatData.user2Id,
+          lastMessage: typeof chatData.lastMessage === 'string'
+            ? chatData.lastMessage
+            : (chatData.lastMessage?.content || chatData.lastMessage?.text || ''),
+          lastMessageTime: chatData.lastMessageTime?.seconds
+            ? chatData.lastMessageTime.seconds * 1000
+            : Date.now(),
+          unreadCount: 0,
+          otherUser: targetUser,
+        };
+        navigation.navigate('ChatRoom', { chat: chatObj });
+        return;
+      }
+
+      // Create a new chat
+      const chatRef = await firestore().collection('chats').add({
+        user1Id: myId,
+        user2Id: targetUser.id,
+        lastMessage: '',
+        lastMessageTime: firestore.FieldValue.serverTimestamp(),
+        unreadUser1: 0,
+        unreadUser2: 0,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+      const chatObj: Chat = {
+        id: chatRef.id,
+        user1Id: myId,
+        user2Id: targetUser.id,
+        lastMessage: '',
+        lastMessageTime: Date.now(),
+        unreadCount: 0,
+        otherUser: targetUser,
+      };
+      navigation.navigate('ChatRoom', { chat: chatObj });
+    } catch (e) {
+      console.error('[ChatList] Failed to create/open chat:', e);
+      Alert.alert('Error', 'Could not start conversation. Please try again.');
+    }
+  }, [currentUser, navigation]);
 
   const onSearch = (q: string) => {
     setSearch(q);
@@ -124,21 +272,19 @@ export default function ChatListScreen({ navigation }: any) {
   }, []);
 
   const getLastMessageContent = (item: Chat): string => {
-    const msg = item.lastMessage as any;
-    if (typeof msg === 'string') {
-      return msg;
+    if (typeof item.lastMessage === 'string') {
+      return item.lastMessage;
     }
-    if (msg?.content) return msg.content;
-    if (msg?.text) return msg.text;
-    if (msg) return JSON.stringify(msg)?.slice(0, 50);
+    if (item.lastMessage?.content) return item.lastMessage.content;
+    if (item.lastMessage?.text) return item.lastMessage.text;
+    if (item.lastMessage) return JSON.stringify(item.lastMessage)?.slice(0, 50);
     return 'No messages yet';
   };
 
   const getLastMessageTime = (item: Chat): number => {
-    const msg = item.lastMessage as any;
     if (item.lastMessageTime) return item.lastMessageTime;
-    if (msg && typeof msg === 'object' && msg.createdAt) {
-      return new Date(msg.createdAt).getTime();
+    if (item.lastMessage && typeof item.lastMessage === 'object' && item.lastMessage.createdAt) {
+      return new Date(item.lastMessage.createdAt).getTime();
     }
     return 0;
   };
@@ -218,6 +364,98 @@ export default function ChatListScreen({ navigation }: any) {
     </View>
   );
 
+  // Compose modal for user search + DM permission enforcement
+  const renderComposeModal = () => (
+    <Modal
+      visible={composeModalVisible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={() => setComposeModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        style={styles.composeModalContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <SafeAreaView edges={['top']} style={{ flex: 1 }}>
+          {/* Modal Header */}
+          <View style={styles.composeHeader}>
+            <TouchableOpacity
+              onPress={() => setComposeModalVisible(false)}
+              hitSlop={8}
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.composeTitle}>New Message</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          {/* Search Input */}
+          <View style={styles.composeSearchContainer}>
+            <Ionicons name="search" size={18} color="#64748b" style={styles.composeSearchIcon} />
+            <TextInput
+              style={styles.composeSearchInput}
+              placeholder="Search by username or name..."
+              placeholderTextColor="#64748b"
+              value={composeSearch}
+              onChangeText={handleComposeSearch}
+              autoFocus
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {composeSearching && (
+              <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: 8 }} />
+            )}
+          </View>
+
+          {/* Results */}
+          <View style={styles.composeResultsContainer}>
+            {composeSearch.trim().length >= 2 && !composeSearching && composeResults.length === 0 && (
+              <View style={styles.composeEmptyContainer}>
+                <Ionicons name="person-outline" size={36} color="#64748b" />
+                <Text style={styles.composeEmptyText}>No users found</Text>
+                <Text style={styles.composeEmptySubtext}>Try a different username or name</Text>
+              </View>
+            )}
+
+            {composeSearch.trim().length < 2 && (
+              <View style={styles.composeEmptyContainer}>
+                <Ionicons name="chatbubble-ellipses-outline" size={36} color="#64748b" />
+                <Text style={styles.composeEmptyText}>Find someone to message</Text>
+                <Text style={styles.composeEmptySubtext}>Enter a username or display name (min. 2 characters)</Text>
+              </View>
+            )}
+
+            {composeResults.map(user => (
+              <TouchableOpacity
+                key={user.id}
+                style={styles.composeResultRow}
+                onPress={() => handleSelectUser(user)}
+                disabled={composeChecking === user.id}
+                activeOpacity={0.7}
+              >
+                <Avatar uri={user.profileImage} name={user.displayName} size={44} />
+                <View style={styles.composeResultInfo}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.composeResultName} numberOfLines={1}>
+                      {user.displayName || user.username}
+                    </Text>
+                    <VerifiedBadge badge={user.badge} isVerified={user.isVerified} size={14} />
+                  </View>
+                  <Text style={styles.composeResultUsername}>@{user.username}</Text>
+                </View>
+                {composeChecking === user.id ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color="#64748b" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -226,7 +464,7 @@ export default function ChatListScreen({ navigation }: any) {
           <Text style={styles.headerTitle}>Messages</Text>
           <TouchableOpacity
             style={styles.newMsgBtn}
-            onPress={() => navigation.navigate('Explore')}
+            onPress={handleCompose}
             activeOpacity={0.7}
           >
             <Ionicons name="create-outline" size={22} color={colors.text} />
@@ -271,7 +509,6 @@ export default function ChatListScreen({ navigation }: any) {
                   refreshing={refreshing}
                   onRefresh={load}
                   tintColor={colors.accent}
-                  enabled={canRefresh}
                 />
               }
               renderItem={({ item }) => (
@@ -324,6 +561,9 @@ export default function ChatListScreen({ navigation }: any) {
           )}
         </>
       )}
+
+      {/* Compose Modal */}
+      {renderComposeModal()}
     </View>
   );
 }
@@ -339,6 +579,95 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: '#e7e9ea', fontSize: 20, fontWeight: '700' },
   newMsgBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+
+  /* ── Compose Modal ── */
+  composeModalContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  composeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  composeTitle: {
+    color: '#e7e9ea',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  composeSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    height: 44,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  composeSearchIcon: {},
+  composeSearchInput: {
+    flex: 1,
+    color: '#e7e9ea',
+    fontSize: 15,
+    height: 44,
+    paddingVertical: 0,
+  },
+  composeResultsContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  composeEmptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 80,
+    paddingHorizontal: 32,
+  },
+  composeEmptyText: {
+    color: '#e7e9ea',
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 16,
+  },
+  composeEmptySubtext: {
+    color: '#94a3b8',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  composeResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    gap: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  composeResultInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  composeResultName: {
+    color: '#e7e9ea',
+    fontSize: 15,
+    fontWeight: '700',
+    flex: 1,
+  },
+  composeResultUsername: {
+    color: '#94a3b8',
+    fontSize: 13,
+    marginTop: 2,
+  },
 
   /* ── Tab Switcher ── */
   tabBar: {
@@ -432,7 +761,7 @@ const styles = StyleSheet.create({
   },
   avatarWrap: {
     position: 'relative',
-    flexShrink: 0,
+    shrink: 0,
   },
   chatInfo: {
     flex: 1,

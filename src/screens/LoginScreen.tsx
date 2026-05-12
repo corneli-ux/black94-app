@@ -22,7 +22,7 @@ export default function LoginScreen() {
       await GoogleSignin.hasPlayServices();
       await GoogleSignin.signIn();
 
-      let idToken: string | null = null;
+      let idToken = null;
       try {
         const tokens = await GoogleSignin.getTokens();
         idToken = tokens.idToken;

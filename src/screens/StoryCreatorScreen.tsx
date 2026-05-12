@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, firestore } from '../lib/firebase';
-import { uploadFile, getFilePath } from '../lib/storage';
 import { fetchUserProfile } from '../lib/api';
+import { uploadOptimizedImage } from '../utils/imageUpload';
 import { colors } from '../theme/colors';
 
 type StoryFormat = 'text' | 'image' | 'poll';
@@ -38,11 +38,11 @@ const FONT_SIZES = [
   { value: 56, label: 'Extra Large' },
 ];
 
-// Upload image to Firebase Storage
-async function uploadImage(uri: string, filename: string): Promise<string> {
-  const uid = auth()?.currentUser?.uid ?? 'anon';
-  const path = getFilePath('stories', filename, uid);
-  return uploadFile(uri, path);
+async function uploadImage(uri: string, storagePath: string): Promise<string> {
+  const result = await uploadOptimizedImage(uri, storagePath, {
+    mimeType: 'image/jpeg',
+  });
+  return result.downloadUrl;
 }
 
 // Lazy image picker
@@ -74,6 +74,7 @@ export default function StoryCreatorScreen({ navigation }: any) {
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [posting, setPosting] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -109,7 +110,6 @@ export default function StoryCreatorScreen({ navigation }: any) {
   const handlePost = useCallback(async () => {
     if (!currentUid) return;
 
-    // Validation
     if (format === 'text' && !storyText.trim()) {
       Alert.alert('Error', 'Please enter story text');
       return;
@@ -136,7 +136,6 @@ export default function StoryCreatorScreen({ navigation }: any) {
       let content = '';
       let pollOptionsData: Array<{ id: string; text: string; votes: number; percentage: number }> | undefined;
 
-      // Fetch user data for story metadata
       let authorUsername = '';
       let authorDisplayName = '';
       let authorProfileImage = '';
@@ -154,10 +153,21 @@ export default function StoryCreatorScreen({ navigation }: any) {
         content = storyText.trim();
       } else if (format === 'image') {
         if (imageUri && !imageUri.startsWith('http')) {
-          mediaUrl = await uploadImage(
-            imageUri,
-            `${Date.now()}.jpg`,
-          );
+          setUploading(true);
+          try {
+            mediaUrl = await uploadImage(
+              imageUri,
+              `stories/${currentUid}/${Date.now()}.jpg`,
+            );
+          } catch (uploadErr: any) {
+            console.error('[StoryCreatorScreen] Image upload failed:', uploadErr);
+            Alert.alert('Upload Error', 'Failed to upload image. Please try again.');
+            setPosting(false);
+            setUploading(false);
+            return;
+          } finally {
+            setUploading(false);
+          }
         } else {
           mediaUrl = imageUri;
         }
@@ -275,10 +285,7 @@ export default function StoryCreatorScreen({ navigation }: any) {
               {format === 'text' && (
                 <View style={[styles.previewGradient, { backgroundColor: gradientObj?.color ?? '#667eea' }]}>
                   <Text
-                    style={[
-                      styles.previewText,
-                      { fontSize },
-                    ]}
+                    style={[styles.previewText, { fontSize }]}
                     numberOfLines={5}
                   >
                     {storyText || 'Your story text...'}
@@ -288,7 +295,12 @@ export default function StoryCreatorScreen({ navigation }: any) {
 
               {format === 'image' && (
                 <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
-                  {imageUri ? (
+                  {uploading ? (
+                    <View style={[styles.previewImagePlaceholder, { justifyContent: 'center', alignItems: 'center' }]}>
+                      <ActivityIndicator size="large" color={colors.accent} />
+                      <Text style={{ color: colors.textMuted, fontSize: 14, marginTop: 12 }}>Uploading…</Text>
+                    </View>
+                  ) : imageUri ? (
                     <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />
                   ) : (
                     <View style={styles.previewImagePlaceholder}>

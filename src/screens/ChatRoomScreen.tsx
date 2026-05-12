@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, ScrollView, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchMessages, sendMessage, Message } from '../lib/api';
+import { fetchMessages, sendMessage, blockUser, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -24,6 +24,10 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(!routeChat);
   const [sending, setSending] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showNuclearConfirm, setShowNuclearConfirm] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToast, setShowToast] = useState(false);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -38,7 +42,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           if (chatDoc.exists) {
             const data = chatDoc.data();
             const otherId = data.user1Id === currentUser?.uid ? data.user2Id : data.user1Id;
-            let otherUser: any = null;
+            let otherUser = null;
             try {
               const otherSnap = await firestore().collection('users').doc(otherId).get();
               if (otherSnap.exists) {
@@ -86,7 +90,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (!chat) return;
-    // Reset unread count when opening chat
     const resetUnread = async () => {
       try {
         const isUser1 = chat.user1Id === currentUser?.uid;
@@ -102,9 +105,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [chat?.id]);
 
-
   const handleSend = async () => {
-    if (!chat || !text.trim() || sending) return;
+    if (!text.trim() || sending) return;
     const content = text.trim();
     setText('');
     setSending(true);
@@ -125,53 +127,30 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     }
   };
 
-  const handleDeleteChat = () => {
+  const showToastMsg = (msg: string) => {
+    setToastMessage(msg);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const handleNuclearBlock = async () => {
     setShowMenu(false);
-    const name = chat?.otherUser?.displayName || chat?.otherUser?.username || 'this user';
-    Alert.alert(
-      'Delete Chat',
-      'Are you sure you want to delete this chat? This will permanently remove all messages and cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel', onPress: () => setShowMenu(false) },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Delete the chat document first (so it disappears from the list immediately)
-              await firestore().collection('chats').doc(chat.id).delete();
-              // Then best-effort delete messages in the subcollection
-              const messagesRef = firestore().collection('chats').doc(chat.id).collection('messages');
-              const batchSize = 100;
-              let deleted = 0;
-              let hasMore = true;
-              while (hasMore) {
-                try {
-                  const snapshot = await messagesRef.limit(batchSize).get();
-                  if (snapshot.empty) break;
-                  const deletePromises = snapshot.docs.map(doc =>
-                    messagesRef.doc(doc.id).delete().catch(e => {
-                      console.warn(`[ChatDelete] Failed to delete msg ${doc.id}:`, e);
-                    })
-                  );
-                  await Promise.all(deletePromises);
-                  deleted += snapshot.size;
-                  hasMore = snapshot.size >= batchSize;
-                } catch (e) {
-                  console.warn(`[ChatDelete] Batch ${deleted} failed:`, e);
-                  break;
-                }
-              }
-              console.log(`[ChatDelete] Deleted ${deleted} messages from chat ${chat.id}`);
-              navigation.goBack();
-            } catch (e) {
-              console.error('[ChatDelete] Error:', e);
-              Alert.alert('Error', 'Failed to delete chat.');
-            }
-          },
-        },
-      ]
-    );
+    setShowNuclearConfirm(false);
+    setBlocking(true);
+    try {
+      const success = await blockUser(chat.otherUser?.id);
+      if (success) {
+        Alert.alert('Nuclear Block', 'Chat permanently deleted for both users');
+        navigation.replace('Drawer');
+      } else {
+        Alert.alert('Error', 'Failed to block user. Please try again.');
+      }
+    } catch (e) {
+      console.error('[NuclearBlock] Error:', e);
+      Alert.alert('Error', 'Failed to block user.');
+    } finally {
+      setBlocking(false);
+    }
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
@@ -190,8 +169,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'android' ? 'height' : 'padding'} keyboardVerticalOffset={0}>
-      {/* Header — web: bg-[#000000]/90 backdrop-blur-xl, px-4 py-2.5 */}
+    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : undefined}>
+      {/* Header */}
       <View style={[styles.header, { paddingTop: Math.max(8, insets.top - 4) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={20} color="#e7e9ea" />
@@ -210,7 +189,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: 10 }} />
         )}
 
-        {/* Search button */}
         <TouchableOpacity
           style={styles.headerActionBtn}
           onPress={() => {}}
@@ -240,11 +218,14 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               <View style={styles.dropdownMenu}>
                 <TouchableOpacity
                   style={styles.menuItem}
-                  onPress={handleDeleteChat}
+                  onPress={() => {
+                    setShowMenu(false);
+                    setShowNuclearConfirm(true);
+                  }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="trash-outline" size={18} color="#f43f5e" />
-                  <Text style={styles.menuItemTextDelete}>Delete Chat</Text>
+                  <Text style={styles.nuclearIcon}>💣</Text>
+                  <Text style={styles.menuItemTextDelete}>Nuclear Block</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -270,32 +251,25 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             </View>
           }
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
-          // Bottom padding: on Android, adjustResize already accounts for keyboard
-          // so we only need the input bar height. On iOS, we need both.
           ListFooterComponent={<View style={{ height: 80 }} />}
           keyboardShouldPersistTaps="handled"
         />
       )}
 
-      {/* Input bar — always above keyboard */}
-      <View style={{ backgroundColor: '#000000' }}>
-        <View style={[
-          styles.inputRow,
-          { paddingBottom: Math.max(8, insets.bottom) }
-        ]}>
-          {/* Input pill with inline buttons */}
+      {/* Input bar */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'undefined'}
+        keyboardVerticalOffset={0}
+        style={{ backgroundColor: '#000000' }}
+      >
+        <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
           <View style={styles.inputPill}>
-            {/* Emoji button */}
             <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
               <Ionicons name="happy-outline" size={20} color="#71767b" />
             </TouchableOpacity>
-
-            {/* GIF placeholder button */}
             <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
               <Ionicons name="film-outline" size={20} color="#71767b" />
             </TouchableOpacity>
-
-            {/* Text Input */}
             <TextInput
               style={styles.pillInput}
               placeholder="Start a message"
@@ -304,14 +278,10 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               onChangeText={setText}
               multiline
             />
-
-            {/* Attach button */}
             <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
               <Ionicons name="attach-outline" size={18} color="#71767b" />
             </TouchableOpacity>
           </View>
-
-          {/* Send Button */}
           <TouchableOpacity
             style={[
               styles.sendBtn,
@@ -327,15 +297,65 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             }
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
+
+      {/* Nuclear Block Confirmation Modal */}
+      <Modal
+        visible={showNuclearConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNuclearConfirm(false)}
+      >
+        <View style={styles.nuclearOverlay}>
+          <View style={styles.nuclearDialog}>
+            <View style={styles.nuclearIconContainer}>
+              <Ionicons name="alert-circle" size={48} color="#f43f5e" />
+            </View>
+            <Text style={styles.nuclearTitle}>💣 Nuclear Block</Text>
+            <Text style={styles.nuclearMessage}>
+              This will permanently delete ALL messages, media, and attachments for BOTH users. This cannot be undone.
+            </Text>
+            <Text style={styles.nuclearSubtitle}>
+              The user will also be blocked from contacting you again.
+            </Text>
+            <View style={styles.nuclearActions}>
+              <TouchableOpacity
+                style={styles.nuclearCancelBtn}
+                onPress={() => setShowNuclearConfirm(false)}
+              >
+                <Text style={styles.nuclearCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.nuclearConfirmBtn}
+                onPress={handleNuclearBlock}
+                disabled={blocking}
+              >
+                {blocking ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.nuclearConfirmText}>Block Forever</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Toast notification */}
+      {showToast && (
+        <View style={styles.toastContainer}>
+          <View style={styles.toast}>
+            <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
+            <Text style={styles.toastText}>{toastMessage}</Text>
+          </View>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#000000' },
-
-  /* ── Header — web: px-4 py-2.5 bg-[#000000]/90 backdrop-blur-xl ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -356,8 +376,6 @@ const styles = StyleSheet.create({
   },
   headerName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
   headerHandle: { color: '#94a3b8', fontSize: 12 },
-
-  /* ── Header Action Buttons ── */
   headerActionBtn: {
     width: 36,
     height: 36,
@@ -365,8 +383,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  /* ── Dropdown Menu ── */
   dropdownMenu: {
     position: 'absolute',
     top: '100%',
@@ -392,16 +408,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
+  nuclearIcon: { fontSize: 20 },
   menuItemTextDelete: {
     color: '#f43f5e',
     fontSize: 14,
     fontWeight: '500',
   },
-
-  /* ── Message Bubbles ──
-     Web: mine = bg-gradient(135deg, #FFFFFF, #D1D5DB) text-black rounded-2xl rounded-br-sm
-          theirs = bg-white/[0.08] text-[#e7e9ea] rounded-2xl rounded-bl-sm border-white/[0.06]
-     max-w-[82%], px-3.5 py-2.5, text-[14px] leading-relaxed */
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginVertical: 2 },
   msgRowRight: { justifyContent: 'flex-end' },
   msgRowLeft: { justifyContent: 'flex-start' },
@@ -418,8 +430,6 @@ const styles = StyleSheet.create({
   },
   bubbleText: { color: '#e7e9ea', fontSize: 14, lineHeight: 22 },
   bubbleTime: { fontSize: 11, marginTop: 4 },
-
-  /* ── Input Bar — matches web ChatInputBar ── */
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -466,7 +476,111 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnInactive: {
-    // inactive state: no background, icon is #374151
+  sendBtnInactive: {},
+  // Nuclear block modal
+  nuclearOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  nuclearDialog: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 20,
+    padding: 28,
+    width: '100%',
+    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: 'rgba(244,63,94,0.3)',
+  },
+  nuclearIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(244,63,94,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  nuclearTitle: {
+    color: '#f43f5e',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  nuclearMessage: {
+    color: '#e7e9ea',
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  nuclearSubtitle: {
+    color: '#94a3b8',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  nuclearActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  nuclearCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+  },
+  nuclearCancelText: {
+    color: '#e7e9ea',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  nuclearConfirmBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#f43f5e',
+    alignItems: 'center',
+  },
+  nuclearConfirmText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  // Toast
+  toastContainer: {
+    position: 'absolute',
+    top: 70,
+    left: 24,
+    right: 24,
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  toastText: {
+    color: '#e7e9ea',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

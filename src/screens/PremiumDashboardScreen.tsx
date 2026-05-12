@@ -1,7 +1,9 @@
 /**
  * PremiumDashboardScreen.tsx — Premium subscription dashboard
  *
- * Shows current plan, feature comparison table, upgrade options, usage meters.
+ * Shows current plan with prominent badge, real Firestore usage stats,
+ * feature comparison table, upgrade flow via Razorpay, success modal,
+ * and manage subscription controls.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -13,13 +15,24 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { initiatePayment, PLANS, formatAmount } from '../lib/payments';
+import { auth, firestore } from '../lib/firebase';
+import {
+  initiatePayment,
+  verifyAndActivateSubscription,
+  PLANS,
+  PLAN_LIMITS,
+  formatAmount,
+  getPlanById,
+} from '../lib/payments';
 import type { PaymentPlan } from '../lib/payments';
+import type { User } from '../lib/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +43,13 @@ interface FeatureRow {
   free: string | boolean;
   premium: string | boolean;
   business: string | boolean;
+}
+
+interface UsageStats {
+  postsToday: { current: number; limit: number };
+  storiesToday: { current: number; limit: number };
+  products: { current: number; limit: number };
+  storage: { current: number; limit: number };
 }
 
 // ── Data ───────────────────────────────────────────────────────────────────
@@ -45,112 +65,251 @@ const FEATURES: FeatureRow[] = [
   { feature: 'Affiliate program', free: false, premium: true, business: true },
 ];
 
-const USAGE_DATA = {
-  postsToday: { current: 3, limit: 5 },
-  storiesToday: { current: 1, limit: 3 },
-  products: { current: 0, limit: 0 },
-  storage: { current: 12, limit: 50 },
-};
+// ── Usage fetching helpers ─────────────────────────────────────────────────
 
-// Map plan types to payment plan IDs
-const PLAN_ID_MAP: Record<string, string> = {
-  premium: 'pro_monthly',
-  business: 'pro_yearly',
-};
+async function fetchUsageStats(userId: string, currentPlan: PlanType): Promise<UsageStats> {
+  const limits = PLAN_LIMITS[currentPlan] || PLAN_LIMITS.free;
+
+  // Default stats — will be overwritten with real data
+  const stats: UsageStats = {
+    postsToday: { current: 0, limit: limits.posts === -1 ? 999 : limits.posts },
+    storiesToday: { current: 0, limit: limits.stories === -1 ? 999 : limits.stories },
+    products: { current: 0, limit: limits.products === -1 ? 999 : limits.products },
+    storage: { current: 0, limit: limits.storage },
+  };
+
+  try {
+    // ── Post count: query posts where authorId == userId ──
+    const postsSnap = await firestore()
+      .collection('posts')
+      .where('authorId', '==', userId)
+      .get();
+    stats.postsToday.current = postsSnap.size;
+  } catch (e) {
+    console.warn('[Premium] Failed to fetch post count:', e);
+  }
+
+  try {
+    // ── Story count: query stories where authorId == userId and createdAt in last 24h ──
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const storiesSnap = await firestore()
+      .collection('stories')
+      .where('authorId', '==', userId)
+      .get();
+
+    // Filter client-side for last 24h (composite index may not exist for createdAt range)
+    const recentStories = storiesSnap.docs.filter((doc: any) => {
+      const createdAt = doc.data()?.createdAt;
+      if (!createdAt) return false;
+      // Handle both ISO string and Firestore timestamp-like objects
+      const ts = typeof createdAt === 'string'
+        ? new Date(createdAt).getTime()
+        : typeof createdAt === 'number'
+          ? createdAt
+          : typeof createdAt === 'object' && createdAt.seconds
+            ? createdAt.seconds * 1000
+            : 0;
+      return ts >= Date.now() - 24 * 60 * 60 * 1000;
+    });
+    stats.storiesToday.current = recentStories.length;
+  } catch (e) {
+    console.warn('[Premium] Failed to fetch story count:', e);
+  }
+
+  try {
+    // ── Product count: query products where ownerId == userId ──
+    const productsSnap = await firestore()
+      .collection('products')
+      .where('ownerId', '==', userId)
+      .get();
+    stats.products.current = productsSnap.size;
+  } catch (e) {
+    console.warn('[Premium] Failed to fetch product count:', e);
+  }
+
+  try {
+    // ── Storage estimate: fetch user doc and estimate from profile/cover image URLs ──
+    const userDoc = await firestore().collection('users').doc(userId).get();
+    const userData = userDoc.exists ? userDoc.data() : null;
+    const profileUrl = userData?.profileImage || '';
+    const coverUrl = userData?.coverImage || '';
+
+    // Base64 data URIs: the size is embedded in the string length
+    let estimatedMB = 0;
+    for (const url of [profileUrl, coverUrl]) {
+      if (url && url.startsWith('data:')) {
+        // Approximate: base64 is ~75% of raw size; divide by 1M for MB
+        const base64Length = url.split(',')[1]?.length || 0;
+        estimatedMB += (base64Length * 0.75) / (1024 * 1024);
+      } else if (url) {
+        // HTTPS URL — we can't know the file size from the URL alone
+        estimatedMB += 0.5; // rough estimate per hosted image
+      }
+    }
+    stats.storage.current = Math.round(estimatedMB);
+  } catch (e) {
+    console.warn('[Premium] Failed to estimate storage:', e);
+  }
+
+  return stats;
+}
 
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function PremiumDashboardScreen() {
   const user = useAppStore((s) => s.user);
+  const setUser = useAppStore((s) => s.setUser);
+
   const [loading, setLoading] = useState(true);
   const [currentPlan, setCurrentPlan] = useState<PlanType>(
     (user?.subscription as PlanType) || 'free',
   );
+  const [usage, setUsage] = useState<UsageStats>({
+    postsToday: { current: 0, limit: PLAN_LIMITS.free.posts },
+    storiesToday: { current: 0, limit: PLAN_LIMITS.free.stories },
+    products: { current: 0, limit: PLAN_LIMITS.free.products },
+    storage: { current: 0, limit: PLAN_LIMITS.free.storage },
+  });
+
+  // Payment state
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
+  // Success modal state
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [activatedPlan, setActivatedPlan] = useState<PaymentPlan | null>(null);
+
+  // ── Load real usage stats ──
+  const loadUsageStats = useCallback(async (plan: PlanType) => {
+    const uid = auth()?.currentUser?.uid;
+    if (!uid) return;
+
+    try {
+      const stats = await fetchUsageStats(uid, plan);
+      setUsage(stats);
+    } catch (e) {
+      console.warn('[Premium] Failed to load usage stats:', e);
+    }
+  }, []);
 
   useEffect(() => {
-    setLoading(false);
-  }, [user]);
+    const plan = (user?.subscription as PlanType) || 'free';
+    setCurrentPlan(plan);
+    loadUsageStats(plan).finally(() => setLoading(false));
+  }, [user, loadUsageStats]);
 
-  const [processing, setProcessing] = useState(false);
-
+  // ── Upgrade handler ──
   const handleUpgrade = useCallback(
-    (plan: PlanType) => {
-      const planId = PLAN_ID_MAP[plan];
-      const paymentPlan = PLANS.find((p) => p.id === planId);
-
-      if (!paymentPlan) {
-        Alert.alert('Error', 'Selected plan is not available.');
-        return;
-      }
-
-      const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
-      const priceLabel = formatAmount(paymentPlan.amount);
-      const durationLabel = paymentPlan.duration === 'yearly' ? '/year' : '/month';
-      const description =
-        plan === 'premium'
-          ? `Get access to advanced features, analytics, and more.\n\n${priceLabel}${durationLabel}`
-          : `Full business suite: CRM, shop, ads, analytics.\n\n${priceLabel}${durationLabel}`;
-
-      Alert.alert(`Upgrade to ${planLabel}`, description, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Pay Now',
-          style: 'default',
-          onPress: () => processPayment(paymentPlan),
-        },
-      ]);
-    },
-    [],
-  );
-
-  const processPayment = useCallback(
-    async (paymentPlan: PaymentPlan) => {
-      if (!user) {
+    async (planType: PlanType) => {
+      const uid = auth()?.currentUser?.uid;
+      if (!uid) {
         Alert.alert('Error', 'You must be signed in to upgrade.');
         return;
       }
 
-      if (processing) return;
-      setProcessing(true);
+      const plan = getPlanById(planType);
+      if (!plan) return;
 
-      try {
-        const result = await initiatePayment({
-          plan: paymentPlan,
-          userId: user.id,
-          userEmail: user.email,
-          userName: user.displayName,
-        });
-
-        if (result.success && result.paymentId) {
-          Alert.alert(
-            'Payment Successful',
-            `Payment ID: ${result.paymentId}\n\nYour ${paymentPlan.name} subscription is now active.`,
-            [
-              {
-                text: 'Great!',
-                onPress: () => {
-                  // Update local plan state
-                  if (paymentPlan.duration === 'monthly') {
-                    setCurrentPlan('premium');
-                  } else {
-                    setCurrentPlan('business');
-                  }
-                },
-              },
-            ],
-          );
-        } else {
-          Alert.alert('Payment Failed', result.error || 'Something went wrong. Please try again.');
-        }
-      } catch (err: any) {
-        Alert.alert('Payment Error', err?.message || 'An unexpected error occurred.');
-      } finally {
-        setProcessing(false);
-      }
+      Alert.alert(
+        `Upgrade to ${plan.name}`,
+        `${plan.features.slice(0, 3).join(' · ')} and more.\n\n${formatAmount(plan.amount)}/month`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Pay Now',
+            style: 'default',
+            onPress: () => processPayment(plan, uid),
+          },
+        ],
+      );
     },
-    [user, processing],
+    [],
   );
 
+  const processPayment = async (plan: PaymentPlan, userId: string) => {
+    setPaymentLoading(true);
+
+    try {
+      // 1. Open Razorpay checkout
+      const paymentResult = await initiatePayment({
+        plan,
+        userId,
+        userEmail: user?.email || '',
+        userPhone: '',
+        userName: user?.displayName || user?.username || '',
+      });
+
+      if (!paymentResult.success || !paymentResult.paymentId) {
+        setPaymentLoading(false);
+        if (paymentResult.error && paymentResult.error !== 'Payment was cancelled.') {
+          Alert.alert('Payment Failed', paymentResult.error);
+        }
+        return;
+      }
+
+      // 2. Verify payment & activate subscription in Firestore
+      const updatedUser = await verifyAndActivateSubscription(
+        userId,
+        plan.id,
+        paymentResult.paymentId,
+      );
+
+      if (updatedUser) {
+        // 3. Update Zustand store
+        setUser(updatedUser);
+        setCurrentPlan(plan.id as PlanType);
+
+        // 4. Refresh usage stats for new plan limits
+        await loadUsageStats(plan.id as PlanType);
+
+        // 5. Show success modal
+        setActivatedPlan(plan);
+        setSuccessModalVisible(true);
+      } else {
+        Alert.alert('Error', 'Payment verified but could not activate subscription. Please contact support.');
+      }
+    } catch (e: any) {
+      console.error('[Premium] Upgrade error:', e);
+      Alert.alert('Error', e?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  // ── Manage plan placeholder ──
+  const handleManagePlan = useCallback(() => {
+    Alert.alert(
+      'Manage Subscription',
+      'Your subscription is active and will renew automatically.\n\nTo cancel, change your plan, or update billing details, visit Razorpay customer portal (coming soon).',
+      [
+        { text: 'OK', style: 'default' },
+        {
+          text: 'Cancel Subscription',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Cancel Subscription',
+              'Are you sure you want to cancel? You will lose access to premium features at the end of your billing period.',
+              [
+                { text: 'Keep Subscription', style: 'cancel' },
+                {
+                  text: 'Cancel',
+                  style: 'destructive',
+                  onPress: () => {
+                    Alert.alert(
+                      'Coming Soon',
+                      'Self-serve cancellation will be available soon. Please contact support to cancel.',
+                    );
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  }, []);
+
+  // ── Visual helpers ──
   const planIcon = (plan: PlanType) => {
     switch (plan) {
       case 'free': return '💪';
@@ -163,14 +322,31 @@ export default function PremiumDashboardScreen() {
     switch (plan) {
       case 'free': return colors.textMuted;
       case 'premium': return colors.accentGold;
-      case 'business': return colors.primary;
+      case 'business': return colors.verified;
+    }
+  };
+
+  const planBorderColor = (plan: PlanType) => {
+    switch (plan) {
+      case 'free': return colors.border;
+      case 'premium': return colors.accentGold;
+      case 'business': return colors.verified;
+    }
+  };
+
+  const planBadgeLabel = (plan: PlanType) => {
+    switch (plan) {
+      case 'free': return null;
+      case 'premium': return 'Blue Badge';
+      case 'business': return 'Gold Badge + Business Role';
     }
   };
 
   const renderUsageBar = useCallback(
     (label: string, current: number, limit: number) => {
       if (limit === 0) return null;
-      const pct = Math.min((current / limit) * 100, 100);
+      const isUnlimited = limit >= 999;
+      const pct = isUnlimited ? 0 : Math.min((current / limit) * 100, 100);
       return (
         <View style={styles.usageRow} key={label}>
           <Text style={styles.usageLabel}>{label}</Text>
@@ -179,15 +355,20 @@ export default function PremiumDashboardScreen() {
               style={[
                 styles.usageBarFill,
                 {
-                  width: `${pct}%`,
-                  backgroundColor:
-                    pct > 80 ? colors.error : pct > 50 ? colors.accentGold : colors.primary,
+                  width: isUnlimited ? '0%' : `${Math.max(pct, current > 0 ? 4 : 0)}%`,
+                  backgroundColor: isUnlimited
+                    ? colors.accentGreen
+                    : pct > 80
+                      ? colors.error
+                      : pct > 50
+                        ? colors.accentGold
+                        : colors.primary,
                 },
               ]}
             />
           </View>
           <Text style={styles.usageCount}>
-            {current}/{limit}
+            {isUnlimited ? `${current} / ∞` : `${current}/${limit}`}
           </Text>
         </View>
       );
@@ -195,6 +376,7 @@ export default function PremiumDashboardScreen() {
     [],
   );
 
+  // ── Loading state ──
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer} edges={['bottom']}>
@@ -203,16 +385,18 @@ export default function PremiumDashboardScreen() {
     );
   }
 
+  // ── Render ──
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
-        {/* Current plan card */}
-        <View style={styles.planCard}>
+
+        {/* ═══ Current plan card ═══ */}
+        <View style={[styles.planCard, { borderColor: planBorderColor(currentPlan) }]}>
           <View style={styles.planCardHeader}>
             <Text style={styles.planEmoji}>{planIcon(currentPlan)}</Text>
-            <View>
+            <View style={styles.planInfo}>
               <Text style={styles.planName}>
                 {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
               </Text>
@@ -222,41 +406,133 @@ export default function PremiumDashboardScreen() {
                   : 'You have access to all features'}
               </Text>
             </View>
+            {/* Prominent plan badge */}
+            {currentPlan !== 'free' && (
+              <View
+                style={[
+                  styles.planBadge,
+                  {
+                    backgroundColor:
+                      currentPlan === 'premium'
+                        ? `${colors.accentGold}22`
+                        : `${colors.verified}22`,
+                    borderColor:
+                      currentPlan === 'premium'
+                        ? colors.accentGold
+                        : colors.verified,
+                  },
+                ]}>
+                <Ionicons
+                  name={currentPlan === 'premium' ? 'star' : 'rocket'}
+                  size={12}
+                  color={
+                    currentPlan === 'premium'
+                      ? colors.accentGold
+                      : colors.verified
+                  }
+                />
+                <Text
+                  style={[
+                    styles.planBadgeText,
+                    {
+                      color:
+                        currentPlan === 'premium'
+                          ? colors.accentGold
+                          : colors.verified,
+                    },
+                  ]}>
+                  {currentPlan === 'premium' ? 'Premium' : 'Business'}
+                </Text>
+              </View>
+            )}
           </View>
+
+          {/* Badge info line for subscribed users */}
+          {planBadgeLabel(currentPlan) && (
+            <View style={styles.badgeInfoRow}>
+              <Ionicons
+                name="shield-checkmark"
+                size={16}
+                color={planColor(currentPlan)}
+              />
+              <Text style={[styles.badgeInfoText, { color: planColor(currentPlan) }]}>
+                {planBadgeLabel(currentPlan)}
+                {currentPlan === 'business' && ' · 2 free affiliate badges included'}
+              </Text>
+            </View>
+          )}
+
+          {/* Affiliate badges info for business */}
+          {currentPlan === 'business' && (
+            <View style={styles.affiliateInfoCard}>
+              <View style={styles.affiliateInfoHeader}>
+                <Ionicons name="people" size={16} color={colors.verified} />
+                <Text style={styles.affiliateInfoTitle}>Affiliate Badges</Text>
+              </View>
+              <Text style={styles.affiliateInfoDesc}>
+                Your Business plan includes 2 free badges you can assign to team members or affiliates. Use them to build brand authority.
+              </Text>
+              <View style={styles.affiliateBadgeRow}>
+                <View style={styles.affiliateBadgeSlot}>
+                  <Ionicons name="medal" size={20} color={colors.verifiedGold} />
+                  <Text style={styles.affiliateBadgeLabel}>Badge Slot 1</Text>
+                </View>
+                <View style={styles.affiliateBadgeSlot}>
+                  <Ionicons name="medal" size={20} color={colors.verifiedGold} />
+                  <Text style={styles.affiliateBadgeLabel}>Badge Slot 2</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Upgrade buttons or billing info */}
           {currentPlan === 'free' ? (
             <View style={styles.upgradeRow}>
               <TouchableOpacity
                 style={styles.upgradeBtn}
                 onPress={() => handleUpgrade('premium')}
-                activeOpacity={0.7}>
-                <Text style={styles.upgradeBtnText}>Upgrade to Premium</Text>
+                activeOpacity={0.7}
+                disabled={paymentLoading}>
+                <Text style={styles.upgradeBtnTitle}>⭐ Premium</Text>
+                <Text style={styles.upgradeBtnPrice}>{formatAmount(PLANS[0].amount)}/mo</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.upgradeBtnOutline}
                 onPress={() => handleUpgrade('business')}
-                activeOpacity={0.7}>
-                <Text style={styles.upgradeBtnOutlineText}>Go Business</Text>
+                activeOpacity={0.7}
+                disabled={paymentLoading}>
+                <Text style={styles.upgradeBtnOutlineTitle}>🚀 Business</Text>
+                <Text style={styles.upgradeBtnOutlinePrice}>{formatAmount(PLANS[1].amount)}/mo</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.billingRow}>
               <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
               <Text style={styles.billingText}>
-                Billing period: Monthly · Renews on Feb 15, 2025
+                Billing period: Monthly · Renews automatically
               </Text>
             </View>
           )}
         </View>
 
-        {/* Usage meter */}
+        {/* ═══ Payment loading overlay indicator ═══ */}
+        {paymentLoading && (
+          <View style={styles.paymentLoadingCard}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.paymentLoadingText}>Processing payment…</Text>
+          </View>
+        )}
+
+        {/* ═══ Usage meter ═══ */}
         <View style={styles.usageCard}>
           <Text style={styles.sectionTitle}>Usage This Month</Text>
-          {renderUsageBar('Posts', USAGE_DATA.postsToday.current, USAGE_DATA.postsToday.limit)}
-          {renderUsageBar('Stories', USAGE_DATA.storiesToday.current, USAGE_DATA.storiesToday.limit)}
-          {renderUsageBar('Storage (MB)', USAGE_DATA.storage.current, USAGE_DATA.storage.limit)}
+          {renderUsageBar('Posts', usage.postsToday.current, usage.postsToday.limit)}
+          {renderUsageBar('Stories', usage.storiesToday.current, usage.storiesToday.limit)}
+          {usage.products.limit > 0 && renderUsageBar('Products', usage.products.current, usage.products.limit)}
+          {renderUsageBar('Storage (MB)', usage.storage.current, usage.storage.limit)}
         </View>
 
-        {/* Feature comparison table */}
+        {/* ═══ Feature comparison table ═══ */}
         <View style={styles.tableCard}>
           <Text style={styles.sectionTitle}>Feature Comparison</Text>
           <View style={styles.tableHeader}>
@@ -268,7 +544,7 @@ export default function PremiumDashboardScreen() {
               <Text style={[styles.tableColText, { color: colors.accentGold }]}>Premium</Text>
             </View>
             <View style={styles.tableCol}>
-              <Text style={[styles.tableColText, { color: colors.primary }]}>Business</Text>
+              <Text style={[styles.tableColText, { color: colors.verified }]}>Business</Text>
             </View>
           </View>
           {FEATURES.map((feat) => (
@@ -301,11 +577,11 @@ export default function PremiumDashboardScreen() {
           ))}
         </View>
 
-        {/* Manage subscription */}
+        {/* ═══ Manage subscription (subscribed users only) ═══ */}
         {currentPlan !== 'free' && (
           <TouchableOpacity
             style={styles.manageBtn}
-            onPress={() => Alert.alert('Manage', 'Subscription management coming soon.')}
+            onPress={handleManagePlan}
             activeOpacity={0.7}>
             <Ionicons name="settings-outline" size={20} color={colors.textSecondary} />
             <Text style={styles.manageBtnText}>Manage Subscription</Text>
@@ -313,6 +589,35 @@ export default function PremiumDashboardScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      {/* ═══ Success Modal ═══ */}
+      <Modal
+        visible={successModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSuccessModalVisible(false)}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setSuccessModalVisible(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="checkmark-circle" size={56} color={colors.accentGreen} />
+            </View>
+            <Text style={styles.modalTitle}>Welcome to {activatedPlan?.name}!</Text>
+            <Text style={styles.modalDesc}>
+              {activatedPlan?.id === 'business'
+                ? 'Your Business plan is now active. You\'ve been upgraded with a Gold badge, Business role, and 2 free affiliate badges.'
+                : 'Your Premium plan is now active. You\'ve been upgraded with a Blue badge and access to all premium features.'}
+            </Text>
+            <TouchableOpacity
+              style={styles.modalBtn}
+              activeOpacity={0.7}
+              onPress={() => setSuccessModalVisible(false)}>
+              <Text style={styles.modalBtnText}>Start Exploring</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -334,7 +639,8 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  // Plan card
+
+  // ── Plan card ──
   planCard: {
     backgroundColor: colors.surface,
     borderRadius: 16,
@@ -347,7 +653,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  planInfo: {
+    flex: 1,
   },
   planEmoji: {
     fontSize: 36,
@@ -356,12 +665,94 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
+    fontFamily: 'Inter-Bold',
   },
   planStatus: {
     fontSize: 13,
     color: colors.textMuted,
     marginTop: 2,
+    fontFamily: 'Inter-Regular',
   },
+  planBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  planBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
+  badgeInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: `${colors.surfaceLight}88`,
+    borderRadius: 8,
+  },
+  badgeInfoText: {
+    fontSize: 13,
+    fontWeight: '500',
+    fontFamily: 'Inter-Medium',
+  },
+
+  // ── Affiliate badges info ──
+  affiliateInfoCard: {
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: `${colors.verified}44`,
+  },
+  affiliateInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  affiliateInfoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    fontFamily: 'Inter-SemiBold',
+  },
+  affiliateInfoDesc: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 10,
+    fontFamily: 'Inter-Regular',
+  },
+  affiliateBadgeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  affiliateBadgeSlot: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: `${colors.verifiedGold}44`,
+  },
+  affiliateBadgeLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: 'Inter-Medium',
+  },
+
+  // ── Upgrade buttons ──
   upgradeRow: {
     flexDirection: 'row',
     gap: 10,
@@ -369,27 +760,43 @@ const styles = StyleSheet.create({
   upgradeBtn: {
     flex: 1,
     backgroundColor: colors.primary,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 12,
+    paddingHorizontal: 14,
     alignItems: 'center',
   },
-  upgradeBtnText: {
+  upgradeBtnTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: colors.white,
+    fontWeight: '700',
+    color: colors.background,
+    fontFamily: 'Inter-Bold',
+  },
+  upgradeBtnPrice: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+    fontFamily: 'Inter-Regular',
   },
   upgradeBtnOutline: {
     flex: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 12,
+    paddingHorizontal: 14,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.primary,
   },
-  upgradeBtnOutlineText: {
+  upgradeBtnOutlineTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.primary,
+    fontFamily: 'Inter-Bold',
+  },
+  upgradeBtnOutlinePrice: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+    fontFamily: 'Inter-Regular',
   },
   billingRow: {
     flexDirection: 'row',
@@ -403,8 +810,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     flex: 1,
+    fontFamily: 'Inter-Regular',
   },
-  // Usage
+
+  // ── Payment loading ──
+  paymentLoadingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: `${colors.accentGold}66`,
+  },
+  paymentLoadingText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.accentGold,
+    fontFamily: 'Inter-Medium',
+  },
+
+  // ── Usage ──
   usageCard: {
     backgroundColor: colors.surface,
     borderRadius: 16,
@@ -418,6 +847,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginBottom: 14,
+    fontFamily: 'Inter-Bold',
   },
   usageRow: {
     flexDirection: 'row',
@@ -428,6 +858,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     width: 90,
+    fontFamily: 'Inter-Regular',
   },
   usageBarBg: {
     flex: 1,
@@ -443,11 +874,13 @@ const styles = StyleSheet.create({
   usageCount: {
     fontSize: 12,
     color: colors.textMuted,
-    width: 40,
+    width: 50,
     textAlign: 'right',
     marginLeft: 8,
+    fontFamily: 'Inter-Regular',
   },
-  // Table
+
+  // ── Feature table ──
   tableCard: {
     backgroundColor: colors.surface,
     borderRadius: 16,
@@ -469,6 +902,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
     paddingRight: 8,
+    fontFamily: 'Inter-SemiBold',
   },
   tableCol: {
     flex: 0.8,
@@ -477,6 +911,7 @@ const styles = StyleSheet.create({
   tableColText: {
     fontSize: 12,
     fontWeight: '700',
+    fontFamily: 'Inter-Bold',
   },
   tableRow: {
     flexDirection: 'row',
@@ -489,7 +924,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'center',
   },
-  // Manage button
+
+  // ── Manage button ──
   manageBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -505,5 +941,56 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: colors.textSecondary,
+    fontFamily: 'Inter-Medium',
+  },
+
+  // ── Success modal ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 32,
+    width: '100%',
+    maxWidth: 360,
+    alignItems: 'center',
+  },
+  modalIconWrap: {
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 10,
+    fontFamily: 'Inter-Bold',
+  },
+  modalDesc: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+    fontFamily: 'Inter-Regular',
+  },
+  modalBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.background,
+    fontFamily: 'Inter-SemiBold',
   },
 });

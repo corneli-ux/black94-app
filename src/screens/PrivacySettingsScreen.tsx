@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, ActivityIndicator, Alert,  } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, ActivityIndicator, Alert, TextInput, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -9,7 +9,7 @@ import { useAppStore } from '../stores/app';
 
 /* ── Types ──────────────────────────────────────────────────────────────── */
 interface PrivacySettings {
-  nameVisibility: 'public' | 'private';
+  nameVisibility: 'public' | 'selected' | 'private';
   dmPermission: 'all' | 'followers' | 'paid';
   searchVisible: boolean;
   accountLocked: boolean;
@@ -21,6 +21,12 @@ const DEFAULT_PRIVACY: PrivacySettings = {
   searchVisible: true,
   accountLocked: false,
 };
+
+const NAME_VISIBILITY_OPTIONS: { value: PrivacySettings['nameVisibility']; label: string }[] = [
+  { value: 'public', label: 'Public' },
+  { value: 'selected', label: 'Selected Users Only' },
+  { value: 'private', label: 'Private' },
+];
 
 const DM_OPTIONS: { value: PrivacySettings['dmPermission']; label: string }[] = [
   { value: 'all', label: 'Everyone' },
@@ -34,6 +40,7 @@ export default function PrivacySettingsScreen() {
   const [privacy, setPrivacy] = useState<PrivacySettings>(DEFAULT_PRIVACY);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [paidChatPrice, setPaidChatPrice] = useState('99');
 
   useEffect(() => {
     loadPrivacy();
@@ -62,6 +69,9 @@ export default function PrivacySettingsScreen() {
             searchVisible: stored.searchVisible !== false,
             accountLocked: stored.accountLocked || false,
           });
+          if (stored.paidChatPrice != null) {
+            setPaidChatPrice(String(stored.paidChatPrice));
+          }
         }
       }
     } catch (e) {
@@ -77,16 +87,21 @@ export default function PrivacySettingsScreen() {
 
     setSaving(true);
     try {
+      const privacyPayload: any = {
+        nameVisibility: privacy.nameVisibility,
+        dmPermission: privacy.dmPermission,
+        searchVisible: privacy.searchVisible,
+        accountLocked: privacy.accountLocked,
+      };
+      if (privacy.dmPermission === 'paid') {
+        const price = Math.min(9999, Math.max(1, Math.round(Number(paidChatPrice) || 99)));
+        privacyPayload.paidChatPrice = price;
+      }
       await firestore()
         .collection('users')
         .doc(userId)
         .update({
-          privacy: {
-            nameVisibility: privacy.nameVisibility,
-            dmPermission: privacy.dmPermission,
-            searchVisible: privacy.searchVisible,
-            accountLocked: privacy.accountLocked,
-          },
+          privacy: privacyPayload,
           updatedAt: firestore.FieldValue.serverTimestamp(),
         });
       Alert.alert('Saved', 'Privacy settings updated successfully.');
@@ -100,10 +115,12 @@ export default function PrivacySettingsScreen() {
 
   const toggleSwitch = (field: keyof PrivacySettings) => {
     if (field === 'nameVisibility') {
-      setPrivacy(prev => ({
-        ...prev,
-        nameVisibility: prev.nameVisibility === 'public' ? 'private' : 'public',
-      }));
+      setPrivacy(prev => {
+        const order: PrivacySettings['nameVisibility'][] = ['public', 'selected', 'private'];
+        const currentIdx = order.indexOf(prev.nameVisibility);
+        const nextIdx = (currentIdx + 1) % order.length;
+        return { ...prev, nameVisibility: order[nextIdx] };
+      });
     } else {
       setPrivacy(prev => ({
         ...prev,
@@ -144,24 +161,45 @@ export default function PrivacySettingsScreen() {
           <Text style={styles.sectionDesc}>
             Control who can see your display name on your public profile.
           </Text>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Public</Text>
-            <TouchableOpacity
-              style={[
-                styles.toggleTrack,
-                privacy.nameVisibility === 'public' && styles.toggleTrackOn,
-              ]}
-              onPress={() => toggleSwitch('nameVisibility')}
-              activeOpacity={0.7}
-            >
-              <View
+          <View style={styles.nameVisibilityOptions}>
+            {NAME_VISIBILITY_OPTIONS.map(opt => (
+              <TouchableOpacity
+                key={opt.value}
                 style={[
-                  styles.toggleThumb,
-                  privacy.nameVisibility === 'public' && styles.toggleThumbOn,
+                  styles.dmOptionCard,
+                  privacy.nameVisibility === opt.value && styles.dmOptionCardActive,
                 ]}
-              />
-            </TouchableOpacity>
+                onPress={() =>
+                  setPrivacy(prev => ({ ...prev, nameVisibility: opt.value }))
+                }
+              >
+                <View style={styles.dmRadioOuter}>
+                  <View
+                    style={[
+                      styles.dmRadioInner,
+                      privacy.nameVisibility === opt.value && styles.dmRadioInnerActive,
+                    ]}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.dmOptionText,
+                    privacy.nameVisibility === opt.value && styles.dmOptionTextActive,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
+          {privacy.nameVisibility === 'selected' && (
+            <View style={styles.selectedNote}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.accent} />
+              <Text style={styles.selectedNoteText}>
+                Only users you select will see your real name
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.separator} />
@@ -204,6 +242,51 @@ export default function PrivacySettingsScreen() {
             ))}
           </View>
         </View>
+
+        {/* ── Paid Chat Pricing (only when DM is set to "paid") ──── */}
+        {privacy.dmPermission === 'paid' && (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Paid Chat Pricing</Text>
+              <Text style={styles.sectionDesc}>
+                Set the amount other users must pay to start a chat with you.
+              </Text>
+              {user?.role === 'business' && (
+                <View style={styles.warningBox}>
+                  <Ionicons name="warning" size={16} color={colors.accentGold} />
+                  <Text style={styles.warningText}>
+                    Business accounts cannot use paid chat.
+                  </Text>
+                </View>
+              )}
+              <View style={styles.priceInputRow}>
+                <Text style={styles.priceSymbol}>₹</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  value={paidChatPrice}
+                  onChangeText={(text) => {
+                    const filtered = text.replace(/[^0-9]/g, '');
+                    if (filtered === '' || (Number(filtered) <= 9999)) {
+                      setPaidChatPrice(filtered);
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={4}
+                  placeholder="99"
+                  placeholderTextColor="#71767b"
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                  editable={user?.role !== 'business'}
+                />
+              </View>
+              <Text style={styles.priceHint}>
+                Min ₹1 · Max ₹9,999 per chat
+              </Text>
+            </View>
+
+            <View style={styles.separator} />
+          </>
+        )}
 
         <View style={styles.separator} />
 
@@ -320,6 +403,25 @@ const styles = StyleSheet.create({
     transform: [{ translateX: 20 }],
   },
   separator: { height: 0.5, backgroundColor: colors.border },
+  nameVisibilityOptions: { gap: 10, marginTop: 4 },
+  selectedNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(42,127,255,0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(42,127,255,0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  selectedNoteText: {
+    flex: 1,
+    color: colors.accent,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   dmOptions: { gap: 10, marginTop: 4 },
   dmOptionCard: {
     flexDirection: 'row',
@@ -373,5 +475,36 @@ const styles = StyleSheet.create({
     color: colors.accentGold,
     fontSize: 13,
     lineHeight: 19,
+  },
+  /* ── Price Input ── */
+  priceInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  priceSymbol: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '700',
+    marginRight: 10,
+  },
+  priceInput: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '700',
+    paddingVertical: 10,
+    backgroundColor: 'transparent',
+  },
+  priceHint: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    marginTop: 10,
   },
 });
