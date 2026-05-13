@@ -74,7 +74,7 @@ export interface PickAndOptimizeOptions extends OptimizeOptions {
   /** Allows editing (crop) in the picker. Default: false */
   allowsEditing?: boolean;
   /** Restrict to certain media types. Default: ['Images'] */
-  mediaTypes?: ImagePicker.MediaTypeValue[];
+  mediaTypes?: ImagePicker.MediaType[];
   /** Aspect ratio for crop. Default: [4, 3] */
   aspect?: [number, number];
   /** Quality of the picked image (0–1). Default: 1 (full res) */
@@ -159,7 +159,7 @@ export async function getImageDimensions(
 function getTempFilePath(extension: string): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 8);
-  const dir = FileSystem.cacheDirectory || '';
+  const dir = (FileSystem as any).cacheDirectory || '';
   return `${dir}img_${timestamp}_${random}.${extension}`;
 }
 
@@ -185,7 +185,7 @@ export async function generateNoiseDitheredUri(uri: string): Promise<string> {
       uri,
       [
         {
-          sharpen: 0.05, // Extremely subtle — just 5% sharpening
+          resize: { width: 2000, height: 2000 },
         },
       ],
       {
@@ -195,7 +195,7 @@ export async function generateNoiseDitheredUri(uri: string): Promise<string> {
     );
 
     // Clean up the input if it was a temp file we created
-    if (uri.startsWith(FileSystem.cacheDirectory || '')) {
+    if (uri.startsWith((FileSystem as any).cacheDirectory || '')) {
       try {
         await FileSystem.deleteAsync(uri, { idempotent: true });
       } catch {
@@ -239,7 +239,7 @@ async function isLikelyGraphic(
   try {
     // Read first few bytes to check PNG color type
     const base64 = await FileSystem.readAsStringAsync(uri.slice(7), {
-      encoding: FileSystem.EncodingType.Base64,
+      encoding: 'base64' as const,
       length: 64,
     });
     // If we can read the header, check for alpha channel
@@ -283,7 +283,7 @@ async function validateFileSize(uri: string): Promise<void> {
  * Cleans up a temp file. Errors are silently swallowed.
  */
 async function cleanupTemp(uri: string): Promise<void> {
-  if (!uri || !uri.startsWith(FileSystem.cacheDirectory || '')) return;
+  if (!uri || !uri.startsWith((FileSystem as any).cacheDirectory || '')) return;
   try {
     await FileSystem.deleteAsync(uri, { idempotent: true });
   } catch {
@@ -435,7 +435,7 @@ export async function optimizeImage(
     await cleanupTemp(optimizedUri);
   } else {
     // PNG — already in correct format, just ensure it's in cache
-    if (!optimizedUri.startsWith(FileSystem.cacheDirectory || '')) {
+    if (!optimizedUri.startsWith((FileSystem as any).cacheDirectory || '')) {
       const destPath = getTempFilePath('png');
       await FileSystem.copyAsync({ from: optimizedUri, to: destPath });
       finalResult = await ImageManipulator.manipulateAsync(destPath, [], {
@@ -530,9 +530,9 @@ export async function pickAndOptimizeImage(
 
     // Launch the picker
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: mediaTypes as ImagePicker.MediaTypeValue[],
+      mediaTypes: mediaTypes as ImagePicker.MediaType[],
       allowsEditing,
-      aspect: aspect ? { width: aspect[0], height: aspect[1] } : undefined,
+      aspect: aspect as [number, number] | undefined,
       quality: pickerQuality,
       // Request full-res — we'll resize ourselves for consistency
     });

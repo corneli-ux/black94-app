@@ -19,6 +19,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const routeChat = route.params?.chat;
   const routeChatId = route.params?.chatId;
   const [chat, setChat] = useState(routeChat || null);
+  const [otherUser, setOtherUser] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(!routeChat);
@@ -42,7 +43,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           if (chatDoc.exists) {
             const data = chatDoc.data();
             const otherId = data.user1Id === currentUser?.uid ? data.user2Id : data.user1Id;
-            let otherUser = null;
+            let otherUser: any = null;
             try {
               const otherSnap = await firestore().collection('users').doc(otherId).get();
               if (otherSnap.exists) {
@@ -258,7 +259,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
       {/* Input bar */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'undefined'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
         style={{ backgroundColor: '#000000' }}
       >

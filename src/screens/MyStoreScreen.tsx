@@ -251,6 +251,7 @@ const styles = StyleSheet.create({
   inactiveBtn: { borderColor: colors.border },
   activeBtnText: { color: colors.accentGreen, fontSize: 12, fontWeight: '600' },
   inactiveBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  actionBtnText: { color: colors.primary, fontSize: 12, fontWeight: '600' },
   iconBtn: { padding: 2 },
   iconBtnText: { fontSize: 18 },
   inactiveText: { color: colors.textSecondary },

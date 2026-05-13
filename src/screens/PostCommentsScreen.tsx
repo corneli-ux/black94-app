@@ -7,6 +7,7 @@ import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context'
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { CommentData, fetchPostComments, addPostComment, fetchActiveAdCampaigns } from '../lib/api';
+import FactCheckBottomSheet from './FactCheckBottomSheet';
 import { useAppStore } from '../stores/app';
 import { auth, firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
@@ -45,6 +46,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
   const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
   const [ads, setAds] = useState<any[]>([]);
+  const [factCheckVisible, setFactCheckVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
@@ -297,7 +299,20 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             : <Ionicons name="send" size={18} color={text.trim() ? '#000' : '#555'} />
           }
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.factCheckBtn]}
+          onPress={() => setFactCheckVisible(true)}
+          hitSlop={8}
+          activeOpacity={0.7}
+        >
+          <Ionicons name={'shield-checkmark-outline' as any} size={20} color={colors.accent} />
+        </TouchableOpacity>
       </View>
+      <FactCheckBottomSheet
+        postId={postId}
+        visible={factCheckVisible}
+        onClose={() => setFactCheckVisible(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -428,6 +443,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  factCheckBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(42,127,255,0.12)', alignItems: 'center', justifyContent: 'center',
+  },
   replyingBar: {
     flexDirection: 'row',
     alignItems: 'center',

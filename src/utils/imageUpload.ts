@@ -163,7 +163,7 @@ async function readFileAsBase64(uri: string): Promise<string> {
 
   const { default: FileSystem } = await import('expo-file-system');
   const base64 = await FileSystem.readAsStringAsync(filePath, {
-    encoding: FileSystem.EncodingType.Base64,
+    encoding: 'base64' as const,
   });
   return base64;
 }

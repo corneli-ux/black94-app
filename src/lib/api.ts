@@ -35,6 +35,8 @@ export interface Post {
   bookmarked: boolean;
   reposted: boolean;
   createdAt: number;
+  factCheckVerified?: number;
+  factCheckDebunked?: number;
 }
 
 export interface Chat {
@@ -203,6 +205,8 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
       bookmarked: false,
       reposted: false,
       createdAt: tsToMillis(data.createdAt),
+      factCheckVerified: data.factCheckVerified || 0,
+      factCheckDebunked: data.factCheckDebunked || 0,
     };
   });
 
@@ -865,6 +869,21 @@ export interface CommentData {
   createdAt: number;
 }
 
+export interface FactCheckClaim {
+  id: string;
+  postId: string;
+  claimedBy: string;
+  claimedAt: number;
+  text: string;
+  sourceUrl: string;
+  sourceTitle: string;
+  verdict: 'pending' | 'verified' | 'debunked' | 'misleading';
+  verifiedBy: string | null;
+  verifiedAt: number | null;
+  confidenceScore: number;
+  tags: string[];
+}
+
 export async function fetchPostComments(postId: string): Promise<CommentData[]> {
   try {
     // NOTE: No .orderBy('createdAt', 'asc') — that composite index may not exist.
@@ -1465,4 +1484,125 @@ export async function clearCart(userId: string): Promise<void> {
     await Promise.all(promises);
     hasMore = snap.size >= batchSize;
   }
+}
+
+/* ── Fact-Checking System ──────────────────────────────────────────────────────── */
+
+/**
+ * Submits a fact-check claim on a post.
+ * Users can flag a specific part of a post's text as potentially misleading.
+ */
+export async function submitFactCheck(
+  postId: string,
+  claimText: string,
+  sourceUrl?: string,
+  sourceTitle?: string,
+): Promise<FactCheckClaim> {
+  const userId = currentUser()?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  const docRef = await firestore().collection('factChecks').add({
+    postId,
+    claimedBy: userId,
+    claimedAt: firestore.FieldValue.serverTimestamp(),
+    text: claimText,
+    sourceUrl: sourceUrl || '',
+    sourceTitle: sourceTitle || '',
+    verdict: 'pending',
+    verifiedBy: null,
+    verifiedAt: null,
+    confidenceScore: 0,
+    tags: [],
+    createdAt: firestore.FieldValue.serverTimestamp(),
+  });
+
+  const snap = await firestore().collection('factChecks').doc(docRef.id).get();
+  const data = snap.data();
+
+  return {
+    id: docRef.id,
+    postId,
+    claimedBy: userId,
+    claimedAt: tsToMillis(data.claimedAt),
+    text: data.text || '',
+    sourceUrl: data.sourceUrl || '',
+    sourceTitle: data.sourceTitle || '',
+    verdict: data.verdict || 'pending',
+    verifiedBy: data.verifiedBy || null,
+    verifiedAt: data.verifiedAt ? tsToMillis(data.verifiedAt) : null,
+    confidenceScore: data.confidenceScore || 0,
+    tags: data.tags || [],
+  };
+}
+
+/**
+ * Fetches all fact-check claims for a post.
+ */
+export async function fetchPostFactChecks(postId: string): Promise<FactCheckClaim[]> {
+  try {
+    const snapshot = await firestore()
+      .collection('factChecks')
+      .where('postId', '==', postId)
+      .orderBy('claimedAt', 'desc')
+      .limit(20)
+      .get();
+
+    return snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        postId: data.postId || '',
+        claimedBy: data.claimedBy || '',
+        claimedAt: tsToMillis(data.claimedAt),
+        text: data.text || '',
+        sourceUrl: data.sourceUrl || '',
+        sourceTitle: data.sourceTitle || '',
+        verdict: data.verdict || 'pending',
+        verifiedBy: data.verifiedBy || null,
+        verifiedAt: data.verifiedAt ? tsToMillis(data.verifiedAt) : null,
+        confidenceScore: data.confidenceScore || 0,
+        tags: data.tags || [],
+      };
+    });
+  } catch (e) {
+    console.error('[FactCheck] Failed to fetch:', e);
+    return [];
+  }
+}
+
+/**
+ * Submits a verification for a fact-check claim (admin/verified users).
+ */
+export async function verifyFactCheck(
+  claimId: string,
+  verdict: 'verified' | 'debunked' | 'misleading',
+  confidenceScore: number,
+  tags?: string[],
+): Promise<void> {
+  const userId = currentUser()?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  await firestore().collection('factChecks').doc(claimId).update({
+    verdict,
+    confidenceScore: Math.max(0, Math.min(100, confidenceScore)),
+    verifiedBy: userId,
+    verifiedAt: firestore.FieldValue.serverTimestamp(),
+    tags: tags || [],
+  });
+}
+
+/**
+ * Adds a fact-check badge/count to a post.
+ * Called after a claim is verified to show the badge on the post.
+ */
+export async function updatePostFactCheckStatus(
+  postId: string,
+  verifiedCount: number,
+  debunkedCount: number,
+): Promise<void> {
+  await firestore().collection('posts').doc(postId).update({
+    factCheckVerified: verifiedCount,
+    factCheckDebunked: debunkedCount,
+    updatedAt: firestore.FieldValue.serverTimestamp(),
+  });
 }

@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import type { ImagePickerResponse, launchImageLibrary } from 'react-native-image-picker';
+import type { ImagePickerAsset, ImagePickerResult } from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -61,18 +61,19 @@ const EMOJI_CATEGORIES = [
 
 // ── Image picker helper (lazy import to avoid crash if library not linked) ────
 
-async function openImagePicker(limit: number): Promise<ImagePickerResponse> {
+async function openImagePicker(limit: number): Promise<ImagePickerResult> {
   try {
-    const { launchImageLibrary } = require('react-native-image-picker');
-    const result: ImagePickerResponse = await (launchImageLibrary as typeof launchImageLibrary)({
-      mediaType: 'mixed',
+    const { launchImageLibraryAsync } = require('expo-image-picker');
+    const result: ImagePickerResult = await launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
       quality: 0.8,
+      allowsMultipleSelection: true,
       selectionLimit: limit,
     });
     return result;
   } catch (err) {
     console.error('[CreatePost] Image picker not available:', err);
-    return { assets: [], didCancel: true, errorCode: 'unavailable', errorMessage: 'Image picker not available' };
+    return { canceled: true, assets: null } as any;
   }
 }
 
@@ -116,9 +117,9 @@ const CreatePostScreen: React.FC = () => {
     }
 
     const result = await openImagePicker(remaining);
-    if (result.didCancel || result.errorCode) return;
+    if (result.canceled || !result.assets || result.assets.length === 0) return;
 
-    const assets = result.assets ?? [];
+    const assets: ImagePickerAsset[] = result.assets ?? [];
     const newUris = assets
       .filter((a) => a.uri)
       .map((a) => a.uri!)

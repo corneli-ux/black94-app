@@ -34,6 +34,7 @@ interface ChatItem {
   user1Id: string;
   user2Id: string;
   lastMessage?: string;
+  lastMessageTime?: any;
   createdAt: string;
   updatedAt: string;
   otherUser?: {

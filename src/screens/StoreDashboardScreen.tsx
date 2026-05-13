@@ -542,7 +542,7 @@ export default function StoreDashboardScreen() {
                   onPress={() => navigation.navigate('AddProduct' as never)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="add" size={16} color={colors.black} />
+                  <Ionicons name="add" size={16} color={colors.white} />
                   <Text style={styles.addProductBtnText}>Add Your First Product</Text>
                 </TouchableOpacity>
               )}
@@ -991,7 +991,7 @@ const styles = StyleSheet.create({
   addProductBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.black,
+    color: colors.white,
   },
 
   // ── Recent orders ───────────────────────────────────────────────────────

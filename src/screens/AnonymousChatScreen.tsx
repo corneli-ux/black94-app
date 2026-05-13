@@ -277,7 +277,7 @@ export default function AnonymousChatScreen() {
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.landingContainer}>
           <View style={styles.landingIcon}>
-            <Ionicons name="incognito-outline" size={64} color={colors.primary} />
+            <Ionicons name="eye-off-outline" size={64} color={colors.primary} />
           </View>
           <Text style={styles.landingTitle}>Anonymous Chat</Text>
           <Text style={styles.landingSubtitle}>
@@ -340,7 +340,7 @@ export default function AnonymousChatScreen() {
         <View style={styles.chatHeader}>
           <View style={styles.chatHeaderInfo}>
             <View style={styles.anonAvatar}>
-              <Ionicons name="incognito" size={18} color={colors.white} />
+              <Ionicons name="eye-off" size={18} color={colors.white} />
             </View>
             <View>
               <Text style={styles.chatHeaderName}>{strangerName}</Text>
@@ -385,7 +385,7 @@ export default function AnonymousChatScreen() {
               style={styles.nextBtn}
               onPress={handleNext}
               activeOpacity={0.7}>
-              <Ionicons name="skip-forward" size={20} color={colors.primary} />
+              <Ionicons name="play-forward-outline" size={20} color={colors.primary} />
               <Text style={styles.nextBtnText}>Next</Text>
             </TouchableOpacity>
             <TouchableOpacity

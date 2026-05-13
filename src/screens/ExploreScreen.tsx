@@ -90,7 +90,7 @@ export default function ExploreScreen() {
             .collection('follows')
             .where('followerId', '==', currentUserId)
             .get();
-          const followingIds = new Set(followsSnap.docs.map(d => d.data().followingId));
+          const followingIds = new Set<string>(followsSnap.docs.map(d => d.data().followingId as string));
           setFollowedUsers(followingIds);
         } catch { /* skip */ }
       }
@@ -161,7 +161,7 @@ export default function ExploreScreen() {
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.openDrawer()} hitSlop={8}>
+          <TouchableOpacity onPress={() => (navigation as any).openDrawer()} hitSlop={8}>
             <Ionicons name="menu" size={22} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Explore</Text>
@@ -234,7 +234,7 @@ export default function ExploreScreen() {
               <TouchableOpacity
                 key={topic.tag}
                 style={styles.topicRow}
-                onPress={() => navigation.navigate('Search' as never, { q: topic.tag })}
+                onPress={() => (navigation as any).navigate('Search', { q: topic.tag })}
               >
                 <View style={styles.topicContent}>
                   <Text style={styles.topicTag}>{topic.tag}</Text>
@@ -277,7 +277,7 @@ export default function ExploreScreen() {
                 <View key={user.id} style={styles.userRow}>
                   <TouchableOpacity
                     onPress={() =>
-                      navigation.navigate('UserProfile' as never, { userId: user.id })
+                      (navigation as any).navigate('UserProfile', { userId: user.id })
                     }
                   >
                     <Avatar uri={user.profileImage} size={44} name={user.displayName} />
@@ -285,7 +285,7 @@ export default function ExploreScreen() {
                   <TouchableOpacity
                     style={styles.userInfo}
                     onPress={() =>
-                      navigation.navigate('UserProfile' as never, { userId: user.id })
+                      (navigation as any).navigate('UserProfile', { userId: user.id })
                     }
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>

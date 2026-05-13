@@ -289,7 +289,7 @@ export default function BusinessOrdersScreen() {
       actions.push({
         label: 'Ship',
         nextStatus: 'shipped',
-        icon: 'truck-outline',
+        icon: 'car-outline',
         isShip: true,
       });
     }
@@ -396,7 +396,7 @@ export default function BusinessOrdersScreen() {
                   disabled={updatingStatus}
                 >
                   <Ionicons
-                    name={action.icon}
+                    name={action.icon as any}
                     size={15}
                     color={
                       action.nextStatus === 'cancelled'
@@ -536,7 +536,7 @@ export default function BusinessOrdersScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             <View style={styles.modalHeader}>
-              <Ionicons name="truck-outline" size={24} color={colors.accent} />
+              <Ionicons name="car-outline" size={24} color={colors.accent} />
               <Text style={styles.modalTitle}>Ship Order</Text>
             </View>
             <Text style={styles.modalSubtitle}>

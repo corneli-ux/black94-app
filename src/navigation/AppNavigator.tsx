@@ -23,10 +23,10 @@ const DarkTheme = {
     notification: '#FFFFFF',
   },
   fonts: {
-    regular: { fontFamily: 'Inter-Regular', fontWeight: '400' },
-    medium: { fontFamily: 'Inter-Medium', fontWeight: '500' },
-    bold: { fontFamily: 'Inter-Bold', fontWeight: '700' },
-    heavy: { fontFamily: 'Inter-Bold', fontWeight: '900' },
+    regular: { fontFamily: 'Inter-Regular', fontWeight: '400' as const },
+    medium: { fontFamily: 'Inter-Medium', fontWeight: '500' as const },
+    bold: { fontFamily: 'Inter-Bold', fontWeight: '700' as const },
+    heavy: { fontFamily: 'Inter-Bold', fontWeight: '900' as const },
   },
 };
 
@@ -283,7 +283,7 @@ function DrawerNavigator() {
       screenOptions={{
         headerShown: false,
         drawerStyle: { backgroundColor: colors.bg, width: '72%' },
-        screenStyle: { backgroundColor: '#000000' },
+        sceneStyle: { backgroundColor: '#000000' },
         overlayColor: 'rgba(0,0,0,0.7)',
       }}
     >

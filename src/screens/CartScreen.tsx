@@ -11,7 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../lib/firebase';
 import { fetchCart, updateCartItemQuantity, removeFromCart, CartItem } from '../lib/api';
 import { colors } from '../theme/colors';
@@ -70,7 +70,7 @@ export default function CartScreen({ route, navigation }: any) {
 
     setUpdating(productId);
     try {
-      await updateCartItemQuantity(userId, productId, newQty);
+      await updateCartItemQuantity(userId!, productId, newQty);
       setCartItems((prev) =>
         prev.map((i) => (i.productId === productId ? { ...i, quantity: newQty } : i)),
       );
@@ -91,7 +91,7 @@ export default function CartScreen({ route, navigation }: any) {
         onPress: async () => {
           setUpdating(productId);
           try {
-            await removeFromCart(userId, productId);
+            await removeFromCart(userId!, productId);
             setCartItems((prev) => prev.filter((i) => i.productId !== productId));
           } catch (e) {
             console.error('[Cart] Failed to remove:', e);

@@ -410,8 +410,8 @@ export default function WriteArticleScreen() {
               value={content}
               onChangeText={setContent}
               onSelectionChange={(e) => {
-                inputRef.selectionStart = e.nativeEvent.selectionStart;
-                inputRef.selectionEnd = e.nativeEvent.selectionEnd;
+                inputRef.selectionStart = e.nativeEvent.selection.start;
+                inputRef.selectionEnd = e.nativeEvent.selection.end;
               }}
               multiline
               textAlignVertical="top"

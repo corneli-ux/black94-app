@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, SafeAreaView } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { firestore } from '../lib/firebase';
 import { auth } from '../lib/firebase';
@@ -36,7 +37,7 @@ export default function FollowersScreen({ route, navigation }: any) {
       const userField = mode === 'followers' ? 'followerId' : 'followingId';
       const snap = await collection.where(field, '==', targetUserId).limit(100).get();
 
-      const userIds = [...new Set(snap.docs.map(d => d.data()[userField]).filter(Boolean))];
+      const userIds = snap.docs.map(d => d.data()[userField] as string).filter(Boolean);
       if (userIds.length === 0) { setUsers([]); setLoading(false); return; }
 
       const CHUNK = 30;
