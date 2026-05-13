@@ -44,7 +44,7 @@ function HighlightedCaption({ text, style }: { text: string; style: any }) {
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
-const TABS = ['Discover', 'Network'] as const;
+const TABS = ['black948', 'Network'] as const;
 type Tab = typeof TABS[number];
 
 function formatCount(n: number | undefined): string {
@@ -365,7 +365,7 @@ export default function FeedScreen({ navigation }: any) {
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
   const [composeImages, setComposeImages] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<Tab>('Discover');
+  const [activeTab, setActiveTab] = useState<Tab>('black948');
   const [ads, setAds] = useState<any[]>([]);
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
@@ -694,13 +694,13 @@ export default function FeedScreen({ navigation }: any) {
               <Ionicons name="menu" size={22} color="#e7e9ea" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
+              <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
             </View>
             <TouchableOpacity
               style={styles.headerBtn}
-              onPress={() => navigation.navigate('Settings')}
+              onPress={() => navigation.navigate('PremiumDashboard')}
             >
-              <Ionicons name="settings-outline" size={20} color={colors.text} />
+              <Ionicons name="diamond-outline" size={22} color={colors.accent} />
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -709,7 +709,7 @@ export default function FeedScreen({ navigation }: any) {
         <View style={styles.tabBar}>
           {TABS.map(tab => (
             <TouchableOpacity key={tab} style={styles.tabItem} disabled>
-              <Text style={[styles.tabText, tab === 'Discover' ? styles.tabTextActive : styles.tabTextInactive]}>
+              <Text style={[styles.tabText, activeTab === tab ? styles.tabTextActive : styles.tabTextInactive]}>
                 {tab}
               </Text>
             </TouchableOpacity>
@@ -749,13 +749,13 @@ export default function FeedScreen({ navigation }: any) {
             <Ionicons name="menu" size={22} color="#e7e9ea" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
+            <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
           </View>
           <TouchableOpacity
             style={styles.headerBtn}
-            onPress={() => navigation.navigate('Settings')}
+            onPress={() => navigation.navigate('PremiumDashboard')}
           >
-            <Ionicons name="settings-outline" size={20} color={colors.text} />
+            <Ionicons name="diamond-outline" size={22} color={colors.accent} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
   },
   headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  logoImage: { width: 28, height: 28, resizeMode: 'contain' },
+  logoImage: { width: 100, height: 34, resizeMode: 'contain' },
 
   /* ── Tabs ── */
   tabBar: {

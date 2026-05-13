@@ -115,11 +115,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   switch (name) {
     case 'Home':
       return (
-        <Ionicons
-          {...iconProps}
-          name={focused ? 'home' : 'home-outline'}
-          strokeWidth={focused ? 2.4 : 2.2}
-        />
+        <Text style={{ fontSize: 20, fontWeight: '900', color: '#ffffff' }}>94</Text>
       );
     case 'Search':
       return (
@@ -146,7 +142,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       return (
         <Ionicons
           {...iconProps}
-          name={focused ? 'eye' : 'eye-outline'}
+          name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
         />
       );
     case 'Stories':
@@ -226,14 +222,14 @@ function CustomDrawerContent({ navigation }: any) {
     { label: 'Profile', icon: 'person-outline', screen: 'ProfileSelf' },
     { label: 'Bookmarks', icon: 'bookmark-outline', screen: 'Bookmarks' },
     { label: 'Cart', icon: 'cart-outline', screen: 'Cart' },
-    { label: 'Settings', icon: 'settings-outline', screen: 'Settings' },
+    { label: 'Upgrade', icon: 'diamond-outline', screen: 'PremiumDashboard' },
   ];
 
   return (
     <DrawerContentScrollView style={styles.drawer} contentContainerStyle={{ paddingTop: insets.top }}>
       {/* Logo */}
       <View style={styles.drawerLogo}>
-        <Text style={styles.drawerLogoText}>Black94</Text>
+        <Image source={require('../../assets/logo.png')} style={{ width: 120, height: 40, resizeMode: 'contain' }} />
       </View>
 
       {/* Nav items */}

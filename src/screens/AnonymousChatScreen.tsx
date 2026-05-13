@@ -1,8 +1,18 @@
 /**
- * AnonymousChatScreen.tsx — Omegle-style anonymous chat
+ * AnonymousChatScreen.tsx — Omegle-style anonymous chat via Firestore
  *
  * States: Landing → Searching → Connected
- * All in-memory, no persistence. Simulated stranger replies.
+ *
+ * ALL data is real Firestore — NO mocks, NO simulations, NO hardcoded replies.
+ * Uses polling (Firestore REST API has no onSnapshot) for:
+ *   - Queue matching (every 2s)
+ *   - New messages (every 1.5s)
+ *   - Typing indicator (every 3s)
+ *
+ * Firestore collections:
+ *   anonQueue   — users waiting to be matched
+ *   anonRooms   — active chat rooms (doc ID = sorted userId pair)
+ *   anonMessages — messages within a room
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,6 +31,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { firestore, auth } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -31,43 +42,59 @@ type ChatState = 'landing' | 'searching' | 'connected';
 interface AnonMessage {
   id: string;
   content: string;
-  isMine: boolean;
-  timestamp: number;
+  senderId: string;
+  senderName: string;
+  createdAt: string;
 }
+
+interface QueueEntry {
+  userId: string;
+  anonymousName: string;
+  status: 'waiting' | 'matched';
+  partnerId: string | null;
+  createdAt: string;
+}
+
+interface RoomData {
+  roomId: string;
+  partnerId: string;
+  partnerName: string;
+  myName: string;
+  createdAt: string;
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const QUEUE_POLL_INTERVAL = 2000;   // 2 seconds
+const MSG_POLL_INTERVAL = 1500;      // 1.5 seconds
+const TYPING_POLL_INTERVAL = 3000;   // 3 seconds
+const QUEUE_TTL_SECONDS = 60;        // Queue entries expire after 60s
+
+const ADJECTIVES = [
+  'Shadow', 'Mystic', 'Cosmic', 'Neon', 'Phantom',
+  'Blaze', 'Frost', 'Storm', 'Pixel', 'Ember',
+  'Drift', 'Haze', 'Nova', 'Cryptic', 'Silent',
+];
+const NOUNS = [
+  'Wolf', 'Fox', 'Eagle', 'Lynx', 'Raven',
+  'Hawk', 'Panther', 'Cobra', 'Tiger', 'Phoenix',
+  'Orca', 'Viper', 'Ghost', 'Sage', 'Flux',
+];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const ADJECTIVES = ['Shadow', 'Mystic', 'Cosmic', 'Neon', 'Phantom', 'Blaze', 'Frost', 'Storm', 'Pixel', 'Ember', 'Drift', 'Haze'];
-const NOUNS = ['Wolf', 'Fox', 'Eagle', 'Lynx', 'Raven', 'Hawk', 'Panther', 'Cobra', 'Tiger', 'Phoenix'];
-
-function generateUsername(): string {
+function generateAnonymousName(): string {
   const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
   const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  const num = Math.floor(Math.random() * 99) + 1;
+  const num = Math.floor(Math.random() * 999) + 1;
   return `${adj}_${noun}${num}`;
 }
 
-const STRANGER_REPLIES = [
-  'Hey! How are you? 😊',
-  "That's cool, tell me more!",
-  'I love meeting new people here.',
-  'Where are you from?',
-  'Haha, nice one! 😂',
-  "I've been using Black94 for a while now.",
-  'What do you do for fun?',
-  "That's really interesting.",
-  'Same here!',
-  'Have you tried the anonymous mode before?',
-  'So what brings you here today?',
-  "I'm just chilling, looking for interesting conversations.",
-  "That's a great point!",
-  "I never thought about it that way.",
-  'Nice to meet you! 🙌',
-  'Absolutely agree with you on that.',
-  "Let's talk about something fun. What's your favorite movie?",
-];
-
-let msgIdCounter = 0;
+/** Deterministic room ID from two sorted user IDs */
+function buildRoomId(uid1: string, uid2: string): string {
+  const sorted = [uid1, uid2].sort();
+  return `${sorted[0]}_${sorted[1]}`;
+}
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -75,150 +102,595 @@ function formatDuration(seconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
+function isStale(createdAt: string, maxAgeMs: number): boolean {
+  try {
+    const created = new Date(createdAt).getTime();
+    return Date.now() - created > maxAgeMs;
+  } catch {
+    return true;
+  }
+}
+
+function nowISO(): string {
+  return new Date().toISOString();
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function AnonymousChatScreen() {
+  // ── State ────────────────────────────────────────────────────────────────
   const [chatState, setChatState] = useState<ChatState>('landing');
   const [messages, setMessages] = useState<AnonMessage[]>([]);
   const [inputText, setInputText] = useState('');
-  const [strangerName, setStrangerName] = useState('');
-  const [myName] = useState(() => generateUsername());
+  const [myName] = useState(() => generateAnonymousName());
+  const [room, setRoom] = useState<RoomData | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [isStrangerTyping, setIsStrangerTyping] = useState(false);
+  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+  const [searchElapsed, setSearchElapsed] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
+  // ── Refs ─────────────────────────────────────────────────────────────────
+  const myUserId = auth().currentUser?.uid ?? '';
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const replyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const typingPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const mountedRef = useRef(true);
+  const lastMsgTimestampRef = useRef<string | null>(null);
+  const roomRef = useRef<RoomData | null>(null);
 
-  // ── Timer management ───────────────────────────────────────────────────
-  const startTimer = useCallback(() => {
+  // Keep roomRef in sync
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
+
+  // Track mounted state
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // ── Timer management ─────────────────────────────────────────────────────
+  const startConnectionTimer = useCallback(() => {
+    stopConnectionTimer();
     timerRef.current = setInterval(() => {
-      setElapsed((prev) => prev + 1);
+      if (mountedRef.current) setElapsed(prev => prev + 1);
     }, 1000);
   }, []);
 
-  const stopTimer = useCallback(() => {
+  const stopConnectionTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
   }, []);
 
-  const cleanup = useCallback(() => {
-    stopTimer();
-    if (replyTimeoutRef.current) {
-      clearTimeout(replyTimeoutRef.current);
-      replyTimeoutRef.current = null;
-    }
-    setIsStrangerTyping(false);
-  }, [stopTimer]);
-
-  // ── Simulated stranger reply ───────────────────────────────────────────
-  const triggerStrangerReply = useCallback(() => {
-    const delay = 1500 + Math.random() * 3000;
-
-    replyTimeoutRef.current = setTimeout(() => {
-      setIsStrangerTyping(true);
-
-      // "Typing" for 1-3 seconds
-      setTimeout(() => {
-        setIsStrangerTyping(false);
-        const reply = STRANGER_REPLIES[Math.floor(Math.random() * STRANGER_REPLIES.length)];
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `msg_${++msgIdCounter}`,
-            content: reply,
-            isMine: false,
-            timestamp: Date.now(),
-          },
-        ]);
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 1000 + Math.random() * 2000);
-    }, delay);
+  const startSearchTimer = useCallback(() => {
+    stopSearchTimer();
+    searchTimerRef.current = setInterval(() => {
+      if (mountedRef.current) setSearchElapsed(prev => prev + 1);
+    }, 1000);
   }, []);
 
-  // ── Find stranger ──────────────────────────────────────────────────────
-  const handleFindStranger = useCallback(() => {
-    setChatState('searching');
-    setMessages([]);
-    setElapsed(0);
-    setStrangerName(generateUsername());
+  const stopSearchTimer = useCallback(() => {
+    if (searchTimerRef.current) {
+      clearInterval(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+  }, []);
 
-    // Simulate finding someone after 2-4 seconds
-    setTimeout(() => {
-      setChatState('connected');
-      startTimer();
+  // ── Poll cleanup ─────────────────────────────────────────────────────────
+  const stopAllPolling = useCallback(() => {
+    if (queuePollRef.current) {
+      clearInterval(queuePollRef.current);
+      queuePollRef.current = null;
+    }
+    if (msgPollRef.current) {
+      clearInterval(msgPollRef.current);
+      msgPollRef.current = null;
+    }
+    if (typingPollRef.current) {
+      clearInterval(typingPollRef.current);
+      typingPollRef.current = null;
+    }
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+  }, []);
 
-      // Stranger sends first message after a moment
-      setTimeout(() => {
-        setMessages([
-          {
-            id: `msg_${++msgIdCounter}`,
-            content: `Hi! I'm ${strangerName || 'Stranger'}. Nice to meet you! 👋`,
-            isMine: false,
-            timestamp: Date.now(),
-          },
-        ]);
-      }, 800);
-    }, 2000 + Math.random() * 2000);
-  }, [startTimer, strangerName]);
+  // ── Firestore: delete own queue entry ────────────────────────────────────
+  const deleteOwnQueueEntry = useCallback(async () => {
+    if (!myUserId) return;
+    try {
+      await firestore().collection('anonQueue').doc(myUserId).delete();
+    } catch (e: any) {
+      console.warn('[AnonChat] Failed to delete queue entry:', e?.message);
+    }
+  }, [myUserId]);
 
-  // ── Disconnect ────────────────────────────────────────────────────────
-  const handleDisconnect = useCallback(() => {
-    cleanup();
-    setChatState('landing');
-    setMessages([]);
-    setStrangerName('');
-    setElapsed(0);
-  }, [cleanup]);
+  // ── Firestore: update room's lastActivity ────────────────────────────────
+  const updateRoomActivity = useCallback(async (roomId: string) => {
+    try {
+      await firestore().collection('anonRooms').doc(roomId).update({
+        lastActivity: nowISO(),
+      });
+    } catch (e: any) {
+      console.warn('[AnonChat] Failed to update room activity:', e?.message);
+    }
+  }, []);
 
-  // ── Next stranger ─────────────────────────────────────────────────────
-  const handleNext = useCallback(() => {
-    cleanup();
-    setChatState('searching');
-    setMessages([]);
-    setElapsed(0);
-    setStrangerName(generateUsername());
+  // ── Firestore: set partner typing state ──────────────────────────────────
+  const setMyTypingState = useCallback(async (roomId: string, typing: boolean) => {
+    try {
+      const currentRoom = roomRef.current;
+      if (!currentRoom) return;
+      // Determine which typing field is ours
+      const updateData: Record<string, any> = {};
+      if (currentRoom.partnerId === myUserId) {
+        updateData.user2Typing = typing;
+      } else {
+        updateData.user1Typing = typing;
+      }
+      await firestore().collection('anonRooms').doc(roomId).update(updateData);
+    } catch (e: any) {
+      console.warn('[AnonChat] Failed to update typing state:', e?.message);
+    }
+  }, [myUserId]);
 
-    setTimeout(() => {
-      setChatState('connected');
-      startTimer();
+  // ── Poll: check queue for match (also detect if someone matched us) ──────
+  const pollQueue = useCallback(async () => {
+    if (!myUserId || !mountedRef.current) return;
 
-      setTimeout(() => {
-        setMessages([
-          {
-            id: `msg_${++msgIdCounter}`,
-            content: `Hey! I'm ${strangerName}. What's up? 😄`,
-            isMine: false,
-            timestamp: Date.now(),
-          },
-        ]);
-      }, 600);
-    }, 2000 + Math.random() * 2000);
-  }, [cleanup, startTimer, strangerName]);
+    try {
+      const db = firestore();
 
-  // ── Send message ───────────────────────────────────────────────────────
-  const handleSend = useCallback(() => {
-    if (!inputText.trim()) return;
+      // First: check if we've been matched by someone else
+      const myQueueDoc = await db.collection('anonQueue').doc(myUserId).get();
+      if (myQueueDoc.exists) {
+        const myData = myQueueDoc.data();
+        if (myData?.status === 'matched' && myData?.partnerId) {
+          // Someone matched with us!
+          const partnerId = myData.partnerId;
+          const roomId = buildRoomId(myUserId, partnerId);
 
-    const newMsg: AnonMessage = {
-      id: `msg_${++msgIdCounter}`,
-      content: inputText.trim(),
-      isMine: true,
-      timestamp: Date.now(),
+          // Get the room to find partner's name
+          const roomDoc = await db.collection('anonRooms').doc(roomId).get();
+          let partnerName = 'Stranger';
+          if (roomDoc.exists) {
+            const roomData = roomDoc.data();
+            partnerName =
+              roomData?.user1Id === myUserId
+                ? roomData?.user2Name || 'Stranger'
+                : roomData?.user1Name || 'Stranger';
+          }
+
+          // Clean up queue entry
+          await deleteOwnQueueEntry();
+
+          // Stop queue polling
+          if (queuePollRef.current) {
+            clearInterval(queuePollRef.current);
+            queuePollRef.current = null;
+          }
+          stopSearchTimer();
+
+          const newRoom: RoomData = {
+            roomId,
+            partnerId,
+            partnerName,
+            myName,
+            createdAt: roomDoc.exists ? (roomDoc.data()?.createdAt || nowISO()) : nowISO(),
+          };
+
+          if (mountedRef.current) {
+            setRoom(newRoom);
+            roomRef.current = newRoom;
+            setMessages([]);
+            lastMsgTimestampRef.current = null;
+            setChatState('connected');
+            setElapsed(0);
+            startConnectionTimer();
+            startMessagePolling(newRoom.roomId);
+            startTypingPolling(newRoom.roomId);
+          }
+          return;
+        }
+      }
+
+      // Second: look for other waiting users to match with
+      const snapshot = await db
+        .collection('anonQueue')
+        .where('status', '==', 'waiting')
+        .get();
+
+      if (!snapshot.empty) {
+        const candidates = snapshot.docs.filter(doc => {
+          const data = doc.data();
+          return (
+            doc.id !== myUserId &&
+            data.status === 'waiting' &&
+            !isStale(data.createdAt, QUEUE_TTL_SECONDS * 1000)
+          );
+        });
+
+        if (candidates.length > 0) {
+          // Pick the oldest candidate
+          const partner = candidates.reduce((oldest, current) => {
+            const oData = oldest.data();
+            const cData = current.data();
+            return (oData.createdAt || '') < (cData.createdAt || '') ? oldest : current;
+          });
+
+          const partnerData = partner.data();
+          const partnerId = partner.id;
+          const partnerName = partnerData.anonymousName || 'Stranger';
+          const roomId = buildRoomId(myUserId, partnerId);
+
+          // Create the room
+          await db.collection('anonRooms').doc(roomId).set({
+            user1Id: myUserId,
+            user2Id: partnerId,
+            user1Name: myName,
+            user2Name: partnerName,
+            createdAt: nowISO(),
+            lastActivity: nowISO(),
+            user1Typing: false,
+            user2Typing: false,
+          });
+
+          // Mark partner as matched
+          try {
+            await db.collection('anonQueue').doc(partnerId).update({
+              status: 'matched',
+              partnerId: myUserId,
+            });
+          } catch (e: any) {
+            console.warn('[AnonChat] Failed to mark partner as matched:', e?.message);
+          }
+
+          // Mark ourselves as matched
+          try {
+            await db.collection('anonQueue').doc(myUserId).update({
+              status: 'matched',
+              partnerId,
+            });
+          } catch (e: any) {
+            console.warn('[AnonChat] Failed to mark self as matched:', e?.message);
+          }
+
+          // Clean up our own queue entry after matching
+          await deleteOwnQueueEntry();
+
+          // Stop queue polling
+          if (queuePollRef.current) {
+            clearInterval(queuePollRef.current);
+            queuePollRef.current = null;
+          }
+          stopSearchTimer();
+
+          const newRoom: RoomData = {
+            roomId,
+            partnerId,
+            partnerName,
+            myName,
+            createdAt: nowISO(),
+          };
+
+          if (mountedRef.current) {
+            setRoom(newRoom);
+            roomRef.current = newRoom;
+            setMessages([]);
+            lastMsgTimestampRef.current = null;
+            setChatState('connected');
+            setElapsed(0);
+            startConnectionTimer();
+            startMessagePolling(newRoom.roomId);
+            startTypingPolling(newRoom.roomId);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[AnonChat] Queue poll error:', e?.message);
+    }
+  }, [myUserId, myName, deleteOwnQueueEntry, stopSearchTimer, startConnectionTimer]);
+
+  // ── Start message polling ────────────────────────────────────────────────
+  const startMessagePolling = useCallback((roomId: string) => {
+    // Clear existing
+    if (msgPollRef.current) {
+      clearInterval(msgPollRef.current);
+      msgPollRef.current = null;
+    }
+
+    const poll = async () => {
+      if (!mountedRef.current) return;
+
+      try {
+        const snapshot = await firestore()
+          .collection('anonMessages')
+          .where('roomId', '==', roomId)
+          .orderBy('createdAt', 'asc')
+          .get();
+
+        if (!snapshot.empty && mountedRef.current) {
+          const newMessages: AnonMessage[] = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              content: data.content || '',
+              senderId: data.senderId || '',
+              senderName: data.senderName || 'Stranger',
+              createdAt: data.createdAt || '',
+            };
+          });
+
+          setMessages(prev => {
+            // Merge: keep existing, add new ones
+            const existingIds = new Set(prev.map(m => m.id));
+            const trulyNew = newMessages.filter(m => !existingIds.has(m.id));
+            if (trulyNew.length === 0) return prev;
+            return [...prev, ...trulyNew];
+          });
+
+          // Update last seen timestamp
+          const latestTimestamp = newMessages[newMessages.length - 1]?.createdAt;
+          if (latestTimestamp) {
+            lastMsgTimestampRef.current = latestTimestamp;
+          }
+
+          // Auto-scroll to bottom
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        }
+      } catch (e: any) {
+        console.warn('[AnonChat] Message poll error:', e?.message);
+      }
     };
 
-    setMessages((prev) => [...prev, newMsg]);
+    // Immediate fetch, then poll
+    poll();
+    msgPollRef.current = setInterval(poll, MSG_POLL_INTERVAL);
+  }, []);
+
+  // ── Start typing indicator polling ───────────────────────────────────────
+  const startTypingPolling = useCallback((roomId: string) => {
+    if (typingPollRef.current) {
+      clearInterval(typingPollRef.current);
+      typingPollRef.current = null;
+    }
+
+    const poll = async () => {
+      if (!mountedRef.current) return;
+
+      try {
+        const doc = await firestore().collection('anonRooms').doc(roomId).get();
+        if (doc.exists) {
+          const data = doc.data();
+          const currentRoom = roomRef.current;
+          if (!currentRoom) return;
+
+          // The partner's typing field is the opposite of ours
+          let partnerTyping = false;
+          if (currentRoom.partnerId === myUserId) {
+            partnerTyping = data?.user1Typing === true;
+          } else {
+            partnerTyping = data?.user2Typing === true;
+          }
+
+          if (mountedRef.current) {
+            setIsPartnerTyping(partnerTyping);
+          }
+        }
+      } catch (e: any) {
+        console.warn('[AnonChat] Typing poll error:', e?.message);
+      }
+    };
+
+    typingPollRef.current = setInterval(poll, TYPING_POLL_INTERVAL);
+  }, [myUserId]);
+
+  // ── Full cleanup (disconnect / unmount) ──────────────────────────────────
+  const fullCleanup = useCallback(async () => {
+    stopConnectionTimer();
+    stopSearchTimer();
+    stopAllPolling();
+
+    // Delete queue entry if we're still searching
+    await deleteOwnQueueEntry();
+
+    // Update room activity if connected
+    const currentRoom = roomRef.current;
+    if (currentRoom?.roomId) {
+      await updateRoomActivity(currentRoom.roomId);
+      // Clear our typing state
+      await setMyTypingState(currentRoom.roomId, false);
+    }
+
+    roomRef.current = null;
+    lastMsgTimestampRef.current = null;
+  }, [stopConnectionTimer, stopSearchTimer, stopAllPolling, deleteOwnQueueEntry, updateRoomActivity, setMyTypingState]);
+
+  // ── Handle: Find Stranger ────────────────────────────────────────────────
+  const handleFindStranger = useCallback(async () => {
+    if (!myUserId) {
+      setError('You must be signed in to use anonymous chat.');
+      return;
+    }
+
+    setError(null);
+    setChatState('searching');
+    setMessages([]);
+    setRoom(null);
+    roomRef.current = null;
+    setElapsed(0);
+    setSearchElapsed(0);
+    setIsPartnerTyping(false);
+    lastMsgTimestampRef.current = null;
+
+    try {
+      // Create our queue entry
+      await firestore().collection('anonQueue').doc(myUserId).set({
+        userId: myUserId,
+        anonymousName: myName,
+        status: 'waiting',
+        partnerId: null,
+        createdAt: nowISO(),
+      });
+
+      startSearchTimer();
+
+      // Poll for matches every 2 seconds
+      if (queuePollRef.current) clearInterval(queuePollRef.current);
+      queuePollRef.current = setInterval(pollQueue, QUEUE_POLL_INTERVAL);
+
+      // Also check immediately
+      pollQueue();
+    } catch (e: any) {
+      console.error('[AnonChat] Failed to join queue:', e?.message);
+      setError('Failed to start searching. Please try again.');
+      setChatState('landing');
+    }
+  }, [myUserId, myName, pollQueue, startSearchTimer]);
+
+  // ── Handle: Disconnect (return to landing) ──────────────────────────────
+  const handleDisconnect = useCallback(async () => {
+    await fullCleanup();
+    if (mountedRef.current) {
+      setChatState('landing');
+      setMessages([]);
+      setRoom(null);
+      setElapsed(0);
+      setIsPartnerTyping(false);
+      setError(null);
+    }
+  }, [fullCleanup]);
+
+  // ── Handle: Next Stranger ────────────────────────────────────────────────
+  const handleNext = useCallback(async () => {
+    await fullCleanup();
+    if (mountedRef.current) {
+      // Reset state and immediately start searching again
+      setMessages([]);
+      setRoom(null);
+      roomRef.current = null;
+      setElapsed(0);
+      setIsPartnerTyping(false);
+      lastMsgTimestampRef.current = null;
+      setError(null);
+
+      // Transition to searching and start looking
+      setChatState('searching');
+
+      try {
+        await firestore().collection('anonQueue').doc(myUserId).set({
+          userId: myUserId,
+          anonymousName: myName,
+          status: 'waiting',
+          partnerId: null,
+          createdAt: nowISO(),
+        });
+
+        startSearchTimer();
+
+        if (queuePollRef.current) clearInterval(queuePollRef.current);
+        queuePollRef.current = setInterval(pollQueue, QUEUE_POLL_INTERVAL);
+        pollQueue();
+      } catch (e: any) {
+        console.error('[AnonChat] Failed to rejoin queue:', e?.message);
+        setError('Failed to find next stranger. Please try again.');
+        setChatState('landing');
+      }
+    }
+  }, [fullCleanup, myUserId, myName, pollQueue, startSearchTimer]);
+
+  // ── Handle: Send Message ─────────────────────────────────────────────────
+  const handleSend = useCallback(async () => {
+    const text = inputText.trim();
+    if (!text || !room?.roomId || !myUserId) return;
+
+    const content = text;
     setInputText('');
-    flatListRef.current?.scrollToEnd({ animated: true });
 
-    // Trigger stranger reply
-    triggerStrangerReply();
-  }, [inputText, triggerStrangerReply]);
+    // Clear our typing state
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+    await setMyTypingState(room.roomId, false);
 
-  // ── Pulse animation for search button ──────────────────────────────────
+    try {
+      await firestore().collection('anonMessages').add({
+        roomId: room.roomId,
+        senderId: myUserId,
+        senderName: myName,
+        content,
+        createdAt: nowISO(),
+      });
+
+      // Update room activity
+      await updateRoomActivity(room.roomId);
+
+      // Immediately poll to show our message
+      const snapshot = await firestore()
+        .collection('anonMessages')
+        .where('roomId', '==', room.roomId)
+        .orderBy('createdAt', 'asc')
+        .get();
+
+      if (!snapshot.empty) {
+        const allMsgs: AnonMessage[] = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            content: data.content || '',
+            senderId: data.senderId || '',
+            senderName: data.senderName || 'Stranger',
+            createdAt: data.createdAt || '',
+          };
+        });
+
+        if (mountedRef.current) {
+          setMessages(allMsgs);
+          const latest = allMsgs[allMsgs.length - 1]?.createdAt;
+          if (latest) lastMsgTimestampRef.current = latest;
+          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+        }
+      }
+    } catch (e: any) {
+      console.error('[AnonChat] Failed to send message:', e?.message);
+      setError('Failed to send message. Please try again.');
+      // Restore input text on failure
+      setInputText(content);
+    }
+  }, [inputText, room, myUserId, myName, setMyTypingState, updateRoomActivity]);
+
+  // ── Handle: input text change (typing indicator) ────────────────────────
+  const handleInputChange = useCallback((text: string) => {
+    setInputText(text);
+
+    if (text.trim() && room?.roomId) {
+      // Set typing
+      setMyTypingState(room.roomId, true);
+
+      // Debounce: clear typing after 3 seconds of no input
+      if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = setTimeout(() => {
+        if (room.roomId) setMyTypingState(room.roomId, false);
+      }, 3000);
+    } else if (!text.trim() && room?.roomId) {
+      // Cleared input — not typing anymore
+      if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+      setMyTypingState(room.roomId, false);
+    }
+  }, [room, setMyTypingState]);
+
+  // ── Pulse animation for search button ────────────────────────────────────
   useEffect(() => {
     if (chatState !== 'landing') {
       pulseAnim.stopAnimation();
@@ -244,14 +716,21 @@ export default function AnonymousChatScreen() {
     return () => pulse.stop();
   }, [chatState, pulseAnim]);
 
-  // ── Cleanup on unmount ────────────────────────────────────────────────
+  // ── Cleanup on unmount ──────────────────────────────────────────────────
   useEffect(() => {
-    return () => cleanup();
-  }, [cleanup]);
+    return () => {
+      mountedRef.current = false;
+      fullCleanup();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ── Render message ────────────────────────────────────────────────────
+  // ── Derived state ────────────────────────────────────────────────────────
+  const strangerName = room?.partnerName || '';
+
+  // ── Render: Message bubble ──────────────────────────────────────────────
   const renderMessage = ({ item }: { item: AnonMessage }) => {
-    const isMine = item.isMine;
+    const isMine = item.senderId === myUserId;
     return (
       <View
         style={[styles.msgWrapper, isMine ? styles.msgMine : styles.msgTheirs]}>
@@ -261,7 +740,7 @@ export default function AnonymousChatScreen() {
             isMine ? styles.msgBubbleMine : styles.msgBubbleTheirs,
           ]}>
           {!isMine && (
-            <Text style={styles.msgSenderName}>{strangerName}</Text>
+            <Text style={styles.msgSenderName}>{item.senderName}</Text>
           )}
           <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
             {item.content}
@@ -271,13 +750,13 @@ export default function AnonymousChatScreen() {
     );
   };
 
-  // ── Landing state ─────────────────────────────────────────────────────
+  // ── Render: Landing ─────────────────────────────────────────────────────
   if (chatState === 'landing') {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.landingContainer}>
           <View style={styles.landingIcon}>
-            <Ionicons name="eye-off-outline" size={64} color={colors.primary} />
+            <Ionicons name="eye-off-outline" size={64} color={colors.accent} />
           </View>
           <Text style={styles.landingTitle}>Anonymous Chat</Text>
           <Text style={styles.landingSubtitle}>
@@ -285,9 +764,17 @@ export default function AnonymousChatScreen() {
           </Text>
           <Text style={styles.yourNameLabel}>Your anonymous name:</Text>
           <View style={styles.nameTag}>
-            <Ionicons name="at" size={16} color={colors.primary} />
+            <Ionicons name="at" size={16} color={colors.accent} />
             <Text style={styles.nameTagText}>{myName}</Text>
           </View>
+
+          {error && (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
           <Animated.View
             style={[styles.findBtn, { transform: [{ scale: pulseAnim }] }]}>
             <TouchableOpacity
@@ -306,23 +793,34 @@ export default function AnonymousChatScreen() {
     );
   }
 
-  // ── Searching state ───────────────────────────────────────────────────
+  // ── Render: Searching ───────────────────────────────────────────────────
   if (chatState === 'searching') {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.searchContainer}>
           <Text style={styles.searchYourName}>@{myName}</Text>
           <View style={styles.searchSpinner}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <ActivityIndicator size="large" color={colors.accent} />
           </View>
           <Text style={styles.searchingText}>Finding someone...</Text>
           <Text style={styles.searchingSubtext}>
-            Please wait while we connect you with a stranger
+            {searchElapsed > 0
+              ? `Waiting for ${formatDuration(searchElapsed)}...`
+              : 'Please wait while we connect you with a stranger'}
           </Text>
+
+          {error && (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
           <TouchableOpacity
             style={styles.cancelBtn}
             onPress={handleDisconnect}
             activeOpacity={0.7}>
+            <Ionicons name="close" size={18} color={colors.textSecondary} />
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -330,12 +828,13 @@ export default function AnonymousChatScreen() {
     );
   }
 
-  // ── Connected state ───────────────────────────────────────────────────
+  // ── Render: Connected (Chat) ────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAvoidingView
         style={styles.chatContainer}
-        behavior="padding">
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}>
         {/* Header */}
         <View style={styles.chatHeader}>
           <View style={styles.chatHeaderInfo}>
@@ -343,10 +842,14 @@ export default function AnonymousChatScreen() {
               <Ionicons name="eye-off" size={18} color={colors.white} />
             </View>
             <View>
-              <Text style={styles.chatHeaderName}>{strangerName}</Text>
+              <Text style={styles.chatHeaderName}>
+                {strangerName || 'Stranger'}
+              </Text>
               <View style={styles.chatHeaderMeta}>
                 <View style={styles.onlineDot} />
-                <Text style={styles.chatHeaderText}>Anonymous</Text>
+                <Text style={styles.chatHeaderText}>
+                  {isPartnerTyping ? 'typing...' : 'Anonymous'}
+                </Text>
               </View>
             </View>
           </View>
@@ -366,15 +869,34 @@ export default function AnonymousChatScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyMsg}>
-              <Text style={styles.emptyMsgText}>Say something to start the conversation!</Text>
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={40}
+                color={colors.textMuted}
+              />
+              <Text style={styles.emptyMsgText}>
+                Say something to start the conversation!
+              </Text>
             </View>
           }
         />
 
         {/* Typing indicator */}
-        {isStrangerTyping && (
+        {isPartnerTyping && (
           <View style={styles.typingRow}>
-            <Text style={styles.typingText}>{strangerName} is typing...</Text>
+            <View style={styles.typingBubble}>
+              <View style={styles.typingDot} />
+              <View style={[styles.typingDot, { opacity: 0.6 }]} />
+              <View style={[styles.typingDot, { opacity: 0.3 }]} />
+            </View>
+          </View>
+        )}
+
+        {/* Error banner */}
+        {error && (
+          <View style={styles.errorBannerInline}>
+            <Ionicons name="alert-circle-outline" size={14} color={colors.error} />
+            <Text style={styles.errorTextInline}>{error}</Text>
           </View>
         )}
 
@@ -385,7 +907,7 @@ export default function AnonymousChatScreen() {
               style={styles.nextBtn}
               onPress={handleNext}
               activeOpacity={0.7}>
-              <Ionicons name="play-forward-outline" size={20} color={colors.primary} />
+              <Ionicons name="play-forward-outline" size={20} color={colors.accent} />
               <Text style={styles.nextBtnText}>Next</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -402,11 +924,12 @@ export default function AnonymousChatScreen() {
               placeholder="Type a message..."
               placeholderTextColor={colors.textMuted}
               value={inputText}
-              onChangeText={setInputText}
+              onChangeText={handleInputChange}
               onSubmitEditing={handleSend}
               multiline
               maxLength={500}
               returnKeyType="send"
+              blurOnSubmit={false}
             />
             <TouchableOpacity
               style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
@@ -428,7 +951,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  // Landing
+
+  // ── Landing ──────────────────────────────────────────────────────────────
   landingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -439,7 +963,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(42, 127, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
@@ -465,20 +989,56 @@ const styles = StyleSheet.create({
   nameTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.primary,
-    marginBottom: 40,
+    borderColor: colors.accent,
+    marginBottom: 16,
   },
   nameTagText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.accent,
   },
+
+  // ── Error ────────────────────────────────────────────────────────────────
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 24,
+    width: '100%',
+  },
+  errorText: {
+    fontSize: 13,
+    color: colors.error,
+    flexShrink: 1,
+  },
+  errorBannerInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginHorizontal: 12,
+    borderRadius: 8,
+  },
+  errorTextInline: {
+    fontSize: 12,
+    color: colors.error,
+  },
+
+  // ── Find button ─────────────────────────────────────────────────────────
   findBtn: {
     width: '100%',
   },
@@ -487,7 +1047,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     borderRadius: 16,
     paddingVertical: 18,
   },
@@ -503,7 +1063,8 @@ const styles = StyleSheet.create({
     marginTop: 20,
     lineHeight: 16,
   },
-  // Searching
+
+  // ── Searching ────────────────────────────────────────────────────────────
   searchContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -531,6 +1092,9 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   cancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
@@ -542,10 +1106,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textSecondary,
   },
-  // Chat
+
+  // ── Chat container ───────────────────────────────────────────────────────
   chatContainer: {
     flex: 1,
   },
+
+  // ── Chat header ──────────────────────────────────────────────────────────
   chatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -565,7 +1132,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -603,9 +1170,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.textSecondary,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ['tabular-nums'] as any,
   },
-  // Messages
+
+  // ── Messages ─────────────────────────────────────────────────────────────
   msgList: {
     padding: 12,
     paddingBottom: 4,
@@ -626,7 +1194,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   msgBubbleMine: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     borderBottomRightRadius: 4,
   },
   msgBubbleTheirs: {
@@ -636,7 +1204,7 @@ const styles = StyleSheet.create({
   msgSenderName: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.accent,
     marginBottom: 4,
   },
   msgText: {
@@ -653,27 +1221,43 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
   },
   emptyMsgText: {
     color: colors.textMuted,
     fontSize: 14,
   },
-  // Typing
+
+  // ── Typing indicator ─────────────────────────────────────────────────────
   typingRow: {
     paddingHorizontal: 16,
     paddingBottom: 4,
   },
-  typingText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontStyle: 'italic',
+  typingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceLight,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    alignSelf: 'flex-start',
+    maxWidth: 60,
   },
-  // Input area
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.textMuted,
+  },
+
+  // ── Input area ───────────────────────────────────────────────────────────
   inputArea: {
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingBottom: 20,
+    paddingBottom: Platform.OS === 'android' ? 10 : 20,
   },
   actionBtns: {
     flexDirection: 'row',
@@ -686,7 +1270,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(42, 127, 255, 0.1)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -694,7 +1278,7 @@ const styles = StyleSheet.create({
   nextBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.accent,
   },
   disconnectBtn: {
     flexDirection: 'row',
@@ -733,7 +1317,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },

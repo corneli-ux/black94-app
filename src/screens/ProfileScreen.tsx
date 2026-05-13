@@ -821,8 +821,8 @@ export default function ProfileScreen({ route, navigation }: any) {
           </TouchableOpacity>
           <Text style={styles.topLogo}>Profile</Text>
           {isOwnProfile ? (
-            <TouchableOpacity onPress={() => navigation.navigate('EditProfile')} hitSlop={8}>
-              <Ionicons name="settings-outline" size={20} color={colors.text} />
+            <TouchableOpacity onPress={() => navigation.navigate('PremiumDashboard')} hitSlop={8}>
+              <Ionicons name="diamond-outline" size={22} color={colors.accent} />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 22 }} />

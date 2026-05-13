@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet, StatusBar, TextInput, Linking, Alert,  } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet, StatusBar, TextInput, Linking, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -62,7 +62,11 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+    >
+      <SafeAreaView style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { navigation.navigate('Profile'); } }}>
@@ -166,7 +170,8 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
