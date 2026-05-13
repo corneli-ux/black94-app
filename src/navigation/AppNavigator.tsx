@@ -142,7 +142,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       return (
         <Ionicons
           {...iconProps}
-          name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
+          name={focused ? 'eye-off' : 'eye-off-outline'}
         />
       );
     case 'Stories':
@@ -229,7 +229,7 @@ function CustomDrawerContent({ navigation }: any) {
     <DrawerContentScrollView style={styles.drawer} contentContainerStyle={{ paddingTop: insets.top }}>
       {/* Logo */}
       <View style={styles.drawerLogo}>
-        <Image source={require('../../assets/logo.png')} style={{ width: 120, height: 40, resizeMode: 'contain' }} />
+        <Image source={require('../../assets/logo.jpeg')} style={{ width: 160, height: 52, resizeMode: 'contain' }} />
       </View>
 
       {/* Nav items */}

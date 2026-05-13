@@ -157,12 +157,23 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         <Avatar uri={item2.authorProfileImage || null} name={item2.authorDisplayName || item2.authorUsername} size={40} />
         <View style={styles.commentBody}>
           <View style={styles.commentHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              onPress={() => {
+                const currentUserId = user?.id || currentUser?.uid;
+                if (item2.authorId && item2.authorId === currentUserId) {
+                  navigation.navigate('ProfileSelf');
+                } else if (item2.authorId) {
+                  navigation.navigate('UserProfile', { userId: item2.authorId });
+                }
+              }}
+              activeOpacity={0.7}
+            >
               <Text style={styles.commentName} numberOfLines={1}>{item2.authorDisplayName || item2.authorUsername}</Text>
               <VerifiedBadge badge={item2.authorBadge} isVerified={item2.authorIsVerified} size={16} />
               <Text style={styles.commentHandle}>@{item2.authorUsername}</Text>
-              <Text style={styles.commentTime}>{timeAgo(item2.createdAt)}</Text>
-            </View>
+            </TouchableOpacity>
+            <Text style={styles.commentTime}>{timeAgo(item2.createdAt)}</Text>
           </View>
           <Text style={styles.commentContent}>{item2.content}</Text>
           {/* Action bar — matches feed PostCard exactly */}
@@ -214,7 +225,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}
     >
       {/* Header */}

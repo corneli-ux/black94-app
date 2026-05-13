@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,8 @@ import {
   TextInput,
   Alert,
   StatusBar,
-  PanResponder,
   Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,10 +25,15 @@ import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { tsToMillis } from '../lib/api';
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════════════════════════ */
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const HIGHLIGHT_SIZE = 48;
-const HIGHLIGHT_PADDING = 3;
-const STORY_DURATION = 5000; // 5 seconds per story
+const HIGHLIGHT_RING_PADDING = 3;
+const STORY_DURATION = 5000;
+const DOUBLE_TAP_DELAY = 300;
+const HEART_ANIM_DURATION = 900;
 
 const STORY_CATEGORIES = [
   { id: 'all', label: 'All', icon: 'sparkles' },
@@ -39,12 +44,12 @@ const STORY_CATEGORIES = [
 ];
 
 const TRENDING_MUSIC = [
-  { id: 'm1', title: 'Blinding Lights', artist: 'The Weeknd' },
-  { id: 'm2', title: 'Tum Hi Ho', artist: 'Arijit Singh' },
-  { id: 'm3', title: 'Levitating', artist: 'Dua Lipa' },
-  { id: 'm4', title: 'Shape of You', artist: 'Ed Sheeran' },
-  { id: 'm5', title: 'Pasoori', artist: 'Ali Sethi' },
-  { id: 'm6', title: 'Calm Down', artist: 'Rema' },
+  { id: 'm1', title: 'Blinding Lights', artist: 'The Weeknd', gradient: ['#f59e0b', '#ef4444'] as const },
+  { id: 'm2', title: 'Tum Hi Ho', artist: 'Arijit Singh', gradient: ['#ec4899', '#8b5cf6'] as const },
+  { id: 'm3', title: 'Levitating', artist: 'Dua Lipa', gradient: ['#06b6d4', '#3b82f6'] as const },
+  { id: 'm4', title: 'Shape of You', artist: 'Ed Sheeran', gradient: ['#10b981', '#059669'] as const },
+  { id: 'm5', title: 'Pasoori', artist: 'Ali Sethi', gradient: ['#f97316', '#eab308'] as const },
+  { id: 'm6', title: 'Calm Down', artist: 'Rema', gradient: ['#8b5cf6', '#6366f1'] as const },
 ];
 
 const TRENDING_FILTERS = [
@@ -56,6 +61,9 @@ const TRENDING_FILTERS = [
   { id: 'f6', label: 'Sunset', colors: ['#f97316', '#eab308'] as const },
 ];
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TYPES
+   ═══════════════════════════════════════════════════════════════════════════ */
 interface Story {
   id: string;
   authorId: string;
@@ -73,7 +81,7 @@ interface Story {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   GRADIENT BORDER (Instagram-style ring around highlight circles)
+   GRADIENT BORDER — Instagram-style ring around highlight circles
    ═══════════════════════════════════════════════════════════════════════════ */
 function GradientBorder({
   size,
@@ -93,7 +101,13 @@ function GradientBorder({
       colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={[styles.gradientBorderRing, { width: size + 6, height: size + 6, borderRadius: (size + 6) / 2 }]}
+      style={{
+        width: size + HIGHLIGHT_RING_PADDING * 2 + 2,
+        height: size + HIGHLIGHT_RING_PADDING * 2 + 2,
+        borderRadius: (size + HIGHLIGHT_RING_PADDING * 2 + 2) / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
     >
       {children}
     </LinearGradient>
@@ -101,18 +115,20 @@ function GradientBorder({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   PROGRESS BAR (for story viewer)
+   STORY PROGRESS BAR
    ═══════════════════════════════════════════════════════════════════════════ */
 function StoryProgressBar({
   index,
   currentIndex,
   total,
   progress,
+  paused,
 }: {
   index: number;
   currentIndex: number;
   total: number;
   progress: number;
+  paused: boolean;
 }) {
   const barWidth = (SCREEN_W - 16) / total;
 
@@ -121,9 +137,78 @@ function StoryProgressBar({
       {index < currentIndex ? (
         <View style={[styles.progressFill, { width: '100%' }]} />
       ) : index === currentIndex ? (
-        <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        <View
+          style={[
+            styles.progressFill,
+            {
+              width: `${(paused ? progress : progress) * 100}%`,
+              backgroundColor: paused ? 'rgba(255,255,255,0.5)' : '#fff',
+            },
+          ]}
+        />
       ) : null}
     </View>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DOUBLE-TAP HEART OVERLAY
+   ═══════════════════════════════════════════════════════════════════════════ */
+function HeartOverlay({
+  visible,
+  x,
+  y,
+}: {
+  visible: boolean;
+  x: number;
+  y: number;
+}) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      scale.setValue(0);
+      opacity.setValue(1);
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.2,
+          duration: 150,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.delay(400),
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.heartOverlay,
+        {
+          left: x - 40,
+          top: y - 40,
+          opacity,
+          transform: [{ scale }],
+        },
+      ]}
+    >
+      <Ionicons name="heart" size={80} color="#ff3040" />
+    </Animated.View>
   );
 }
 
@@ -131,23 +216,33 @@ function StoryProgressBar({
    MAIN SCREEN
    ═══════════════════════════════════════════════════════════════════════════ */
 export default function StoriesScreen({ navigation }: any) {
+  /* ── State ──────────────────────────────────────────────────────────────── */
   const [stories, setStories] = useState<Story[]>([]);
   const [filtered, setFiltered] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('all');
   const [uploading, setUploading] = useState(false);
 
-  // Story viewer state
+  // Story viewer
   const [viewingStory, setViewingStory] = useState<Story | null>(null);
   const [authorStories, setAuthorStories] = useState<Story[]>([]);
   const [storyIndex, setStoryIndex] = useState(0);
   const [storyProgress, setStoryProgress] = useState(0);
   const [liked, setLiked] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentText, setCommentText] = useState('');
 
+  // Double-tap heart
+  const [heartVisible, setHeartVisible] = useState(false);
+  const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
+  const lastTapRef = useRef<number>(0);
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
+  const pausedElapsedRef = useRef<number>(0);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressingRef = useRef(false);
   const viewedStoriesRef = useRef<Set<string>>(new Set());
   const currentUser = auth()?.currentUser;
 
@@ -208,8 +303,8 @@ export default function StoriesScreen({ navigation }: any) {
     [stories],
   );
 
-  /* ── Build unique author bubbles (first story per author) ─────────────── */
-  const authorBubbles = React.useMemo(() => {
+  /* ── Unique author bubbles (first story per author) ───────────────────── */
+  const authorBubbles = useMemo(() => {
     const seen = new Set<string>();
     const result: Story[] = [];
     for (const s of stories) {
@@ -221,13 +316,12 @@ export default function StoriesScreen({ navigation }: any) {
     return result;
   }, [stories]);
 
-  /* ── Image picker + upload to Firestore ───────────────────────────────── */
+  /* ── Image picker + upload ───────────────────────────────────────────── */
   const pickAndUploadStory = useCallback(async () => {
     if (!currentUser) {
       Alert.alert('Sign In Required', 'Please sign in to create a story.');
       return;
     }
-
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -236,13 +330,10 @@ export default function StoriesScreen({ navigation }: any) {
         quality: 0.7,
         base64: true,
       });
-
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
       setUploading(true);
-
-      // Build a base64 data URI for storage
       const mediaUrl = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
 
       const storyData = {
@@ -260,7 +351,6 @@ export default function StoriesScreen({ navigation }: any) {
       };
 
       await firestore().collection('stories').add(storyData);
-
       Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
       loadStories();
     } catch (e: any) {
@@ -271,13 +361,12 @@ export default function StoriesScreen({ navigation }: any) {
     }
   }, [currentUser, activeCategory, loadStories]);
 
-  /* ── Open camera for story ────────────────────────────────────────────── */
+  /* ── Camera upload ───────────────────────────────────────────────────── */
   const openCameraForStory = useCallback(async () => {
     if (!currentUser) {
       Alert.alert('Sign In Required', 'Please sign in to create a story.');
       return;
     }
-
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -286,12 +375,10 @@ export default function StoriesScreen({ navigation }: any) {
         quality: 0.7,
         base64: true,
       });
-
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
       setUploading(true);
-
       const mediaUrl = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
 
       const storyData = {
@@ -309,7 +396,6 @@ export default function StoriesScreen({ navigation }: any) {
       };
 
       await firestore().collection('stories').add(storyData);
-
       Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
       loadStories();
     } catch (e: any) {
@@ -324,7 +410,6 @@ export default function StoriesScreen({ navigation }: any) {
   const incrementViewCount = useCallback(async (storyId: string) => {
     if (viewedStoriesRef.current.has(storyId)) return;
     viewedStoriesRef.current.add(storyId);
-
     try {
       await firestore()
         .collection('stories')
@@ -336,12 +421,23 @@ export default function StoriesScreen({ navigation }: any) {
   }, []);
 
   /* ── Like a story ─────────────────────────────────────────────────────── */
+  const doLike = useCallback(async () => {
+    if (!viewingStory || !currentUser) return;
+    setLiked(true);
+    try {
+      await firestore()
+        .collection('stories')
+        .doc(viewingStory.id)
+        .update({ likeCount: firestore.FieldValue.increment(1) });
+    } catch (e) {
+      console.warn('[StoriesScreen] Failed to like story:', e);
+    }
+  }, [viewingStory, currentUser]);
+
   const toggleLike = useCallback(async () => {
     if (!viewingStory || !currentUser) return;
-
     const newLiked = !liked;
     setLiked(newLiked);
-
     try {
       await firestore()
         .collection('stories')
@@ -358,7 +454,6 @@ export default function StoriesScreen({ navigation }: any) {
       const authorStoryList = stories.filter((s) => s.authorId === authorId);
       if (authorStoryList.length === 0) return;
 
-      // Sort by createdAt ascending (oldest first) like Instagram
       authorStoryList.sort((a, b) => a.createdAt - b.createdAt);
 
       let startIndex = 0;
@@ -372,10 +467,10 @@ export default function StoriesScreen({ navigation }: any) {
       setViewingStory(authorStoryList[startIndex]);
       setStoryProgress(0);
       setLiked(false);
+      setPaused(false);
       setShowCommentInput(false);
       setCommentText('');
-
-      // Increment view count
+      pausedElapsedRef.current = 0;
       incrementViewCount(authorStoryList[startIndex].id);
     },
     [stories, incrementViewCount],
@@ -388,6 +483,8 @@ export default function StoriesScreen({ navigation }: any) {
       setViewingStory(authorStories[next]);
       setStoryProgress(0);
       setLiked(false);
+      setPaused(false);
+      pausedElapsedRef.current = 0;
       incrementViewCount(authorStories[next].id);
     } else {
       closeStoryViewer();
@@ -401,6 +498,8 @@ export default function StoriesScreen({ navigation }: any) {
       setViewingStory(authorStories[prev]);
       setStoryProgress(0);
       setLiked(false);
+      setPaused(false);
+      pausedElapsedRef.current = 0;
     }
   }, [storyIndex, authorStories]);
 
@@ -410,16 +509,21 @@ export default function StoriesScreen({ navigation }: any) {
     setStoryIndex(0);
     setStoryProgress(0);
     setLiked(false);
+    setPaused(false);
     setShowCommentInput(false);
+    pausedElapsedRef.current = 0;
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
   }, []);
 
-  /* ── Auto-progress timer ──────────────────────────────────────────────── */
+  /* ── Auto-progress timer (pauses when paused) ─────────────────────────── */
   useEffect(() => {
-    if (!viewingStory) {
+    if (!viewingStory || paused) {
+      if (paused && timerRef.current) {
+        pausedElapsedRef.current = storyProgress;
+      }
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -427,8 +531,7 @@ export default function StoriesScreen({ navigation }: any) {
       return;
     }
 
-    startTimeRef.current = Date.now();
-    setStoryProgress(0);
+    startTimeRef.current = Date.now() - storyProgress * STORY_DURATION;
 
     timerRef.current = setInterval(() => {
       const elapsed = Date.now() - startTimeRef.current;
@@ -438,7 +541,7 @@ export default function StoriesScreen({ navigation }: any) {
       if (progress >= 1) {
         goToNextStory();
       }
-    }, 50); // Update ~20fps for smooth animation
+    }, 50);
 
     return () => {
       if (timerRef.current) {
@@ -446,20 +549,71 @@ export default function StoriesScreen({ navigation }: any) {
         timerRef.current = null;
       }
     };
-  }, [viewingStory, storyIndex, goToNextStory]);
+  }, [viewingStory, storyIndex, paused, goToNextStory]);
 
-  /* ── Tap zone handlers (left = prev, right = next) ───────────────────── */
-  const handleTapContent = useCallback(
-    (x: number) => {
-      const third = SCREEN_W / 3;
-      if (x < third) {
-        goToPrevStory();
+  /* ── Tap + long-press handlers on story content ──────────────────────── */
+  const handleStoryTouchStart = useCallback(
+    (e: any) => {
+      isLongPressingRef.current = false;
+      longPressTimerRef.current = setTimeout(() => {
+        isLongPressingRef.current = true;
+        setPaused(true);
+      }, 200);
+    },
+    [],
+  );
+
+  const handleStoryTouchEnd = useCallback(
+    (e: any) => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+
+      if (isLongPressingRef.current) {
+        isLongPressingRef.current = false;
+        // Long press ended — resume
+        setPaused(false);
+        return;
+      }
+
+      // Single tap or double-tap
+      const now = Date.now();
+      const x = e.nativeEvent.locationX;
+      const y = e.nativeEvent.locationY;
+
+      if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+        // Double tap — show heart animation + like
+        setHeartPos({ x, y });
+        setHeartVisible(false);
+        setTimeout(() => setHeartVisible(true), 10);
+        doLike();
+        lastTapRef.current = 0;
       } else {
-        goToNextStory();
+        lastTapRef.current = now;
+
+        // After delay, if no second tap → navigate
+        setTimeout(() => {
+          if (Date.now() - lastTapRef.current >= DOUBLE_TAP_DELAY - 50) {
+            const third = SCREEN_W / 3;
+            if (x < third) {
+              goToPrevStory();
+            } else {
+              goToNextStory();
+            }
+          }
+        }, DOUBLE_TAP_DELAY);
       }
     },
-    [goToNextStory, goToPrevStory],
+    [goToNextStory, goToPrevStory, doLike],
   );
+
+  const handleStoryTouchMove = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
 
   /* ═══════════════════════════════════════════════════════════════════════════
      RENDER — Main Screen
@@ -468,7 +622,7 @@ export default function StoriesScreen({ navigation }: any) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
+      {/* ── Header (no "Stories" text) ──────────────────────────────────── */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation?.goBack?.()} style={styles.headerBtn}>
@@ -490,14 +644,14 @@ export default function StoriesScreen({ navigation }: any) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* ── Highlight Circles Row ──────────────────────────────────── */}
+          {/* ── Highlight Circles (compact row) ──────────────────────────── */}
           <View style={styles.highlightsSection}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.highlightsScrollContent}
             >
-              {/* Your Story */}
+              {/* Your Story circle */}
               <TouchableOpacity style={styles.highlightItem} onPress={pickAndUploadStory}>
                 <View style={styles.yourStoryRing}>
                   <Avatar
@@ -514,7 +668,7 @@ export default function StoriesScreen({ navigation }: any) {
                 </Text>
               </TouchableOpacity>
 
-              {/* Author highlight bubbles */}
+              {/* Author bubbles */}
               {authorBubbles.map((s) => (
                 <TouchableOpacity
                   key={s.authorId}
@@ -538,7 +692,7 @@ export default function StoriesScreen({ navigation }: any) {
             </ScrollView>
           </View>
 
-          {/* ── Category Filter Chips ──────────────────────────────────── */}
+          {/* ── Category Filter Chips ────────────────────────────────────── */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -553,6 +707,12 @@ export default function StoriesScreen({ navigation }: any) {
                 ]}
                 onPress={() => filterCategory(cat.id)}
               >
+                <Ionicons
+                  name={cat.icon as any}
+                  size={14}
+                  color={activeCategory === cat.id ? '#fff' : colors.textSecondary}
+                  style={{ marginRight: 4 }}
+                />
                 <Text
                   style={[
                     styles.categoryChipText,
@@ -565,9 +725,12 @@ export default function StoriesScreen({ navigation }: any) {
             ))}
           </ScrollView>
 
-          {/* ── Trending Music Row ─────────────────────────────────────── */}
+          {/* ── Trending Music ───────────────────────────────────────────── */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Trending Music</Text>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="musical-notes" size={18} color={colors.accent} />
+              <Text style={styles.sectionTitle}>Trending Music</Text>
+            </View>
             <TouchableOpacity>
               <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
@@ -579,14 +742,20 @@ export default function StoriesScreen({ navigation }: any) {
           >
             {TRENDING_MUSIC.map((track) => (
               <TouchableOpacity key={track.id} style={styles.musicCard}>
-                <LinearGradient
-                  colors={['#8b5cf6', '#ec4899']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.musicCardCover}
-                >
-                  <Ionicons name="musical-notes" size={22} color="#fff" />
-                </LinearGradient>
+                <View style={styles.musicCardCoverWrap}>
+                  <LinearGradient
+                    colors={track.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.musicCardCover}
+                  >
+                    <Ionicons name="musical-notes" size={20} color="rgba(255,255,255,0.4)" />
+                  </LinearGradient>
+                  {/* Play button overlay */}
+                  <View style={styles.musicPlayBtn}>
+                    <Ionicons name="play" size={18} color="#fff" />
+                  </View>
+                </View>
                 <Text style={styles.musicTitle} numberOfLines={1}>
                   {track.title}
                 </Text>
@@ -597,9 +766,12 @@ export default function StoriesScreen({ navigation }: any) {
             ))}
           </ScrollView>
 
-          {/* ── Filters Row ────────────────────────────────────────────── */}
+          {/* ── Filters (circular, Instagram-style) ──────────────────────── */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Filters</Text>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="color-filter-outline" size={18} color={colors.accent} />
+              <Text style={styles.sectionTitle}>Filters</Text>
+            </View>
             <TouchableOpacity>
               <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
@@ -610,31 +782,34 @@ export default function StoriesScreen({ navigation }: any) {
             contentContainerStyle={styles.filtersScroll}
           >
             {TRENDING_FILTERS.map((filter) => (
-              <TouchableOpacity key={filter.id} style={styles.filterCard}>
+              <TouchableOpacity key={filter.id} style={styles.filterItem}>
                 <LinearGradient
                   colors={filter.colors}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.filterCardGradient}
-                />
+                  style={styles.filterCircle}
+                >
+                  <View style={styles.filterCircleInner} />
+                </LinearGradient>
                 <Text style={styles.filterLabel}>{filter.label}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          {/* ── Recent Stories Grid ────────────────────────────────────── */}
+          {/* ── Recent Stories Grid ──────────────────────────────────────── */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Stories</Text>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="grid-outline" size={18} color={colors.accent} />
+              <Text style={styles.sectionTitle}>Recent</Text>
+            </View>
             <Text style={styles.storyCountText}>{filtered.length} stories</Text>
           </View>
 
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="images-outline" size={48} color={colors.textMuted} />
+              <Ionicons name="images-outline" size={56} color={colors.textMuted} />
               <Text style={styles.emptyText}>No stories yet</Text>
-              <Text style={styles.emptySubtext}>
-                Be the first to share a moment
-              </Text>
+              <Text style={styles.emptySubtext}>Be the first to share a moment</Text>
             </View>
           ) : (
             <View style={styles.storyGrid}>
@@ -642,9 +817,7 @@ export default function StoriesScreen({ navigation }: any) {
                 <TouchableOpacity
                   key={story.id}
                   style={styles.storyCard}
-                  onPress={() =>
-                    openStoryViewer(story.authorId, story.id)
-                  }
+                  onPress={() => openStoryViewer(story.authorId, story.id)}
                 >
                   {story.mediaUrl ? (
                     <Image
@@ -667,22 +840,22 @@ export default function StoriesScreen({ navigation }: any) {
 
                   {/* Bottom gradient overlay */}
                   <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.7)']}
+                    colors={['transparent', 'rgba(0,0,0,0.75)']}
                     style={styles.storyCardOverlay}
                   />
 
                   {/* Story info */}
                   <View style={styles.storyCardInfo}>
                     <View style={styles.storyCardAuthorRow}>
-                      <Avatar uri={story.authorProfileImage} name={story.authorDisplayName} size={22} />
+                      <Avatar uri={story.authorProfileImage} name={story.authorDisplayName} size={20} />
                       <Text style={styles.storyCardAuthor} numberOfLines={1}>
                         {story.authorDisplayName}
                       </Text>
                     </View>
                     <View style={styles.storyCardStats}>
-                      <Ionicons name="eye-outline" size={12} color="rgba(255,255,255,0.7)" />
+                      <Ionicons name="eye-outline" size={11} color="rgba(255,255,255,0.7)" />
                       <Text style={styles.storyCardStat}>{story.viewCount}</Text>
-                      <Ionicons name="heart-outline" size={12} color="rgba(255,255,255,0.7)" style={{ marginLeft: 8 }} />
+                      <Ionicons name="heart-outline" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 6 }} />
                       <Text style={styles.storyCardStat}>{story.likeCount}</Text>
                       <Text style={styles.storyCardTime}>{timeAgo(story.createdAt)}</Text>
                     </View>
@@ -692,7 +865,7 @@ export default function StoriesScreen({ navigation }: any) {
             </View>
           )}
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: 50 }} />
         </ScrollView>
       )}
 
@@ -709,14 +882,14 @@ export default function StoriesScreen({ navigation }: any) {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          STORY VIEWER MODAL
+          STORY VIEWER MODAL — Fullscreen, 90% content / 10% reaction bar
          ═══════════════════════════════════════════════════════════════════ */}
       <Modal visible={!!viewingStory} animationType="fade" transparent statusBarTranslucent>
         {viewingStory && (
           <View style={styles.viewerContainer}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            {/* Progress bars */}
+            {/* ── Progress bars at top ──────────────────────────────────── */}
             <SafeAreaView edges={['top']} style={styles.viewerTopArea}>
               <View style={styles.progressBarsRow}>
                 {authorStories.map((_, i) => (
@@ -726,11 +899,12 @@ export default function StoriesScreen({ navigation }: any) {
                     currentIndex={storyIndex}
                     total={authorStories.length}
                     progress={storyProgress}
+                    paused={paused}
                   />
                 ))}
               </View>
 
-              {/* Viewer header */}
+              {/* Viewer header row */}
               <View style={styles.viewerHeader}>
                 <Avatar
                   uri={viewingStory.authorProfileImage}
@@ -743,6 +917,12 @@ export default function StoriesScreen({ navigation }: any) {
                 <Text style={styles.viewerTimestamp}>
                   {timeAgo(viewingStory.createdAt)}
                 </Text>
+                {/* Pause indicator */}
+                {paused && (
+                  <View style={styles.pausedIndicator}>
+                    <Ionicons name="pause" size={10} color="#fff" />
+                  </View>
+                )}
                 <TouchableOpacity
                   style={{ marginLeft: 'auto' }}
                   onPress={closeStoryViewer}
@@ -753,11 +933,12 @@ export default function StoriesScreen({ navigation }: any) {
               </View>
             </SafeAreaView>
 
-            {/* Story content area (90%) */}
-            <TouchableOpacity
+            {/* ── Story content area (90%) ──────────────────────────────── */}
+            <View
               style={styles.viewerContent}
-              activeOpacity={1}
-              onPress={(e) => handleTapContent(e.nativeEvent.locationX)}
+              onTouchStart={handleStoryTouchStart}
+              onTouchEnd={handleStoryTouchEnd}
+              onTouchMove={handleStoryTouchMove}
             >
               {viewingStory.mediaUrl ? (
                 <Image
@@ -770,19 +951,26 @@ export default function StoriesScreen({ navigation }: any) {
                   <Text style={styles.viewerStoryText}>{viewingStory.content}</Text>
                 </View>
               )}
-            </TouchableOpacity>
 
-            {/* Bottom reaction bar (10%) */}
+              {/* Double-tap heart overlay */}
+              <HeartOverlay visible={heartVisible} x={heartPos.x} y={heartPos.y} />
+            </View>
+
+            {/* ── Bottom reaction bar (10%) ──────────────────────────────── */}
             <View style={styles.viewerReactionBar}>
-              <View style={styles.reactionBarContent}>
-                {/* Author info */}
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.6)']}
+                style={styles.reactionGradient}
+              />
+              <SafeAreaView edges={['bottom']} style={styles.reactionBarContent}>
+                {/* Author info row */}
                 <View style={styles.reactionAuthorRow}>
                   <Avatar
                     uri={viewingStory.authorProfileImage}
                     name={viewingStory.authorDisplayName}
                     size={28}
                   />
-                  <View style={{ flex: 1, marginLeft: 8 }}>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={styles.reactionAuthorName} numberOfLines={1}>
                       {viewingStory.authorDisplayName}
                     </Text>
@@ -792,7 +980,7 @@ export default function StoriesScreen({ navigation }: any) {
                   </View>
                 </View>
 
-                {/* Action buttons */}
+                {/* Action buttons row */}
                 <View style={styles.reactionActions}>
                   <TouchableOpacity style={styles.reactionBtn} onPress={toggleLike}>
                     <Ionicons
@@ -803,7 +991,7 @@ export default function StoriesScreen({ navigation }: any) {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.reactionBtn}
-                    onPress={() => setShowCommentInput(true)}
+                    onPress={() => setShowCommentInput(!showCommentInput)}
                   >
                     <Ionicons name="chatbubble-outline" size={24} color="#fff" />
                   </TouchableOpacity>
@@ -821,15 +1009,16 @@ export default function StoriesScreen({ navigation }: any) {
                   <Text style={styles.reactionStatText}>
                     {viewingStory.likeCount + (liked ? 1 : 0)}
                   </Text>
-                  <Ionicons name="eye" size={14} color="rgba(255,255,255,0.6)" style={{ marginLeft: 12 }} />
+                  <View style={{ width: 16 }} />
+                  <Ionicons name="eye" size={14} color="rgba(255,255,255,0.6)" />
                   <Text style={styles.reactionStatTextMuted}>
                     {viewingStory.viewCount}
                   </Text>
                 </View>
-              </View>
+              </SafeAreaView>
             </View>
 
-            {/* Comment input overlay */}
+            {/* ── Comment input overlay ──────────────────────────────────── */}
             {showCommentInput && (
               <View style={styles.commentInputOverlay}>
                 <SafeAreaView edges={['bottom']}>
@@ -902,15 +1091,13 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
 
-  /* ── Header ──────────────────────────────────────────────────────────── */
+  /* ── Header (minimal — no title) ─────────────────────────────────────── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 4,
     paddingTop: 4,
     paddingBottom: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
   },
   headerBtn: {
     width: 44,
@@ -921,33 +1108,33 @@ const styles = StyleSheet.create({
 
   /* ── Highlight Circles ───────────────────────────────────────────────── */
   highlightsSection: {
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   highlightsScrollContent: {
-    paddingHorizontal: 16,
-    gap: 14,
+    paddingHorizontal: 12,
+    gap: 10,
     alignItems: 'flex-start',
   },
   highlightItem: {
     alignItems: 'center',
-    width: 68,
+    width: 60,
   },
   yourStoryRing: {
     width: HIGHLIGHT_SIZE + 4,
     height: HIGHLIGHT_SIZE + 4,
     borderRadius: (HIGHLIGHT_SIZE + 4) / 2,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   plusBadge: {
     position: 'absolute',
-    bottom: 16,
-    right: 10,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    bottom: 14,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -956,20 +1143,18 @@ const styles = StyleSheet.create({
   },
   highlightLabel: {
     color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: 6,
+    fontSize: 10,
+    marginTop: 5,
     textAlign: 'center',
-    maxWidth: 66,
+    maxWidth: 58,
     fontWeight: '500',
-  },
-  gradientBorderRing: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 2,
+    letterSpacing: 0.2,
   },
   highlightAvatarContainer: {
     borderRadius: HIGHLIGHT_SIZE / 2,
     overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: colors.bg,
   },
 
   /* ── Category Filter Chips ───────────────────────────────────────────── */
@@ -979,8 +1164,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
     backgroundColor: colors.bgInput,
     borderWidth: 1,
@@ -1009,14 +1196,19 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   sectionTitle: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
   },
   seeAllText: {
     color: colors.accent,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   storyCountText: {
@@ -1030,8 +1222,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   musicCard: {
-    width: 120,
+    width: 110,
     alignItems: 'center',
+  },
+  musicCardCoverWrap: {
+    position: 'relative',
+    marginBottom: 8,
   },
   musicCardCover: {
     width: 100,
@@ -1039,80 +1235,93 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+  },
+  musicPlayBtn: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   musicTitle: {
     color: colors.text,
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
-    maxWidth: 110,
+    maxWidth: 100,
   },
   musicArtist: {
     color: colors.textMuted,
     fontSize: 11,
     textAlign: 'center',
-    maxWidth: 110,
+    maxWidth: 100,
+    marginTop: 1,
   },
 
-  /* ── Filters ─────────────────────────────────────────────────────────── */
+  /* ── Filters (circular, Instagram-style) ─────────────────────────────── */
   filtersScroll: {
     paddingHorizontal: 16,
-    gap: 12,
-  },
-  filterCard: {
-    width: 80,
-    height: 80,
-    borderRadius: 16,
-    overflow: 'hidden',
+    gap: 16,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    backgroundColor: colors.bgInput,
   },
-  filterCardGradient: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.8,
+  filterItem: {
+    alignItems: 'center',
+    width: 70,
+  },
+  filterCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCircleInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.bg,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   filterLabel: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 10,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
   },
 
-  /* ── Story Cards Grid ────────────────────────────────────────────────── */
+  /* ── Recent Stories Grid ─────────────────────────────────────────────── */
   storyGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 12,
-    gap: 10,
+    paddingHorizontal: 2,
+    gap: 2,
   },
   storyCard: {
-    width: (SCREEN_W - 34) / 2,
-    height: ((SCREEN_W - 34) / 2) * 1.5,
-    borderRadius: 14,
+    width: (SCREEN_W - 4) / 3,
+    height: SCREEN_W * 0.55,
+    position: 'relative',
     overflow: 'hidden',
-    backgroundColor: '#111',
   },
   storyCardBg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
   },
   storyCardTextBg: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 12,
   },
   storyCardText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     textAlign: 'center',
   },
   storyCardOverlay: {
@@ -1120,40 +1329,40 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60%',
+    height: '50%',
   },
   storyCardInfo: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 10,
+    padding: 8,
   },
   storyCardAuthorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   storyCardAuthor: {
     color: '#fff',
+    fontSize: 11,
     fontWeight: '700',
-    fontSize: 12,
     flex: 1,
   },
   storyCardStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
     gap: 3,
+    marginTop: 3,
   },
   storyCardStat: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 10,
     marginLeft: 2,
   },
   storyCardTime: {
     color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
+    fontSize: 10,
     marginLeft: 'auto',
   },
 
@@ -1161,34 +1370,33 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 40,
+    paddingVertical: 60,
   },
   emptyText: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    marginTop: 12,
+    marginTop: 16,
   },
   emptySubtext: {
     color: colors.textMuted,
     fontSize: 14,
-    marginTop: 4,
+    marginTop: 6,
   },
 
-  /* ── Uploading Overlay ───────────────────────────────────────────────── */
+  /* ── Upload Overlay ──────────────────────────────────────────────────── */
   uploadingOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.8)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   uploadingCard: {
     backgroundColor: colors.surfaceElevated,
     borderRadius: 16,
-    padding: 28,
+    padding: 32,
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
   },
   uploadingText: {
     color: colors.text,
@@ -1196,24 +1404,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  /* ═══════════════════════════════════════════════════════════════════════
+  /* ══════════════════════════════════════════════════════════════════════
      STORY VIEWER
-     ═══════════════════════════════════════════════════════════════════════ */
+     ══════════════════════════════════════════════════════════════════════ */
   viewerContainer: {
     flex: 1,
     backgroundColor: '#000',
   },
   viewerTopArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 10,
-    backgroundColor: 'transparent',
   },
-
-  /* ── Progress Bars ───────────────────────────────────────────────────── */
   progressBarsRow: {
     flexDirection: 'row',
     gap: 3,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingTop: 4,
   },
   progressTrack: {
     height: 2.5,
@@ -1226,33 +1435,41 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 1.5,
   },
-
-  /* ── Viewer Header ───────────────────────────────────────────────────── */
   viewerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
     gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
   },
   viewerUsername: {
     color: '#fff',
-    fontWeight: '700',
     fontSize: 14,
-    flex: 1,
+    fontWeight: '700',
+    flexShrink: 1,
   },
   viewerTimestamp: {
     color: 'rgba(255,255,255,0.6)',
     fontSize: 12,
   },
+  pausedIndicator: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
 
-  /* ── Viewer Content Area (90%) ───────────────────────────────────────── */
+  /* ── Story Content (90%) ─────────────────────────────────────────────── */
   viewerContent: {
-    flex: 9,
+    flex: 1,
     backgroundColor: '#000',
   },
   viewerImage: {
-    width: '100%',
+    width: SCREEN_W,
     height: '100%',
   },
   viewerTextContent: {
@@ -1263,24 +1480,39 @@ const styles = StyleSheet.create({
   },
   viewerStoryText: {
     color: '#fff',
-    fontSize: 26,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 36,
+    lineHeight: 32,
   },
 
-  /* ── Viewer Reaction Bar (10%) ───────────────────────────────────────── */
+  /* ── Heart Overlay (double-tap) ──────────────────────────────────────── */
+  heartOverlay: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  /* ── Bottom Reaction Bar (10%) ───────────────────────────────────────── */
   viewerReactionBar: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  reactionGradient: {
+    position: 'absolute',
+    top: -60,
+    left: 0,
+    right: 0,
+    height: 60,
   },
   reactionBarContent: {
-    flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    justifyContent: 'space-between',
+    paddingTop: 10,
+    paddingBottom: 4,
   },
   reactionAuthorRow: {
     flexDirection: 'row',
@@ -1292,16 +1524,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   reactionAuthorUsername: {
-    color: 'rgba(255,255,255,0.5)',
+    color: 'rgba(255,255,255,0.6)',
     fontSize: 12,
+    marginTop: 1,
   },
   reactionActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 20,
+    justifyContent: 'space-between',
+    marginTop: 10,
+    marginBottom: 6,
   },
   reactionBtn: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   reactionStats: {
     flexDirection: 'row',
@@ -1309,42 +1547,43 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   reactionStatText: {
-    color: colors.like,
-    fontSize: 13,
+    color: '#fff',
+    fontSize: 12,
     fontWeight: '600',
   },
   reactionStatTextMuted: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    fontWeight: '400',
   },
 
-  /* ── Comment Input Overlay ───────────────────────────────────────────── */
+  /* ── Comment Input ───────────────────────────────────────────────────── */
   commentInputOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.9)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   commentInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     gap: 10,
   },
   commentInputWrapper: {
     flex: 1,
     backgroundColor: colors.bgInput,
-    borderRadius: 22,
-    paddingHorizontal: 16,
+    borderRadius: 20,
+    paddingHorizontal: 14,
     paddingVertical: 8,
   },
   commentInput: {
     color: colors.text,
     fontSize: 14,
-    maxHeight: 40,
+    padding: 0,
   },
 });

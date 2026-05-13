@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Alert,  } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -115,7 +116,7 @@ export default function MyStoreScreen({ route, navigation }: any) {
           <Image source={{ uri: item.images[0] }} style={styles.productImage} resizeMode="cover" />
         ) : (
           <View style={[styles.productImage, styles.productImagePlaceholder]}>
-            <Text style={{ color: colors.textMuted, fontSize: 20 }}>📦</Text>
+            <Ionicons name="cube-outline" size={24} color={colors.textMuted} />
           </View>
         )}
       </TouchableOpacity>
@@ -131,7 +132,8 @@ export default function MyStoreScreen({ route, navigation }: any) {
         </View>
         {item.featured && (
           <View style={styles.featuredBadge}>
-            <Text style={styles.featuredText}>★ Featured</Text>
+            <Ionicons name="ribbon-outline" size={12} color={colors.accentGold} />
+            <Text style={styles.featuredText}>Featured</Text>
           </View>
         )}
       </View>
@@ -147,10 +149,10 @@ export default function MyStoreScreen({ route, navigation }: any) {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => handleEdit(item)}>
-          <Text style={styles.iconBtnText}>✏️</Text>
+          <Ionicons name="create-outline" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => handleDelete(item)}>
-          <Text style={[styles.iconBtnText, { color: colors.accentRed }]}>🗑️</Text>
+          <Ionicons name="trash-outline" size={18} color={colors.accentRed} />
         </TouchableOpacity>
       </View>
     </View>
@@ -179,7 +181,7 @@ export default function MyStoreScreen({ route, navigation }: any) {
 
       {products.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>🏪</Text>
+          <Ionicons name="storefront-outline" size={60} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>No products yet</Text>
           <Text style={styles.emptySubtitle}>Tap the + button to add your first product.</Text>
           <TouchableOpacity
@@ -243,7 +245,7 @@ const styles = StyleSheet.create({
   productMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaText: { color: colors.textSecondary, fontSize: 12 },
   metaSep: { color: colors.textMuted, fontSize: 10 },
-  featuredBadge: { marginTop: 4, alignSelf: 'flex-start' },
+  featuredBadge: { marginTop: 4, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(245, 158, 11, 0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   featuredText: { color: colors.accentGold, fontSize: 11, fontWeight: '600' },
   productActions: { alignItems: 'flex-end', gap: 6 },
   actionBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },

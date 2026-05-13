@@ -694,7 +694,7 @@ export default function FeedScreen({ navigation }: any) {
               <Ionicons name="menu" size={22} color="#e7e9ea" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
+              <Image source={require('../../assets/logo.jpeg')} style={styles.logoImage} />
             </View>
             <TouchableOpacity
               style={styles.headerBtn}
@@ -749,7 +749,7 @@ export default function FeedScreen({ navigation }: any) {
             <Ionicons name="menu" size={22} color="#e7e9ea" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
+            <Image source={require('../../assets/logo.jpeg')} style={styles.logoImage} />
           </View>
           <TouchableOpacity
             style={styles.headerBtn}
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
   },
   headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  logoImage: { width: 100, height: 34, resizeMode: 'contain' },
+  logoImage: { width: 130, height: 44, resizeMode: 'contain' },
 
   /* ── Tabs ── */
   tabBar: {

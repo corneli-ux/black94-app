@@ -170,7 +170,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'android' ? 'height' : 'padding'} keyboardVerticalOffset={0}>
+    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: Math.max(8, insets.top - 4) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -258,11 +258,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       )}
 
       {/* Input bar */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'android' ? 'height' : 'padding'}
-        keyboardVerticalOffset={0}
-        style={{ backgroundColor: '#000000' }}
-      >
         <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
           <View style={styles.inputPill}>
             <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
@@ -298,7 +293,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             }
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
 
       {/* Nuclear Block Confirmation Modal */}
       <Modal

@@ -8,6 +8,7 @@ import { useAppStore } from '../stores/app';
 import { signOutUser as signOut } from '../lib/api';
 import { firestore, auth } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
+import { PLANS, formatAmount } from '../lib/payments';
 
 export default function SettingsScreen() {
   const navigation = useNavigation() as any;
@@ -64,7 +65,7 @@ export default function SettingsScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <SafeAreaView style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
@@ -73,14 +74,12 @@ export default function SettingsScreen() {
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
-        <TouchableOpacity onPress={handleSave} disabled={saving}>
-          <Text style={[styles.saveText, saving && { opacity: 0.5 }]}>
-            {saving ? 'Saving...' : 'Save'}
-          </Text>
+        <TouchableOpacity onPress={() => navigation.navigate('PremiumDashboard' as never)} hitSlop={8}>
+          <Ionicons name="diamond" size={22} color={colors.accent} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Profile Image */}
         <View style={styles.profileSection}>
           <Avatar uri={user?.profileImage} size={80} borderWidth={3} borderColor={colors.bg} />
@@ -124,6 +123,51 @@ export default function SettingsScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Account Type</Text>
             <Text style={styles.infoValue}>{user?.role || 'Personal'}</Text>
+          </View>
+
+          {/* Save button moved here from header */}
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
+            <Text style={[styles.saveBtnText, saving && { opacity: 0.5 }]}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Upgrade Section */}
+        <View style={styles.section}>
+          <View style={styles.upgradeHeader}>
+            <Ionicons name="diamond" size={18} color={colors.accent} />
+            <Text style={styles.sectionTitle}>Upgrade</Text>
+          </View>
+          <View style={styles.upgradeCard}>
+            <View style={styles.upgradeCardTop}>
+              <View style={styles.upgradeIconWrap}>
+                <Ionicons name="diamond" size={28} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.upgradeTitle}>Go Premium</Text>
+                <Text style={styles.upgradeSubtitle}>Unlock unlimited features</Text>
+              </View>
+            </View>
+            {PLANS.map((plan, idx) => (
+              <TouchableOpacity
+                key={plan.id}
+                style={[styles.planRow, idx === PLANS.length - 1 && { borderBottomWidth: 0 }]}
+                onPress={() => navigation.navigate('PremiumDashboard' as never)}
+              >
+                <View style={styles.planInfo}>
+                  <Text style={styles.planName}>{plan.name}</Text>
+                  <Text style={styles.planFeatures}>
+                    {plan.features.slice(0, 3).join(' · ')}
+                  </Text>
+                </View>
+                <View style={styles.planPriceWrap}>
+                  <Text style={styles.planPrice}>{formatAmount(plan.amount)}</Text>
+                  <Text style={styles.planDuration}>/{plan.duration}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -193,8 +237,41 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   headerTitle: { fontSize: 17, fontWeight: '600', color: colors.text },
-  saveText: { color: colors.accent, fontWeight: '600', fontSize: 15 },
+  saveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: 20, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: 'rgba(42,127,255,0.1)', borderWidth: 1, borderColor: 'rgba(42,127,255,0.2)',
+  },
+  saveBtnText: { color: colors.accent, fontWeight: '600', fontSize: 15 },
   profileSection: { alignItems: 'center', paddingVertical: 20 },
+  upgradeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  upgradeCard: {
+    backgroundColor: colors.surface, borderRadius: 16,
+    borderWidth: 1, borderColor: 'rgba(42,127,255,0.3)', overflow: 'hidden',
+  },
+  upgradeCardTop: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  upgradeIconWrap: {
+    width: 52, height: 52, borderRadius: 14,
+    backgroundColor: 'rgba(42,127,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  upgradeTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
+  upgradeSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  planRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  planInfo: { flex: 1, marginRight: 12 },
+  planName: { fontSize: 15, fontWeight: '600', color: colors.text },
+  planFeatures: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  planPriceWrap: { flexDirection: 'row', alignItems: 'baseline' },
+  planPrice: { fontSize: 17, fontWeight: '700', color: colors.accent },
+  planDuration: { fontSize: 12, color: colors.textMuted },
   formSection: { paddingHorizontal: 16, marginTop: 8 },
   label: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 16 },
   input: {

@@ -274,7 +274,7 @@ export default function EditProfileScreen({ navigation }: any) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <ScrollView
@@ -285,14 +285,15 @@ export default function EditProfileScreen({ navigation }: any) {
           {/* Profile Image */}
           <View style={styles.avatarSection}>
             <TouchableOpacity onPress={() => pickImage('profile')} activeOpacity={0.8}>
-              <Image
-                source={
-                  profileImage
-                    ? { uri: profileImage }
-                    : { uri: 'https://via.placeholder.com/200/333/ccc?text=A' }
-                }
-                style={styles.avatarImage}
-              />
+              {profileImage ? (
+                <Image source={{ uri: profileImage }} style={styles.avatarImage} />
+              ) : (
+                <View style={[styles.avatarImage, styles.avatarFallback]}>
+                  <Text style={styles.avatarFallbackText}>
+                    {(displayName || username || 'A').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <View style={styles.avatarEditOverlay}>
                 <Text style={styles.avatarEditText}>📷</Text>
               </View>
@@ -478,6 +479,16 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 9999,
     backgroundColor: colors.surfaceLight,
+  },
+  avatarFallback: {
+    backgroundColor: colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarFallbackText: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: colors.white,
   },
   avatarEditOverlay: {
     position: 'absolute',

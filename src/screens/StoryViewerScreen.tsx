@@ -331,14 +331,18 @@ export default function StoryViewerScreen({ navigation, route }: any) {
       {/* Author Bar */}
       <View style={styles.authorBar}>
         <View style={styles.authorInfo}>
-          <Image
-            source={
-              currentStory.authorProfileImage
-                ? { uri: currentStory.authorProfileImage }
-                : { uri: 'https://via.placeholder.com/80/333/ccc?text=A' }
-            }
-            style={styles.authorAvatar}
-          />
+          {currentStory.authorProfileImage ? (
+            <Image
+              source={{ uri: currentStory.authorProfileImage }}
+              style={styles.authorAvatar}
+            />
+          ) : (
+            <View style={[styles.authorAvatar, styles.authorAvatarFallback]}>
+              <Text style={styles.authorAvatarFallbackText}>
+                {(currentStory.authorDisplayName || currentStory.authorUsername || 'A').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
           <View style={styles.authorTextContainer}>
             <View style={styles.authorNameRow}>
               <Text style={styles.authorName}>{currentStory.authorDisplayName}</Text>
@@ -544,6 +548,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.white,
     backgroundColor: colors.surfaceLight,
+  },
+  authorAvatarFallback: {
+    backgroundColor: colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  authorAvatarFallbackText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.white,
   },
   authorTextContainer: {
     gap: 1,

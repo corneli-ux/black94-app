@@ -3,7 +3,7 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Activity
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
-import { firestore } from '../lib/firebase';
+import { auth, firestore } from '../lib/firebase';
 import { User, Post, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 
@@ -116,7 +116,19 @@ export default function SearchScreen({ route, navigation }: any) {
     <View style={styles.postRow}>
       <View style={styles.postTextWrap}>
         <Text style={styles.postCaption} numberOfLines={3}>{item.caption}</Text>
-        <Text style={styles.postAuthor}>by @{item.authorUsername}</Text>
+        <TouchableOpacity
+          onPress={() => {
+            const currentUserId = auth()?.currentUser?.uid;
+            if (item.authorId && item.authorId === currentUserId) {
+              navigation.navigate('ProfileSelf');
+            } else if (item.authorId) {
+              navigation.navigate('UserProfile', { userId: item.authorId });
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.postAuthor}>by @{item.authorUsername}</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );

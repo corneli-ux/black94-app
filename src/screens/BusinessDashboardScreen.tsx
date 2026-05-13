@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions,  } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -19,12 +20,12 @@ interface KPIData {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'CRM', icon: '👥', screen: 'CRM' },
-  { label: 'Ads Manager', icon: '📢', screen: 'AdsManager' },
-  { label: 'Salary', icon: '💰', screen: 'Salary' },
-  { label: 'Affiliates', icon: '🤝', screen: 'Affiliates' },
-  { label: 'Performance', icon: '📊', screen: 'Performance' },
-  { label: 'Orders', icon: '📦', screen: 'Orders' },
+  { label: 'CRM', icon: 'people-circle-outline', color: '#3b82f6', screen: 'CRM' },
+  { label: 'Ads Manager', icon: 'megaphone-outline', color: '#ef4444', screen: 'AdsManager' },
+  { label: 'Salary', icon: 'wallet-outline', color: '#22c55e', screen: 'Salary' },
+  { label: 'Affiliates', icon: 'share-social-outline', color: '#8b5cf6', screen: 'Affiliates' },
+  { label: 'Performance', icon: 'stats-chart-outline', color: '#f59e0b', screen: 'Performance' },
+  { label: 'Orders', icon: 'bag-handle-outline', color: '#06b6d4', screen: 'Orders' },
 ];
 
 function formatINR(amount: number): string {
@@ -104,18 +105,22 @@ export default function BusinessDashboardScreen({ navigation }: any) {
       {/* KPI Cards */}
       <View style={styles.kpiGrid}>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
+          <Ionicons name="cash-outline" size={20} color="#22c55e" />
           <Text style={styles.kpiLabel}>Total Revenue</Text>
           <Text style={styles.kpiValue}>{formatINR(kpi.totalRevenue)}</Text>
         </View>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
+          <Ionicons name="cart-outline" size={20} color={colors.primary} />
           <Text style={styles.kpiLabel}>Total Orders</Text>
           <Text style={styles.kpiValue}>{kpi.totalOrders}</Text>
         </View>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
+          <Ionicons name="people-outline" size={20} color="#3b82f6" />
           <Text style={styles.kpiLabel}>Active Customers</Text>
           <Text style={styles.kpiValue}>{kpi.activeCustomers}</Text>
         </View>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
+          <Ionicons name="trending-up-outline" size={20} color="#f59e0b" />
           <Text style={styles.kpiLabel}>Conversion Rate</Text>
           <Text style={styles.kpiValue}>{kpi.conversionRate}%</Text>
         </View>
@@ -132,7 +137,7 @@ export default function BusinessDashboardScreen({ navigation }: any) {
               onPress={() => navigation.navigate(action.screen)}
               activeOpacity={0.7}
             >
-              <Text style={styles.actionIcon}>{action.icon}</Text>
+              <Ionicons name={action.icon as any} size={28} color={action.color} />
               <Text style={styles.actionLabel}>{action.label}</Text>
             </TouchableOpacity>
           ))}

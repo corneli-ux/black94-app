@@ -193,7 +193,10 @@ const CrmAnalyticsScreen: React.FC = () => {
         }>
         {/* KPI Cards */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Key Metrics</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="grid-outline" size={18} color={C.primary} />
+            <Text style={styles.sectionTitle}>Key Metrics</Text>
+          </View>
           <View style={styles.kpiGrid}>
             <View style={styles.kpiCard}>
               <Ionicons name="wallet-outline" size={20} color={C.success} />
@@ -232,7 +235,10 @@ const CrmAnalyticsScreen: React.FC = () => {
 
         {/* Revenue Trend Chart */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Revenue Trend (Last 6 Months)</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="trending-up-outline" size={18} color={C.success} />
+            <Text style={styles.sectionTitle}>Revenue Trend (Last 6 Months)</Text>
+          </View>
           <View style={styles.chartCard}>
             {data?.revenueByMonth.map((item) => {
               const barHeight = (item.revenue / (data ? Math.max(...data.revenueByMonth.map((r) => r.revenue), 1) : 1)) * 100;
@@ -258,7 +264,10 @@ const CrmAnalyticsScreen: React.FC = () => {
 
         {/* Top Products */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Top Products</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="pricetag-outline" size={18} color={C.warning} />
+            <Text style={styles.sectionTitle}>Top Products</Text>
+          </View>
           <View style={styles.card}>
             {(data?.topProducts.length ?? 0) === 0 ? (
               <Text style={styles.emptyText}>No product data yet</Text>
@@ -287,7 +296,10 @@ const CrmAnalyticsScreen: React.FC = () => {
 
         {/* Lead Conversion Funnel */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Lead Conversion Funnel</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="funnel-outline" size={18} color={C.info} />
+            <Text style={styles.sectionTitle}>Lead Conversion Funnel</Text>
+          </View>
           <View style={styles.card}>
             {data?.leadFunnel.map((stage) => {
               const maxWidth = data.totalLeads > 0 ? (stage.count / data.totalLeads) * 100 : 0;
@@ -322,7 +334,10 @@ const CrmAnalyticsScreen: React.FC = () => {
 
         {/* Customer Demographics Placeholder */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Customer Demographics</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="people-circle-outline" size={18} color={C.badgeQualified} />
+            <Text style={styles.sectionTitle}>Customer Demographics</Text>
+          </View>
           <View style={styles.card}>
             <View style={styles.demographicRow}>
               <Text style={styles.demographicLabel}>Total Customers</Text>
@@ -378,11 +393,16 @@ const styles = StyleSheet.create({
   section: {
     padding: S.lg,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: S.sm,
+    marginBottom: S.md,
+  },
   sectionTitle: {
     color: C.textPrimary,
     fontSize: F.lg,
     fontWeight: '600',
-    marginBottom: S.md,
   },
   kpiGrid: {
     gap: S.sm,

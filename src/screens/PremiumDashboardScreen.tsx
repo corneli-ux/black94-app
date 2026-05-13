@@ -310,11 +310,11 @@ export default function PremiumDashboardScreen() {
   }, []);
 
   // ── Visual helpers ──
-  const planIcon = (plan: PlanType) => {
+  const planIcon = (plan: PlanType, size: number = 36) => {
     switch (plan) {
-      case 'free': return '💪';
-      case 'premium': return '⭐';
-      case 'business': return '🚀';
+      case 'free': return <Ionicons name="fitness-outline" size={size} color={planColor(plan)} />;
+      case 'premium': return <Ionicons name="star" size={size} color={planColor(plan)} />;
+      case 'business': return <Ionicons name="rocket" size={size} color={planColor(plan)} />;
     }
   };
 
@@ -395,7 +395,7 @@ export default function PremiumDashboardScreen() {
         {/* ═══ Current plan card ═══ */}
         <View style={[styles.planCard, { borderColor: planBorderColor(currentPlan) }]}>
           <View style={styles.planCardHeader}>
-            <Text style={styles.planEmoji}>{planIcon(currentPlan)}</Text>
+            {planIcon(currentPlan)}
             <View style={styles.planInfo}>
               <Text style={styles.planName}>
                 {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
@@ -493,7 +493,10 @@ export default function PremiumDashboardScreen() {
                 onPress={() => handleUpgrade('premium')}
                 activeOpacity={0.7}
                 disabled={paymentLoading}>
-                <Text style={styles.upgradeBtnTitle}>⭐ Premium</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="star" size={16} color={colors.accentGold} />
+                  <Text style={styles.upgradeBtnTitle}>Premium</Text>
+                </View>
                 <Text style={styles.upgradeBtnPrice}>{formatAmount(PLANS[0].amount)}/mo</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -501,7 +504,10 @@ export default function PremiumDashboardScreen() {
                 onPress={() => handleUpgrade('business')}
                 activeOpacity={0.7}
                 disabled={paymentLoading}>
-                <Text style={styles.upgradeBtnOutlineTitle}>🚀 Business</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="rocket" size={16} color={colors.primary} />
+                  <Text style={styles.upgradeBtnOutlineTitle}>Business</Text>
+                </View>
                 <Text style={styles.upgradeBtnOutlinePrice}>{formatAmount(PLANS[1].amount)}/mo</Text>
               </TouchableOpacity>
             </View>
@@ -525,7 +531,10 @@ export default function PremiumDashboardScreen() {
 
         {/* ═══ Usage meter ═══ */}
         <View style={styles.usageCard}>
-          <Text style={styles.sectionTitle}>Usage This Month</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="pie-chart-outline" size={18} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Usage This Month</Text>
+          </View>
           {renderUsageBar('Posts', usage.postsToday.current, usage.postsToday.limit)}
           {renderUsageBar('Stories', usage.storiesToday.current, usage.storiesToday.limit)}
           {usage.products.limit > 0 && renderUsageBar('Products', usage.products.current, usage.products.limit)}
@@ -534,7 +543,10 @@ export default function PremiumDashboardScreen() {
 
         {/* ═══ Feature comparison table ═══ */}
         <View style={styles.tableCard}>
-          <Text style={styles.sectionTitle}>Feature Comparison</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="list-outline" size={18} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Feature Comparison</Text>
+          </View>
           <View style={styles.tableHeader}>
             <Text style={styles.tableFeatureCol}>Feature</Text>
             <View style={styles.tableCol}>
@@ -657,9 +669,6 @@ const styles = StyleSheet.create({
   },
   planInfo: {
     flex: 1,
-  },
-  planEmoji: {
-    fontSize: 36,
   },
   planName: {
     fontSize: 20,
@@ -842,11 +851,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
+    fontFamily: 'Inter-Bold',
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 14,
     fontFamily: 'Inter-Bold',
   },
   usageRow: {

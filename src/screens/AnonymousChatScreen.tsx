@@ -833,7 +833,7 @@ export default function AnonymousChatScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAvoidingView
         style={styles.chatContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}>
         {/* Header */}
         <View style={styles.chatHeader}>
@@ -867,6 +867,7 @@ export default function AnonymousChatScreen() {
           keyExtractor={(m) => m.id}
           contentContainerStyle={styles.msgList}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.emptyMsg}>
               <Ionicons

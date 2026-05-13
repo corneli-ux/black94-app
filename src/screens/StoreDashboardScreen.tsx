@@ -398,7 +398,7 @@ export default function StoreDashboardScreen() {
           </View>
           <View style={styles.revenueCard}>
             <View style={styles.revenueCardTop}>
-              <Ionicons name="stats-chart-outline" size={16} color={colors.accentGreen} />
+              <Ionicons name="bar-chart-outline" size={16} color={colors.accentGreen} />
               <Text style={styles.revenueLabel}>30 Days</Text>
             </View>
             <Text style={styles.revenueValue}>{formatCompactINR(revenue.month)}</Text>
@@ -532,7 +532,7 @@ export default function StoreDashboardScreen() {
             ))
           ) : (
             <View style={styles.emptySectionWrap}>
-              <Ionicons name="cube-outline" size={32} color={colors.textMuted} />
+              <Ionicons name="storefront-outline" size={32} color={colors.textMuted} />
               <Text style={styles.emptySectionText}>
                 {hasNoProducts ? 'No products listed yet' : 'No sales data yet'}
               </Text>
@@ -639,7 +639,7 @@ export default function StoreDashboardScreen() {
               activeOpacity={0.7}
             >
               <View style={[styles.actionIconBg, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
-                <Ionicons name="cube-outline" size={24} color={colors.accentGold} />
+                <Ionicons name="bag-handle-outline" size={24} color={colors.accentGold} />
               </View>
               <Text style={styles.actionLabel}>Orders</Text>
             </TouchableOpacity>

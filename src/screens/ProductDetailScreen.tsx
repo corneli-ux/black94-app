@@ -138,17 +138,52 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   useEffect(() => { load(); }, []);
 
   const handleAddToCart = async () => {
+    const currentUser = auth()?.currentUser;
+    if (!currentUser || !product) return;
     setAddingToCart(true);
     try {
-      // Simulate adding to cart — in production this would use Zustand cartStore
-      setTimeout(() => {
-        setAddingToCart(false);
-        Alert.alert('Added to Cart', `${product?.name} (${quantity}x${selectedVariant ? ` ${selectedVariant}` : ''}) added to your cart.`, [
-          { text: 'Continue Shopping', style: 'cancel' },
-          { text: 'View Cart', onPress: () => navigation.navigate('Cart') },
-        ]);
-      }, 500);
-    } catch {
+      const cartRef = firestore().collection('carts').doc(currentUser.uid);
+      const cartSnap = await cartRef.get();
+      const cartItem = {
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.images[0] || '',
+        quantity,
+        variant: selectedVariant || '',
+      };
+
+      if (cartSnap.exists) {
+        const cartData = cartSnap.data();
+        const items: any[] = cartData.items || [];
+        const existingIndex = items.findIndex(
+          (i: any) => i.productId === product.id && (i.variant || '') === (selectedVariant || ''),
+        );
+        if (existingIndex >= 0) {
+          items[existingIndex].quantity += quantity;
+        } else {
+          items.push(cartItem);
+        }
+        await cartRef.update({
+          items,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        await cartRef.set({
+          items: [cartItem],
+          createdAt: firestore.FieldValue.serverTimestamp(),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      Alert.alert('Added to Cart', `${product.name} (${quantity}x${selectedVariant ? ` ${selectedVariant}` : ''}) added to your cart.`, [
+        { text: 'Continue Shopping', style: 'cancel' },
+        { text: 'View Cart', onPress: () => navigation.navigate('Cart') },
+      ]);
+    } catch (e) {
+      console.error('[ProductDetail] Add to cart error:', e);
+      Alert.alert('Error', 'Failed to add to cart. Please try again.');
+    } finally {
       setAddingToCart(false);
     }
   };
