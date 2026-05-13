@@ -575,7 +575,7 @@ export default function BusinessOrdersScreen() {
                 activeOpacity={0.7}
               >
                 {updatingStatus ? (
-                  <ActivityIndicator size="small" color={colors.black} />
+                  <ActivityIndicator size="small" color={"#000000"} />
                 ) : (
                   <Text style={styles.modalConfirmText}>Confirm &amp; Ship</Text>
                 )}
@@ -640,7 +640,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   filterChipTextActive: {
-    color: colors.black,
+    color: "#000000",
     fontWeight: '600',
   },
   filterCount: {
@@ -655,7 +655,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   filterCountActive: {
-    backgroundColor: colors.black,
+    backgroundColor: "#000000",
   },
   filterCountText: {
     fontSize: 10,
@@ -891,6 +891,6 @@ const styles = StyleSheet.create({
   modalConfirmText: {
     fontSize: 15,
     fontWeight: '700',
-    color: colors.black,
+    color: "#000000",
   },
 });
