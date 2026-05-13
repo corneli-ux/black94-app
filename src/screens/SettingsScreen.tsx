@@ -10,7 +10,7 @@ import { firestore, auth } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 
 export default function SettingsScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation() as any;
   const { user, setUser } = useAppStore();
   const [displayName, setDisplayName] = React.useState(user?.displayName || '');
   const [bio, setBio] = React.useState(user?.bio || '');
@@ -65,7 +65,7 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { (navigation as any).navigate('Profile'); } }}>
+        <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { navigation.navigate('Profile'); } }}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>

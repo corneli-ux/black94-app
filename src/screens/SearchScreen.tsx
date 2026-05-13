@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
@@ -16,6 +16,7 @@ export default function SearchScreen({ route, navigation }: any) {
   const [tab, setTab] = useState<'people' | 'posts'>('people');
   const [focused, setFocused] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const insets = useSafeAreaInsets();
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setUsers([]); setPosts([]); setSearched(false); return; }
@@ -121,7 +122,7 @@ export default function SearchScreen({ route, navigation }: any) {
   );
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={insets.top}>
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
@@ -210,7 +211,7 @@ export default function SearchScreen({ route, navigation }: any) {
           <Text style={styles.emptySubtitle}>Find users, posts, and topics across Black94.</Text>
         </View>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

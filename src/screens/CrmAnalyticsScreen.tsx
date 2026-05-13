@@ -339,7 +339,7 @@ const CrmAnalyticsScreen: React.FC = () => {
               <Text style={styles.demographicValue}>—</Text>
             </View>
             <Text style={styles.demographicNote}>
-              Detailed demographics coming soon with enhanced tracking
+              Demographics data requires enhanced tracking enabled in Business settings
             </Text>
           </View>
         </View>
