@@ -53,7 +53,13 @@ async function uploadImage(uri: string, storagePath: string): Promise<string> {
 
   if (!uploadResp.ok) throw new Error('Image upload failed');
 
-  // Return public URL
+  // Include download token from upload response so the URL actually works
+  const respData = await uploadResp.json();
+  const downloadToken = respData.downloadTokens?.split(',')[0];
+  if (downloadToken) {
+    return `https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o/${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
+  }
+  // Fallback: return URL without token (may require auth to view)
   return `https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o/${encodeURIComponent(storagePath)}?alt=media`;
 }
 

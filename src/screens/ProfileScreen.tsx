@@ -843,7 +843,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       <View style={styles.avatarRow}>
         <View style={{ marginTop: -32 }}>
           <Avatar
-            uri={user?.profileImage || currentUser?.photoURL}
+            uri={user?.profileImage}
             name={user?.displayName || null}
             size={80}
             borderWidth={4}

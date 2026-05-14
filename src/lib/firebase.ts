@@ -111,11 +111,21 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
     throw new Error(msg);
   }
 
+  // Strip raw Firebase Storage bucket URLs — these are internal and not
+  // usable as profile photos.  Google profile pics (lh3.googleusercontent.com)
+  // or custom-uploaded URLs (firebasestorage with a token param) pass through.
+  let photoURL: string | null = data.photoUrl || null;
+  if (photoURL) {
+    if (/firebasestorage\.app|\.appspot\.com/.test(photoURL) && !photoURL.includes('token=')) {
+      photoURL = null;
+    }
+  }
+
   _authUser = {
     uid: data.localId,
     email: data.email || null,
     displayName: data.displayName || null,
-    photoURL: data.photoUrl || null,
+    photoURL,
   };
   _idToken = data.idToken;
   _refreshToken = data.refreshToken;

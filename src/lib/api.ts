@@ -104,13 +104,21 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     }
     const username = fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid;
 
+    // Filter out raw storage bucket URLs from photoURL — they aren't usable as
+    // profile photos and would replace a user's custom-uploaded or Google pic.
+    function _isStorageUrl(url: string | null | undefined): boolean {
+      if (!url) return true;
+      return /firebasestorage\.app|\.appspot\.com/.test(url) && !url.includes('token=');
+    }
+    const safePhotoUrl = _isStorageUrl(fbUser.photoURL) ? null : fbUser.photoURL;
+
     const userData: any = {
       uid: fbUser.uid,
       email: fbUser.email,
       username: username,
       usernameLower: username.toLowerCase(),
       displayName: fbUser.displayName || 'User',
-      profileImage: fbUser.photoURL || null,
+      profileImage: safePhotoUrl,
       role: 'personal',
       badge: '',
       subscription: 'free',
@@ -129,9 +137,12 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
         console.warn('[Auth] Failed to create user doc:', e);
       }
     } else {
+      // Returning user — do NOT overwrite profileImage.  The Firestore doc may
+      // hold a custom-uploaded photo or a Google pic that the user chose.
+      // Overwriting it with fbUser.photoURL was the main bug: every login
+      // replaced the user's custom photo with the raw storage bucket URL.
       try {
         await userDocRef.update({
-          profileImage: fbUser.photoURL || null,
           updatedAt: firestore.FieldValue.serverTimestamp(),
         });
       } catch (e) {

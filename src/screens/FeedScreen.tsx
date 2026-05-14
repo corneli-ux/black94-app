@@ -875,7 +875,7 @@ export default function FeedScreen({ navigation }: any) {
 
             {/* Body */}
             <View style={styles.composeBody}>
-              <Avatar uri={storeUser?.profileImage || currentUser?.photoURL} name={storeUser?.displayName || currentUser?.displayName} size={38} />
+              <Avatar uri={storeUser?.profileImage} name={storeUser?.displayName} size={38} />
               <View style={{ flex: 1 }}>
                 <TextInput
                   style={styles.composeInput}
