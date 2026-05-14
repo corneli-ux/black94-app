@@ -2,6 +2,8 @@ import React, { useEffect, useState, Component } from 'react';
 import { StatusBar, Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
+
+const IS_WEB = Platform.OS === 'web';
 import * as SplashScreen from 'expo-splash-screen';
 import * as WebBrowser from 'expo-web-browser';
 import * as Font from 'expo-font';
@@ -88,6 +90,30 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // ── WEB: Skip Firebase auth entirely, set demo user ──
+    if (IS_WEB) {
+      console.log('[App] Web platform detected — bypassing login, setting demo user');
+      setUser({
+        id: 'web_demo_user',
+        email: 'demo@black94.com',
+        username: 'black948',
+        displayName: 'Black94',
+        bio: 'Social platform',
+        profileImage: null,
+        coverImage: null,
+        role: 'personal',
+        badge: '',
+        subscription: 'free',
+        isVerified: true,
+        createdAt: Date.now(),
+      });
+      setToken('web_demo_token');
+      setLoading(false);
+      setIsReady(true);
+      return;
+    }
+
+    // ── MOBILE: Normal Firebase auth flow ──
     let unsubscribe = undefined;
     let forceReady = false;
 
@@ -148,6 +174,27 @@ export default function App() {
 
         unsubscribe = onAuthStateChanged(authInstance, (fbUser) => {
           if (forceReady) return;
+
+          // ── WEB safety: never show login on web ──
+          if (Platform.OS === 'web' && !fbUser) {
+            setUser({
+              id: 'web_demo_user',
+              email: 'demo@black94.com',
+              username: 'black948',
+              displayName: 'Black94',
+              bio: 'Social platform',
+              profileImage: null,
+              coverImage: null,
+              role: 'personal',
+              badge: '',
+              subscription: 'free',
+              isVerified: true,
+              createdAt: Date.now(),
+            });
+            setToken('web_demo_token');
+            setIsReady(true);
+            return;
+          }
 
           if (fbUser) {
             setUser(null); setToken(fbUser.uid); setLoading(false);

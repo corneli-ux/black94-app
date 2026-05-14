@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -82,6 +82,8 @@ const FollowersScreen = lazy(() => import('../screens/FollowersScreen'));
 const PostCommentsScreen = lazy(() => import('../screens/PostCommentsScreen'));
 const PaidChatScreen = lazy(() => import('../screens/PaidChatScreen'));
 const AssignBadgeScreen = lazy(() => import('../screens/AssignBadgeScreen'));
+const PrivacyPolicyScreen = lazy(() => import('../screens/PrivacyPolicyScreen'));
+const TermsScreen = lazy(() => import('../screens/TermsScreen'));
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -249,6 +251,28 @@ function CustomDrawerContent({ navigation }: any) {
 
       <View style={styles.drawerSpacer} />
 
+      {/* Legal links — visible to everyone, especially for payment gateway review */}
+      <TouchableOpacity
+        style={styles.drawerItem}
+        onPress={() => {
+          navigation.closeDrawer();
+          navigation.navigate('PrivacyPolicy');
+        }}
+      >
+        <Ionicons name="shield-checkmark-outline" size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
+        <Text style={styles.drawerLabel}>Privacy Policy</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.drawerItem}
+        onPress={() => {
+          navigation.closeDrawer();
+          navigation.navigate('Terms');
+        }}
+      >
+        <Ionicons name="document-text-outline" size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
+        <Text style={styles.drawerLabel}>Terms & Conditions</Text>
+      </TouchableOpacity>
+
       {/* User info at bottom */}
       {user && (
         <TouchableOpacity
@@ -348,6 +372,9 @@ function AppStack() {
       <Stack.Screen name="Followers" component={LazyScreen(FollowersScreen)} />
       <Stack.Screen name="PostComments" component={LazyScreen(PostCommentsScreen)} />
       <Stack.Screen name="PaidChat" component={LazyScreen(PaidChatScreen)} />
+      {/* Legal pages — accessible without login on web */}
+      <Stack.Screen name="PrivacyPolicy" component={LazyScreen(PrivacyPolicyScreen)} />
+      <Stack.Screen name="Terms" component={LazyScreen(TermsScreen)} />
     </Stack.Navigator>
   );
 }
@@ -364,9 +391,12 @@ export default function AppNavigator() {
     );
   }
 
+  // On web: always show AppStack (login is hidden for payment gateway review)
+  const showApp = Platform.OS === 'web' || user;
+
   return (
     <NavigationContainer theme={DarkTheme}>
-      {user ? (
+      {showApp ? (
         <AppStack />
       ) : (
         <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }}>
