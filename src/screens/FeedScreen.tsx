@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post } from '../lib/api';
+import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -44,7 +44,7 @@ function HighlightedCaption({ text, style }: { text: string; style: any }) {
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
-const TABS = ['black948', 'Network'] as const;
+const TABS = ['Black94', 'Network'] as const;
 type Tab = typeof TABS[number];
 
 function formatCount(n: number | undefined): string {
@@ -365,7 +365,7 @@ export default function FeedScreen({ navigation }: any) {
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
   const [composeImages, setComposeImages] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<Tab>('black948');
+  const [activeTab, setActiveTab] = useState<Tab>('Black94');
   const [ads, setAds] = useState<any[]>([]);
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
@@ -412,32 +412,14 @@ export default function FeedScreen({ navigation }: any) {
           authorBadge: data.authorBadge || '',
           authorIsVerified: data.authorIsVerified || false,
           caption: data.caption || '',
-          mediaUrls: (() => {
-            const raw = data.mediaUrls;
-            if (!raw) return [];
-            if (Array.isArray(raw)) return raw.filter(Boolean);
-            if (typeof raw === 'string') {
-              if (raw.startsWith('data:')) return [raw];
-              return raw.split(',').map(u => u.trim()).filter(Boolean);
-            }
-            return [];
-          })(),
+          mediaUrls: parseMediaUrls(data.mediaUrls),
           likeCount: data.likeCount || 0,
           commentCount: data.commentCount || 0,
           repostCount: data.repostCount || 0,
           liked: false,
           bookmarked: false,
           reposted: false,
-          createdAt: (() => {
-            const ts = data.createdAt;
-            if (!ts) return Date.now();
-            if (typeof ts === 'number') return ts;
-            if (typeof ts === 'string') return new Date(ts).getTime() || Date.now();
-            if (ts?.toMillis) return ts.toMillis();
-            if (ts?.toDate) return ts.toDate().getTime();
-            if (ts?.seconds) return ts.seconds * 1000;
-            return Date.now();
-          })(),
+          createdAt: tsToMillis(data.createdAt),
         };
       });
 
@@ -847,7 +829,7 @@ export default function FeedScreen({ navigation }: any) {
       <Modal visible={composeVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior="padding"
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setComposeVisible(false); setComposeImages([]); }} />
           <View style={styles.composeSheet}>

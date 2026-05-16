@@ -76,17 +76,6 @@ async function pollUnread(userId: string): Promise<number> {
   return snapshot.size;
 }
 
-/**
- * Get current unread count (one-shot, for initial badge).
- */
-export async function getUnreadCount(userId: string): Promise<number> {
-  try {
-    return await pollUnread(userId);
-  } catch {
-    return 0;
-  }
-}
-
 // ── Create Notification ─────────────────────────────────────────────────────
 
 export interface CreateNotificationParams {

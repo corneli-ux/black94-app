@@ -874,31 +874,44 @@ export async function hybridSearch(query: string): Promise<SearchResult> {
 /* ── User ─────────────────────────────────────────────────────────────────── */
 
 export async function fetchUserProfile(userId: string): Promise<User | null> {
-  console.log('[User] Fetching profile for:', userId);
-  const docSnap = await firestore().collection('users').doc(userId).get();
-  if (!docSnap.exists) {
-    console.log('[User] User doc does not exist:', userId);
+  try {
+    console.log('[User] Fetching profile for:', userId);
+    const docSnap = await firestore().collection('users').doc(userId).get();
+    if (!docSnap.exists) {
+      console.log('[User] User doc does not exist:', userId);
+      return null;
+    }
+    const data = docSnap.data();
+    console.log('[User] Got profile:', data?.displayName, '@' + data?.username, 'badge:', data?.badge, 'verified:', data?.isVerified);
+    // CRITICAL: Fallback displayName → username → 'User' so the Avatar component
+    // never renders the "?" placeholder (empty string is falsy → shows "?").
+    const displayName = data?.displayName || data?.username || 'User';
+    let createdAt = Date.now();
+    try {
+      createdAt = tsToMillis(data?.createdAt);
+    } catch {
+      // If tsToMillis fails for any reason, fall back to Date.now()
+      createdAt = data?.createdAt ? new Date(data.createdAt).getTime() || Date.now() : Date.now();
+    }
+    return {
+      id: userId,
+      email: data?.email || '',
+      username: data?.username || '',
+      displayName,
+      bio: data?.bio || '',
+      profileImage: data?.profileImage || null,
+      coverImage: data?.coverImage || null,
+      role: data?.role || 'personal',
+      badge: data?.badge || '',
+      subscription: data?.subscription || 'free',
+      isVerified: data?.isVerified || false,
+      createdAt,
+    };
+  } catch (e: any) {
+    console.error('[User] fetchUserProfile error:', e?.message);
+    // Return null instead of throwing — callers can handle missing profile gracefully
     return null;
   }
-  const data = docSnap.data();
-  console.log('[User] Got profile:', data?.displayName, '@' + data?.username, 'badge:', data?.badge, 'verified:', data?.isVerified);
-  // CRITICAL: Fallback displayName → username → 'User' so the Avatar component
-  // never renders the "?" placeholder (empty string is falsy → shows "?").
-  const displayName = data?.displayName || data?.username || 'User';
-  return {
-    id: userId,
-    email: data?.email || '',
-    username: data?.username || '',
-    displayName,
-    bio: data?.bio || '',
-    profileImage: data?.profileImage || null,
-    coverImage: data?.coverImage || null,
-    role: data?.role || 'personal',
-    badge: data?.badge || '',
-    subscription: data?.subscription || 'free',
-    isVerified: data?.isVerified || false,
-    createdAt: tsToMillis(data?.createdAt),
-  };
 }
 
 export async function toggleFollow(targetUserId: string, currentlyFollowing: boolean): Promise<boolean> {
@@ -1128,20 +1141,6 @@ export async function toggleCommentLike(commentId: string, currentlyLiked: boole
     console.error('[Comments] Failed to toggle like:', e);
     return currentlyLiked; // Return unchanged on error
   }
-}
-
-/* ── AI Messaging Helper ──────────────────────────────────────────────────── */
-
-/**
- * AI reply generation — placeholder for future real AI integration.
- * Replace with a real AI API call (e.g. OpenAI, Gemini, or z-ai-web-dev-sdk)
- * when the AI reply feature is ready for production.
- *
- * For now, this returns null (no auto-reply) so all chat responses are genuine.
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function generateAIReply(_chatId: string, _lastMessage: string): Promise<string | null> {
-  return null;
 }
 
 /* ── AI Follow-up System ──────────────────────────────────────────────────── */

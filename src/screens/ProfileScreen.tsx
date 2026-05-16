@@ -541,7 +541,9 @@ export default function ProfileScreen({ route, navigation }: any) {
       }
     } catch (e: any) {
       console.error('[ProfileScreen] Load error:', e?.message);
-      Alert.alert('Profile Error', `Could not load profile: ${e?.message || 'Unknown error'}`);
+      // Don't show raw technical errors to users — show a friendly message
+      // with a retry option instead of exposing internal function names etc.
+      Alert.alert('Profile', 'Unable to load profile right now. Please check your connection and try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);

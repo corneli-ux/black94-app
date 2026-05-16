@@ -71,6 +71,7 @@ const QUEUE_POLL_INTERVAL = 2000;   // 2 seconds
 const MSG_POLL_INTERVAL = 1500;      // 1.5 seconds
 const TYPING_POLL_INTERVAL = 3000;   // 3 seconds
 const QUEUE_TTL_SECONDS = 60;        // Queue entries expire after 60s
+const NO_ONE_ONLINE_TIMEOUT = 30;    // Show "no one online" after 30s of searching
 
 const ADJECTIVES = [
   'Shadow', 'Mystic', 'Cosmic', 'Neon', 'Phantom',
@@ -197,7 +198,16 @@ export default function AnonymousChatScreen() {
   const startSearchTimer = useCallback(() => {
     stopSearchTimer();
     searchTimerRef.current = setInterval(() => {
-      if (mountedRef.current) setSearchElapsed(prev => prev + 1);
+      if (mountedRef.current) {
+        setSearchElapsed(prev => {
+          const next = prev + 1;
+          // After NO_ONE_ONLINE_TIMEOUT seconds, show friendly message
+          if (next === NO_ONE_ONLINE_TIMEOUT) {
+            setError(`No one is online right now. Keep waiting or try again later.`);
+          }
+          return next;
+        });
+      }
     }, 1000);
   }, []);
 
@@ -593,7 +603,16 @@ export default function AnonymousChatScreen() {
       pollQueue();
     } catch (e: any) {
       console.error('[AnonChat] Failed to join queue:', e?.message);
-      setError('Failed to start searching. Please try again.');
+      // If the write to anonQueue fails, it's likely a permissions issue.
+      // Show a friendly message instead of a raw error.
+      const msg = e?.message || '';
+      if (msg.includes('PERMISSION_DENIED') || msg.includes('permission') || msg.includes('403')) {
+        setError('Chat is temporarily unavailable. Please try again later.');
+      } else if (msg.includes('network') || msg.includes('Network') || msg.includes('timeout')) {
+        setError('No internet connection. Please check your network and try again.');
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
       setChatState('landing');
     }
   }, [myUserId, myName, pollQueue, startSearchTimer]);
@@ -643,7 +662,7 @@ export default function AnonymousChatScreen() {
         pollQueue();
       } catch (e: any) {
         console.error('[AnonChat] Failed to rejoin queue:', e?.message);
-        setError('Failed to find next stranger. Please try again.');
+        setError('Something went wrong finding the next stranger. Please try again.');
         setChatState('landing');
       }
     }
@@ -704,7 +723,7 @@ export default function AnonymousChatScreen() {
       }
     } catch (e: any) {
       console.error('[AnonChat] Failed to send message:', e?.message);
-      setError('Failed to send message. Please try again.');
+      setError('Could not send message. Please try again.');
       // Restore input text on failure
       setInputText(content);
     }
