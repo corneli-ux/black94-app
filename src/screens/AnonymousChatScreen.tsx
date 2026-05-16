@@ -73,6 +73,10 @@ const TYPING_POLL_INTERVAL = 3000;   // 3 seconds
 const QUEUE_TTL_SECONDS = 60;        // Queue entries expire after 60s
 const NO_ONE_ONLINE_TIMEOUT = 30;    // Show "no one online" after 30s of searching
 
+// Graceful message shown when Firestore rules block anon chat operations.
+// This is NOT an error the user can fix — it's a server-side setup issue.
+const ANON_CHAT_UNAVAILABLE_MSG = 'Anonymous chat is being configured. Check back soon!';
+
 const ADJECTIVES = [
   'Shadow', 'Mystic', 'Cosmic', 'Neon', 'Phantom',
   'Blaze', 'Frost', 'Storm', 'Pixel', 'Ember',
@@ -203,7 +207,7 @@ export default function AnonymousChatScreen() {
           const next = prev + 1;
           // After NO_ONE_ONLINE_TIMEOUT seconds, show friendly message
           if (next === NO_ONE_ONLINE_TIMEOUT) {
-            setError(`No one is online right now. Keep waiting or try again later.`);
+            setError('No one is online right now. Keep waiting or try again later.');
           }
           return next;
         });
@@ -603,16 +607,9 @@ export default function AnonymousChatScreen() {
       pollQueue();
     } catch (e: any) {
       console.error('[AnonChat] Failed to join queue:', e?.message);
-      // If the write to anonQueue fails, it's likely a permissions issue.
-      // Show a friendly message instead of a raw error.
-      const msg = e?.message || '';
-      if (msg.includes('PERMISSION_DENIED') || msg.includes('permission') || msg.includes('403')) {
-        setError('Chat is temporarily unavailable. Please try again later.');
-      } else if (msg.includes('network') || msg.includes('Network') || msg.includes('timeout')) {
-        setError('No internet connection. Please check your network and try again.');
-      } else {
-        setError('Something went wrong. Please try again.');
-      }
+      // Don't show a scary red error — show a friendly info message.
+      // Most failures are Firestore permission issues (server-side config).
+      setError(ANON_CHAT_UNAVAILABLE_MSG);
       setChatState('landing');
     }
   }, [myUserId, myName, pollQueue, startSearchTimer]);
@@ -818,9 +815,9 @@ export default function AnonymousChatScreen() {
             <Ionicons name="eye-off-outline" size={64} color={colors.accent} />
           </View>
           <Text style={styles.landingTitle}>Anonymous Chat</Text>
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
-            <Text style={styles.errorText}>You must be signed in to use anonymous chat.</Text>
+          <View style={styles.infoBanner}>
+            <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+            <Text style={styles.infoText}>You must be signed in to use anonymous chat.</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -910,10 +907,11 @@ export default function AnonymousChatScreen() {
             <Text style={styles.nameTagText}>{myName}</Text>
           </View>
 
+          {/* Info banner — friendly message (not a red error) */}
           {error && (
-            <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
-              <Text style={styles.errorText}>{error}</Text>
+            <View style={styles.infoBanner}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+              <Text style={styles.infoText}>{error}</Text>
             </View>
           )}
 
@@ -951,10 +949,11 @@ export default function AnonymousChatScreen() {
               : 'Please wait while we connect you with a stranger'}
           </Text>
 
+          {/* Info banner — no one online (not a red error) */}
           {error && (
-            <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
-              <Text style={styles.errorText}>{error}</Text>
+            <View style={styles.infoBanner}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+              <Text style={styles.infoText}>{error}</Text>
             </View>
           )}
 
@@ -1216,7 +1215,27 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
 
-  // ── Error ────────────────────────────────────────────────────────────────
+  // ── Info banner (non-alarming, used for "no one online" etc.) ──────────────
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 24,
+    width: '100%',
+  },
+  infoText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    flexShrink: 1,
+  },
+
+  // ── Error (only for real errors like send failure) ─────────────────────────
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',

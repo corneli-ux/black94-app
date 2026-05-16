@@ -141,14 +141,14 @@ export async function verifyAndActivateSubscription(
   const currentUid = auth()?.currentUser?.uid;
   if (!currentUid) throw new Error('Not authenticated');
 
-  // ── Determine role based on plan (badges removed per platform decision) ──
-  const badge = ''; // No badge assigned — badges removed per platform decision
+  // ── Determine role based on plan ──
+  const badge = ''; // Badges removed per platform decision
   const role = planId === 'business' ? 'business' : undefined;
 
   // ── 1. Update the user document ──
   const userUpdate: Record<string, any> = {
     subscription: planId,
-    // badge intentionally not set — platform decision to remove verification badges
+    badge: '', // Explicitly clear any existing badge (gold/blue from before)
     updatedAt: firestore.FieldValue.serverTimestamp(),
   };
 

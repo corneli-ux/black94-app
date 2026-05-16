@@ -97,13 +97,10 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     }
     const username = fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid;
 
-    // Filter out raw storage bucket URLs from photoURL — they aren't usable as
-    // profile photos and would replace a user's custom-uploaded or Google pic.
-    function _isStorageUrl(url: string | null | undefined): boolean {
-      if (!url) return true;
-      return /firebasestorage\.app|\.appspot\.com/.test(url) && !url.includes('token=');
-    }
-    const safePhotoUrl = _isStorageUrl(fbUser.photoURL) ? null : fbUser.photoURL;
+    // Use the Google photoURL as-is.  The old _isStorageUrl filter was too
+    // aggressive and caused profile images to be saved as null in Firestore,
+    // breaking avatars permanently for those users.
+    const googlePhoto = fbUser.photoURL || null;
 
     const userData: any = {
       uid: fbUser.uid,
@@ -111,7 +108,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       username: username,
       usernameLower: username.toLowerCase(),
       displayName: fbUser.displayName || 'User',
-      profileImage: safePhotoUrl,
+      profileImage: googlePhoto,
       role: 'personal',
       badge: '',
       subscription: 'free',
@@ -130,20 +127,27 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
         console.warn('[Auth] Failed to create user doc:', e);
       }
     } else {
-      // Returning user — do NOT overwrite profileImage.  The Firestore doc may
-      // hold a custom-uploaded photo or a Google pic that the user chose.
-      // Overwriting it with fbUser.photoURL was the main bug: every login
-      // replaced the user's custom photo with the raw storage bucket URL.
+      // Returning user — update profileImage only if Firestore has null
+      // but Google has a photo (recovery for users whose photos were stripped
+      // by the old _isStorageUrl filter).
       try {
-        await userDocRef.update({
+        const existingPhoto = existingData?.profileImage;
+        const needsPhotoRecovery = !existingPhoto && googlePhoto;
+        const updateFields: Record<string, any> = {
           updatedAt: firestore.FieldValue.serverTimestamp(),
-        });
+        };
+        if (needsPhotoRecovery) {
+          updateFields.profileImage = googlePhoto;
+        }
+        await userDocRef.update(updateFields);
       } catch (e) {
         console.warn('[Auth] Failed to update user doc:', e);
       }
     }
 
     const existingData = userDocSnap.exists ? userDocSnap.data() : null;
+    // If Firestore had no photo but Google does, use Google's (recovery).
+    const recoveredPhoto = (!existingData?.profileImage && googlePhoto) ? googlePhoto : null;
 
     return {
       id: fbUser.uid,
@@ -151,7 +155,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       username: existingData?.username || username,
       displayName: existingData?.displayName || userData.displayName,
       bio: existingData?.bio || '',
-      profileImage: existingData?.profileImage || userData.profileImage,
+      profileImage: existingData?.profileImage || recoveredPhoto || userData.profileImage,
       coverImage: existingData?.coverImage || null,
       role: existingData?.role || 'personal',
       badge: existingData?.badge || '',

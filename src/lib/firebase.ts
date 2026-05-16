@@ -117,15 +117,11 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
     throw new Error(msg);
   }
 
-  // Strip raw Firebase Storage bucket URLs — these are internal and not
-  // usable as profile photos.  Google profile pics (lh3.googleusercontent.com)
-  // or custom-uploaded URLs (firebasestorage with a token param) pass through.
+  // Keep the photoURL from Google sign-in as-is.
+  // DO NOT strip Firebase Storage URLs — they are valid public URLs when
+  // returned by the identity toolkit (Google has already resolved them).
+  // The old filter was too aggressive and caused profile images to disappear.
   let photoURL: string | null = data.photoUrl || null;
-  if (photoURL) {
-    if (/firebasestorage\.app|\.appspot\.com/.test(photoURL) && !photoURL.includes('token=')) {
-      photoURL = null;
-    }
-  }
 
   _authUser = {
     uid: data.localId,
