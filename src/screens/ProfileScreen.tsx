@@ -76,6 +76,8 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   const [isReposted, setIsReposted] = useState(post.reposted);
   const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
   const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
+  const [captionTruncated, setCaptionTruncated] = useState(false);
 
   React.useEffect(() => {
     setIsReposted(post.reposted);
@@ -154,7 +156,33 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               </TouchableOpacity>
             )}
           </View>
-          {post.caption ? <HighlightedCaption text={post.caption} style={profileCardStyles.caption} /> : null}
+          {post.caption ? (
+            <View>
+              <Text
+                style={profileCardStyles.caption}
+                numberOfLines={captionExpanded ? undefined : 3}
+                onTextLayout={(e) => {
+                  if (e.nativeEvent.lines.length > 3 && !captionTruncated) {
+                    setCaptionTruncated(true);
+                  }
+                }}
+              >
+                {post.caption.split(/(#\w+|@\w+)/g).map((part, i) =>
+                  /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
+                    <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+                  ) : (
+                    <Text key={i}>{part}</Text>
+                  )
+                )}
+              </Text>
+              {captionTruncated && !captionExpanded && (
+                <Text style={profileCardStyles.seeMore} onPress={() => setCaptionExpanded(true)}>See more</Text>
+              )}
+              {captionExpanded && captionTruncated && (
+                <Text style={profileCardStyles.seeMore} onPress={() => setCaptionExpanded(false)}>See less</Text>
+              )}
+            </View>
+          ) : null}
           {(post.mediaUrls?.length > 0) && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={profileCardStyles.mediaContainer}>
@@ -260,6 +288,7 @@ const profileCardStyles = StyleSheet.create({
   dot: { color: '#71767b', fontSize: 15, lineHeight: 20 },
   time: { color: '#71767b', fontSize: 15, lineHeight: 20 },
   caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
+  seeMore: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', marginTop: 2 },
   mediaContainer: {
     marginTop: 12, borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',

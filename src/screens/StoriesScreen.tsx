@@ -20,10 +20,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
-import { firestore, auth } from '../lib/firebase';
+import { firestore, auth, getValidToken } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { tsToMillis } from '../lib/api';
+import { useAppStore } from '../stores/app';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
@@ -217,6 +218,41 @@ export default function StoriesScreen({ navigation }: any) {
   const isLongPressingRef = useRef(false);
   const viewedStoriesRef = useRef<Set<string>>(new Set());
   const currentUser = auth()?.currentUser;
+  const storeUser = useAppStore((s) => s.user);
+
+  /* ── Upload image to Firebase Storage (returns download URL) ─────────── */
+  const uploadStoryImage = useCallback(async (uri: string): Promise<string> => {
+    const token = await getValidToken();
+    const STORAGE_BASE = 'https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o';
+    const storagePath = `stories/${currentUser?.uid}/${Date.now()}.jpg`;
+
+    // Convert URI to blob
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    // Upload to Firebase Storage via REST
+    const uploadResp = await fetch(
+      `${STORAGE_BASE}/${encodeURIComponent(storagePath)}?uploadType=media&name=${encodeURIComponent(storagePath)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': blob.type || 'image/jpeg',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: blob,
+      },
+    );
+
+    if (!uploadResp.ok) throw new Error('Image upload to Storage failed');
+
+    // Get download token from upload response
+    const respData = await uploadResp.json();
+    const downloadToken = respData.downloadTokens?.split(',')[0];
+    if (downloadToken) {
+      return `https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o/${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
+    }
+    return `https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o/${encodeURIComponent(storagePath)}?alt=media`;
+  }, [currentUser?.uid]);
 
   /* ── Load stories from Firestore ──────────────────────────────────────── */
   const loadStories = useCallback(async () => {
@@ -285,38 +321,39 @@ export default function StoriesScreen({ navigation }: any) {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.8,
-        base64: true,
       });
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
       setUploading(true);
-      const mediaUrl = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+      try {
+        // Upload image to Firebase Storage first (not as base64 in Firestore doc)
+        const mediaUrl = await uploadStoryImage(asset.uri);
 
-      const storyData = {
-        authorId: currentUser.uid,
-        authorDisplayName: currentUser.displayName || 'Anonymous',
-        authorUsername: currentUser.email?.split('@')[0] || 'user',
-        authorProfileImage: currentUser.photoURL || null,
-        content: '',
-        mediaUrl,
-        type: 'image',
-        viewCount: 0,
-        likeCount: 0,
-        createdAt: new Date().toISOString(),
-        category: 'all',
-      };
+        const storyData = {
+          authorId: currentUser.uid,
+          authorDisplayName: storeUser?.displayName || currentUser.displayName || 'Anonymous',
+          authorUsername: storeUser?.username || currentUser.email?.split('@')[0] || 'user',
+          authorProfileImage: storeUser?.profileImage || currentUser.photoURL || null,
+          content: '',
+          mediaUrl,
+          type: 'image',
+          viewCount: 0,
+          likeCount: 0,
+          createdAt: new Date().toISOString(),
+          category: 'all',
+        };
 
-      await firestore().collection('stories').add(storyData);
-      Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
-      loadStories();
-    } catch (e: any) {
-      console.error('[StoriesScreen] Upload failed:', e);
-      Alert.alert('Upload', 'Could not post your story. Please try again.');
-    } finally {
-      setUploading(false);
-    }
-  }, [currentUser, loadStories]);
+        await firestore().collection('stories').add(storyData);
+        Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
+        loadStories();
+      } catch (e: any) {
+        console.error('[StoriesScreen] Upload failed:', e);
+        Alert.alert('Upload', 'Could not post your story. Please try again.');
+      } finally {
+        setUploading(false);
+      }
+  }, [currentUser, loadStories, uploadStoryImage, storeUser]);
 
   /* ── Camera upload (no cropping) ──────────────────────────────────────── */
   const openCameraForStory = useCallback(async () => {
@@ -329,38 +366,39 @@ export default function StoriesScreen({ navigation }: any) {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.8,
-        base64: true,
       });
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
       setUploading(true);
-      const mediaUrl = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+      try {
+        // Upload image to Firebase Storage first
+        const mediaUrl = await uploadStoryImage(asset.uri);
 
-      const storyData = {
-        authorId: currentUser.uid,
-        authorDisplayName: currentUser.displayName || 'Anonymous',
-        authorUsername: currentUser.email?.split('@')[0] || 'user',
-        authorProfileImage: currentUser.photoURL || null,
-        content: '',
-        mediaUrl,
-        type: 'image',
-        viewCount: 0,
-        likeCount: 0,
-        createdAt: new Date().toISOString(),
-        category: 'all',
-      };
+        const storyData = {
+          authorId: currentUser.uid,
+          authorDisplayName: storeUser?.displayName || currentUser.displayName || 'Anonymous',
+          authorUsername: storeUser?.username || currentUser.email?.split('@')[0] || 'user',
+          authorProfileImage: storeUser?.profileImage || currentUser.photoURL || null,
+          content: '',
+          mediaUrl,
+          type: 'image',
+          viewCount: 0,
+          likeCount: 0,
+          createdAt: new Date().toISOString(),
+          category: 'all',
+        };
 
-      await firestore().collection('stories').add(storyData);
-      Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
-      loadStories();
-    } catch (e: any) {
-      console.error('[StoriesScreen] Camera upload failed:', e);
-      Alert.alert('Upload', 'Could not post your story. Please try again.');
-    } finally {
-      setUploading(false);
-    }
-  }, [currentUser, loadStories]);
+        await firestore().collection('stories').add(storyData);
+        Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
+        loadStories();
+      } catch (e: any) {
+        console.error('[StoriesScreen] Camera upload failed:', e);
+        Alert.alert('Upload', 'Could not post your story. Please try again.');
+      } finally {
+        setUploading(false);
+      }
+  }, [currentUser, loadStories, uploadStoryImage, storeUser]);
 
   /* ── Increment view count (once per story per session) ────────────────── */
   const incrementViewCount = useCallback(async (storyId: string) => {
@@ -611,8 +649,8 @@ export default function StoriesScreen({ navigation }: any) {
               <TouchableOpacity style={styles.highlightItem} onPress={pickAndUploadStory}>
                 <View style={styles.yourStoryRing}>
                   <Avatar
-                    uri={currentUser?.photoURL}
-                    name={currentUser?.displayName}
+                    uri={storeUser?.profileImage || currentUser?.photoURL}
+                    name={storeUser?.displayName || currentUser?.displayName}
                     size={HIGHLIGHT_SIZE}
                   />
                 </View>
@@ -684,7 +722,7 @@ export default function StoriesScreen({ navigation }: any) {
                       />
                     ) : (
                       <LinearGradient
-                        colors={['#4a2080', '#2a7fff']}
+                        colors={['#1a1a2e', '#16213e']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={[styles.storyCardBg, styles.storyCardTextBg]}

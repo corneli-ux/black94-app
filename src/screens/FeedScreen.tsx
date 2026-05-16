@@ -125,6 +125,8 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 }) {
   const currentUser = auth()?.currentUser;
   const [showHeart, setShowHeart] = useState(false);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
+  const [captionTruncated, setCaptionTruncated] = useState(false);
   const lastTapRef = useRef(0);
 
   // Per-post optimistic repost state
@@ -234,7 +236,31 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
           {/* Caption */}
           {post.caption ? (
-            <HighlightedCaption text={post.caption} style={styles.caption} />
+            <View>
+              <Text
+                style={styles.caption}
+                numberOfLines={captionExpanded ? undefined : 3}
+                onTextLayout={(e) => {
+                  if (e.nativeEvent.lines.length > 3 && !captionTruncated) {
+                    setCaptionTruncated(true);
+                  }
+                }}
+              >
+                {post.caption.split(/(#\w+|@\w+)/g).map((part, i) =>
+                  /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
+                    <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+                  ) : (
+                    <Text key={i}>{part}</Text>
+                  )
+                )}
+              </Text>
+              {captionTruncated && !captionExpanded && (
+                <Text style={styles.seeMore} onPress={() => setCaptionExpanded(true)}>See more</Text>
+              )}
+              {captionExpanded && captionTruncated && (
+                <Text style={styles.seeMore} onPress={() => setCaptionExpanded(false)}>See less</Text>
+              )}
+            </View>
           ) : null}
 
           {/* Media */}
@@ -1098,6 +1124,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 4,
   },
+  seeMore: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', marginTop: 2 },
   mediaContainer: {
     marginTop: 12,
     borderRadius: 16,

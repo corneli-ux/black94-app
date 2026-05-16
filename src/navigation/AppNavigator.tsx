@@ -92,7 +92,7 @@ const Stack = createNativeStackNavigator();
 function LazyFallback() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
-      <ActivityIndicator color="#2a7fff" size="large" />
+      <ActivityIndicator color="#FFFFFF" size="large" />
     </View>
   );
 }
@@ -224,7 +224,7 @@ function CustomDrawerContent({ navigation }: any) {
     { label: 'Profile', icon: 'person-outline', screen: 'ProfileSelf' },
     { label: 'Bookmarks', icon: 'bookmark-outline', screen: 'Bookmarks' },
     { label: 'Cart', icon: 'cart-outline', screen: 'Cart' },
-    { label: 'Upgrade', icon: 'diamond-outline', screen: 'PremiumDashboard' },
+    { label: 'Upgrade', icon: 'sparkles-outline', screen: 'PremiumDashboard' },
   ];
 
   return (
