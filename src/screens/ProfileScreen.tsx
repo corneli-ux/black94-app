@@ -762,7 +762,13 @@ export default function ProfileScreen({ route, navigation }: any) {
         return;
       }
 
-      if (dmPermission === 'followers') {
+      if (dmPermission === 'no one') {
+        Alert.alert('DMs Disabled', 'This user has disabled direct messages.');
+        setMessaging(false);
+        return;
+      }
+
+      if (dmPermission === 'followers_only') {
         // Check if current user follows the target
         const follows = await checkFollowing(targetUserId);
         if (!follows) {
@@ -772,7 +778,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         }
       }
 
-      // DM permission is "all" or "followers" (and user follows) — proceed normally
+      // DM permission is "all" or "followers_only" (and user follows) — proceed normally
       const snap1 = await firestore().collection('chats').where('user1Id', '==', currentUser.uid).get();
       const existing = snap1.docs.find(d => d.data().user2Id === targetUserId);
       if (existing) {

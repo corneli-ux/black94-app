@@ -1314,7 +1314,7 @@ export async function hasPaidChatAccess(
 
 /**
  * Fetches the target user's DM permission setting from their privacy settings.
- * Returns 'all' | 'followers' | 'paid' — defaults to 'all' if not set.
+ * Returns 'all' | 'followers_only' | 'paid' | 'no one' — defaults to 'all' if not set.
  */
 export async function getUserDmPermission(targetUserId: string): Promise<string> {
   try {

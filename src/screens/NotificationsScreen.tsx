@@ -190,7 +190,7 @@ export default function NotificationsScreen({ navigation }: any) {
               refreshing={refreshing && canRefresh}
               onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }}
               tintColor={colors.accent}
-              enabled={false}
+              enabled={true}
               progressViewOffset={-10}
             />
           }

@@ -19,7 +19,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const routeChat = route.params?.chat;
   const routeChatId = route.params?.chatId;
   const [chat, setChat] = useState(routeChat || null);
-  const [otherUser, setOtherUser] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(!routeChat);
@@ -27,8 +26,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [showMenu, setShowMenu] = useState(false);
   const [showNuclearConfirm, setShowNuclearConfirm] = useState(false);
   const [blocking, setBlocking] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [showToast, setShowToast] = useState(false);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -122,16 +119,13 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       await sendMessage(chat.id, chat.otherUser?.id || '', content);
       await load(true);
     } catch (e) {
-      console.error(e);
+      console.error('[ChatRoom] Send failed:', e);
+      // Roll back the optimistic temp message
+      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      Alert.alert('Send Failed', 'Could not send your message. Please try again.');
     } finally {
       setSending(false);
     }
-  };
-
-  const showToastMsg = (msg: string) => {
-    setToastMessage(msg);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
   };
 
   const handleNuclearBlock = async () => {
@@ -190,13 +184,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: 10 }} />
         )}
 
-        <TouchableOpacity
-          style={styles.headerActionBtn}
-          onPress={() => {}}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="search-outline" size={18} color="#e7e9ea" />
-        </TouchableOpacity>
+        <View style={{ width: 36 }} />
 
         {/* More menu button */}
         <View style={{ position: 'relative' }}>
@@ -260,12 +248,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       {/* Input bar */}
         <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
           <View style={styles.inputPill}>
-            <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
-              <Ionicons name="happy-outline" size={20} color="#71767b" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
-              <Ionicons name="film-outline" size={20} color="#71767b" />
-            </TouchableOpacity>
             <TextInput
               style={styles.pillInput}
               placeholder="Start a message"
@@ -274,9 +256,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               onChangeText={setText}
               multiline
             />
-            <TouchableOpacity style={styles.pillBtn} onPress={() => {}} activeOpacity={0.7}>
-              <Ionicons name="attach-outline" size={18} color="#71767b" />
-            </TouchableOpacity>
           </View>
           <TouchableOpacity
             style={[
@@ -336,15 +315,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         </View>
       </Modal>
 
-      {/* Toast notification */}
-      {showToast && (
-        <View style={styles.toastContainer}>
-          <View style={styles.toast}>
-            <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
-            <Text style={styles.toastText}>{toastMessage}</Text>
-          </View>
-        </View>
-      )}
+      {/* Nuclear Block Confirmation Modal */}
     </KeyboardAvoidingView>
   );
 }
@@ -446,13 +417,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     maxHeight: 120,
   },
-  pillBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   pillInput: {
     flex: 1,
     backgroundColor: 'transparent',
@@ -547,35 +511,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
-  },
-  // Toast
-  toastContainer: {
-    position: 'absolute',
-    top: 70,
-    left: 24,
-    right: 24,
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#16181c',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.3)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  toastText: {
-    color: '#e7e9ea',
-    fontSize: 14,
-    fontWeight: '500',
   },
 });
