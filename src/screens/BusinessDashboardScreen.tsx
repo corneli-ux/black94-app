@@ -20,7 +20,7 @@ interface KPIData {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'CRM', icon: 'people-circle-outline', color: '#3b82f6', screen: 'CRM' },
+  { label: 'CRM', icon: 'people-circle-outline', color: colors.accent, screen: 'CRM' },
   { label: 'Ads Manager', icon: 'megaphone-outline', color: '#ef4444', screen: 'AdsManager' },
   { label: 'Salary', icon: 'wallet-outline', color: '#22c55e', screen: 'Salary' },
   { label: 'Affiliates', icon: 'share-social-outline', color: '#8b5cf6', screen: 'Affiliates' },
@@ -115,7 +115,7 @@ export default function BusinessDashboardScreen({ navigation }: any) {
           <Text style={styles.kpiValue}>{kpi.totalOrders}</Text>
         </View>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
-          <Ionicons name="people-outline" size={20} color="#3b82f6" />
+          <Ionicons name="people-outline" size={20} color={colors.accent} />
           <Text style={styles.kpiLabel}>Active Customers</Text>
           <Text style={styles.kpiValue}>{kpi.activeCustomers}</Text>
         </View>

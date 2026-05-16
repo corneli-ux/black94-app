@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore, getValidToken } from '../lib/firebase';
 import { fetchUserProfile, User } from '../lib/api';
 import { useAppStore } from '../stores/app';
@@ -97,6 +98,10 @@ export default function EditProfileScreen({ navigation }: any) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      headerShown: true,
+      headerStyle: { backgroundColor: colors.headerBg },
+      headerTintColor: colors.text,
+      headerTitleStyle: { color: colors.text, fontWeight: '700' },
       headerRight: () => (
         <TouchableOpacity
           onPress={handleSave}
@@ -109,6 +114,11 @@ export default function EditProfileScreen({ navigation }: any) {
           ) : (
             <Text style={styles.saveButtonText}>Save</Text>
           )}
+        </TouchableOpacity>
+      ),
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={{ marginLeft: 8 }}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
       ),
     });

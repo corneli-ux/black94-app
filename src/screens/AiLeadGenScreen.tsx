@@ -48,7 +48,7 @@ const SOURCE_CONFIG: Record<string, { color: string; icon: string; label: string
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  new: '#3b82f6',
+  new: colors.accent,
   contacted: '#f59e0b',
   qualified: '#8b5cf6',
   converted: '#22c55e',

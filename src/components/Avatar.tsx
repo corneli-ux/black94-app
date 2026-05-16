@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { colors } from '../theme/colors';
 
 export function Avatar({
   uri,
@@ -76,7 +77,7 @@ export function VerifiedBadge({ badge, isVerified, size = 18 }: { badge?: string
   if (badge === 'gold') {
     color = '#ffd700';
   } else if (badge === 'pro' || badge === 'blue') {
-    color = '#3b82f6';
+    color = colors.verified;
   } else if (isVerified || !!badge) {
     color = '#FFFFFF'; // generic verified
   } else {

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
+import { colors } from '../theme/colors';
 
 /* ── Theme compat (mirrors source theme tokens) ─────────────────────────────── */
 
@@ -25,7 +26,7 @@ const C = {
   warning: '#f59e0b',
   danger: '#ef4444',
   info: '#06b6d4',
-  badgeNew: '#3b82f6',
+  badgeNew: colors.accent,
   badgeContacted: '#f59e0b',
   badgeQualified: '#8b5cf6',
   badgeConverted: '#22c55e',

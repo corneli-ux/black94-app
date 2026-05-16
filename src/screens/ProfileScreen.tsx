@@ -313,7 +313,7 @@ const profileCardStyles = StyleSheet.create({
     marginTop: 2,
   },
   replyingToName: {
-    color: '#3b82f6',
+    color: colors.accent,
   },
   replyContextCaption: {
     color: '#94a3b8',

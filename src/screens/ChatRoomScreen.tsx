@@ -267,8 +267,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             activeOpacity={0.7}
           >
             {sending
-              ? <ActivityIndicator color="#3b82f6" size="small" />
-              : <Ionicons name="send" size={18} color={text.trim() ? '#3b82f6' : '#374151'} />
+              ? <ActivityIndicator color={colors.accent} size="small" />
+              : <Ionicons name="send" size={18} color={text.trim() ? colors.accent : '#374151'} />
             }
           </TouchableOpacity>
         </View>
