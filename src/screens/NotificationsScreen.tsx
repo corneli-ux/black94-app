@@ -140,7 +140,7 @@ export default function NotificationsScreen({ navigation }: any) {
       }}
     >
       <View style={styles.iconWrap}>
-        <Avatar uri={item.actorProfileImage} size={36} />
+        <Avatar uri={item.actorProfileImage} name={item.actorDisplayName} size={36} />
         <View style={styles.typeIcon}>
           <NotifTypeIcon type={item.type} />
         </View>

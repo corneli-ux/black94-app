@@ -82,7 +82,7 @@ export default function SettingsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Profile Image */}
         <View style={styles.profileSection}>
-          <Avatar uri={user?.profileImage} size={80} borderWidth={3} borderColor={colors.bg} />
+          <Avatar uri={user?.profileImage} name={user?.displayName} size={80} borderWidth={3} borderColor={colors.bg} />
         </View>
 
         {/* Edit Fields */}

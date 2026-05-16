@@ -31,9 +31,11 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { firestore, auth } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppStore } from '../stores/app';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -142,6 +144,10 @@ export default function AnonymousChatScreen() {
   const mountedRef = useRef(true);
   const lastMsgTimestampRef = useRef<string | null>(null);
   const roomRef = useRef<RoomData | null>(null);
+
+  // ── Store & Navigation ────────────────────────────────────────────────────
+  const { user } = useAppStore();
+  const navigation = useNavigation();
 
   // Keep roomRef in sync
   useEffect(() => {
@@ -750,6 +756,76 @@ export default function AnonymousChatScreen() {
     );
   };
 
+  // ── Render: Sign-in required ────────────────────────────────────────────
+  if (!myUserId) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <View style={styles.landingContainer}>
+          <View style={styles.landingIcon}>
+            <Ionicons name="eye-off-outline" size={64} color={colors.accent} />
+          </View>
+          <Text style={styles.landingTitle}>Anonymous Chat</Text>
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
+            <Text style={styles.errorText}>You must be signed in to use anonymous chat.</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Render: Paywall (signed in but not premium/business) ────────────────
+  const isSubscribed = user?.subscription === 'premium' || user?.subscription === 'business';
+  if (!isSubscribed) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <View style={styles.paywallContainer}>
+          <View style={styles.paywallIconWrap}>
+            <Ionicons name="eye-off-outline" size={56} color={colors.accent} />
+          </View>
+          <Text style={styles.paywallTitle}>Premium Feature</Text>
+          <Text style={styles.paywallSubtitle}>
+            Anonymous Chat is available exclusively for Premium and Business subscribers.
+          </Text>
+
+          <View style={styles.paywallBenefits}>
+            <View style={styles.paywallBenefitRow}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <Text style={styles.paywallBenefitText}>Connect with random people anonymously</Text>
+            </View>
+            <View style={styles.paywallBenefitRow}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <Text style={styles.paywallBenefitText}>Your identity is always hidden</Text>
+            </View>
+            <View style={styles.paywallBenefitRow}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <Text style={styles.paywallBenefitText}>Real-time typing indicators</Text>
+            </View>
+            <View style={styles.paywallBenefitRow}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <Text style={styles.paywallBenefitText}>Instant matching</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.paywallUpgradeBtn}
+            onPress={() => navigation.navigate('PremiumDashboard' as never)}
+            activeOpacity={0.8}>
+            <Ionicons name="diamond" size={20} color={colors.white} />
+            <Text style={styles.paywallUpgradeBtnText}>Upgrade to Premium</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.paywallLaterBtn}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}>
+            <Text style={styles.paywallLaterBtnText}>Maybe Later</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // ── Render: Landing ─────────────────────────────────────────────────────
   if (chatState === 'landing') {
     return (
@@ -1003,6 +1079,75 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.accent,
+  },
+
+  // ── Paywall ──────────────────────────────────────────────────────────────
+  paywallContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  paywallIconWrap: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(42, 127, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  paywallTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  paywallSubtitle: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 28,
+  },
+  paywallBenefits: {
+    width: '100%',
+    gap: 14,
+    marginBottom: 32,
+  },
+  paywallBenefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  paywallBenefitText: {
+    fontSize: 15,
+    color: colors.text,
+    flexShrink: 1,
+  },
+  paywallUpgradeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    width: '100%',
+    backgroundColor: colors.accent,
+    borderRadius: 16,
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  paywallUpgradeBtnText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  paywallLaterBtn: {
+    paddingVertical: 10,
+  },
+  paywallLaterBtnText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textMuted,
   },
 
   // ── Error ────────────────────────────────────────────────────────────────

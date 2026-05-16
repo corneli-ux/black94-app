@@ -2,8 +2,10 @@
 // Uses pure fetch() for Auth + Firestore. Works in React Native without any shims.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-const API_KEY = 'AIzaSyDOGRbI4V82VJ0KZND3v1ggfO5s3933-3w';
+// API key loaded from app.json extra (env) — NOT hardcoded in source
+const API_KEY = Constants.expoConfig?.extra?.firebaseApiKey as string || '';
 const PROJECT_ID = 'black94';
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 

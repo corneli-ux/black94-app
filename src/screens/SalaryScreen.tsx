@@ -140,7 +140,7 @@ export default function SalaryScreen({ navigation }: any) {
             {members.map(member => (
               <View key={member.id} style={styles.row}>
                 <View style={styles.nameCell}>
-                  <Avatar uri={member.profileImage} size={28} />
+                  <Avatar uri={member.profileImage} name={member.name} size={28} />
                   <View style={styles.nameInfo}>
                     <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
                     <Text style={styles.memberRole} numberOfLines={1}>{member.role}</Text>

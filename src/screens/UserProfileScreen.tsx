@@ -264,7 +264,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
         {/* Profile Image */}
         <View style={styles.profileImageContainer}>
-          <Avatar uri={user.profileImage} size={80} borderWidth={4} borderColor={colors.bg} />
+          <Avatar uri={user.profileImage} name={user.displayName} size={80} borderWidth={4} borderColor={colors.bg} />
         </View>
 
         {/* User Info */}

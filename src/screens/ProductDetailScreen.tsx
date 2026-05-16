@@ -289,7 +289,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             style={styles.ownerRow}
             onPress={() => navigation.navigate('Storefront', { userId: product.ownerId })}
           >
-            <Avatar uri={product.ownerAvatar} size={32} />
+            <Avatar uri={product.ownerAvatar} name={product.ownerName} size={32} />
             <View style={{ marginLeft: 10 }}>
               <Text style={styles.ownerName}>{product.ownerName}</Text>
               <Text style={styles.ownerHandle}>@{product.ownerUsername}</Text>

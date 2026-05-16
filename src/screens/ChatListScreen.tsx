@@ -524,7 +524,7 @@ export default function ChatListScreen({ navigation }: any) {
                   activeOpacity={0.7}
                 >
                   <View style={styles.avatarWrap}>
-                    <Avatar uri={item.otherUser?.profileImage} size={48} />
+                    <Avatar uri={item.otherUser?.profileImage} name={item.otherUser?.displayName} size={48} />
                     {item.unreadCount > 0 && (
                       <View style={styles.unreadBadge}>
                         <Text style={styles.unreadText}>{item.unreadCount}</Text>

@@ -184,7 +184,7 @@ export default function StorefrontScreen({ route, navigation }: any) {
         {/* Avatar + Store Info */}
         <View style={styles.infoSection}>
           <View style={{ marginTop: -36 }}>
-            <Avatar uri={owner?.profileImage} size={72} borderWidth={3} borderColor={colors.bg} />
+            <Avatar uri={owner?.profileImage} name={owner?.displayName} size={72} borderWidth={3} borderColor={colors.bg} />
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
             <Text style={styles.storeName}>{owner?.displayName || 'Store'}</Text>

@@ -46,8 +46,6 @@ interface FeatureRow {
 }
 
 interface UsageStats {
-  postsToday: { current: number; limit: number };
-  storiesToday: { current: number; limit: number };
   products: { current: number; limit: number };
   storage: { current: number; limit: number };
 }
@@ -55,14 +53,17 @@ interface UsageStats {
 // ── Data ───────────────────────────────────────────────────────────────────
 
 const FEATURES: FeatureRow[] = [
-  { feature: 'Posts per day', free: '5', premium: '25', business: 'Unlimited' },
-  { feature: 'Stories per day', free: '3', premium: '10', business: 'Unlimited' },
   { feature: 'Shop products', free: '0', premium: '50', business: 'Unlimited' },
   { feature: 'CRM leads', free: false, premium: '100', business: 'Unlimited' },
   { feature: 'Analytics', free: false, premium: true, business: true },
   { feature: 'Priority support', free: false, premium: true, business: true },
   { feature: 'Ads (paid)', free: false, premium: true, business: true },
-  { feature: 'Affiliate program', free: false, premium: true, business: true },
+  { feature: 'Affiliate Program', free: false, premium: true, business: true },
+  { feature: 'Creator Revenue Share', free: false, premium: 'Eligible*', business: 'Eligible*' },
+  { feature: 'Early Access', free: false, premium: true, business: true },
+  { feature: 'Ad Revenue Share', free: false, premium: true, business: true },
+  { feature: 'Anonymous Chat', free: false, premium: true, business: true },
+  { feature: 'Store / CRM / AI', free: false, premium: false, business: true },
 ];
 
 // ── Usage fetching helpers ─────────────────────────────────────────────────
@@ -72,49 +73,9 @@ async function fetchUsageStats(userId: string, currentPlan: PlanType): Promise<U
 
   // Default stats — will be overwritten with real data
   const stats: UsageStats = {
-    postsToday: { current: 0, limit: limits.posts === -1 ? 999 : limits.posts },
-    storiesToday: { current: 0, limit: limits.stories === -1 ? 999 : limits.stories },
     products: { current: 0, limit: limits.products === -1 ? 999 : limits.products },
     storage: { current: 0, limit: limits.storage },
   };
-
-  try {
-    // ── Post count: query posts where authorId == userId ──
-    const postsSnap = await firestore()
-      .collection('posts')
-      .where('authorId', '==', userId)
-      .get();
-    stats.postsToday.current = postsSnap.size;
-  } catch (e) {
-    console.warn('[Premium] Failed to fetch post count:', e);
-  }
-
-  try {
-    // ── Story count: query stories where authorId == userId and createdAt in last 24h ──
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const storiesSnap = await firestore()
-      .collection('stories')
-      .where('authorId', '==', userId)
-      .get();
-
-    // Filter client-side for last 24h (composite index may not exist for createdAt range)
-    const recentStories = storiesSnap.docs.filter((doc: any) => {
-      const createdAt = doc.data()?.createdAt;
-      if (!createdAt) return false;
-      // Handle both ISO string and Firestore timestamp-like objects
-      const ts = typeof createdAt === 'string'
-        ? new Date(createdAt).getTime()
-        : typeof createdAt === 'number'
-          ? createdAt
-          : typeof createdAt === 'object' && createdAt.seconds
-            ? createdAt.seconds * 1000
-            : 0;
-      return ts >= Date.now() - 24 * 60 * 60 * 1000;
-    });
-    stats.storiesToday.current = recentStories.length;
-  } catch (e) {
-    console.warn('[Premium] Failed to fetch story count:', e);
-  }
 
   try {
     // ── Product count: query products where ownerId == userId ──
@@ -165,8 +126,6 @@ export default function PremiumDashboardScreen() {
     (user?.subscription as PlanType) || 'free',
   );
   const [usage, setUsage] = useState<UsageStats>({
-    postsToday: { current: 0, limit: PLAN_LIMITS.free.posts },
-    storiesToday: { current: 0, limit: PLAN_LIMITS.free.stories },
     products: { current: 0, limit: PLAN_LIMITS.free.products },
     storage: { current: 0, limit: PLAN_LIMITS.free.storage },
   });
@@ -337,7 +296,7 @@ export default function PremiumDashboardScreen() {
   const planBadgeLabel = (plan: PlanType) => {
     switch (plan) {
       case 'free': return null;
-      case 'premium': return 'Blue Badge';
+      case 'premium': return 'Premium Badge';
       case 'business': return 'Gold Badge + Business Role';
     }
   };
@@ -535,8 +494,6 @@ export default function PremiumDashboardScreen() {
             <Ionicons name="pie-chart-outline" size={18} color={colors.primary} />
             <Text style={styles.sectionTitle}>Usage This Month</Text>
           </View>
-          {renderUsageBar('Posts', usage.postsToday.current, usage.postsToday.limit)}
-          {renderUsageBar('Stories', usage.storiesToday.current, usage.storiesToday.limit)}
           {usage.products.limit > 0 && renderUsageBar('Products', usage.products.current, usage.products.limit)}
           {renderUsageBar('Storage (MB)', usage.storage.current, usage.storage.limit)}
         </View>
@@ -587,6 +544,9 @@ export default function PremiumDashboardScreen() {
               </View>
             </View>
           ))}
+          <Text style={styles.tableDisclaimer}>
+            * Creator Revenue Share is available when the program launches and you meet platform requirements.
+          </Text>
         </View>
 
         {/* ═══ Manage subscription (subscribed users only) ═══ */}
@@ -938,6 +898,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     textAlign: 'center',
+  },
+  tableDisclaimer: {
+    fontSize: 11,
+    color: colors.textMuted,
+    lineHeight: 16,
+    marginTop: 12,
+    fontFamily: 'Inter-Regular',
   },
 
   // ── Manage button ──

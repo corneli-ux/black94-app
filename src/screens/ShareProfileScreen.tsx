@@ -181,7 +181,7 @@ export default function ShareProfileScreen({ route, navigation }: any) {
       {/* Profile Summary */}
       <View style={styles.profileCard}>
         <View style={styles.profileTop}>
-          <Avatar uri={user.profileImage} size={72} borderWidth={2} borderColor={colors.border} />
+          <Avatar uri={user.profileImage} name={user.displayName} size={72} borderWidth={2} borderColor={colors.border} />
           <View style={styles.profileInfo}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={styles.displayName}>{user.displayName}</Text>

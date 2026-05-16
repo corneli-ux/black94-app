@@ -144,14 +144,14 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       return (
         <Ionicons
           {...iconProps}
-          name={focused ? 'eye-off' : 'eye-off-outline'}
+          name={focused ? 'glasses' : 'glasses-outline'}
         />
       );
     case 'Stories':
       return (
         <Ionicons
           {...iconProps}
-          name={focused ? 'radio' : 'radio-outline'}
+          name={focused ? 'images' : 'images-outline'}
         />
       );
     default:
@@ -231,7 +231,7 @@ function CustomDrawerContent({ navigation }: any) {
     <DrawerContentScrollView style={styles.drawer} contentContainerStyle={{ paddingTop: insets.top }}>
       {/* Logo */}
       <View style={styles.drawerLogo}>
-        <Image source={require('../../assets/logo.jpeg')} style={{ width: 160, height: 52, resizeMode: 'contain' }} />
+        <Image source={require('../../assets/logo.png')} style={{ width: 160, height: 52, resizeMode: 'contain' }} />
       </View>
 
       {/* Nav items */}
@@ -282,7 +282,7 @@ function CustomDrawerContent({ navigation }: any) {
             navigation.navigate('ProfileSelf');
           }}
         >
-          <Avatar uri={user.profileImage} size={46} />
+          <Avatar uri={user.profileImage} name={user.displayName} size={46} />
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.drawerUserName}>{user.displayName}</Text>

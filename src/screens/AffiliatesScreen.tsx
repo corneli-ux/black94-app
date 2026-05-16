@@ -93,7 +93,7 @@ export default function AffiliatesScreen({ navigation }: any) {
     return (
       <View style={styles.card}>
         <View style={styles.cardTop}>
-          <Avatar uri={item.profileImage} size={44} borderWidth={1} borderColor={colors.border} />
+          <Avatar uri={item.profileImage} name={item.name} size={44} borderWidth={1} borderColor={colors.border} />
           <View style={styles.cardInfo}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={styles.affiliateName}>{item.name}</Text>

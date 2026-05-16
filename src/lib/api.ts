@@ -991,70 +991,16 @@ export async function fetchActiveAdCampaigns(limit: number = 5): Promise<any[]> 
 /* ── AI Messaging Helper ──────────────────────────────────────────────────── */
 
 /**
- * Generates a smart AI-like reply based on the last 10 messages in a chat.
- * This is a keyword-matching placeholder that can be replaced with a real
- * AI API (e.g. OpenAI, Gemini) later.
+ * AI reply generation — placeholder for future real AI integration.
+ * Replace with a real AI API call (e.g. OpenAI, Gemini, or z-ai-web-dev-sdk)
+ * when the AI reply feature is ready for production.
+ *
+ * For now, this returns null (no auto-reply) so all chat responses are genuine.
  */
-export async function generateAIReply(chatId: string, lastMessage: string): Promise<string | null> {
-  try {
-    // 1. Read the last 10 messages from the chat (ordered by createdAt desc)
-    const snapshot = await firestore()
-      .collection('chats')
-      .doc(chatId)
-      .collection('messages')
-      .orderBy('createdAt', 'desc')
-      .limit(10)
-      .get();
-
-    if (snapshot.empty) return null;
-
-    // 2. Build a simple context string from recent messages
-    const messages = snapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        senderId: data.senderId || '',
-        content: data.content || '',
-        createdAt: tsToMillis(data.createdAt),
-      };
-    });
-
-    // Reverse so oldest is first for context building
-    messages.reverse();
-
-    const contextSummary = messages
-      .map(m => `${m.senderId === currentUser()?.uid ? 'You' : 'Customer'}: ${m.content}`)
-      .join('\n');
-
-    console.log('[AI Reply] Context:\n', contextSummary);
-
-    // 3. Keyword-based smart response matching
-    const lower = lastMessage.toLowerCase();
-
-    if (/price|cost|how much|pricing|rate|quote/i.test(lower)) {
-      return 'Our team will get back to you with pricing details shortly. Thank you for your interest!';
-    }
-    if (/\bhello\b|\bhi\b|\bhey\b|\bgreetings\b|\byo\b/i.test(lower)) {
-      return 'Hello! Welcome to our store. How can I help you today?';
-    }
-    if (/\border\b|\bshipping\b|\bdelivery\b|\btrack\b|\bshipment\b/i.test(lower)) {
-      return 'Your order is being processed. You\'ll receive tracking details via email shortly.';
-    }
-    if (/\breturn\b|\brefund\b|\bexchange\b|\bmoney back\b|\bcancel order\b/i.test(lower)) {
-      return 'Our return policy allows returns within 7 days. Please share your order ID and we\'ll assist you.';
-    }
-    if (/\bthank/i.test(lower)) {
-      return 'You\'re welcome! Feel free to reach out anytime. We\'re happy to help!';
-    }
-    if (/\bsorry\b|\bapologize\b|\bproblem\b|\bissue\b|\bwrong\b/i.test(lower)) {
-      return 'We\'re sorry for the inconvenience. Our team is looking into this and will resolve it as soon as possible.';
-    }
-
-    // Default fallback
-    return 'Thank you for your message. Our team will respond shortly during business hours.';
-  } catch (e) {
-    console.error('[AI Reply] Failed to generate reply:', e);
-    return null;
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function generateAIReply(_chatId: string, _lastMessage: string): Promise<string | null> {
+  // TODO: Integrate real AI API for smart auto-replies
+  return null;
 }
 
 /* ── AI Follow-up System ──────────────────────────────────────────────────── */
