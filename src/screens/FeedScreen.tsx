@@ -126,7 +126,8 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   const [expanded, setExpanded] = useState(false);
   const lastTapRef = useRef(0);
 
-  const isLongCaption = post.caption && post.caption.length > 120;
+  const CAPTION_LIMIT = 150;
+  const isLongCaption = post.caption && post.caption.length > CAPTION_LIMIT;
 
   // Per-post optimistic repost state
   const [isReposted, setIsReposted] = useState(post.reposted);
@@ -237,8 +238,13 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {post.caption ? (
             isLongCaption && !expanded ? (
               <TouchableOpacity onPress={() => setExpanded(true)} activeOpacity={0.7}>
-                <HighlightedCaption text={post.caption.slice(0, 120)} style={styles.caption} />
-                <Text style={{ color: colors.accent, fontSize: 15, marginTop: 4 }}>See more</Text>
+                <HighlightedCaption text={post.caption.slice(0, CAPTION_LIMIT)} style={styles.caption} />
+                <Text style={styles.seeMoreText}> See more</Text>
+              </TouchableOpacity>
+            ) : isLongCaption && expanded ? (
+              <TouchableOpacity onPress={() => setExpanded(false)} activeOpacity={0.7}>
+                <HighlightedCaption text={post.caption} style={styles.caption} />
+                <Text style={styles.seeMoreText}> See less</Text>
               </TouchableOpacity>
             ) : (
               <HighlightedCaption text={post.caption} style={styles.caption} />
@@ -1061,6 +1067,12 @@ const styles = StyleSheet.create({
   },
   caption: {
     color: '#e7e9ea',
+    fontSize: 15,
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  seeMoreText: {
+    color: colors.accent,
     fontSize: 15,
     lineHeight: 20,
     marginTop: 4,

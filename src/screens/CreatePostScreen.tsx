@@ -112,6 +112,7 @@ const CreatePostScreen: React.FC = () => {
 
   const [caption, setCaption] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedGifUrls, setSelectedGifUrls] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeEmojiCat, setActiveEmojiCat] = useState(0);
@@ -121,7 +122,7 @@ const CreatePostScreen: React.FC = () => {
   const scrollViewRef = useRef<ScrollView>(null);
 
   const captionLength = caption.length;
-  const canPost = (caption.trim().length > 0 || selectedImages.length > 0) && !posting;
+  const canPost = (caption.trim().length > 0 || selectedImages.length > 0 || selectedGifUrls.length > 0) && !posting;
 
   // ── Image picker ──────────────────────────────────────────────────────
 
@@ -148,6 +149,20 @@ const CreatePostScreen: React.FC = () => {
 
   const handleRemoveImage = useCallback((index: number) => {
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // ── GIF Picker ──────────────────────────────────────────────────────
+
+  const handleOpenGifPicker = useCallback(() => {
+    navigation.navigate('GifPicker', {
+      onSelect: (gifUrl: string) => {
+        setSelectedGifUrls((prev) => [...prev, gifUrl]);
+      },
+    });
+  }, [navigation]);
+
+  const handleRemoveGif = useCallback((index: number) => {
+    setSelectedGifUrls((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   // ── Camera ──────────────────────────────────────────────────────────
@@ -201,7 +216,7 @@ const CreatePostScreen: React.FC = () => {
           }
         }
       }
-      await createPost(caption.trim(), uploadedUrls);
+      await createPost(caption.trim(), [...uploadedUrls, ...selectedGifUrls]);
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err) {
@@ -213,7 +228,7 @@ const CreatePostScreen: React.FC = () => {
     } finally {
       setPosting(false);
     }
-  }, [canPost, user, caption, selectedImages, navigation, triggerFeedRefresh, auth, useAppStore]);
+  }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh, auth, useAppStore]);
 
   // ── Character count color ─────────────────────────────────────────────
 
@@ -232,11 +247,16 @@ const CreatePostScreen: React.FC = () => {
         uri,
         index: i,
       })),
-      ...(selectedImages.length < MAX_IMAGES
+      ...selectedGifUrls.map((uri, i) => ({
+        _type: 'gif' as const,
+        uri,
+        index: i,
+      })),
+      ...(selectedImages.length + selectedGifUrls.length < MAX_IMAGES
         ? [{ _type: 'add' as const }]
         : []),
     ],
-    [selectedImages],
+    [selectedImages, selectedGifUrls],
   );
 
   // ── Header right action ───────────────────────────────────────────────
@@ -362,7 +382,12 @@ const CreatePostScreen: React.FC = () => {
                       style={styles.imageThumb}
                       resizeMode="cover"
                     />
-                    {selectedFilter !== 'none' && (() => {
+                    {item._type === 'gif' && (
+                      <View style={styles.gifBadge}>
+                        <Text style={styles.gifBadgeText}>GIF</Text>
+                      </View>
+                    )}
+                    {item._type === 'image' && selectedFilter !== 'none' && (() => {
                       const f = IMAGE_FILTERS.find(x => x.id === selectedFilter);
                       return f ? (
                         <View style={[styles.filterImageOverlay, { backgroundColor: f.overlay }]} />
@@ -370,7 +395,7 @@ const CreatePostScreen: React.FC = () => {
                     })()}
                     <TouchableOpacity
                       style={styles.removeImageBtn}
-                      onPress={() => handleRemoveImage(item.index)}
+                      onPress={() => item._type === 'gif' ? handleRemoveGif(item.index) : handleRemoveImage(item.index)}
                       activeOpacity={0.7}
                     >
                       <Ionicons name="close" size={12} color="#ffffff" />
@@ -469,7 +494,7 @@ const CreatePostScreen: React.FC = () => {
             <TouchableOpacity style={styles.bottomActionBtn} onPress={handleCamera}>
               <Ionicons name="camera-outline" size={22} color={COLORS.green} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomActionBtn} onPress={() => Alert.alert('GIF', 'GIF support coming in the next update! Stay tuned.')}>
+            <TouchableOpacity style={styles.bottomActionBtn} onPress={handleOpenGifPicker}>
               <Ionicons name="film-outline" size={22} color="#f59e0b" />
             </TouchableOpacity>
             <TouchableOpacity
@@ -608,6 +633,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addImageText: { fontSize: 13, color: COLORS.textSecondary },
+  gifBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  gifBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
   addPhotoButton: {
     flexDirection: 'row',
     alignItems: 'center',
