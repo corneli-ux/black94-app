@@ -26,7 +26,10 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
+import { uploadOptimizedImage } from '../utils/imageUpload';
+import { auth } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
+import { colors } from '../theme/colors';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -57,7 +60,7 @@ const COLORS = {
   red: '#f43f5e',
   border: 'rgba(255, 255, 255, 0.06)',
   borderLight: 'rgba(255, 255, 255, 0.08)',
-  accent: '#1d9bf0',
+  accent: colors.accent,
   green: '#00ba7c',
 } as const;
 
@@ -184,7 +187,21 @@ const CreatePostScreen: React.FC = () => {
     if (!canPost || !user) return;
     setPosting(true);
     try {
-      await createPost(caption.trim(), selectedImages);
+      const currentUser = auth().currentUser;
+      const uploadedUrls: string[] = [];
+      if (selectedImages.length > 0) {
+        for (const uri of selectedImages) {
+          try {
+            const storagePath = `posts/${currentUser?.uid}/${Date.now()}_${uploadedUrls.length}.jpg`;
+            const result = await uploadOptimizedImage(uri, storagePath, { mimeType: 'image/jpeg' });
+            uploadedUrls.push(result.downloadUrl);
+          } catch (err) {
+            console.error('[CreatePost] Image upload failed:', err);
+            // Skip failed images rather than failing the entire post
+          }
+        }
+      }
+      await createPost(caption.trim(), uploadedUrls);
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err) {
@@ -196,7 +213,7 @@ const CreatePostScreen: React.FC = () => {
     } finally {
       setPosting(false);
     }
-  }, [canPost, user, caption, selectedImages, navigation, triggerFeedRefresh]);
+  }, [canPost, user, caption, selectedImages, navigation, triggerFeedRefresh, auth, useAppStore]);
 
   // ── Character count color ─────────────────────────────────────────────
 

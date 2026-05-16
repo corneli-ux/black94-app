@@ -20,10 +20,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
-import { firestore, auth, getValidToken } from '../lib/firebase';
+import { firestore, auth } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { tsToMillis } from '../lib/api';
+import { uploadOptimizedImage } from '../utils/imageUpload';
 import { useAppStore } from '../stores/app';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -35,6 +36,32 @@ const HIGHLIGHT_RING_PADDING = 3;
 const STORY_DURATION = 5000;
 const DOUBLE_TAP_DELAY = 300;
 const HEART_ANIM_DURATION = 900;
+
+const STORY_CATEGORIES = [
+  { id: 'all', label: 'All', icon: 'sparkles' },
+  { id: 'voice', label: 'Voice', icon: 'mic' },
+  { id: 'polls', label: 'Polls', icon: 'stats-chart' },
+  { id: 'cricket', label: 'Cricket', icon: 'fitness' },
+  { id: 'festival', label: 'Festival', icon: 'happy' },
+];
+
+const TRENDING_MUSIC = [
+  { id: 'm1', title: 'Blinding Lights', artist: 'The Weeknd', gradient: ['#f59e0b', '#ef4444'] as const },
+  { id: 'm2', title: 'Tum Hi Ho', artist: 'Arijit Singh', gradient: ['#ec4899', '#8b5cf6'] as const },
+  { id: 'm3', title: 'Levitating', artist: 'Dua Lipa', gradient: ['#06b6d4', '#3b82f6'] as const },
+  { id: 'm4', title: 'Shape of You', artist: 'Ed Sheeran', gradient: ['#10b981', '#059669'] as const },
+  { id: 'm5', title: 'Pasoori', artist: 'Ali Sethi', gradient: ['#f97316', '#eab308'] as const },
+  { id: 'm6', title: 'Calm Down', artist: 'Rema', gradient: ['#8b5cf6', '#6366f1'] as const },
+];
+
+const TRENDING_FILTERS = [
+  { id: 'f1', label: 'Warm', colors: ['#f59e0b', '#ef4444'] as const },
+  { id: 'f2', label: 'Cool', colors: ['#3b82f6', '#8b5cf6'] as const },
+  { id: 'f3', label: 'Vintage', colors: ['#a78bfa', '#ec4899'] as const },
+  { id: 'f4', label: 'B&W', colors: ['#6b7280', '#1f2937'] as const },
+  { id: 'f5', label: 'Neon', colors: ['#10b981', '#06b6d4'] as const },
+  { id: 'f6', label: 'Sunset', colors: ['#f97316', '#eab308'] as const },
+];
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -193,7 +220,9 @@ function HeartOverlay({
 export default function StoriesScreen({ navigation }: any) {
   /* ── State ──────────────────────────────────────────────────────────────── */
   const [stories, setStories] = useState<Story[]>([]);
+  const [filtered, setFiltered] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState('all');
   const [uploading, setUploading] = useState(false);
 
   // Story viewer
@@ -218,41 +247,11 @@ export default function StoriesScreen({ navigation }: any) {
   const isLongPressingRef = useRef(false);
   const viewedStoriesRef = useRef<Set<string>>(new Set());
   const currentUser = auth()?.currentUser;
+
+  // ── Get user profile from Zustand store (Firestore data, not just auth) ──
   const storeUser = useAppStore((s) => s.user);
-
-  /* ── Upload image to Firebase Storage (returns download URL) ─────────── */
-  const uploadStoryImage = useCallback(async (uri: string): Promise<string> => {
-    const token = await getValidToken();
-    const STORAGE_BASE = 'https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o';
-    const storagePath = `stories/${currentUser?.uid}/${Date.now()}.jpg`;
-
-    // Convert URI to blob
-    const response = await fetch(uri);
-    const blob = await response.blob();
-
-    // Upload to Firebase Storage via REST
-    const uploadResp = await fetch(
-      `${STORAGE_BASE}/${encodeURIComponent(storagePath)}?uploadType=media&name=${encodeURIComponent(storagePath)}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': blob.type || 'image/jpeg',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: blob,
-      },
-    );
-
-    if (!uploadResp.ok) throw new Error('Image upload to Storage failed');
-
-    // Get download token from upload response
-    const respData = await uploadResp.json();
-    const downloadToken = respData.downloadTokens?.split(',')[0];
-    if (downloadToken) {
-      return `https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o/${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
-    }
-    return `https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o/${encodeURIComponent(storagePath)}?alt=media`;
-  }, [currentUser?.uid]);
+  const userProfileImage = storeUser?.profileImage || currentUser?.photoURL || null;
+  const userDisplayName = storeUser?.displayName || currentUser?.displayName || 'Anonymous';
 
   /* ── Load stories from Firestore ──────────────────────────────────────── */
   const loadStories = useCallback(async () => {
@@ -286,6 +285,7 @@ export default function StoriesScreen({ navigation }: any) {
         .filter((s: Story) => now - s.createdAt < twentyFourHours);
 
       setStories(loaded);
+      setFiltered(loaded);
     } catch (e) {
       console.error('[StoriesScreen] Failed to load stories:', e);
     } finally {
@@ -296,6 +296,19 @@ export default function StoriesScreen({ navigation }: any) {
   useEffect(() => {
     loadStories();
   }, [loadStories]);
+
+  /* ── Category filter ──────────────────────────────────────────────────── */
+  const filterCategory = useCallback(
+    (cat: string) => {
+      setActiveCategory(cat);
+      if (cat === 'all') {
+        setFiltered(stories);
+      } else {
+        setFiltered(stories.filter((s) => s.category === cat));
+      }
+    },
+    [stories],
+  );
 
   /* ── Unique author bubbles (first story per author) ───────────────────── */
   const authorBubbles = useMemo(() => {
@@ -310,7 +323,7 @@ export default function StoriesScreen({ navigation }: any) {
     return result;
   }, [stories]);
 
-  /* ── Image picker + upload (no cropping) ──────────────────────────────── */
+  /* ── Image picker + upload ───────────────────────────────────────────── */
   const pickAndUploadStory = useCallback(async () => {
     if (!currentUser) {
       Alert.alert('Sign In Required', 'Please sign in to create a story.');
@@ -326,36 +339,39 @@ export default function StoriesScreen({ navigation }: any) {
 
       const asset = result.assets[0];
       setUploading(true);
-      try {
-        // Upload image to Firebase Storage first (not as base64 in Firestore doc)
-        const mediaUrl = await uploadStoryImage(asset.uri);
 
-        const storyData = {
-          authorId: currentUser.uid,
-          authorDisplayName: storeUser?.displayName || currentUser.displayName || 'Anonymous',
-          authorUsername: storeUser?.username || currentUser.email?.split('@')[0] || 'user',
-          authorProfileImage: storeUser?.profileImage || currentUser.photoURL || null,
-          content: '',
-          mediaUrl,
-          type: 'image',
-          viewCount: 0,
-          likeCount: 0,
-          createdAt: new Date().toISOString(),
-          category: 'all',
-        };
+      // Upload image to Firebase Storage first (Firestore has 1MB doc limit — no inline base64)
+      const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
+      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+        mimeType: 'image/jpeg',
+      });
 
-        await firestore().collection('stories').add(storyData);
-        Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
-        loadStories();
-      } catch (e: any) {
-        console.error('[StoriesScreen] Upload failed:', e);
-        Alert.alert('Upload', 'Could not post your story. Please try again.');
-      } finally {
-        setUploading(false);
-      }
-  }, [currentUser, loadStories, uploadStoryImage, storeUser]);
+      const storyData = {
+        authorId: currentUser.uid,
+        authorDisplayName: userDisplayName,
+        authorUsername: storeUser?.username || currentUser.email?.split('@')[0] || 'user',
+        authorProfileImage: userProfileImage,
+        content: '',
+        mediaUrl: uploadResult.downloadUrl,
+        type: 'image',
+        viewCount: 0,
+        likeCount: 0,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        category: activeCategory === 'all' ? 'all' : activeCategory,
+      };
 
-  /* ── Camera upload (no cropping) ──────────────────────────────────────── */
+      await firestore().collection('stories').add(storyData);
+      Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
+      loadStories();
+    } catch (e: any) {
+      console.error('[StoriesScreen] Upload failed:', e);
+      Alert.alert('Upload', 'Could not post your story. Please check your connection and try again.');
+    } finally {
+      setUploading(false);
+    }
+  }, [currentUser, activeCategory, loadStories, storeUser, userDisplayName, userProfileImage]);
+
+  /* ── Camera upload ───────────────────────────────────────────────────── */
   const openCameraForStory = useCallback(async () => {
     if (!currentUser) {
       Alert.alert('Sign In Required', 'Please sign in to create a story.');
@@ -371,34 +387,37 @@ export default function StoriesScreen({ navigation }: any) {
 
       const asset = result.assets[0];
       setUploading(true);
-      try {
-        // Upload image to Firebase Storage first
-        const mediaUrl = await uploadStoryImage(asset.uri);
 
-        const storyData = {
-          authorId: currentUser.uid,
-          authorDisplayName: storeUser?.displayName || currentUser.displayName || 'Anonymous',
-          authorUsername: storeUser?.username || currentUser.email?.split('@')[0] || 'user',
-          authorProfileImage: storeUser?.profileImage || currentUser.photoURL || null,
-          content: '',
-          mediaUrl,
-          type: 'image',
-          viewCount: 0,
-          likeCount: 0,
-          createdAt: new Date().toISOString(),
-          category: 'all',
-        };
+      // Upload image to Firebase Storage first
+      const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
+      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+        mimeType: 'image/jpeg',
+      });
 
-        await firestore().collection('stories').add(storyData);
-        Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
-        loadStories();
-      } catch (e: any) {
-        console.error('[StoriesScreen] Camera upload failed:', e);
-        Alert.alert('Upload', 'Could not post your story. Please try again.');
-      } finally {
-        setUploading(false);
-      }
-  }, [currentUser, loadStories, uploadStoryImage, storeUser]);
+      const storyData = {
+        authorId: currentUser.uid,
+        authorDisplayName: userDisplayName,
+        authorUsername: storeUser?.username || currentUser.email?.split('@')[0] || 'user',
+        authorProfileImage: userProfileImage,
+        content: '',
+        mediaUrl: uploadResult.downloadUrl,
+        type: 'image',
+        viewCount: 0,
+        likeCount: 0,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        category: activeCategory === 'all' ? 'all' : activeCategory,
+      };
+
+      await firestore().collection('stories').add(storyData);
+      Alert.alert('Story Posted!', 'Your story is now live for 24 hours.');
+      loadStories();
+    } catch (e: any) {
+      console.error('[StoriesScreen] Camera upload failed:', e);
+      Alert.alert('Upload', 'Could not post your story. Please check your connection and try again.');
+    } finally {
+      setUploading(false);
+}
+  }, [currentUser, activeCategory, loadStories, storeUser, userDisplayName, userProfileImage]);
 
   /* ── Increment view count (once per story per session) ────────────────── */
   const incrementViewCount = useCallback(async (storyId: string) => {
@@ -616,7 +635,7 @@ export default function StoriesScreen({ navigation }: any) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* ── Header (no "Stories" text) ──────────────────────────────────── */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation?.goBack?.()} style={styles.headerBtn}>
@@ -649,8 +668,8 @@ export default function StoriesScreen({ navigation }: any) {
               <TouchableOpacity style={styles.highlightItem} onPress={pickAndUploadStory}>
                 <View style={styles.yourStoryRing}>
                   <Avatar
-                    uri={storeUser?.profileImage || currentUser?.photoURL}
-                    name={storeUser?.displayName || currentUser?.displayName}
+                    uri={userProfileImage}
+                    name={userDisplayName}
                     size={HIGHLIGHT_SIZE}
                   />
                 </View>
@@ -686,79 +705,177 @@ export default function StoriesScreen({ navigation }: any) {
             </ScrollView>
           </View>
 
-          {/* ── Stories Grid (2-column) ─────────────────────────────────── */}
-          {stories.length === 0 ? (
+          {/* ── Category Filter Chips ────────────────────────────────────── */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesScroll}
+          >
+            {STORY_CATEGORIES.map((cat) => (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.categoryChip,
+                  activeCategory === cat.id && styles.categoryChipActive,
+                ]}
+                onPress={() => filterCategory(cat.id)}
+              >
+                <Ionicons
+                  name={cat.icon as any}
+                  size={14}
+                  color={activeCategory === cat.id ? '#fff' : colors.textSecondary}
+                  style={{ marginRight: 4 }}
+                />
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    activeCategory === cat.id && styles.categoryChipTextActive,
+                  ]}
+                >
+                  {cat.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* ── Trending Music ───────────────────────────────────────────── */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="musical-notes" size={18} color={colors.accent} />
+              <Text style={styles.sectionTitle}>Trending Music</Text>
+            </View>
+            <TouchableOpacity>
+              <Text style={styles.seeAllText}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.musicScroll}
+          >
+            {TRENDING_MUSIC.map((track) => (
+              <TouchableOpacity key={track.id} style={styles.musicCard}>
+                <View style={styles.musicCardCoverWrap}>
+                  <LinearGradient
+                    colors={track.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.musicCardCover}
+                  >
+                    <Ionicons name="musical-notes" size={20} color="rgba(255,255,255,0.4)" />
+                  </LinearGradient>
+                  {/* Play button overlay */}
+                  <View style={styles.musicPlayBtn}>
+                    <Ionicons name="play" size={18} color="#fff" />
+                  </View>
+                </View>
+                <Text style={styles.musicTitle} numberOfLines={1}>
+                  {track.title}
+                </Text>
+                <Text style={styles.musicArtist} numberOfLines={1}>
+                  {track.artist}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* ── Filters (circular, Instagram-style) ──────────────────────── */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="color-filter-outline" size={18} color={colors.accent} />
+              <Text style={styles.sectionTitle}>Filters</Text>
+            </View>
+            <TouchableOpacity>
+              <Text style={styles.seeAllText}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersScroll}
+          >
+            {TRENDING_FILTERS.map((filter) => (
+              <TouchableOpacity key={filter.id} style={styles.filterItem}>
+                <LinearGradient
+                  colors={filter.colors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.filterCircle}
+                >
+                  <View style={styles.filterCircleInner} />
+                </LinearGradient>
+                <Text style={styles.filterLabel}>{filter.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* ── Recent Stories Grid ──────────────────────────────────────── */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="grid-outline" size={18} color={colors.accent} />
+              <Text style={styles.sectionTitle}>Recent</Text>
+            </View>
+            <Text style={styles.storyCountText}>{filtered.length} stories</Text>
+          </View>
+
+          {filtered.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="images-outline" size={64} color={colors.textMuted} />
+              <Ionicons name="images-outline" size={56} color={colors.textMuted} />
               <Text style={styles.emptyText}>No stories yet</Text>
               <Text style={styles.emptySubtext}>Be the first to share a moment</Text>
-              <TouchableOpacity style={styles.emptyUploadBtn} onPress={pickAndUploadStory}>
-                <Ionicons name="add-circle-outline" size={20} color={colors.accent} />
-                <Text style={styles.emptyUploadBtnText}>Create a Story</Text>
-              </TouchableOpacity>
             </View>
           ) : (
-            <>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionTitleRow}>
-                  <Ionicons name="grid-outline" size={18} color={colors.accent} />
-                  <Text style={styles.sectionTitle}>Recent Stories</Text>
-                </View>
-                <Text style={styles.storyCountText}>{stories.length} stories</Text>
-              </View>
-
-              <View style={styles.storyGrid}>
-                {stories.map((story) => (
-                  <TouchableOpacity
-                    key={story.id}
-                    style={styles.storyCard}
-                    onPress={() => openStoryViewer(story.authorId, story.id)}
-                  >
-                    {story.mediaUrl ? (
-                      <Image
-                        source={{ uri: story.mediaUrl }}
-                        style={styles.storyCardBg}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <LinearGradient
-                        colors={['#1a1a2e', '#16213e']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[styles.storyCardBg, styles.storyCardTextBg]}
-                      >
-                        <Text style={styles.storyCardText} numberOfLines={4}>
-                          {story.content}
-                        </Text>
-                      </LinearGradient>
-                    )}
-
-                    {/* Bottom gradient overlay */}
-                    <LinearGradient
-                      colors={['transparent', 'rgba(0,0,0,0.75)']}
-                      style={styles.storyCardOverlay}
+            <View style={styles.storyGrid}>
+              {filtered.map((story) => (
+                <TouchableOpacity
+                  key={story.id}
+                  style={styles.storyCard}
+                  onPress={() => openStoryViewer(story.authorId, story.id)}
+                >
+                  {story.mediaUrl ? (
+                    <Image
+                      source={{ uri: story.mediaUrl }}
+                      style={styles.storyCardBg}
+                      resizeMode="cover"
                     />
+                  ) : (
+                    <LinearGradient
+                      colors={['#4a2080', '#2a7fff']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.storyCardBg, styles.storyCardTextBg]}
+                    >
+                      <Text style={styles.storyCardText} numberOfLines={4}>
+                        {story.content}
+                      </Text>
+                    </LinearGradient>
+                  )}
 
-                    {/* Story info */}
-                    <View style={styles.storyCardInfo}>
-                      <View style={styles.storyCardAuthorRow}>
-                        <Avatar uri={story.authorProfileImage} name={story.authorDisplayName} size={20} />
-                        <Text style={styles.storyCardAuthor} numberOfLines={1}>
-                          {story.authorDisplayName}
-                        </Text>
-                      </View>
-                      <View style={styles.storyCardStats}>
-                        <Ionicons name="eye-outline" size={11} color="rgba(255,255,255,0.7)" />
-                        <Text style={styles.storyCardStat}>{story.viewCount}</Text>
-                        <Ionicons name="heart-outline" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 6 }} />
-                        <Text style={styles.storyCardStat}>{story.likeCount}</Text>
-                        <Text style={styles.storyCardTime}>{timeAgo(story.createdAt)}</Text>
-                      </View>
+                  {/* Bottom gradient overlay */}
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.75)']}
+                    style={styles.storyCardOverlay}
+                  />
+
+                  {/* Story info */}
+                  <View style={styles.storyCardInfo}>
+                    <View style={styles.storyCardAuthorRow}>
+                      <Avatar uri={story.authorProfileImage} name={story.authorDisplayName} size={20} />
+                      <Text style={styles.storyCardAuthor} numberOfLines={1}>
+                        {story.authorDisplayName}
+                      </Text>
                     </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
+                    <View style={styles.storyCardStats}>
+                      <Ionicons name="eye-outline" size={11} color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.storyCardStat}>{story.viewCount}</Text>
+                      <Ionicons name="heart-outline" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 6 }} />
+                      <Text style={styles.storyCardStat}>{story.likeCount}</Text>
+                      <Text style={styles.storyCardTime}>{timeAgo(story.createdAt)}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
           )}
 
           <View style={{ height: 50 }} />
@@ -920,8 +1037,8 @@ export default function StoriesScreen({ navigation }: any) {
                 <SafeAreaView edges={['bottom']}>
                   <View style={styles.commentInputRow}>
                     <Avatar
-                      uri={currentUser?.photoURL}
-                      name={currentUser?.displayName}
+                      uri={viewingStory.authorProfileImage}
+                      name={viewingStory.authorDisplayName}
                       size={32}
                     />
                     <View style={styles.commentInputWrapper}>
@@ -1053,6 +1170,36 @@ const styles = StyleSheet.create({
     borderColor: colors.bg,
   },
 
+  /* ── Category Filter Chips ───────────────────────────────────────────── */
+  categoriesScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingVertical: 4,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: colors.bgInput,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  categoryChipActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  categoryChipText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  categoryChipTextActive: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+
   /* ── Section Headers ─────────────────────────────────────────────────── */
   sectionHeader: {
     flexDirection: 'row',
@@ -1072,25 +1219,109 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  seeAllText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   storyCountText: {
     color: colors.textMuted,
     fontSize: 13,
   },
 
-  /* ── Stories Grid (2-column) ─────────────────────────────────────────── */
+  /* ── Trending Music ──────────────────────────────────────────────────── */
+  musicScroll: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  musicCard: {
+    width: 110,
+    alignItems: 'center',
+  },
+  musicCardCoverWrap: {
+    position: 'relative',
+    marginBottom: 8,
+  },
+  musicCardCover: {
+    width: 100,
+    height: 100,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  musicPlayBtn: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  musicTitle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    maxWidth: 100,
+  },
+  musicArtist: {
+    color: colors.textMuted,
+    fontSize: 11,
+    textAlign: 'center',
+    maxWidth: 100,
+    marginTop: 1,
+  },
+
+  /* ── Filters (circular, Instagram-style) ─────────────────────────────── */
+  filtersScroll: {
+    paddingHorizontal: 16,
+    gap: 16,
+    alignItems: 'center',
+  },
+  filterItem: {
+    alignItems: 'center',
+    width: 70,
+  },
+  filterCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCircleInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.bg,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  filterLabel: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+
+  /* ── Recent Stories Grid ─────────────────────────────────────────────── */
   storyGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 3,
-    gap: 3,
+    paddingHorizontal: 2,
+    gap: 2,
   },
   storyCard: {
-    width: (SCREEN_W - 9) / 2,
-    height: SCREEN_W * 0.75,
+    width: (SCREEN_W - 4) / 3,
+    height: SCREEN_W * 0.55,
     position: 'relative',
     overflow: 'hidden',
-    borderRadius: 12,
-    backgroundColor: colors.surface,
   },
   storyCardBg: {
     ...StyleSheet.absoluteFillObject,
@@ -1098,37 +1329,36 @@ const styles = StyleSheet.create({
   storyCardTextBg: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 12,
   },
   storyCardText: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
-    lineHeight: 22,
   },
   storyCardOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: '55%',
+    height: '50%',
   },
   storyCardInfo: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 10,
+    padding: 8,
   },
   storyCardAuthorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   storyCardAuthor: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     flex: 1,
   },
@@ -1136,7 +1366,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    marginTop: 4,
+    marginTop: 3,
   },
   storyCardStat: {
     color: 'rgba(255,255,255,0.8)',
@@ -1153,38 +1383,18 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 40,
+    paddingVertical: 60,
   },
   emptyText: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    marginTop: 20,
+    marginTop: 16,
   },
   emptySubtext: {
     color: colors.textMuted,
     fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  emptyUploadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 24,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: colors.accent,
-    backgroundColor: 'rgba(42,127,255,0.1)',
-  },
-  emptyUploadBtnText: {
-    color: colors.accent,
-    fontSize: 15,
-    fontWeight: '600',
+    marginTop: 6,
   },
 
   /* ── Upload Overlay ──────────────────────────────────────────────────── */
