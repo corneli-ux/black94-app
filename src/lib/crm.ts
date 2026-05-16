@@ -9,6 +9,7 @@
  */
 
 import { firestore, auth } from './firebase';
+import { tsToMillis } from '../utils/datetime';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -273,15 +274,7 @@ export interface ImportResult {
    HELPERS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function tsToMillis(ts: any): number {
-  if (!ts) return Date.now();
-  if (typeof ts === 'number') return ts;
-  if (typeof ts === 'string') return new Date(ts).getTime() || Date.now();
-  if (ts?.toMillis) return ts.toMillis();
-  if (ts?.toDate) return ts.toDate().getTime();
-  if (ts?.seconds) return ts.seconds * 1000;
-  return Date.now();
-}
+// tsToMillis imported from shared utils/datetime.ts
 
 const CHUNK_SIZE = 10; // Firestore IN operator max is 10
 

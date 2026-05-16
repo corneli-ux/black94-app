@@ -234,7 +234,7 @@ function BrandLogo() {
   const { Image } = require('react-native');
   return (
     <Image
-      source={require('../../assets/logo.jpeg')}
+      source={require('../../assets/logo.png')}
       style={styles.logo}
       resizeMode="contain"
       accessibilityLabel="Black94"

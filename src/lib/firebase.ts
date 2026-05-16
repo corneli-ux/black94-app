@@ -4,7 +4,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-// API key loaded from app.json extra (env) — NOT hardcoded in source
+// Firebase API key — loaded from app.json extra field (standard Expo approach).
+// NOTE: Firebase Web API keys are NOT secret credentials. They are public identifiers
+// baked into every REST call (?key=...). Security is enforced server-side via
+// Firebase Security Rules + per-request auth tokens (Bearer headers).
+// For production builds, this can be injected via EAS secrets as process.env.FIREBASE_API_KEY.
 const API_KEY = Constants.expoConfig?.extra?.firebaseApiKey as string || '';
 const PROJECT_ID = 'black94';
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;

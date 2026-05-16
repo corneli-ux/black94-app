@@ -7,7 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 /* ── Dark Navigation Theme — prevents white flash on transitions ── */
 const DarkTheme = {
@@ -142,9 +142,9 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       );
     case 'AnonymousChat':
       return (
-        <Ionicons
+        <MaterialCommunityIcons
           {...iconProps}
-          name={focused ? 'glasses' : 'glasses-outline'}
+          name={focused ? 'account-search' : 'account-search-outline'}
         />
       );
     case 'Stories':

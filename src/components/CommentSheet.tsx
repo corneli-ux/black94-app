@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, VerifiedBadge } from './Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import { CommentData, fetchPostComments, addPostComment } from '../lib/api';
+import { CommentData, fetchPostComments, addPostComment, toggleCommentLike } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -159,7 +159,14 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                           {repostMap[item.id] ? <RepostIcon size={18} color="#10b981" /> : <RepostIcon size={18} color="#94a3b8" />}
                         </View>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
+                      <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
+                        const wasLiked = likeMap[item.id] || false;
+                        setLikeMap(prev => ({ ...prev, [item.id]: !wasLiked }));
+                        // Persist to Firestore (fire-and-forget)
+                        toggleCommentLike(item.id, wasLiked).catch(() => {
+                          setLikeMap(prev => ({ ...prev, [item.id]: wasLiked }));
+                        });
+                      }}>
                         <View style={styles.actionIconWrap}>
                           <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={18} color={likeMap[item.id] ? "#f43f5e" : "#94a3b8"} />
                         </View>

@@ -8,7 +8,7 @@
 
 import { create } from 'zustand';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis } from '../lib/api';
+import { tsToMillis } from '../utils/datetime';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 

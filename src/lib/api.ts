@@ -70,15 +70,7 @@ export function parseMediaUrls(raw: any): string[] {
   return [];
 }
 
-export function tsToMillis(ts: any): number {
-  if (!ts) return Date.now();
-  if (typeof ts === 'number') return ts;
-  if (typeof ts === 'string') return new Date(ts).getTime() || Date.now();
-  if (ts?.toMillis) return ts.toMillis();
-  if (ts?.toDate) return ts.toDate().getTime();
-  if (ts?.seconds) return ts.seconds * 1000;
-  return Date.now();
-}
+export { tsToMillis } from '../utils/datetime';
 
 function currentUser(): any {
   return auth()?.currentUser;
@@ -988,6 +980,42 @@ export async function fetchActiveAdCampaigns(limit: number = 5): Promise<any[]> 
   }
 }
 
+/* ── Comment Like Toggle ─────────────────────────────────────────────────── */
+
+/**
+ * Toggles a like on a comment. Uses a Firestore subcollection
+ * `post_comments/{commentId}/likes/{userId}` as the source of truth.
+ * Also updates the `likeCount` field on the comment document.
+ */
+export async function toggleCommentLike(commentId: string, currentlyLiked: boolean): Promise<boolean> {
+  const userId = currentUser()?.uid;
+  if (!userId) return false;
+
+  const likeRef = firestore().collection('post_comments').doc(commentId).collection('likes').doc(userId);
+
+  try {
+    if (currentlyLiked) {
+      await likeRef.delete();
+      await firestore().collection('post_comments').doc(commentId).update({
+        likeCount: firestore.FieldValue.increment(-1),
+      });
+      return false;
+    } else {
+      await likeRef.set({
+        userId,
+        likedAt: firestore.FieldValue.serverTimestamp(),
+      });
+      await firestore().collection('post_comments').doc(commentId).update({
+        likeCount: firestore.FieldValue.increment(1),
+      });
+      return true;
+    }
+  } catch (e) {
+    console.error('[Comments] Failed to toggle like:', e);
+    return currentlyLiked; // Return unchanged on error
+  }
+}
+
 /* ── AI Messaging Helper ──────────────────────────────────────────────────── */
 
 /**
@@ -999,7 +1027,6 @@ export async function fetchActiveAdCampaigns(limit: number = 5): Promise<any[]> 
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function generateAIReply(_chatId: string, _lastMessage: string): Promise<string | null> {
-  // TODO: Integrate real AI API for smart auto-replies
   return null;
 }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform,  } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -53,18 +53,24 @@ export default function CheckoutScreen({ route, navigation }: any) {
   const passedCart: CartItem[] = route?.params?.cartItems || [];
   const passedSubtotal: number = route?.params?.subtotal || 0;
 
-  // Use passed cart or sample data
-  const [cartItems] = useState<CartItem[]>(passedCart.length > 0 ? passedCart : [
-    { id: 'c1', productId: 'demo1', name: 'Premium Black Hoodie', price: 2499, image: '', quantity: 1 },
-    { id: 'c2', productId: 'demo2', name: 'Black94 Logo Tee', price: 999, image: '', quantity: 2 },
-  ]);
+  // Cart items must be passed from navigation params (from CartScreen)
+  const [cartItems] = useState<CartItem[]>(passedCart);
+
+  // Redirect to cart if no items passed
+  useEffect(() => {
+    if (passedCart.length === 0) {
+      Alert.alert('Empty Cart', 'Your cart is empty. Add items before checking out.', [
+        { text: 'Go to Cart', onPress: () => navigation.navigate('Cart') },
+      ]);
+    }
+  }, [passedCart, navigation]);
 
   const [shippingForm, setShippingForm] = useState<ShippingForm>(INITIAL_SHIPPING);
   const [selectedPartner, setSelectedPartner] = useState(SHIPPING_PARTNERS[0]);
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'prepaid'>('prepaid');
   const [placingOrder, setPlacingOrder] = useState(false);
 
-  const subtotal = passedSubtotal || cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shippingCost = selectedPartner.price;
   const total = subtotal + shippingCost;
 

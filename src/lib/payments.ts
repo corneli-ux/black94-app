@@ -1,9 +1,15 @@
 /**
- * payments.ts — Razorpay payment integration for premium subscriptions
+ * payments.ts — Payment integration for premium subscriptions
  *
- * Provides plan definitions, payment initiation via Razorpay, and a
- * post-payment verification function that activates the subscription in
- * Firestore and creates a subscription record.
+ * Provides plan definitions and subscription activation logic.
+ *
+ * Payment flow:
+ *  - Web: Opens Razorpay Checkout.js in a WebView / browser redirect
+ *  - Native: Razorpay native SDK integration (requires react-native-razorpay)
+ *  - Until payment gateway credentials are provided, the checkout is gated
+ *    with a clear message.
+ *
+ * Post-payment: verifyAndActivateSubscription() writes to Firestore.
  */
 
 import { firestore, auth } from './firebase';
@@ -56,8 +62,10 @@ export const PLANS: PaymentPlan[] = [
     currency: 'INR',
     duration: 'monthly',
     features: [
-      '25 posts per day',
-      '10 stories per day',
+      'Creator revenue share eligibility',
+      'Early access to new features',
+      'Ad revenue share (chat & DMs)',
+      'Anonymous chat access',
       '50 shop products',
       '100 CRM leads',
       'Analytics dashboard',
@@ -73,16 +81,15 @@ export const PLANS: PaymentPlan[] = [
     currency: 'INR',
     duration: 'monthly',
     features: [
-      'Unlimited posts per day',
-      'Unlimited stories per day',
-      '500 shop products',
+      'Everything in Premium',
+      'Unlimited shop products',
       '500 CRM leads',
-      'Advanced analytics dashboard',
-      'Dedicated support',
-      'Paid ads access',
-      'Affiliate program',
+      'Store & CRM dashboard',
+      'AI-powered features',
       'Custom branding',
       'API access',
+      'Dedicated support',
+      'Advanced analytics',
     ],
   },
 ];
@@ -91,96 +98,29 @@ export const PLANS: PaymentPlan[] = [
 
 export const PLAN_LIMITS: Record<string, { posts: number; stories: number; products: number; storage: number }> = {
   free: { posts: 5, stories: 3, products: 0, storage: 50 },
-  premium: { posts: 25, stories: 10, products: 50, storage: 500 },
+  premium: { posts: -1, stories: -1, products: 50, storage: 500 },
   business: { posts: -1, stories: -1, products: 500, storage: 5000 },
 };
 
 // ── Payment initiation ────────────────────────────────────────────────────
 
 /**
- * Initiates a Razorpay payment for the given plan.
+ * Initiates a payment for the given plan.
  *
- * - If `react-native-razorpay` is installed, opens the native checkout.
- * - If the module is not available, returns a clear installation message.
+ * Currently returns a placeholder result until Razorpay credentials are
+ * configured. When ready, integrate:
+ *  - Web: Razorpay Checkout.js (loaded via script tag in webbuild)
+ *  - Native: react-native-razorpay native module
  */
 export async function initiatePayment(
   options: InitiatePaymentOptions,
 ): Promise<PaymentResult> {
-  const { plan, userId, userEmail, userPhone, userName } = options;
-
-  // ── Try to load the native Razorpay module ──
-  let Razorpay: any;
-  try {
-    Razorpay = require('react-native-razorpay').default;
-  } catch {
-    return {
-      success: false,
-      error:
-        'Razorpay module not installed. Run: npm install react-native-razorpay',
-    };
-  }
-
-  return new Promise<PaymentResult>((resolve) => {
-    // TODO: Replace this test key with your Razorpay live key before production release.
-    // Get your key from https://dashboard.razorpay.com/settings/api-keys
-    const RAZORPAY_KEY = 'rzp_test_XXXXXXXXXXXXXX';
-
-    const razorpayOptions = {
-      description: `${plan.name} subscription — Black94`,
-      image: '',
-      currency: plan.currency,
-      key: RAZORPAY_KEY,
-      amount: plan.amount,
-      name: 'Black94 Premium',
-      prefill: {
-        contact: userPhone || '',
-        email: userEmail || '',
-        name: userName || '',
-      },
-      theme: { color: '#000000' },
-      notes: {
-        planId: plan.id,
-        userId,
-        duration: plan.duration,
-      },
-    };
-
-    try {
-      Razorpay.open(razorpayOptions)
-        .then((data: any) => {
-          if (data?.razorpay_payment_id) {
-            resolve({
-              success: true,
-              paymentId: data.razorpay_payment_id,
-            });
-          } else {
-            resolve({
-              success: false,
-              error: 'Payment completed but no payment ID received.',
-            });
-          }
-        })
-        .catch((err: any) => {
-          const code = err?.code || err?.description || '';
-          if (code === 'PAYMENT_CANCELLED') {
-            resolve({
-              success: false,
-              error: 'Payment was cancelled.',
-            });
-          } else {
-            resolve({
-              success: false,
-              error: err?.description || err?.message || 'Payment failed. Please try again.',
-            });
-          }
-        });
-    } catch (err: any) {
-      resolve({
-        success: false,
-        error: err?.message || 'Failed to open Razorpay checkout.',
-      });
-    }
-  });
+  // Payment gateway credentials pending configuration.
+  // When Razorpay key is available, integrate the native or web checkout here.
+  return {
+    success: false,
+    error: 'Payment gateway is being configured. Please try again later.',
+  };
 }
 
 // ── Post-payment verification & activation ────────────────────────────────
@@ -203,7 +143,7 @@ export async function verifyAndActivateSubscription(
 
   // ── Determine badge & role based on plan ──
   const badge = planId === 'business' ? 'gold' : 'blue';
-  const role = planId === 'business' ? 'business' : undefined; // keep existing role for premium
+  const role = planId === 'business' ? 'business' : undefined;
 
   // ── 1. Update the user document ──
   const userUpdate: Record<string, any> = {
@@ -212,7 +152,6 @@ export async function verifyAndActivateSubscription(
     updatedAt: firestore.FieldValue.serverTimestamp(),
   };
 
-  // Business plan upgrades role to 'business'
   if (role) {
     userUpdate.role = role;
   }
@@ -226,7 +165,6 @@ export async function verifyAndActivateSubscription(
 
   // ── 2. Create subscription record ──
   const plan = PLANS.find((p) => p.id === planId);
-  const now = Date.now();
 
   const subscriptionData: Record<string, any> = {
     userId,

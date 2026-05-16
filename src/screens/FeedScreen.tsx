@@ -694,7 +694,7 @@ export default function FeedScreen({ navigation }: any) {
               <Ionicons name="menu" size={22} color="#e7e9ea" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Image source={require('../../assets/logo.jpeg')} style={styles.logoImage} />
+              <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
             </View>
             <TouchableOpacity
               style={styles.headerBtn}
@@ -749,7 +749,7 @@ export default function FeedScreen({ navigation }: any) {
             <Ionicons name="menu" size={22} color="#e7e9ea" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Image source={require('../../assets/logo.jpeg')} style={styles.logoImage} />
+            <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
           </View>
           <TouchableOpacity
             style={styles.headerBtn}
