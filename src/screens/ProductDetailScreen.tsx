@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
     borderWidth: 1, borderColor: colors.border,
   },
-  variantChipActive: { borderColor: colors.accent, backgroundColor: 'rgba(29,155,240,0.1)' },
+  variantChipActive: { borderColor: colors.accent, backgroundColor: 'rgba(42,127,255,0.1)' },
   variantText: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
   variantTextActive: { color: colors.accent },
   tagChip: { backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },

@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
   leadName: { fontSize: 14, fontWeight: '600', color: colors.text },
   leadEmail: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   leadSignals: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
-  signalBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, backgroundColor: 'rgba(59, 130, 246, 0.1)' },
+  signalBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, backgroundColor: 'rgba(42, 127, 255, 0.1)' },
   signalText: { fontSize: 10, fontWeight: '500', color: colors.verified },
   scoreSection: { width: 60, alignItems: 'center', gap: 4 },
   scoreBarBg: { width: '100%', height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },

@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
-  dropdownItemActive: { backgroundColor: 'rgba(29,155,240,0.08)' },
+  dropdownItemActive: { backgroundColor: 'rgba(42,127,255,0.08)' },
   dropdownText: { color: colors.text, fontSize: 14 },
   toggleRow: { flexDirection: 'row', alignItems: 'center' },
   toggleTrack: {

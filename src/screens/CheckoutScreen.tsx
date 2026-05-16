@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     borderRadius: 10, borderWidth: 1, borderColor: colors.border,
     marginBottom: 8,
   },
-  partnerCardActive: { borderColor: colors.accent, backgroundColor: 'rgba(29,155,240,0.06)' },
+  partnerCardActive: { borderColor: colors.accent, backgroundColor: 'rgba(42,127,255,0.06)' },
   partnerRadio: { width: 30 },
   radioOuter: {
     width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.border,
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', padding: 14,
     borderRadius: 10, borderWidth: 1, borderColor: colors.border,
   },
-  paymentOptionActive: { borderColor: colors.accent, backgroundColor: 'rgba(29,155,240,0.06)' },
+  paymentOptionActive: { borderColor: colors.accent, backgroundColor: 'rgba(42,127,255,0.06)' },
   paymentLabel: { color: colors.text, fontSize: 15, fontWeight: '600' },
   paymentHint: { color: colors.textSecondary, fontSize: 12, marginTop: 1 },
   placeOrderBtn: {

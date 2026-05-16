@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
   },
   dmOptionCardActive: {
     borderColor: colors.accent,
-    backgroundColor: 'rgba(29,155,240,0.08)',
+    backgroundColor: 'rgba(42,127,255,0.08)',
   },
   dmRadioOuter: {
     width: 20,
