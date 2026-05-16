@@ -292,8 +292,17 @@ export async function uploadOptimizedImage(
       }
 
       // Step 3: Upload the file data
-      // Use XMLHttpRequest for progress tracking (fetch doesn't support upload progress)
-      const fileData = await readFileAsBase64(uri);
+      // Read as base64, then decode to binary ArrayBuffer for Firebase Storage.
+      // Firebase Storage expects raw binary bytes — sending base64 as a string
+      // would store the base64 characters as the file content (corrupted image).
+      const base64Data = await readFileAsBase64(uri);
+
+      // Decode base64 → binary ArrayBuffer
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
 
       const downloadUrl = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -357,10 +366,8 @@ export async function uploadOptimizedImage(
         // Set a reasonable timeout (5 minutes for large files on slow connections)
         xhr.timeout = 5 * 60 * 1000;
 
-        // Send base64 data — Firebase Storage will decode it
-        // Note: We send as base64 with proper Content-Transfer-Encoding header
-        // so Firebase knows how to handle it
-        xhr.send(fileData);
+        // Send decoded binary data — Firebase Storage expects raw bytes
+        xhr.send(bytes.buffer);
 
         // Cleanup abort listener when xhr completes
         xhr.onloadend = () => {

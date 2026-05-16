@@ -35,20 +35,32 @@ const STORAGE_BASE = 'https://firebasestorage.googleapis.com/v0/b/black94.appspo
 
 async function uploadImage(uri: string, storagePath: string): Promise<string> {
   const token = await getValidToken();
-  // Convert URI to blob
-  const response = await fetch(uri);
-  const blob = await response.blob();
 
-  // Upload to Firebase Storage via REST
+  // Read local file as base64 using expo-file-system.
+  // fetch(uri) does NOT work with file:// URIs in React Native.
+  const FileSystem = require('expo-file-system').default;
+  const filePath = uri.startsWith('file://') ? uri.slice(7) : uri;
+  const base64Data = await FileSystem.readAsStringAsync(filePath, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  // Decode base64 → binary ArrayBuffer so Firebase Storage stores a real image
+  const binaryString = atob(base64Data);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  // Upload to Firebase Storage via REST (simple upload)
   const uploadResp = await fetch(
-    `${STORAGE_BASE}/${encodeURIComponent(storagePath)}?uploadType=media&name=${encodeURIComponent(storagePath)}`,
+    `${STORAGE_BASE}?uploadType=media&name=${encodeURIComponent(storagePath)}`,
     {
       method: 'POST',
       headers: {
-        'Content-Type': blob.type || 'image/jpeg',
+        'Content-Type': 'image/jpeg',
         'Authorization': `Bearer ${token}`,
       },
-      body: blob,
+      body: bytes.buffer,
     },
   );
 
