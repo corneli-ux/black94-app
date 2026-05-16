@@ -116,6 +116,9 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       updatedAt: firestore.FieldValue.serverTimestamp(),
     };
 
+    // Extract existing Firestore data ONCE, before the if/else branches use it.
+    const existingData = userDocSnap.exists ? userDocSnap.data() : null;
+
     if (!userDocSnap.exists) {
       userData.createdAt = firestore.FieldValue.serverTimestamp();
       try {
@@ -145,7 +148,6 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       }
     }
 
-    const existingData = userDocSnap.exists ? userDocSnap.data() : null;
     // If Firestore had no photo but Google does, use Google's (recovery).
     const recoveredPhoto = (!existingData?.profileImage && googlePhoto) ? googlePhoto : null;
 
