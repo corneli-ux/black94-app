@@ -159,7 +159,7 @@ export default function AiLeadGenScreen() {
       setGeneratedMessage(message || 'No follow-up message generated. Try updating lead information first.');
       setShowMessageModal(true);
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to generate follow-up.');
+      Alert.alert('Follow-up', 'Could not generate follow-up. Please try again.');
     } finally {
       setGenerating(null);
     }

@@ -206,7 +206,7 @@ export default function StoryCreatorScreen({ navigation }: any) {
         { text: 'OK', onPress: () => navigation.navigate('Stories') },
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to post story');
+      Alert.alert('Story', 'Could not post story. Please try again.');
     }
     setPosting(false);
   }, [

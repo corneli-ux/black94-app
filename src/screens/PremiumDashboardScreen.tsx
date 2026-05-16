@@ -228,7 +228,7 @@ export default function PremiumDashboardScreen() {
       }
     } catch (e: any) {
       console.error('[Premium] Upgrade error:', e);
-      Alert.alert('Error', e?.message || 'Something went wrong. Please try again.');
+      Alert.alert('Upgrade', 'Something went wrong. Please try again.');
     } finally {
       setPaymentLoading(false);
     }

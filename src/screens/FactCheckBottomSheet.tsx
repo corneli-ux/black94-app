@@ -78,7 +78,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
       await loadClaims();
       Alert.alert('Submitted', 'Your fact-check claim has been submitted for review.');
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to submit claim.');
+      Alert.alert('Fact Check', 'Could not submit claim. Please try again.');
     } finally {
       setSubmitting(false);
     }

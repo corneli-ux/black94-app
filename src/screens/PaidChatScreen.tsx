@@ -153,7 +153,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
       }
     } catch (e: any) {
       console.error('[PaidChatScreen] Payment error:', e);
-      Alert.alert('Error', e?.message || 'Payment failed. Please try again.');
+      Alert.alert('Payment', 'Payment failed. Please try again.');
     } finally {
       setPaying(false);
     }

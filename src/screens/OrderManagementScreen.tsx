@@ -232,7 +232,7 @@ export default function OrderManagementScreen() {
       setCouriers(allCouriers.filter((c) => { if (seen.has(c.id)) return false; seen.add(c.id); return c.active; }));
       if (wh.length > 0) setSelectedWarehouse(String((wh[0] as any).pickup_location || (wh[0] as any).name));
     } catch (e: any) {
-      Alert.alert('Error', 'Could not load ShipRocket data. ' + (e?.message || ''));
+      Alert.alert('Shipping', 'Could not load shipping data. Please try again.');
     }
   }, [user?.id]);
 
@@ -293,7 +293,7 @@ export default function OrderManagementScreen() {
       Alert.alert('Shipment Created', `AWB: ${shipment.awb_code}\nCourier: ${shipment.courier_name}`);
       setShipmentModal(false);
     } catch (e: any) {
-      Alert.alert('Shipment Failed', e?.message || 'Could not create shipment.');
+      Alert.alert('Shipment', 'Could not create shipment. Please try again.');
     } finally {
       setCreatingShipment(false);
     }
@@ -322,7 +322,7 @@ export default function OrderManagementScreen() {
       ]);
     } catch (e: any) {
       setTrackingStatus('Failed to track');
-      Alert.alert('Tracking Error', e?.message || 'Could not track shipment.');
+      Alert.alert('Tracking', 'Could not track shipment. Please try again.');
     } finally {
       setTrackingLoading(false);
     }

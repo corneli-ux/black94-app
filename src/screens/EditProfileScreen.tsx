@@ -272,7 +272,7 @@ export default function EditProfileScreen({ navigation }: any) {
         }},
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to update profile');
+      Alert.alert('Profile', 'Could not update profile. Please try again.');
     }
     setSaving(false);
   }, [currentUid, displayName, username, bio, profileImage, coverImage, role, user, navigation]);

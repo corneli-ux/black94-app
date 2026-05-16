@@ -138,7 +138,7 @@ export default function CheckoutScreen({ route, navigation }: any) {
       );
     } catch (e: any) {
       console.error('[Checkout] Place order error:', e);
-      Alert.alert('Error', `Failed to place order: ${e?.message || 'Unknown error'}`);
+      Alert.alert('Order', 'Could not place order. Please try again.');
     } finally {
       setPlacingOrder(false);
     }

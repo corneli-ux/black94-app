@@ -164,7 +164,7 @@ export default function AddProductScreen({ route, navigation }: any) {
       }
     } catch (e: any) {
       console.error('[AddProduct] Save error:', e);
-      Alert.alert('Error', `Failed to save product: ${e?.message || 'Unknown error'}`);
+      Alert.alert('Product', 'Could not save product. Please try again.');
     } finally {
       setSaving(false);
     }

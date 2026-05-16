@@ -554,7 +554,7 @@ export default function FeedScreen({ navigation }: any) {
     } catch (e: any) {
       console.error('[FeedScreen] Feed load error:', e?.message);
       if (!append) {
-        Alert.alert('Feed Error', `Could not load feed: ${e?.message || 'Unknown error'}`);
+        Alert.alert('Feed', 'Unable to load feed right now. Pull down to retry.');
       }
     } finally {
       setLoading(false);

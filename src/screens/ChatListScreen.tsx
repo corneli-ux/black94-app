@@ -37,7 +37,7 @@ export default function ChatListScreen({ navigation }: any) {
       setFiltered(data);
     } catch (e: any) {
       console.error('[ChatListScreen] Chat load error:', e?.message);
-      Alert.alert('Chat Error', `Could not load chats: ${e?.message || 'Unknown error'}`);
+      Alert.alert('Chats', 'Unable to load conversations. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);

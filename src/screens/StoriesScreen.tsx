@@ -355,7 +355,7 @@ export default function StoriesScreen({ navigation }: any) {
       loadStories();
     } catch (e: any) {
       console.error('[StoriesScreen] Upload failed:', e);
-      Alert.alert('Upload Failed', e?.message || 'Could not post your story.');
+      Alert.alert('Upload', 'Could not post your story. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -400,7 +400,7 @@ export default function StoriesScreen({ navigation }: any) {
       loadStories();
     } catch (e: any) {
       console.error('[StoriesScreen] Camera upload failed:', e);
-      Alert.alert('Upload Failed', e?.message || 'Could not post your story.');
+      Alert.alert('Upload', 'Could not post your story. Please try again.');
     } finally {
       setUploading(false);
     }
