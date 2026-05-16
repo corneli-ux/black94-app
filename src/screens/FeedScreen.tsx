@@ -74,7 +74,7 @@ async function openImagePicker() {
 
 function SkeletonCard() {
   return (
-    <View style={[styles.postCard, { borderBottomColor: 'transparent' }]}>
+    <View style={styles.postCard}>
       <View style={styles.contentRow}>
         {/* Avatar placeholder */}
         <View style={styles.skeletonAvatar} />
@@ -89,9 +89,11 @@ function SkeletonCard() {
           <View style={[styles.skeletonLine, { width: '70%', height: 14 }]} />
           <View style={[styles.skeletonLine, { width: '40%', height: 14 }]} />
           {/* Action bar dots */}
-          <View style={{ flexDirection: 'row', marginTop: 12, gap: 56 }}>
+          <View style={styles.actions}>
             {[0, 1, 2, 3, 4].map(i => (
-              <View key={i} style={[styles.skeletonDot]} />
+              <View key={i} style={[styles.actionBtn]}>
+                <View style={styles.skeletonDot} />
+              </View>
             ))}
           </View>
         </View>
@@ -365,6 +367,7 @@ export default function FeedScreen({ navigation }: any) {
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
   const [composeImages, setComposeImages] = useState<string[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('Black94');
   const [ads, setAds] = useState<any[]>([]);
   const currentUser = auth()?.currentUser;
@@ -646,6 +649,28 @@ export default function FeedScreen({ navigation }: any) {
     setComposeImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleCameraCapture = async () => {
+    try {
+      const { launchCameraAsync } = require('expo-image-picker');
+      const remaining = 4 - composeImages.length;
+      if (remaining <= 0) {
+        Alert.alert('Limit reached', 'You can add up to 4 images.');
+        return;
+      }
+      const result = await launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+        maxWidth: 1200,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const uri = result.assets[0].uri;
+      if (uri) setComposeImages(prev => [...prev, uri]);
+    } catch (err) {
+      console.error('[Feed] Camera error:', err);
+      Alert.alert('Camera', 'Could not access camera.');
+    }
+  };
+
   const handlePost = async () => {
     if (!composeText.trim() && composeImages.length === 0) return;
     setPosting(true);
@@ -898,19 +923,37 @@ export default function FeedScreen({ navigation }: any) {
                   <TouchableOpacity style={styles.composeActionBtn} onPress={handleAddImages}>
                     <Ionicons name="image-outline" size={20} color={colors.accent} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Camera', 'Camera capture coming soon!')}>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={handleCameraCapture}>
                     <Ionicons name="camera-outline" size={20} color="#00ba7c" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('GIF', 'GIF picker coming soon!')}>
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('GIF', 'GIF support coming in the next update! Stay tuned.')}>
                     <Ionicons name="film-outline" size={20} color="#f59e0b" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Emoji', 'Emoji picker coming soon!')}>
-                    <Ionicons name="happy-outline" size={20} color={colors.accent} />
+                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => setShowEmojiPicker(!showEmojiPicker)}>
+                    <Ionicons name="happy-outline" size={20} color={showEmojiPicker ? '#f59e0b' : colors.accent} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.composeActionBtn} onPress={() => Alert.alert('Poll', 'Poll creation coming soon!')}>
                     <Ionicons name="stats-chart-outline" size={20} color="#8b5cf6" />
                   </TouchableOpacity>
                 </View>
+
+                {/* Emoji picker */}
+                {showEmojiPicker && (
+                  <View style={styles.emojiPickerPanel}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 2 }}>
+                      {['😊','😂','🥰','😍','🤩','😎','🥳','😇','🤗','🤔','😅','😭','🥺','😡','👍','👎','❤️','🔥','💯','✨','🎉','🙏','💪','👏','🤝','🙈','👀','💀','🫡','🤣','😤','🫶','💜','🧡','💛','💚','💙','🖤','🤍','🫠','🥹','😴','🤤','😇'].map((emoji, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={styles.emojiBtn}
+                          onPress={() => setComposeText(prev => prev + emoji)}
+                          activeOpacity={0.6}
+                        >
+                          <Text style={{ fontSize: 22 }}>{emoji}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
 
                 {/* Character count (only show when > 3400) */}
                 {composeText.length > 3400 && (
@@ -1100,17 +1143,17 @@ const styles = StyleSheet.create({
 
   /* ── Skeleton ── */
   skeletonAvatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: colors.surfaceLight,
   },
   skeletonLine: {
     height: 14,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.surfaceLight,
   },
   skeletonDot: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: colors.surfaceLight,
   },
 
   /* ── Load more indicator ── */
@@ -1257,6 +1300,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'right',
     marginTop: 4,
+  },
+  emojiPickerPanel: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 8,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  emojiBtn: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
   },
   postBtn: {
     backgroundColor: '#FFFFFF',

@@ -301,7 +301,7 @@ export default function StoryCreatorScreen({ navigation }: any) {
                       <Text style={{ color: colors.textMuted, fontSize: 14, marginTop: 12 }}>Uploading…</Text>
                     </View>
                   ) : imageUri ? (
-                    <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />
+                    <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="contain" />
                   ) : (
                     <View style={styles.previewImagePlaceholder}>
                       <Text style={styles.previewPlaceholderText}>+ Select Image</Text>

@@ -34,6 +34,17 @@ const MAX_IMAGES = 4;
 const MAX_CAPTION_LENGTH = 500;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// ── Image Filters ────────────────────────────────────────────────────────────
+
+const IMAGE_FILTERS = [
+  { id: 'none', label: 'Original', overlay: 'transparent' },
+  { id: 'warm', label: 'Warm', overlay: 'rgba(255, 165, 0, 0.15)' },
+  { id: 'cool', label: 'Cool', overlay: 'rgba(0, 100, 255, 0.15)' },
+  { id: 'vintage', label: 'Vintage', overlay: 'rgba(128, 128, 0, 0.15)' },
+  { id: 'bw', label: 'B&W', overlay: 'rgba(128, 128, 128, 0.5)' },
+  { id: 'vivid', label: 'Vivid', overlay: 'rgba(255, 0, 128, 0.12)' },
+];
+
 const COLORS = {
   bg: '#000000',
   surface: '#16181c',
@@ -69,6 +80,7 @@ async function openImagePicker(limit: number): Promise<ImagePickerResult> {
       quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: limit,
+      maxWidth: 1200,
     });
     return result;
   } catch (err) {
@@ -100,6 +112,7 @@ const CreatePostScreen: React.FC = () => {
   const [posting, setPosting] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeEmojiCat, setActiveEmojiCat] = useState(0);
+  const [selectedFilter, setSelectedFilter] = useState('none');
 
   const textInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -133,6 +146,31 @@ const CreatePostScreen: React.FC = () => {
   const handleRemoveImage = useCallback((index: number) => {
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   }, []);
+
+  // ── Camera ──────────────────────────────────────────────────────────
+
+  const handleCamera = useCallback(async () => {
+    try {
+      const { launchCameraAsync } = require('expo-image-picker');
+      const remaining = MAX_IMAGES - selectedImages.length;
+      if (remaining <= 0) {
+        Alert.alert('Limit reached', `You can add up to ${MAX_IMAGES} images.`);
+        return;
+      }
+      const result = await launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+        allowsMultipleSelection: false,
+        maxWidth: 1200,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const uri = result.assets[0].uri;
+      if (uri) setSelectedImages(prev => [...prev, uri]);
+    } catch (err) {
+      console.error('[CreatePost] Camera error:', err);
+      Alert.alert('Camera', 'Could not access camera.');
+    }
+  }, [selectedImages.length]);
 
   // ── Emoji ────────────────────────────────────────────────────────────
 
@@ -307,6 +345,12 @@ const CreatePostScreen: React.FC = () => {
                       style={styles.imageThumb}
                       resizeMode="cover"
                     />
+                    {selectedFilter !== 'none' && (() => {
+                      const f = IMAGE_FILTERS.find(x => x.id === selectedFilter);
+                      return f ? (
+                        <View style={[styles.filterImageOverlay, { backgroundColor: f.overlay }]} />
+                      ) : null;
+                    })()}
                     <TouchableOpacity
                       style={styles.removeImageBtn}
                       onPress={() => handleRemoveImage(item.index)}
@@ -317,6 +361,43 @@ const CreatePostScreen: React.FC = () => {
                   </View>
                 );
               })}
+            </View>
+          )}
+
+          {/* Filter picker — shown when images are selected */}
+          {selectedImages.length > 0 && (
+            <View style={styles.filterRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+                {IMAGE_FILTERS.map((f) => {
+                  const isActive = selectedFilter === f.id;
+                  const activeFilterData = IMAGE_FILTERS.find(x => x.id === selectedFilter);
+                  return (
+                    <TouchableOpacity
+                      key={f.id}
+                      style={[styles.filterCircleWrap, isActive && styles.filterCircleWrapActive]}
+                      onPress={() => setSelectedFilter(f.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.filterPreviewBox}>
+                        <Image
+                          source={{ uri: selectedImages[0] }}
+                          style={styles.filterPreviewThumb}
+                          resizeMode="cover"
+                        />
+                        <View
+                          style={[
+                            styles.filterPreviewOverlay,
+                            { backgroundColor: f.overlay },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.filterLabel, isActive && styles.filterLabelActive]}>
+                        {f.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
           )}
 
@@ -368,10 +449,10 @@ const CreatePostScreen: React.FC = () => {
             <TouchableOpacity style={styles.bottomActionBtn} onPress={handleAddImages}>
               <Ionicons name="image-outline" size={22} color={COLORS.accent} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomActionBtn} onPress={() => Alert.alert('Camera', 'Camera capture coming soon!')}>
+            <TouchableOpacity style={styles.bottomActionBtn} onPress={handleCamera}>
               <Ionicons name="camera-outline" size={22} color={COLORS.green} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomActionBtn} onPress={() => Alert.alert('GIF', 'GIF picker coming soon!')}>
+            <TouchableOpacity style={styles.bottomActionBtn} onPress={() => Alert.alert('GIF', 'GIF support coming in the next update! Stay tuned.')}>
               <Ionicons name="film-outline" size={22} color="#f59e0b" />
             </TouchableOpacity>
             <TouchableOpacity
@@ -564,6 +645,61 @@ const styles = StyleSheet.create({
   bottomBarActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bottomActionBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   bottomActionBtnActive: { backgroundColor: 'rgba(245, 158, 11, 0.15)' },
+
+  /* Filter Image Overlay — applied over each image in the grid */
+  filterImageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+
+  /* Filter Picker Row */
+  filterRow: {
+    marginBottom: 16,
+    paddingBottom: 4,
+  },
+  filterScrollContent: {
+    gap: 12,
+    paddingRight: 8,
+  },
+  filterCircleWrap: {
+    alignItems: 'center',
+    gap: 4,
+    opacity: 0.6,
+  },
+  filterCircleWrapActive: {
+    opacity: 1,
+  },
+  filterPreviewBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  filterPreviewThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  filterPreviewOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  filterLabel: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  filterLabelActive: {
+    color: COLORS.textPrimary,
+    fontWeight: '700',
+  },
 
   /* Character Circle */
   charCircle: { alignItems: 'center', justifyContent: 'center' },

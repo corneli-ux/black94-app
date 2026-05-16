@@ -80,7 +80,7 @@ async function pollUnread(userId: string): Promise<number> {
 
 export interface CreateNotificationParams {
   recipientId: string;
-  type: 'follow' | 'like' | 'comment' | 'repost' | 'mention' | 'chat';
+  type: 'follow' | 'like' | 'comment' | 'repost' | 'mention' | 'chat' | 'story_view' | 'milestone' | 'suggestion';
   actorId: string;
   actorDisplayName: string;
   actorUsername: string;
@@ -135,6 +135,43 @@ export async function createNotification(
   } catch (e) {
     // Notification creation should never break the main action (like, follow, etc.)
     console.warn('[NotificationEngine] Failed to create notification:', e);
+  }
+}
+
+// ── Engagement Notifications ────────────────────────────────────────────────
+
+/**
+ * Create a system-generated engagement notification (milestone, suggestion, etc.).
+ * These come from the "system" actor (Black94 platform).
+ */
+export async function createEngagementNotification(
+  recipientId: string,
+  type: 'milestone' | 'suggestion',
+  title: string,
+  body: string,
+): Promise<void> {
+  const docId = `${type}_${recipientId}_${Date.now()}`;
+  try {
+    await firestore()
+      .collection('notifications')
+      .doc(docId)
+      .set({
+        recipientId,
+        type,
+        actorId: 'system',
+        actorDisplayName: 'Black94',
+        actorUsername: 'black94',
+        actorProfileImage: null,
+        actorIsVerified: true,
+        actorBadge: 'gold',
+        postId: '',
+        postCaption: title,
+        commentContent: body,
+        read: false,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      });
+  } catch (e) {
+    console.warn('[NotificationEngine] Engagement notification failed:', e);
   }
 }
 

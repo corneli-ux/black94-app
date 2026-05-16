@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, memo, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  Share,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import {
@@ -22,6 +23,9 @@ import {
   getPaidChatPrice,
   hasPaidChatAccess,
   fetchActiveAdCampaigns,
+  toggleLike,
+  toggleBookmark,
+  toggleRepost,
   User,
   Post,
   tsToMillis,
@@ -29,10 +33,445 @@ import {
 } from '../lib/api';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
+import { timeAgo } from '../utils/timeAgo';
+import Svg, { Path, Polyline } from 'react-native-svg';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-type ProfileTab = 'posts' | 'replies';
+/* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
+function RepostIcon({ size = 16, color = '#71767b' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="23 4 23 10 17 10" />
+      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+    </Svg>
+  );
+}
+
+/* ── Replies type ──────────────────────────────────────────────── */
+interface Reply {
+  id: string;
+  postId: string;
+  postCaption: string;
+  postMediaUrls: string[];
+  postAuthorUsername: string;
+  postAuthorDisplayName: string;
+  content: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  authorProfileImage: string;
+  authorIsVerified: boolean;
+  authorBadge: string;
+  createdAt: number;
+}
+
+/* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
+function HighlightedCaption({ text, style }: { text: string; style: any }) {
+  const parts = text.split(/(#\w+|@\w+)/g);
+  return (
+    <Text style={style}>
+      {parts.map((part, i) =>
+        /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
+          <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+        ) : (
+          <Text key={i}>{part}</Text>
+        )
+      )}
+    </Text>
+  );
+}
+
+function formatCount(n: number | undefined): string {
+  if (!n) return '';
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return n.toString();
+}
+
+/* ── Feed-style PostCard for profile (fully interactive, matches FeedScreen PostCard) ── */
+const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
+  post: Post;
+  onLike: (id: string, liked: boolean) => void;
+  onBookmark: (id: string, bookmarked: boolean) => void;
+  onDelete: (id: string) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onComment: (id: string, caption?: string) => void;
+  navigation: any;
+}) {
+  const currentUser = auth()?.currentUser;
+  const [showHeart, setShowHeart] = useState(false);
+  const lastTapRef = useRef(0);
+  const [isReposted, setIsReposted] = useState(post.reposted);
+  const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
+  const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
+
+  React.useEffect(() => {
+    setIsReposted(post.reposted);
+    setLocalRepostCount(post.repostCount);
+    setIsBookmarked(post.bookmarked);
+  }, [post.reposted, post.repostCount, post.bookmarked]);
+
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!post.liked) { onLike(post.id, post.liked); }
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 900);
+    }
+    lastTapRef.current = now;
+  };
+
+  const handleRepostPress = () => {
+    const next = !isReposted;
+    setIsReposted(next);
+    setLocalRepostCount(prev => prev + (next ? 1 : -1));
+    onRepost(post.id, isReposted);
+  };
+
+  const handleBookmarkPress = () => {
+    const next = !isBookmarked;
+    setIsBookmarked(next);
+    onBookmark(post.id, isBookmarked);
+  };
+
+  const handleShare = async () => {
+    try { await Share.share({ message: 'Check out this post on Black94!' }); } catch {}
+  };
+
+  const isOwnPost = currentUser?.uid === post.authorId;
+
+  return (
+    <View style={profileCardStyles.postCard}>
+      {/* Content row: avatar + content */}
+      <View style={profileCardStyles.contentRow}>
+        <TouchableOpacity onPress={() => {
+              if (post.authorId !== currentUser?.uid) {
+                navigation.navigate('UserProfile', { userId: post.authorId });
+              } else {
+                navigation.navigate('ProfileSelf');
+              }
+            }} activeOpacity={0.7} hitSlop={8}>
+          <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
+        </TouchableOpacity>
+        <TouchableOpacity style={profileCardStyles.contentColumn} activeOpacity={0.7} onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
+          <View style={profileCardStyles.headerRow}>
+            <TouchableOpacity onPress={() => {
+              if (post.authorId !== currentUser?.uid) {
+                navigation.navigate('UserProfile', { userId: post.authorId });
+              } else {
+                navigation.navigate('ProfileSelf');
+              }
+            }} activeOpacity={0.7} style={profileCardStyles.headerNameRow}>
+              <Text style={profileCardStyles.displayName} numberOfLines={1}>
+                {post.authorDisplayName || post.authorUsername || 'User'}
+              </Text>
+              <VerifiedBadge badge={post.authorBadge} isVerified={post.authorIsVerified} size={16} />
+              <Text style={profileCardStyles.username}>@{post.authorUsername || 'user'}</Text>
+              <Text style={profileCardStyles.dot}>·</Text>
+              <Text style={profileCardStyles.time}>{timeAgo(post.createdAt)}</Text>
+            </TouchableOpacity>
+            {isOwnPost && (
+              <TouchableOpacity
+                style={profileCardStyles.moreBtn}
+                onPress={() => Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+                ])}
+              >
+                <Ionicons name="ellipsis-horizontal" size={18} color="#94a3b8" />
+              </TouchableOpacity>
+            )}
+          </View>
+          {post.caption ? <HighlightedCaption text={post.caption} style={profileCardStyles.caption} /> : null}
+          {(post.mediaUrls?.length > 0) && (
+            <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
+              <View style={profileCardStyles.mediaContainer}>
+                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" />
+              </View>
+            </TouchableOpacity>
+          )}
+          {/* Action bar — exact match to FeedScreen PostCard */}
+          <View style={profileCardStyles.actions}>
+            {/* Comment */}
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
+              <View style={profileCardStyles.actionIconWrap}>
+                <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
+              </View>
+              {formatCount(post.commentCount) ? <Text style={profileCardStyles.actionCount}>{formatCount(post.commentCount)}</Text> : null}
+            </TouchableOpacity>
+            {/* Repost */}
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleRepostPress}>
+              <View style={profileCardStyles.actionIconWrap}>
+                <RepostIcon size={18} color={isReposted ? '#00ba7c' : '#94a3b8'} />
+              </View>
+              {localRepostCount > 0 ? <Text style={[profileCardStyles.actionCount, isReposted && { color: '#00ba7c' }]}>{localRepostCount}</Text> : null}
+            </TouchableOpacity>
+            {/* Like */}
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
+              <View style={profileCardStyles.actionIconWrap}>
+                {post.liked ? (
+                  <Ionicons name="heart" size={18} color="#f43f5e" />
+                ) : (
+                  <Ionicons name="heart-outline" size={18} color="#94a3b8" />
+                )}
+              </View>
+              {post.likeCount > 0 ? <Text style={[profileCardStyles.actionCount, post.liked && { color: '#f43f5e' }]}>{post.likeCount}</Text> : null}
+            </TouchableOpacity>
+            {/* Views */}
+            <TouchableOpacity style={profileCardStyles.actionBtn} disabled>
+              <View style={profileCardStyles.actionIconWrap}>
+                <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+              </View>
+            </TouchableOpacity>
+            {/* Bookmark + Share */}
+            <View style={profileCardStyles.actionPair}>
+              <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleBookmarkPress}>
+                <View style={profileCardStyles.actionIconWrap}>
+                  {isBookmarked ? (
+                    <Ionicons name="bookmark" size={18} color={colors.bookmark} />
+                  ) : (
+                    <Ionicons name="bookmark-outline" size={18} color="#94a3b8" />
+                  )}
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleShare}>
+                <View style={profileCardStyles.actionIconWrap}>
+                  <Ionicons name="share-outline" size={18} color="#94a3b8" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+      {/* Double-tap heart overlay */}
+      {showHeart && (
+        <View style={profileCardStyles.heartOverlay} pointerEvents="none">
+          <Ionicons name="heart" size={80} color="rgba(249,24,128,0.85)" />
+        </View>
+      )}
+    </View>
+  );
+});
+
+const { width: SCREEN_W } = Dimensions.get('window');
+
+const profileCardStyles = StyleSheet.create({
+  postCard: {
+    backgroundColor: colors.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  contentRow: { flexDirection: 'row', gap: 12 },
+  contentColumn: { flex: 1, minWidth: 0, position: 'relative' },
+  headerRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerNameRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flex: 1, flexWrap: 'nowrap', overflow: 'hidden',
+  },
+  moreBtn: {
+    position: 'absolute',
+    top: 0,
+    right: -8,
+    width: 32, height: 32,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: 16,
+  },
+  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
+  username: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  dot: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  time: { color: '#71767b', fontSize: 15, lineHeight: 20 },
+  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
+  mediaContainer: {
+    marginTop: 12, borderRadius: 16, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+  },
+  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#000000' },
+  actions: {
+    flexDirection: 'row', alignItems: 'center',
+    marginTop: 8, marginLeft: -4, maxWidth: 440,
+    justifyContent: 'space-between',
+  },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
+  actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  actionCount: { color: '#71767b', fontSize: 13, lineHeight: 16, marginLeft: 1 },
+  heartOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center', zIndex: 10,
+  },
+  replyingTo: {
+    color: '#71767b',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  replyingToName: {
+    color: '#3b82f6',
+  },
+  replyContextCaption: {
+    color: '#94a3b8',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  /* Parent post media shown in reply cards */
+  replyMediaContainer: {
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  replyMedia: {
+    width: '100%',
+    height: Math.min(SCREEN_W * 0.65, 380),
+    backgroundColor: '#000000',
+  },
+});
+
+function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, onComment }: {
+  posts: Post[]; navigation: any;
+  onLike: (id: string, liked: boolean) => void;
+  onBookmark: (id: string, bookmarked: boolean) => void;
+  onDelete: (id: string) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onComment: (id: string, caption?: string) => void;
+}) {
+  if (posts.length === 0) return (
+    <View style={{ alignItems: 'center', paddingTop: 60 }}>
+      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No posts yet</Text>
+    </View>
+  );
+  return (
+    <View>
+      {posts.map(post => (
+        <ProfilePostCard key={post.id} post={post} onLike={onLike} onBookmark={onBookmark} onDelete={onDelete} onRepost={onRepost} onComment={onComment} navigation={navigation} />
+      ))}
+    </View>
+  );
+}
+
+function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: any }) {
+  const [likeMap, setLikeMap] = useState<Record<string, boolean>>({});
+  const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
+  const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
+
+  // Filter out self-replies (user replying to their own post)
+  const filteredReplies = replies.filter(r =>
+    r.authorUsername.toLowerCase() !== r.postAuthorUsername.toLowerCase()
+  );
+
+  if (filteredReplies.length === 0) return (
+    <View style={{ alignItems: 'center', paddingTop: 60 }}>
+      <Ionicons name="chatbubble-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
+      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No replies yet</Text>
+    </View>
+  );
+  return (
+    <View>
+      {filteredReplies.map(reply => {
+        const isSelfReply = reply.authorUsername.toLowerCase() === reply.postAuthorUsername.toLowerCase();
+        return (
+        <View key={reply.id} style={profileCardStyles.postCard}>
+          <View style={profileCardStyles.contentRow}>
+            <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={40} />
+            <View style={profileCardStyles.contentColumn}>
+              <View style={profileCardStyles.headerNameRow}>
+                <Text style={profileCardStyles.displayName} numberOfLines={1}>
+                  {reply.authorDisplayName || reply.authorUsername}
+                </Text>
+                <VerifiedBadge badge={reply.authorBadge} isVerified={reply.authorIsVerified} size={16} />
+                <Text style={profileCardStyles.username}>@{reply.authorUsername}</Text>
+                <Text style={profileCardStyles.dot}>·</Text>
+                <Text style={profileCardStyles.time}>{timeAgo(reply.createdAt)}</Text>
+              </View>
+              {!isSelfReply && (
+                <Text style={profileCardStyles.replyingTo}>
+                  Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
+                </Text>
+              )}
+              <Text style={profileCardStyles.caption}>{reply.content}</Text>
+              {/* Show parent post media if available */}
+              {reply.postMediaUrls?.length > 0 && (
+                <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
+                  <View style={profileCardStyles.replyMediaContainer}>
+                    <Image source={{ uri: reply.postMediaUrls[0] }} style={profileCardStyles.replyMedia} resizeMode="cover" />
+                  </View>
+                </TouchableOpacity>
+              )}
+              <View style={profileCardStyles.actions}>
+                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <RepostIcon size={18} color={repostMap[reply.id] ? '#00ba7c' : '#94a3b8'} />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <Ionicons name={likeMap[reply.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[reply.id] ? '#f43f5e' : '#94a3b8'} />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={profileCardStyles.actionBtn}>
+                  <View style={profileCardStyles.actionIconWrap}>
+                    <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+                  </View>
+                </TouchableOpacity>
+                <View style={profileCardStyles.actionPair}>
+                  <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
+                    <View style={profileCardStyles.actionIconWrap}>
+                      <Ionicons name={bookmarkMap[reply.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[reply.id] ? colors.bookmark : '#94a3b8'} />
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={profileCardStyles.actionBtn}>
+                    <View style={profileCardStyles.actionIconWrap}>
+                      <Ionicons name="share-outline" size={18} color="#94a3b8" />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    })}
+    </View>
+  );
+}
+
+function LikedPostsGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, onComment }: {
+  posts: Post[]; navigation: any;
+  onLike: (id: string, liked: boolean) => void;
+  onBookmark: (id: string, bookmarked: boolean) => void;
+  onDelete: (id: string) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onComment: (id: string, caption?: string) => void;
+}) {
+  if (posts.length === 0) return (
+    <View style={{ alignItems: 'center', paddingTop: 60 }}>
+      <Ionicons name="heart-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
+      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No liked posts yet</Text>
+    </View>
+  );
+  return <PostGrid posts={posts} navigation={navigation} onLike={onLike} onBookmark={onBookmark} onDelete={onDelete} onRepost={onRepost} onComment={onComment} />;
+}
+
+type ProfileTab = 'posts' | 'replies' | 'likes';
 
 export default function UserProfileScreen({ navigation, route }: any) {
   const { userId } = route.params || {};
@@ -43,11 +482,16 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
+  const [tab, setTab] = useState<ProfileTab>('posts');
   const [refreshing, setRefreshing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
   const [profileAd, setProfileAd] = useState<any>(null);
+  const insets = useSafeAreaInsets();
+  const [likedPosts, setLikedPosts] = useState<Post[]>([]);
+  const [replies, setReplies] = useState<Reply[]>([]);
+  const [tabLoading, setTabLoading] = useState(false);
+  const [interactionsChecked, setInteractionsChecked] = useState(false);
 
   // Fetch one active ad campaign for profile banner
   useEffect(() => {
@@ -70,8 +514,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
         firestore().collection('follows').where('followingId', '==', userId).get(),
         firestore().collection('follows').where('followerId', '==', userId).get(),
         currentUid ? checkFollowing(userId) : Promise.resolve(false),
-        // No .orderBy('createdAt', 'desc') — composite index may not exist.
-        // Sort client-side instead (same as ProfileScreen strategy).
         firestore()
           .collection('posts')
           .where('authorId', '==', userId)
@@ -107,6 +549,39 @@ export default function UserProfileScreen({ navigation, route }: any) {
       // Sort client-side by createdAt descending
       userPosts.sort((a, b) => b.createdAt - a.createdAt);
       setPosts(userPosts);
+
+      // Batch check interactions for current user
+      if (currentUid && userPosts.length > 0) {
+        const postIds = userPosts.map(p => p.id);
+        const likedIds = new Set<string>();
+        const bookmarkedIds = new Set<string>();
+        const repostedIds = new Set<string>();
+
+        for (let i = 0; i < postIds.length; i += 30) {
+          const chunk = postIds.slice(i, i + 30);
+          try {
+            const promises = chunk.flatMap(postId => [
+              firestore().collection('post_likes').doc(`${postId}_${currentUid}`).get()
+                .then(snap => { if (snap.exists) likedIds.add(postId); }).catch(() => {}),
+              firestore().collection('post_bookmarks').doc(`${postId}_${currentUid}`).get()
+                .then(snap => { if (snap.exists) bookmarkedIds.add(postId); }).catch(() => {}),
+              firestore().collection('post_reposts').doc(`${postId}_${currentUid}`).get()
+                .then(snap => { if (snap.exists) repostedIds.add(postId); }).catch(() => {}),
+            ]);
+            await Promise.all(promises);
+          } catch (e) {
+            console.warn('[UserProfile] Interaction check failed:', e);
+          }
+        }
+
+        for (const post of userPosts) {
+          post.liked = likedIds.has(post.id);
+          post.bookmarked = bookmarkedIds.has(post.id);
+          post.reposted = repostedIds.has(post.id);
+        }
+        setPosts([...userPosts]);
+        setInteractionsChecked(true);
+      }
     } catch (e) {
       console.warn('[UserProfileScreen] load error:', e);
     }
@@ -115,6 +590,114 @@ export default function UserProfileScreen({ navigation, route }: any) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load replies when replies tab is active
+  useEffect(() => {
+    if (tab !== 'replies' || !userId) return;
+    setTabLoading(true);
+    (async () => {
+      try {
+        const snap = await firestore()
+          .collection('post_comments')
+          .where('authorId', '==', userId)
+          .limit(30)
+          .get();
+        const replyList: Reply[] = [];
+        for (const d of snap.docs) {
+          const data = d.data();
+          const postId = data.postId || '';
+          let postCaption = '';
+          let postMediaUrls: string[] = [];
+          let postAuthorUsername = '';
+          let postAuthorDisplayName = '';
+          if (postId) {
+            try {
+              const postSnap = await firestore().collection('posts').doc(postId).get();
+              if (postSnap.exists) {
+                const pd = postSnap.data();
+                postCaption = pd.caption || '';
+                postMediaUrls = parseMediaUrls(pd.mediaUrls);
+                postAuthorUsername = pd.authorUsername || '';
+                postAuthorDisplayName = pd.authorDisplayName || '';
+              }
+            } catch { /* skip if post not found */ }
+          }
+          replyList.push({
+            id: d.id,
+            postId,
+            postCaption,
+            postMediaUrls,
+            postAuthorUsername,
+            postAuthorDisplayName,
+            content: data.content || '',
+            authorUsername: data.authorUsername || '',
+            authorDisplayName: data.authorDisplayName || '',
+            authorProfileImage: data.authorProfileImage || '',
+            authorIsVerified: data.authorIsVerified || false,
+            authorBadge: data.authorBadge || '',
+            createdAt: tsToMillis(data.createdAt),
+          });
+        }
+        replyList.sort((a, b) => b.createdAt - a.createdAt);
+        setReplies(replyList);
+      } catch (e: any) {
+        console.error('[UserProfileScreen] Failed to load replies:', e?.message);
+        setReplies([]);
+      } finally {
+        setTabLoading(false);
+      }
+    })();
+  }, [tab, userId]);
+
+  // Load liked posts when likes tab is active
+  useEffect(() => {
+    if (tab !== 'likes' || !userId) return;
+    setTabLoading(true);
+    (async () => {
+      try {
+        const likesSnap = await firestore()
+          .collection('post_likes')
+          .where('userId', '==', userId)
+          .limit(20)
+          .get();
+
+        if (likesSnap.empty) {
+          setLikedPosts([]);
+          setTabLoading(false);
+          return;
+        }
+
+        const postIds = [...new Set(likesSnap.docs.map(d => d.data().postId).filter(Boolean))];
+        const allPosts: Post[] = [];
+
+        for (const postId of postIds) {
+          try {
+            const postSnap = await firestore().collection('posts').doc(postId).get();
+            if (postSnap.exists) {
+              const data = postSnap.data();
+              allPosts.push({
+                id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
+                authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
+                authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
+                caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
+                likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
+                repostCount: data.repostCount || 0, liked: true, bookmarked: false, reposted: false,
+                createdAt: tsToMillis(data.createdAt),
+              });
+            }
+          } catch { /* skip */ }
+        }
+
+        allPosts.sort((a, b) => b.createdAt - a.createdAt);
+        setLikedPosts(allPosts);
+      } catch (e: any) {
+        console.error('[UserProfileScreen] Failed to load liked posts:', e?.message);
+        setLikedPosts([]);
+      } finally {
+        setTabLoading(false);
+      }
+    })();
+  }, [tab, userId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -139,14 +722,11 @@ export default function UserProfileScreen({ navigation, route }: any) {
     if (!currentUid || messageLoading) return;
     setMessageLoading(true);
     try {
-      // ── Check target user's DM permission setting ──
       const dmPermission = await getUserDmPermission(userId);
 
       if (dmPermission === 'paid') {
-        // Check if user already has paid access
         const paid = await hasPaidChatAccess(currentUid, userId);
         if (paid) {
-          // Already paid — proceed to chat directly
           const snap1 = await firestore().collection('chats').where('user1Id', '==', currentUid).get();
           const existing = snap1.docs.find(d => d.data().user2Id === userId);
           if (existing) {
@@ -170,7 +750,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
             }
           }
         } else {
-          // Not paid — navigate to paid chat screen
           const chatPrice = await getPaidChatPrice(userId);
           navigation.navigate('PaidChat' as never, { targetUserId: userId, chatPrice } as never);
         }
@@ -178,7 +757,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
       }
 
       if (dmPermission === 'followers') {
-        // Check if current user follows the target
         const follows = await checkFollowing(userId);
         if (!follows) {
           Alert.alert('Follow Required', 'You need to follow this user to send them a message.');
@@ -187,7 +765,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
         }
       }
 
-      // DM permission is "all" or "followers" (and user follows) — proceed normally
       const snap1 = await firestore().collection('chats').where('user1Id', '==', currentUid).get();
       const existing = snap1.docs.find(d => d.data().user2Id === userId);
       if (existing) {
@@ -198,7 +775,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
         if (existing2) {
           navigation.navigate('ChatRoom' as never, { chatId: existing2.id } as never);
         } else {
-          // Create a new chat
           const chatRef = await firestore().collection('chats').add({
             user1Id: currentUid,
             user2Id: userId,
@@ -217,10 +793,37 @@ export default function UserProfileScreen({ navigation, route }: any) {
     setMessageLoading(false);
   }, [currentUid, userId, messageLoading, navigation]);
 
-  const formatCount = (n: number): string => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return n.toString();
+  // Interaction handlers
+  const handleLike = async (postId: string, liked: boolean) => {
+    setPosts(prev => prev.map(p => p.id === postId
+      ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
+      : p));
+    try { await toggleLike(postId, liked); } catch {}
+  };
+
+  const handleBookmark = async (postId: string, bookmarked: boolean) => {
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, bookmarked: !bookmarked } : p));
+    try { await toggleBookmark(postId, bookmarked); } catch {}
+  };
+
+  const handleRepost = async (postId: string, reposted: boolean) => {
+    setPosts(prev => prev.map(p => p.id === postId
+      ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
+      : p));
+    try { await toggleRepost(postId, reposted); } catch {}
+  };
+
+  const handleComment = (postId: string, caption?: string) => {
+    navigation.navigate('PostComments', { postId, postCaption: caption || '' });
+  };
+
+  const handleDelete = async (postId: string) => {
+    try {
+      await firestore().collection('posts').doc(postId).delete();
+      setPosts(prev => prev.filter(p => p.id !== postId));
+    } catch {
+      Alert.alert('Error', 'Failed to delete post');
+    }
   };
 
   if (!user) {
@@ -232,6 +835,8 @@ export default function UserProfileScreen({ navigation, route }: any) {
   }
 
   const isOwnProfile = currentUid === userId;
+
+  const tabs: ProfileTab[] = ['posts', 'replies', 'likes'];
 
   return (
     <View style={styles.container}>
@@ -254,7 +859,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
           {/* Back button */}
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.backButton, { top: (insets.top || 50) + 4 }]}
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
           >
@@ -352,53 +957,31 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
         {/* Tab Bar */}
         <View style={styles.tabBar}>
-          {(['posts', 'replies'] as ProfileTab[]).map((tab) => (
+          {tabs.map((t) => (
             <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === tab && styles.tabActive]}
-              onPress={() => setActiveTab(tab)}
+              key={t}
+              style={styles.tab}
+              onPress={() => setTab(t)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'posts' ? 'Posts' : 'Replies'}
+              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
               </Text>
-              {activeTab === tab && <View style={styles.tabIndicator} />}
+              {tab === t && <View style={styles.tabIndicator} />}
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Posts Grid */}
-        {activeTab === 'posts' && (
-          <View style={styles.postsGrid}>
-            {posts.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No posts yet</Text>
-              </View>
-            ) : (
-              posts.map((post) => (
-                <TouchableOpacity key={post.id} style={styles.postCard}>
-                  <View style={styles.postCardInner}>
-                    <Text style={styles.postCaption} numberOfLines={3}>{post.caption}</Text>
-                    {post.mediaUrls?.length > 0 && (
-                      <Image source={{ uri: post.mediaUrls[0] }} style={styles.postThumb} />
-                    )}
-                  </View>
-                  <View style={styles.postStats}>
-                    <Text style={styles.postStat}>🤍 {post.likeCount}</Text>
-                    <Text style={styles.postStat}>💬 {post.commentCount}</Text>
-                    <Text style={styles.postStat}>🔁 {post.repostCount}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            )}
+        {/* Tab Content */}
+        {tabLoading ? (
+          <View style={{ paddingTop: 40, alignItems: 'center' }}>
+            <ActivityIndicator color={colors.accent} />
           </View>
+        ) : tab === 'posts' && (
+          <PostGrid posts={posts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />
         )}
-
-        {activeTab === 'replies' && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No replies yet</Text>
-          </View>
-        )}
+        {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
+        {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -417,9 +1000,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  /* web: h-32 bg-[#000000] relative overflow-hidden */
   coverContainer: {
-    height: 128,  // web: h-32 = 128px
+    height: 128,
     width: '100%',
     position: 'relative',
   },
@@ -437,18 +1019,16 @@ const styles = StyleSheet.create({
     fontSize: 60,
     fontWeight: '800',
   },
-  /* ── Avatar size — web: PAvatar size={80} ring-4 ring-black ── */
   coverGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 40,  // subtle gradient
+    height: 40,
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   backButton: {
     position: 'absolute',
-    top: 50,
     left: 16,
     width: 36,
     height: 36,
@@ -462,14 +1042,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: colors.white,
   },
-  /* web: PAvatar size={80} className="ring-4 ring-[#000000]" positioned -mt-8 */
   profileImageContainer: {
-    marginTop: -32,  // web: -mt-8 = -32px
-    marginHorizontal: 20,  // web: px-5 = 20px
+    marginTop: -32,
+    marginHorizontal: 20,
   },
   userInfoSection: {
-    /* web: px-5 pb-4 border-b border-white/[0.06] */
-    paddingHorizontal: 20,  // web: px-5 = 20px
+    paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 16,
     borderBottomWidth: 1,
@@ -480,13 +1058,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  /* ── Display name — web: text-xl font-bold text-[#e7e9ea] ── */
   displayName: {
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
   },
-  /* ── Username — web: text-[15px] text-[#94a3b8] ── */
   username: {
     fontSize: 15,
     color: '#94a3b8',
@@ -521,21 +1097,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
     gap: 12,
   },
-  /* ── Follow button — web: not following bg-[#e7e9ea] text-black, following border border-[#64748b] text-[#e7e9ea] ── */
   followBtn: {
     flex: 1,
     height: 44,
-    borderRadius: 22, // web: rounded-full
-    backgroundColor: '#e7e9ea', // web: bg-[#e7e9ea]
+    borderRadius: 22,
+    backgroundColor: '#e7e9ea',
     justifyContent: 'center',
     alignItems: 'center',
   },
   followingBtn: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#64748b', // web: border-[#64748b]
+    borderColor: '#64748b',
   },
-  /* ── Follow button — web: px-6 py-2 rounded-full text-[15px] font-bold ── */
   followBtnText: {
     fontSize: 15,
     fontWeight: '700',
@@ -544,7 +1118,6 @@ const styles = StyleSheet.create({
   followingBtnText: {
     color: '#e7e9ea',
   },
-  /* ── Message button — web: px-5 py-2 rounded-full border border-[#FFFFFF]/40 text-[#FFFFFF] font-bold ── */
   messageBtn: {
     flex: 1,
     height: 44,
@@ -560,21 +1133,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  /* ── Tab bar — web: sticky border-b border-white/[0.06] ── */
   tabBar: {
     flexDirection: 'row',
     borderBottomWidth: 0.5,
-    borderBottomColor: colors.separator,
-    marginTop: 16,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#000000',
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
-    position: 'relative',
+    position: 'relative' as const,
   },
-  tabActive: {},
-  /* ── Tab text — web: text-[15px] font-medium, active font-bold text-[#e7e9ea] ── */
   tabText: {
     fontSize: 15,
     fontWeight: '500',
@@ -584,52 +1154,14 @@ const styles = StyleSheet.create({
     color: '#e7e9ea',
     fontWeight: '700',
   },
-  /* ── Tab indicator — web: absolute bottom-0 h-1 bg-[#FFFFFF] rounded-full ── */
   tabIndicator: {
-    position: 'absolute',
+    position: 'absolute' as const,
     bottom: 0,
-    width: '60%',
-    height: 3,
+    left: 24,
+    right: 24,
+    height: 1,
+    borderRadius: 0.5,
     backgroundColor: '#FFFFFF',
-    borderRadius: 2,
-  },
-  postsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 1,
-  },
-  postCard: {
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-  },
-  postCardInner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingHorizontal: 16,
-  },
-  postCaption: {
-    color: colors.text,
-    fontSize: 14,
-    flex: 1,
-    lineHeight: 20,
-  },
-  postThumb: {
-    width: 72,
-    height: 72,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-  },
-  postStats: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 8,
-    paddingHorizontal: 16,
-  },
-  postStat: {
-    color: colors.textSecondary,
-    fontSize: 13,
   },
   emptyState: {
     paddingVertical: 60,
@@ -641,7 +1173,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
   },
-  /* ── Profile Ad Banner ── */
   adBanner: {
     marginHorizontal: 16,
     marginTop: 16,

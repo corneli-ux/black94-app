@@ -151,7 +151,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       return (
         <Ionicons
           {...iconProps}
-          name={focused ? 'film' : 'film-outline'}
+          name={focused ? 'add-circle' : 'add-circle-outline'}
         />
       );
     default:

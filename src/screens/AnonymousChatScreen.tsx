@@ -809,7 +809,7 @@ export default function AnonymousChatScreen() {
   // ── Render: Sign-in required ────────────────────────────────────────────
   if (!myUserId) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.landingContainer}>
           <View style={styles.landingIcon}>
             <Ionicons name="eye-off-outline" size={64} color={colors.accent} />
@@ -827,7 +827,7 @@ export default function AnonymousChatScreen() {
   // ── Render: Loading chat count ──────────────────────────────────────────
   if (anonChatCount === null) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.landingContainer}>
           <ActivityIndicator size="large" color={colors.accent} />
         </View>
@@ -841,7 +841,7 @@ export default function AnonymousChatScreen() {
 
   if (!canUseAnonChat) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.paywallContainer}>
           <View style={styles.paywallIconWrap}>
             <Ionicons name="eye-off-outline" size={56} color={colors.accent} />
@@ -892,7 +892,7 @@ export default function AnonymousChatScreen() {
   // ── Render: Landing ─────────────────────────────────────────────────────
   if (chatState === 'landing') {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.landingContainer}>
           <View style={styles.landingIcon}>
             <Ionicons name="eye-off-outline" size={64} color={colors.accent} />
@@ -936,7 +936,7 @@ export default function AnonymousChatScreen() {
   // ── Render: Searching ───────────────────────────────────────────────────
   if (chatState === 'searching') {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.searchContainer}>
           <Text style={styles.searchYourName}>@{myName}</Text>
           <View style={styles.searchSpinner}>
@@ -971,7 +971,7 @@ export default function AnonymousChatScreen() {
 
   // ── Render: Connected (Chat) ────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.chatContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

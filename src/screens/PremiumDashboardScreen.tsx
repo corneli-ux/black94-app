@@ -54,7 +54,6 @@ interface UsageStats {
 
 const FEATURES: FeatureRow[] = [
   { feature: 'Shop products', free: '0', premium: '50', business: 'Unlimited' },
-  { feature: 'CRM leads', free: false, premium: '100', business: 'Unlimited' },
   { feature: 'Analytics', free: false, premium: true, business: true },
   { feature: 'Priority support', free: false, premium: true, business: true },
   { feature: 'Ads (paid)', free: false, premium: true, business: true },
@@ -338,7 +337,7 @@ export default function PremiumDashboardScreen() {
   // ── Loading state ──
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer} edges={['bottom']}>
+      <SafeAreaView style={styles.loadingContainer} edges={['top', 'bottom']}>
         <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
@@ -346,7 +345,7 @@ export default function PremiumDashboardScreen() {
 
   // ── Render ──
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
@@ -524,21 +523,21 @@ export default function PremiumDashboardScreen() {
               <View style={styles.tableCol}>
                 <Text style={styles.tableCellValue}>
                   {typeof feat.free === 'boolean'
-                    ? feat.free ? '✅' : '❌'
+                    ? feat.free ? '✓' : '–'
                     : feat.free}
                 </Text>
               </View>
               <View style={styles.tableCol}>
                 <Text style={styles.tableCellValue}>
                   {typeof feat.premium === 'boolean'
-                    ? feat.premium ? '✅' : '❌'
+                    ? feat.premium ? '✓' : '–'
                     : feat.premium}
                 </Text>
               </View>
               <View style={styles.tableCol}>
                 <Text style={styles.tableCellValue}>
                   {typeof feat.business === 'boolean'
-                    ? feat.business ? '✅' : '❌'
+                    ? feat.business ? '✓' : '–'
                     : feat.business}
                 </Text>
               </View>
@@ -608,7 +607,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingTop: 20,
+    paddingTop: 12,
     paddingHorizontal: 16,
     paddingBottom: 40,
   },
