@@ -264,7 +264,7 @@ const profileCardStyles = StyleSheet.create({
     marginTop: 12, borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
-  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#111' },
+  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#000000' },
   actions: {
     flexDirection: 'row', alignItems: 'center',
     marginTop: 8, marginLeft: -4, maxWidth: 440,
@@ -309,7 +309,7 @@ const profileCardStyles = StyleSheet.create({
   replyMedia: {
     width: '100%',
     height: Math.min(SCREEN_W * 0.65, 380),
-    backgroundColor: '#111',
+    backgroundColor: '#000000',
   },
 });
 
@@ -965,8 +965,8 @@ const styles = StyleSheet.create({
   /* Cover: h-32 = 128px */
   coverWrap: { height: 128, width: '100%', overflow: 'hidden', backgroundColor: '#000000' },
   cover: { width: '100%', height: '100%' },
-  /* Fallback: gradient from-[#1a2a1a] to-[#110f1a] → simple solid */
-  coverPlaceholder: { backgroundColor: '#110f1a' }, /* TODO: LinearGradient when expo-linear-gradient added */
+  /* Fallback: solid black */
+  coverPlaceholder: { backgroundColor: '#000000' },
   /* web: flex items-end justify-between px-5 -mt-8 mb-3 */
   avatarRow: {
     flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
@@ -1037,7 +1037,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#111111',
+    backgroundColor: '#000000',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',

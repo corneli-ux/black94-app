@@ -376,7 +376,7 @@ export default function ChatListScreen({ navigation }: any) {
     >
       <KeyboardAvoidingView
         style={styles.composeModalContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <SafeAreaView edges={['top']} style={{ flex: 1 }}>
           {/* Modal Header */}

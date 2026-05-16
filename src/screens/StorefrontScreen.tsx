@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Dimensions,  } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -175,7 +175,7 @@ export default function StorefrontScreen({ route, navigation }: any) {
           {owner?.coverImage ? (
             <Image source={{ uri: owner.coverImage }} style={styles.cover} resizeMode="cover" />
           ) : (
-            <View style={[styles.cover, { backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' }]}>
+            <View style={[styles.cover, { backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' }]}>
               <Text style={{ color: 'rgba(255,255,255,0.08)', fontSize: 60, fontWeight: '800' }}>B94</Text>
             </View>
           )}
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   backArrow: { color: colors.text, fontSize: 22 },
   headerTitle: { color: colors.text, fontWeight: '700', fontSize: 16, flex: 1, textAlign: 'center', marginHorizontal: 8 },
-  coverWrap: { height: 140, width: '100%', overflow: 'hidden', backgroundColor: '#111' },
+  coverWrap: { height: 140, width: '100%', overflow: 'hidden', backgroundColor: '#000000' },
   cover: { width: '100%', height: '100%' },
   infoSection: { paddingHorizontal: 16, paddingTop: 8 },
   storeName: { color: colors.text, fontSize: 20, fontWeight: '800' },
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     width: CARD_W, backgroundColor: colors.surface, borderRadius: 12, overflow: 'hidden',
     marginBottom: CARD_GAP,
   },
-  cardImage: { width: '100%', aspectRatio: 1, backgroundColor: '#1a1a1a' },
+  cardImage: { width: '100%', aspectRatio: 1, backgroundColor: '#000000' },
   cardImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   cardBody: { padding: 8 },
   cardName: { color: colors.text, fontSize: 13, fontWeight: '600', lineHeight: 18, marginBottom: 4 },

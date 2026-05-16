@@ -297,7 +297,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
           resizeMode="cover"
         />
       ) : (
-        <View style={[styles.gradientBg, { backgroundColor: '#1a1a2e' }]} />
+        <View style={[styles.gradientBg, { backgroundColor: '#000000' }]} />
       )}
 
       {/* Dark overlay */}

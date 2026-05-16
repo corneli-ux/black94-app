@@ -58,7 +58,7 @@ export const PLANS: PaymentPlan[] = [
   {
     id: 'premium',
     name: 'Premium',
-    amount: 44900, // ₹449/month
+    amount: 52000, // ₹520/month (₹449 + 15% Google commission, rounded)
     currency: 'INR',
     duration: 'monthly',
     features: [
@@ -77,7 +77,7 @@ export const PLANS: PaymentPlan[] = [
   {
     id: 'business',
     name: 'Business',
-    amount: 159900, // ₹1599/month
+    amount: 185000, // ₹1850/month (₹1599 + 15% Google commission, rounded)
     currency: 'INR',
     duration: 'monthly',
     features: [
@@ -141,14 +141,14 @@ export async function verifyAndActivateSubscription(
   const currentUid = auth()?.currentUser?.uid;
   if (!currentUid) throw new Error('Not authenticated');
 
-  // ── Determine badge & role based on plan ──
-  const badge = planId === 'business' ? 'gold' : 'blue';
+  // ── Determine role based on plan (badges removed per platform decision) ──
+  const badge = ''; // No badge assigned — badges removed per platform decision
   const role = planId === 'business' ? 'business' : undefined;
 
   // ── 1. Update the user document ──
   const userUpdate: Record<string, any> = {
     subscription: planId,
-    badge,
+    // badge intentionally not set — platform decision to remove verification badges
     updatedAt: firestore.FieldValue.serverTimestamp(),
   };
 
@@ -161,7 +161,7 @@ export async function verifyAndActivateSubscription(
     .doc(userId)
     .update(userUpdate);
 
-  console.log(`[Payments] Updated user ${userId}: subscription=${planId}, badge=${badge}`);
+  console.log(`[Payments] Updated user ${userId}: subscription=${planId}`);
 
   // ── 2. Create subscription record ──
   const plan = PLANS.find((p) => p.id === planId);

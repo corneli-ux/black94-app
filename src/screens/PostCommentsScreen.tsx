@@ -225,7 +225,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
       {/* Header */}
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   /* ── Ad Card (inline in comments) ── */
   adCard: {
-    backgroundColor: '#111111',
+    backgroundColor: '#000000',
     marginHorizontal: 16,
     marginVertical: 8,
     paddingHorizontal: 16,

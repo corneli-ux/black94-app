@@ -1083,7 +1083,7 @@ const styles = StyleSheet.create({
   media: {
     width: '100%',
     height: Math.min(SCREEN_W * 0.85, 510),
-    backgroundColor: '#111',
+    backgroundColor: '#000000',
   },
 
   /* ── Action bar — X/Twitter exact spacing ── */

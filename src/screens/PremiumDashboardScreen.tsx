@@ -608,7 +608,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: 16,
+    paddingTop: 20,
+    paddingHorizontal: 16,
     paddingBottom: 40,
   },
 
@@ -634,13 +635,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Roboto-Bold',
   },
   planStatus: {
     fontSize: 13,
     color: colors.textMuted,
     marginTop: 2,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Roboto-Regular',
   },
   planBadge: {
     flexDirection: 'row',
@@ -654,7 +655,7 @@ const styles = StyleSheet.create({
   planBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: 'Roboto-Bold',
   },
   badgeInfoRow: {
     flexDirection: 'row',
@@ -669,7 +670,7 @@ const styles = StyleSheet.create({
   badgeInfoText: {
     fontSize: 13,
     fontWeight: '500',
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Roboto-Medium',
   },
 
   // ── Affiliate badges info ──
@@ -691,14 +692,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.text,
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: 'Roboto-Bold',
   },
   affiliateInfoDesc: {
     fontSize: 12,
     color: colors.textSecondary,
     lineHeight: 18,
     marginBottom: 10,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Roboto-Regular',
   },
   affiliateBadgeRow: {
     flexDirection: 'row',
@@ -718,7 +719,7 @@ const styles = StyleSheet.create({
   affiliateBadgeLabel: {
     fontSize: 12,
     color: colors.textSecondary,
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Roboto-Medium',
   },
 
   // ── Upgrade buttons ──
@@ -738,13 +739,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.background,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Roboto-Bold',
   },
   upgradeBtnPrice: {
     fontSize: 12,
     color: colors.textMuted,
     marginTop: 2,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Roboto-Regular',
   },
   upgradeBtnOutline: {
     flex: 1,
@@ -759,13 +760,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.primary,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Roboto-Bold',
   },
   upgradeBtnOutlinePrice: {
     fontSize: 12,
     color: colors.textMuted,
     marginTop: 2,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Roboto-Regular',
   },
   billingRow: {
     flexDirection: 'row',
@@ -779,7 +780,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     flex: 1,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Roboto-Regular',
   },
 
   // ── Payment loading ──
@@ -799,7 +800,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.accentGold,
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Roboto-Medium',
   },
 
   // ── Usage ──
@@ -816,13 +817,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 14,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Roboto-Bold',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Roboto-Bold',
   },
   usageRow: {
     flexDirection: 'row',
@@ -833,7 +834,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     width: 90,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Roboto-Regular',
   },
   usageBarBg: {
     flex: 1,
@@ -852,7 +853,7 @@ const styles = StyleSheet.create({
     width: 50,
     textAlign: 'right',
     marginLeft: 8,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Roboto-Regular',
   },
 
   // ── Feature table ──
@@ -877,7 +878,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
     paddingRight: 8,
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: 'Roboto-Bold',
   },
   tableCol: {
     flex: 0.8,
@@ -886,7 +887,7 @@ const styles = StyleSheet.create({
   tableColText: {
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Roboto-Bold',
   },
   tableRow: {
     flexDirection: 'row',
@@ -904,7 +905,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     lineHeight: 16,
     marginTop: 12,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Roboto-Regular',
   },
 
   // ── Manage button ──
@@ -923,7 +924,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: colors.textSecondary,
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Roboto-Medium',
   },
 
   // ── Success modal ──
@@ -951,7 +952,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'center',
     marginBottom: 10,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Roboto-Bold',
   },
   modalDesc: {
     fontSize: 14,
@@ -959,7 +960,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Roboto-Regular',
   },
   modalBtn: {
     backgroundColor: colors.primary,
@@ -973,6 +974,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.background,
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: 'Roboto-Bold',
   },
 });

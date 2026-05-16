@@ -133,7 +133,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
     >
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.container}>
           {/* Header */}

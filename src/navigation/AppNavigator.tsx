@@ -23,10 +23,10 @@ const DarkTheme = {
     notification: '#FFFFFF',
   },
   fonts: {
-    regular: { fontFamily: 'Inter-Regular', fontWeight: '400' as const },
-    medium: { fontFamily: 'Inter-Medium', fontWeight: '500' as const },
-    bold: { fontFamily: 'Inter-Bold', fontWeight: '700' as const },
-    heavy: { fontFamily: 'Inter-Bold', fontWeight: '900' as const },
+    regular: { fontFamily: 'Roboto-Regular', fontWeight: '400' as const },
+    medium: { fontFamily: 'Roboto-Medium', fontWeight: '500' as const },
+    bold: { fontFamily: 'Roboto-Bold', fontWeight: '700' as const },
+    heavy: { fontFamily: 'Roboto-Bold', fontWeight: '900' as const },
   },
 };
 
@@ -144,14 +144,14 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       return (
         <MaterialCommunityIcons
           {...iconProps}
-          name={focused ? 'account-search' : 'account-search-outline'}
+          name={focused ? 'incognito' : 'incognito'}
         />
       );
     case 'Stories':
       return (
         <Ionicons
           {...iconProps}
-          name={focused ? 'images' : 'images-outline'}
+          name={focused ? 'film' : 'film-outline'}
         />
       );
     default:

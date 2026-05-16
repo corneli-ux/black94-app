@@ -130,6 +130,7 @@ export default function AnonymousChatScreen() {
   const [isPartnerTyping, setIsPartnerTyping] = useState(false);
   const [searchElapsed, setSearchElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [anonChatCount, setAnonChatCount] = useState<number | null>(null);
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const myUserId = auth().currentUser?.uid ?? '';
@@ -159,6 +160,24 @@ export default function AnonymousChatScreen() {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  // ── Fetch anon_chat_count from Firestore ─────────────────────────────────
+  useEffect(() => {
+    if (!myUserId) return;
+    const fetchCount = async () => {
+      try {
+        const doc = await firestore().collection('users').doc(myUserId).get();
+        if (doc.exists) {
+          setAnonChatCount(doc.data()?.anon_chat_count ?? 0);
+        } else {
+          setAnonChatCount(0);
+        }
+      } catch {
+        setAnonChatCount(0);
+      }
+    };
+    fetchCount();
+  }, [myUserId]);
 
   // ── Timer management ─────────────────────────────────────────────────────
   const startConnectionTimer = useCallback(() => {
@@ -229,6 +248,19 @@ export default function AnonymousChatScreen() {
       console.warn('[AnonChat] Failed to update room activity:', e?.message);
     }
   }, []);
+
+  // ── Firestore: increment anon_chat_count ────────────────────────────────
+  const incrementAnonChatCount = useCallback(async () => {
+    if (!myUserId) return;
+    try {
+      await firestore().collection('users').doc(myUserId).update({
+        anon_chat_count: firestore.FieldValue.increment(1),
+      });
+      setAnonChatCount(prev => (prev ?? 0) + 1);
+    } catch (e: any) {
+      console.warn('[AnonChat] Failed to increment chat count:', e?.message);
+    }
+  }, [myUserId]);
 
   // ── Firestore: set partner typing state ──────────────────────────────────
   const setMyTypingState = useCallback(async (roomId: string, typing: boolean) => {
@@ -303,6 +335,7 @@ export default function AnonymousChatScreen() {
             startConnectionTimer();
             startMessagePolling(newRoom.roomId);
             startTypingPolling(newRoom.roomId);
+            incrementAnonChatCount();
           }
           return;
         }
@@ -397,13 +430,14 @@ export default function AnonymousChatScreen() {
             startConnectionTimer();
             startMessagePolling(newRoom.roomId);
             startTypingPolling(newRoom.roomId);
+            incrementAnonChatCount();
           }
         }
       }
     } catch (e: any) {
       console.warn('[AnonChat] Queue poll error:', e?.message);
     }
-  }, [myUserId, myName, deleteOwnQueueEntry, stopSearchTimer, startConnectionTimer]);
+  }, [myUserId, myName, deleteOwnQueueEntry, stopSearchTimer, startConnectionTimer, incrementAnonChatCount]);
 
   // ── Start message polling ────────────────────────────────────────────────
   const startMessagePolling = useCallback((roomId: string) => {
@@ -774,18 +808,31 @@ export default function AnonymousChatScreen() {
     );
   }
 
-  // ── Render: Paywall (signed in but not premium/business) ────────────────
+  // ── Render: Loading chat count ──────────────────────────────────────────
+  if (anonChatCount === null) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <View style={styles.landingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Render: Paywall (free users who exceeded 10 free chats) ────────────
   const isSubscribed = user?.subscription === 'premium' || user?.subscription === 'business';
-  if (!isSubscribed) {
+  const canUseAnonChat = isSubscribed || anonChatCount < 10;
+
+  if (!canUseAnonChat) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.paywallContainer}>
           <View style={styles.paywallIconWrap}>
             <Ionicons name="eye-off-outline" size={56} color={colors.accent} />
           </View>
-          <Text style={styles.paywallTitle}>Premium Feature</Text>
+          <Text style={styles.paywallTitle}>Free Chats Used</Text>
           <Text style={styles.paywallSubtitle}>
-            Anonymous Chat is available exclusively for Premium and Business subscribers.
+            You've used your 10 free anonymous chats. Upgrade to Premium or Business for unlimited anonymous chats.
           </Text>
 
           <View style={styles.paywallBenefits}>
@@ -909,7 +956,7 @@ export default function AnonymousChatScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAvoidingView
         style={styles.chatContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}>
         {/* Header */}
         <View style={styles.chatHeader}>

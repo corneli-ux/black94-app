@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   time: { color: colors.textSecondary, fontSize: 15 },
   caption: { color: colors.text, fontSize: 15, lineHeight: 20, marginTop: 2 },
   mediaContainer: { marginTop: 12, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#111' },
+  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#000000' },
   actions: { flexDirection: 'row', alignItems: 'center', marginTop: 12, marginLeft: 0, maxWidth: 440, justifyContent: 'space-between' },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },

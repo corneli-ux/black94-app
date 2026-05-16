@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert,  } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
@@ -8,11 +8,12 @@ import { tsToMillis } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
+import { markAllNotificationsRead } from '../services/notificationEngine';
 import { Ionicons } from '@expo/vector-icons';
 
 interface Notification {
   id: string;
-  type: 'like' | 'comment' | 'follow' | 'repost' | 'mention';
+  type: 'like' | 'comment' | 'follow' | 'repost' | 'mention' | 'chat';
   actorId: string;
   actorDisplayName: string;
   actorUsername: string;
@@ -21,6 +22,7 @@ interface Notification {
   actorBadge?: string;
   postCaption?: string;
   postId?: string;
+  commentContent?: string;
   read: boolean;
   createdAt: number;
 }
@@ -31,11 +33,13 @@ function NotifTypeIcon({ type }: { type: string }) {
     : type === 'repost' ? '#10b981'
     : type === 'follow' ? '#FFFFFF'
     : type === 'comment' ? '#FFFFFF'
+    : type === 'chat' ? '#60a5fa'
     : '#94a3b8';
   const name = type === 'like' ? 'heart'
     : type === 'repost' ? 'repeat'
     : type === 'follow' ? 'person-add'
     : type === 'comment' ? 'chatbubble'
+    : type === 'chat' ? 'mail'
     : 'at';
   return <Ionicons name={name} size={16} color={color} />;
 }
@@ -51,23 +55,12 @@ export default function NotificationsScreen({ navigation }: any) {
   const markAllRead = useCallback(async () => {
     if (!currentUser) return;
     try {
-      const snap = await firestore()
-        .collection('notifications')
-        .where('recipientId', '==', currentUser.uid)
-        .where('read', '==', false)
-        .limit(100)
-        .get();
-
-      const batch: Promise<any>[] = [];
-      snap.docs.forEach(doc => {
-        batch.push(doc.ref.update({ read: true }));
-      });
-      await Promise.all(batch);
+      await markAllNotificationsRead(currentUser.uid);
       setUnreadNotificationCount(0);
     } catch (e) {
       console.warn('Failed to mark read:', e);
     }
-  }, [currentUser]);
+  }, [currentUser, setUnreadNotificationCount]);
 
   const load = async () => {
     if (!currentUser) { setLoading(false); return; }
@@ -156,6 +149,7 @@ export default function NotificationsScreen({ navigation }: any) {
             {item.type === 'follow' && ' followed you'}
             {item.type === 'repost' && ' reposted your post'}
             {item.type === 'mention' && ' mentioned you'}
+            {item.type === 'chat' && ' sent you a message'}
           </Text>
         </Text>
         {item.postCaption ? (

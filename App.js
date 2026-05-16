@@ -76,12 +76,11 @@ export default function App() {
     (async () => {
       try {
         await Font.loadAsync({
-          'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
-          'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
-          'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
-          'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
+          'Roboto-Regular': require('./assets/fonts/Roboto-Regular.ttf'),
+          'Roboto-Medium': require('./assets/fonts/Roboto-Medium.ttf'),
+          'Roboto-Bold': require('./assets/fonts/Roboto-Bold.ttf'),
         });
-        console.log('[App] Fonts loaded — Inter');
+        console.log('[App] Fonts loaded — Roboto');
       } catch (e) {
         console.warn('[App] Font loading failed, using system default:', e);
       }
@@ -197,9 +196,16 @@ export default function App() {
           }
 
           if (fbUser) {
-            setUser(null); setToken(fbUser.uid); setLoading(false);
+            // Do NOT setUser(null) here — it causes a "?" avatar flash while the
+            // profile fetch is in-flight.  Instead, fetch the profile and update.
+            // If AuthScreen already called setUser(), this enriches it; if not,
+            // it populates from scratch.  The safeUser() guard in the store
+            // ensures displayName defaults to 'User' so Avatar never shows "?".
+            setToken(fbUser.uid);
+            setLoading(false);
             fetchUserProfile(fbUser.uid).then(profile => {
               if (profile) { setUser(profile); } else {
+                // Firestore doc missing — build from Firebase auth data
                 setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
               }
               setIsReady(true);

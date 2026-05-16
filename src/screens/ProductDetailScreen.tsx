@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Alert,  } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   backArrow: { color: colors.text, fontSize: 22 },
   headerTitle: { color: colors.text, fontWeight: '700', fontSize: 16, flex: 1, textAlign: 'center', marginHorizontal: 8 },
-  mainImage: { width: SCREEN_W, height: SCREEN_W * 0.9, backgroundColor: '#1a1a1a' },
+  mainImage: { width: SCREEN_W, height: SCREEN_W * 0.9, backgroundColor: '#000000' },
   noImage: { alignItems: 'center', justifyContent: 'center' },
   imagePagination: {
     position: 'absolute', bottom: 12, left: 0, right: 0,

@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   listContent: { padding: 16 },
   separator: { height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 4 },
   cartItem: { flexDirection: 'row', gap: 12, paddingVertical: 8 },
-  itemImage: { width: 88, height: 88, borderRadius: 10, backgroundColor: '#1a1a1a' },
+  itemImage: { width: 88, height: 88, borderRadius: 10, backgroundColor: '#000000' },
   itemImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   itemDetails: { flex: 1, justifyContent: 'center' },
   itemName: { color: '#e7e9ea', fontSize: 15, fontWeight: '600', lineHeight: 21, marginBottom: 2 },

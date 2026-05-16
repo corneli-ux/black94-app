@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   coverPlaceholder: {
-    backgroundColor: '#111',
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -648,7 +648,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#111111',
+    backgroundColor: '#000000',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',

@@ -1,5 +1,6 @@
 import { auth, firestore, onAuthStateChanged, signInWithGoogleIdToken, signOut } from './firebase';
 import { ensureChatEncryptionKey, encryptMessage, decryptMessage, clearKeyCache } from './e2ee';
+import { createNotification } from '../services/notificationEngine';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -385,6 +386,32 @@ export async function toggleLike(postId: string, currentlyLiked: boolean): Promi
   } else {
     await likeRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
     await postRef.update({ likeCount: firestore.FieldValue.increment(1) });
+
+    // ── Notification: tell post author someone liked their post ──
+    try {
+      const postDoc = await postRef.get();
+      const postData = postDoc.exists ? postDoc.data() : null;
+      const postAuthorId = postData?.authorId;
+      if (postAuthorId && postAuthorId !== userId) {
+        const myDoc = await firestore().collection('users').doc(userId).get();
+        const myData = myDoc.exists ? myDoc.data() : null;
+        createNotification({
+          recipientId: postAuthorId,
+          type: 'like',
+          actorId: userId,
+          actorDisplayName: myData?.displayName || '',
+          actorUsername: myData?.username || '',
+          actorProfileImage: myData?.profileImage || null,
+          actorIsVerified: myData?.isVerified || false,
+          actorBadge: myData?.badge || '',
+          postId,
+          postCaption: postData?.caption || '',
+        });
+      }
+    } catch (e) {
+      console.warn('[Like] Notification fire-and-forget failed:', e);
+    }
+
     return true;
   }
 }
@@ -418,6 +445,32 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
   } else {
     await repostRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
     await postRef.update({ repostCount: firestore.FieldValue.increment(1) });
+
+    // ── Notification: tell post author someone reposted their post ──
+    try {
+      const postDoc = await postRef.get();
+      const postData = postDoc.exists ? postDoc.data() : null;
+      const postAuthorId = postData?.authorId;
+      if (postAuthorId && postAuthorId !== userId) {
+        const myDoc = await firestore().collection('users').doc(userId).get();
+        const myData = myDoc.exists ? myDoc.data() : null;
+        createNotification({
+          recipientId: postAuthorId,
+          type: 'repost',
+          actorId: userId,
+          actorDisplayName: myData?.displayName || '',
+          actorUsername: myData?.username || '',
+          actorProfileImage: myData?.profileImage || null,
+          actorIsVerified: myData?.isVerified || false,
+          actorBadge: myData?.badge || '',
+          postId,
+          postCaption: postData?.caption || '',
+        });
+      }
+    } catch (e) {
+      console.warn('[Repost] Notification fire-and-forget failed:', e);
+    }
+
     return true;
   }
 }
@@ -586,6 +639,24 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     [receiverUnreadField]: firestore.FieldValue.increment(1),
     [senderUnreadField]: 0,
   });
+
+  // ── Notification: tell receiver they got a new DM ──
+  try {
+    const myDoc = await firestore().collection('users').doc(userId).get();
+    const myData = myDoc.exists ? myDoc.data() : null;
+    createNotification({
+      recipientId: receiverId,
+      type: 'chat',
+      actorId: userId,
+      actorDisplayName: myData?.displayName || '',
+      actorUsername: myData?.username || '',
+      actorProfileImage: myData?.profileImage || null,
+      actorIsVerified: myData?.isVerified || false,
+      actorBadge: myData?.badge || '',
+    });
+  } catch (e) {
+    console.warn('[Messages] Notification fire-and-forget failed:', e);
+  }
 }
 
 /* ── Nuclear Block ─────────────────────────────────────────────────────────── */
@@ -811,9 +882,9 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
   }
   const data = docSnap.data();
   console.log('[User] Got profile:', data?.displayName, '@' + data?.username, 'badge:', data?.badge, 'verified:', data?.isVerified);
-  // CRITICAL: Fallback displayName to username so feed and profile always agree.
-  // Feed enrichment uses d.displayName || d.username || '' — must match here.
-  const displayName = data?.displayName || data?.username || '';
+  // CRITICAL: Fallback displayName → username → 'User' so the Avatar component
+  // never renders the "?" placeholder (empty string is falsy → shows "?").
+  const displayName = data?.displayName || data?.username || 'User';
   return {
     id: userId,
     email: data?.email || '',
@@ -845,6 +916,25 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
       followingId: targetUserId,
       createdAt: firestore.FieldValue.serverTimestamp(),
     });
+
+    // ── Notification: tell target user they got a new follower ──
+    try {
+      const myDoc = await firestore().collection('users').doc(userId).get();
+      const myData = myDoc.exists ? myDoc.data() : null;
+      createNotification({
+        recipientId: targetUserId,
+        type: 'follow',
+        actorId: userId,
+        actorDisplayName: myData?.displayName || '',
+        actorUsername: myData?.username || '',
+        actorProfileImage: myData?.profileImage || null,
+        actorIsVerified: myData?.isVerified || false,
+        actorBadge: myData?.badge || '',
+      });
+    } catch (e) {
+      console.warn('[Follow] Notification fire-and-forget failed:', e);
+    }
+
     return true;
   }
 }
@@ -947,6 +1037,30 @@ export async function addPostComment(postId: string, content: string): Promise<C
     });
   } catch (e) {
     console.warn('[Comments] Failed to increment commentCount:', e);
+  }
+
+  // ── Notification: tell post author someone commented ──
+  try {
+    const postDoc = await firestore().collection('posts').doc(postId).get();
+    const postData = postDoc.exists ? postDoc.data() : null;
+    const postAuthorId = postData?.authorId;
+    if (postAuthorId && postAuthorId !== userId) {
+      createNotification({
+        recipientId: postAuthorId,
+        type: 'comment',
+        actorId: userId,
+        actorDisplayName: userData?.displayName || '',
+        actorUsername: userData?.username || '',
+        actorProfileImage: userData?.profileImage || null,
+        actorIsVerified: userData?.isVerified || false,
+        actorBadge: userData?.badge || '',
+        postId,
+        postCaption: postData?.caption || '',
+        commentContent: content.trim(),
+      });
+    }
+  } catch (e) {
+    console.warn('[Comments] Notification fire-and-forget failed:', e);
   }
 
   return {

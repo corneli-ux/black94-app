@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Alert,  } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   },
   productRowInactive: { opacity: 0.5 },
   productImageWrap: { overflow: 'hidden', borderRadius: 10 },
-  productImage: { width: 68, height: 68, backgroundColor: '#1a1a1a' },
+  productImage: { width: 68, height: 68, backgroundColor: '#000000' },
   productImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   productInfo: { flex: 1, justifyContent: 'center' },
   productName: { color: colors.text, fontSize: 15, fontWeight: '600', lineHeight: 20, marginBottom: 2 },

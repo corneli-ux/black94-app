@@ -170,7 +170,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: Math.max(8, insets.top - 4) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   nuclearDialog: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#16181c',
     borderRadius: 20,
     padding: 28,
     width: '100%',
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#16181c',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
