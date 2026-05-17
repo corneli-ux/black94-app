@@ -71,6 +71,7 @@ const UserProfileScreen = lazy(() => import('../screens/UserProfileScreen'));
 const StoryViewerScreen = lazy(() => import('../screens/StoryViewerScreen'));
 const StoryCreatorScreen = lazy(() => import('../screens/StoryCreatorScreen'));
 const CreatePostScreen = lazy(() => import('../screens/CreatePostScreen'));
+const GifPickerScreen = lazy(() => import('../screens/GifPickerScreen'));
 const ArticleViewScreen = lazy(() => import('../screens/ArticleViewScreen'));
 const AudioCallScreen = lazy(() => import('../screens/AudioCallScreen'));
 const DualPaneChatScreen = lazy(() => import('../screens/DualPaneChatScreen'));
@@ -340,6 +341,7 @@ function AppStack() {
       <Stack.Screen name="WriteArticle" component={LazyScreen(WriteArticleScreen)} />
       {/* Posts & Stories */}
       <Stack.Screen name="CreatePost" component={LazyScreen(CreatePostScreen)} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="GifPicker" component={LazyScreen(GifPickerScreen)} />
       <Stack.Screen name="StoryViewer" component={LazyScreen(StoryViewerScreen)} />
       <Stack.Screen name="StoryCreator" component={LazyScreen(StoryCreatorScreen)} />
       {/* Articles */}

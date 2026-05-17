@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, ScrollView, Alert, Modal } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, blockUser, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
@@ -165,8 +165,9 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
   return (
     <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: Math.max(8, insets.top - 4) }]}>
+      {/* Header with SafeAreaView for notch */}
+      <SafeAreaView edges={['top']}>
+      <View style={[styles.header]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={20} color="#e7e9ea" />
         </TouchableOpacity>
@@ -221,6 +222,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           )}
         </View>
       </View>
+      </SafeAreaView>
 
       {/* Messages */}
       {loading ? (

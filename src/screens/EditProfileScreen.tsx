@@ -290,7 +290,7 @@ export default function EditProfileScreen({ navigation }: any) {
             isVerified: user?.isVerified || false,
             createdAt: user?.createdAt || Date.now(),
           });
-          navigation.navigate('Profile');
+          navigation.navigate('ProfileSelf');
         }},
       ]);
     } catch (e: any) {

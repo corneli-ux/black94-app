@@ -566,11 +566,17 @@ class CompatCollectionRef {
     const { fields, transforms } = _parseFields(data);
 
     // POST (auto-ID create) doesn't support fieldTransforms.
-    // Convert serverTimestamp sentinels to client timestamps.
+    // Convert sentinels to client-side values.
     if (transforms.length > 0) {
       for (const t of transforms) {
         if (t.setToServerValue) {
+          // serverTimestamp → current time
           fields[t.fieldPath] = { timestampValue: new Date().toISOString() };
+        } else if (t.increment) {
+          // increment → can't resolve client-side in a create (no existing doc to read).
+          // Store as 0 for new documents. Increment should be used with update(), not add().
+          console.warn(`[Firestore] increment(${t.increment.integerValue || t.increment.doubleValue || 0}) in add() has no existing value — defaulting to 0. Use update() for increments.`);
+          fields[t.fieldPath] = t.increment;
         }
       }
     }

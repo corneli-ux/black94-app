@@ -840,7 +840,7 @@ export default function StoriesScreen({ navigation }: any) {
                     />
                   ) : (
                     <LinearGradient
-                      colors={['#4a2080', '#2a7fff']}
+                      colors={[colors.accent, '#1a1a2e']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={[styles.storyCardBg, styles.storyCardTextBg]}
