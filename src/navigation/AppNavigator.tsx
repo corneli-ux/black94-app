@@ -86,6 +86,7 @@ const PaidChatScreen = lazy(() => import('../screens/PaidChatScreen'));
 const AssignBadgeScreen = lazy(() => import('../screens/AssignBadgeScreen'));
 const PrivacyPolicyScreen = lazy(() => import('../screens/PrivacyPolicyScreen'));
 const TermsScreen = lazy(() => import('../screens/TermsScreen'));
+const SignupScreen = lazy(() => import('../screens/SignupScreen'));
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -447,6 +448,7 @@ export default function AppNavigator() {
       ) : (
         <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }}>
           <Stack.Screen name="Login" component={LazyScreen(AuthScreen)} />
+          <Stack.Screen name="Signup" component={LazyScreen(SignupScreen)} />
         </Stack.Navigator>
       )}
     </NavigationContainer>

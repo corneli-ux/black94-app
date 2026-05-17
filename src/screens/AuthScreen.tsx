@@ -81,7 +81,7 @@ export default function AuthScreen() {
 
       // If we got here, native sign-in returned an ID token — sign into Firebase
       if (idToken) {
-        console.log('[AuthScreen] Native auth succeeded, signing in to Firebase...');
+        if (__DEV__) console.log('[AuthScreen] Native auth succeeded, signing in to Firebase...');
         try {
           const user = await signInWithGoogle(idToken);
           if (user) {

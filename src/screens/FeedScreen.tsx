@@ -538,7 +538,7 @@ export default function FeedScreen({ navigation }: any) {
 
             // Fallback: individual reads using composite doc IDs
             if (!batchSucceeded) {
-              console.log('[Feed] Using individual interaction reads fallback');
+              if (__DEV__) console.log('[Feed] Using individual interaction reads fallback');
               const individualPromises = chunk.flatMap(postId => [
                 firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => {
                   if (snap.exists) likedIds.add(postId);
@@ -592,7 +592,7 @@ export default function FeedScreen({ navigation }: any) {
           .get();
         const adList = adSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
         setAds(adList);
-        console.log(`[Ads] Loaded ${adList.length} active campaigns`);
+        if (__DEV__) console.log(`[Ads] Loaded ${adList.length} active campaigns`);
       } catch (e) {
         console.warn('[Ads] Failed to fetch ad campaigns:', e);
       }

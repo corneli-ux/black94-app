@@ -32,7 +32,7 @@ export default function ChatListScreen({ navigation }: any) {
       // Ensure auth token is fresh before querying Firestore
       try { await getValidToken(); } catch {}
       const data = await fetchChatList();
-      console.log('[ChatListScreen] Loaded', data.length, 'chats');
+      if (__DEV__) console.log('[ChatListScreen] Loaded', data.length, 'chats');
       setChats(data);
       setFiltered(data);
     } catch (e: any) {
@@ -228,7 +228,7 @@ export default function ChatListScreen({ navigation }: any) {
         }
       }
 
-      console.log(`[ChatDelete] Deleted ${deleted} messages from chat ${chatId}`);
+      if (__DEV__) console.log(`[ChatDelete] Deleted ${deleted} messages from chat ${chatId}`);
 
       // Update local state
       setChats(prev => prev.filter(c => c.id !== chatId));

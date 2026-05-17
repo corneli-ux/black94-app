@@ -20,12 +20,12 @@ interface KPIData {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'CRM', icon: 'people-circle-outline', color: colors.accent, screen: 'CRM' },
+  { label: 'CRM', icon: 'people-circle-outline', color: colors.accent, screen: 'CrmLeads' },
   { label: 'Ads Manager', icon: 'megaphone-outline', color: '#ef4444', screen: 'AdsManager' },
   { label: 'Salary', icon: 'wallet-outline', color: '#22c55e', screen: 'Salary' },
   { label: 'Affiliates', icon: 'share-social-outline', color: '#8b5cf6', screen: 'Affiliates' },
   { label: 'Performance', icon: 'stats-chart-outline', color: '#f59e0b', screen: 'Performance' },
-  { label: 'Orders', icon: 'bag-handle-outline', color: '#06b6d4', screen: 'Orders' },
+  { label: 'Orders', icon: 'bag-handle-outline', color: '#06b6d4', screen: 'BusinessOrders' },
 ];
 
 function formatINR(amount: number): string {

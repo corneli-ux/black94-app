@@ -194,14 +194,14 @@ export async function signOutUser(): Promise<void> {
 /* ── Posts ────────────────────────────────────────────────────────────────── */
 
 export async function fetchFeed(limitCount = 20): Promise<Post[]> {
-  console.log('[Feed] Fetching feed...');
+  if (__DEV__) console.log('[Feed] Fetching feed...');
   const snapshot = await firestore()
     .collection('posts')
     .orderBy('createdAt', 'desc')
     .limit(limitCount)
     .get();
 
-  console.log(`[Feed] Got ${snapshot.docs.length} posts from Firestore`);
+  if (__DEV__) console.log(`[Feed] Got ${snapshot.docs.length} posts from Firestore`);
 
   const userId = currentUser()?.uid;
   const posts: Post[] = snapshot.docs.map(docSnap => {
@@ -331,7 +331,7 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
       }
 
       if (!batchSucceeded) {
-        console.log('[Feed] Using individual interaction reads fallback');
+        if (__DEV__) console.log('[Feed] Using individual interaction reads fallback');
         const individualPromises = chunk.flatMap(postId => [
           firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => {
             if (snap.exists) likedIds.add(postId);
@@ -495,14 +495,14 @@ export async function fetchChatList(): Promise<Chat[]> {
   const userId = currentUser()?.uid;
   if (!userId) return [];
 
-  console.log('[Chat] Fetching chat list for user:', userId);
-  const [snap1, snap2] = await Promise.all([
-    firestore().collection('chats').where('user1Id', '==', userId).get(),
-    firestore().collection('chats').where('user2Id', '==', userId).get(),
-  ]);
-  console.log(`[Chat] Got ${snap1.docs.length} + ${snap2.docs.length} chats`);
-
   try {
+    if (__DEV__) console.log('[Chat] Fetching chat list for user:', userId);
+    const [snap1, snap2] = await Promise.all([
+      firestore().collection('chats').where('user1Id', '==', userId).get(),
+      firestore().collection('chats').where('user2Id', '==', userId).get(),
+    ]);
+    if (__DEV__) console.log(`[Chat] Got ${snap1.docs.length} + ${snap2.docs.length} chats`);
+
     const allDocs = [...snap1.docs, ...snap2.docs];
     if (allDocs.length === 0) return [];
 
@@ -618,7 +618,7 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
       firestore().collection('blocks').doc(`${receiverId}_${userId}`).get(),
     ]);
     if (iBlockedThem.exists || theyBlockedMe.exists) {
-      console.log('[Messages] Blocked — message not sent');
+      if (__DEV__) console.log('[Messages] Blocked — message not sent');
       return;
     }
   } catch (e) {
@@ -722,13 +722,13 @@ export async function blockUser(targetUserId: string): Promise<boolean> {
           firestore().collection('chats').doc(chatId).collection('messages').doc(docSnap.id).delete()
         );
         await Promise.all(deletePromises);
-        console.log(`[Block] Deleted ${messagesSnapshot.docs.length} messages in chat ${chatId}`);
+        if (__DEV__) console.log(`[Block] Deleted ${messagesSnapshot.docs.length} messages in chat ${chatId}`);
       } catch (e) {
         console.warn(`[Block] Failed to delete messages for chat ${chatId}:`, e);
       }
     }
 
-    console.log(`[Block] User ${targetUserId} blocked successfully`);
+    if (__DEV__) console.log(`[Block] User ${targetUserId} blocked successfully`);
     return true;
   } catch (e) {
     console.error('[Block] Failed to block user:', e);
@@ -745,7 +745,7 @@ export async function unblockUser(targetUserId: string): Promise<boolean> {
       firestore().collection('blocks').doc(`${userId}_${targetUserId}`).delete(),
       firestore().collection('blockedBy').doc(`${targetUserId}_${userId}`).delete(),
     ]);
-    console.log(`[Block] User ${targetUserId} unblocked successfully`);
+    if (__DEV__) console.log(`[Block] User ${targetUserId} unblocked successfully`);
     return true;
   } catch (e) {
     console.error('[Block] Failed to unblock user:', e);
@@ -889,14 +889,14 @@ export async function hybridSearch(query: string): Promise<SearchResult> {
 
 export async function fetchUserProfile(userId: string): Promise<User | null> {
   try {
-    console.log('[User] Fetching profile for:', userId);
+    if (__DEV__) console.log('[User] Fetching profile for:', userId);
     const docSnap = await firestore().collection('users').doc(userId).get();
     if (!docSnap.exists) {
-      console.log('[User] User doc does not exist:', userId);
+      if (__DEV__) console.log('[User] User doc does not exist:', userId);
       return null;
     }
     const data = docSnap.data();
-    console.log('[User] Got profile:', data?.displayName, '@' + data?.username, 'badge:', data?.badge, 'verified:', data?.isVerified);
+    if (__DEV__) console.log('[User] Got profile:', data?.displayName, '@' + data?.username, 'badge:', data?.badge, 'verified:', data?.isVerified);
     // CRITICAL: Fallback displayName → username → 'User' so the Avatar component
     // never renders the "?" placeholder (empty string is falsy → shows "?").
     const displayName = data?.displayName || data?.username || 'User';
@@ -1017,7 +1017,7 @@ export async function fetchPostComments(postId: string): Promise<CommentData[]> 
       .where('postId', '==', postId)
       .limit(50)
       .get();
-    console.log(`[Comments] Fetched ${snapshot.docs.length} comments for post ${postId}`);
+    if (__DEV__) console.log(`[Comments] Fetched ${snapshot.docs.length} comments for post ${postId}`);
     const results = snapshot.docs.map(docSnap => {
       const data = docSnap.data();
       let createdAt: number;
@@ -1208,7 +1208,7 @@ export async function checkAndSendFollowUps(userId: string): Promise<void> {
       const leadName = leadData.name || leadData.companyName || 'Lead';
       const statusLabel = leadData.status === 'new' ? 'new' : 'contacted';
 
-      console.log(`[Follow-up] Sending auto follow-up for lead ${leadId} (${leadName}, status: ${statusLabel})`);
+      if (__DEV__) console.log(`[Follow-up] Sending auto follow-up for lead ${leadId} (${leadName}, status: ${statusLabel})`);
 
       // Write a follow-up notification
       const notificationId = `${leadId}_followup`;
@@ -1243,7 +1243,7 @@ export async function checkAndSendFollowUps(userId: string): Promise<void> {
       }
     }
 
-    console.log(`[Follow-up] Processed ${allLeads.length} leads for user ${userId}`);
+    if (__DEV__) console.log(`[Follow-up] Processed ${allLeads.length} leads for user ${userId}`);
   } catch (e) {
     console.error('[Follow-up] checkAndSendFollowUps error:', e);
   }
@@ -1265,7 +1265,7 @@ export async function setPaidChatPrice(price: number): Promise<void> {
     'privacy.dmPermission': 'paid',
     updatedAt: firestore.FieldValue.serverTimestamp(),
   });
-  console.log(`[PaidChat] Price set to ₹${clamped} for user ${userId}`);
+  if (__DEV__) console.log(`[PaidChat] Price set to ₹${clamped} for user ${userId}`);
 }
 
 /**
@@ -1305,7 +1305,7 @@ export async function createPaidChatAccess(
       status: 'active',
       createdAt: firestore.FieldValue.serverTimestamp(),
     });
-    console.log(`[PaidChat] Access granted: ${payerId} → ${receiverId} for ₹${amount}`);
+    if (__DEV__) console.log(`[PaidChat] Access granted: ${payerId} → ${receiverId} for ₹${amount}`);
     return true;
   } catch (e) {
     console.error('[PaidChat] Failed to create access record:', e);
@@ -1409,7 +1409,7 @@ export async function assignAffiliateBadge(
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
-    console.log(`[AffiliateBadge] Assigned "${tier}" badge to affiliate ${affiliateId}`);
+    if (__DEV__) console.log(`[AffiliateBadge] Assigned "${tier}" badge to affiliate ${affiliateId}`);
     return true;
   } catch (e) {
     console.error('[AffiliateBadge] Failed to assign badge:', e);

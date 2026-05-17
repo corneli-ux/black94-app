@@ -504,7 +504,7 @@ export default function ProfileScreen({ route, navigation }: any) {
 
   const load = useCallback(async () => {
     try {
-      console.log('[ProfileScreen] Loading profile for:', targetUserId);
+      if (__DEV__) console.log('[ProfileScreen] Loading profile for:', targetUserId);
       const [u, feed, isFollowing, followersSnap, followingSnap] = await Promise.all([
         fetchUserProfile(targetUserId),
         // NOTE: No .orderBy('createdAt', 'desc') here — that composite index may
@@ -515,7 +515,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         firestore().collection('follows').where('followingId', '==', targetUserId).get(),
         firestore().collection('follows').where('followerId', '==', targetUserId).get(),
       ]);
-      console.log(`[ProfileScreen] Got user: ${u?.displayName || 'null'}, posts: ${feed.docs.length}, followers: ${followersSnap.size}, following: ${followingSnap.size}`);
+      if (__DEV__) console.log(`[ProfileScreen] Got user: ${u?.displayName || 'null'}, posts: ${feed.docs.length}, followers: ${followersSnap.size}, following: ${followingSnap.size}`);
       setUser(u);
       setFollowing(isFollowing);
       setFollowersCount(followersSnap.size);
