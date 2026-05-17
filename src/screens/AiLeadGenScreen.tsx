@@ -125,7 +125,7 @@ export default function AiLeadGenScreen() {
         const customers = await CRM.identifyPotentialCustomers(uid);
         setPotentialCustomers(customers.slice(0, 20));
       } catch (e) {
-        console.warn('[AiLeadGen] identifyPotentialCustomers error:', e);
+        console.warn('[LeadGen] identifyPotentialCustomers error:', e);
         setPotentialCustomers([]);
       }
 
@@ -134,11 +134,11 @@ export default function AiLeadGenScreen() {
         const followUps = await CRM.getPendingFollowUps(uid);
         setPendingFollowUps(followUps);
       } catch (e) {
-        console.warn('[AiLeadGen] getPendingFollowUps error:', e);
+        console.warn('[LeadGen] getPendingFollowUps error:', e);
         setPendingFollowUps([]);
       }
     } catch (err) {
-      console.error('[AiLeadGen] loadData error:', err);
+      console.error('[LeadGen] loadData error:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -208,7 +208,7 @@ export default function AiLeadGenScreen() {
       // Refresh the leads list
       setAllLeads([]);
     } catch (err: any) {
-      console.error('[AiLeadGen] Import failed:', err);
+      console.error('[LeadGen] Import failed:', err);
       Alert.alert('Import Error', 'Could not read the CSV file. Make sure it is a valid CSV with columns: Name, Email, Phone, Company, Job Title, Source, Tags, Notes.');
     }
   }, [uid]);

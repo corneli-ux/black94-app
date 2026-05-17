@@ -85,7 +85,7 @@ export const PLANS: PaymentPlan[] = [
       'Unlimited shop products',
       '500 CRM leads',
       'Store & CRM dashboard',
-      'AI-powered features',
+      'Smart assistant tools',
       'Custom branding',
       'API access',
       'Dedicated support',

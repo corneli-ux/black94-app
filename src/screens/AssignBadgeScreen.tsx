@@ -127,6 +127,42 @@ export default function AssignBadgeScreen({ navigation }: any) {
 
   const handleAssignBadge = useCallback(async (affiliateId: string, tier: Affiliate['badge']) => {
     if (!currentUser) return;
+
+    // Show confirmation dialog before assigning
+    const affiliate = affiliates.find(a => a.id === affiliateId);
+    const displayName = affiliate?.name || 'this team member';
+
+    if (tier === 'None') {
+      Alert.alert(
+        'Remove Badge',
+        `Are you sure you want to remove the badge from ${displayName}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: () => executeBadgeAssign(affiliateId, tier, displayName),
+          },
+        ],
+      );
+    } else {
+      Alert.alert(
+        `Assign ${tier} Badge`,
+        `Assign the ${tier} badge to ${displayName}?\n\nThis badge will be visible on their profile and indicates they are verified by your business account.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Assign',
+            style: 'default',
+            onPress: () => executeBadgeAssign(affiliateId, tier, displayName),
+          },
+        ],
+      );
+    }
+  }, [currentUser, affiliates]);
+
+  const executeBadgeAssign = useCallback(async (affiliateId: string, tier: Affiliate['badge'], displayName: string) => {
+    if (!currentUser) return;
     setAssigningBadge(affiliateId);
     try {
       const success = await assignAffiliateBadge(currentUser.uid, affiliateId, tier);
@@ -135,8 +171,8 @@ export default function AssignBadgeScreen({ navigation }: any) {
         setAffiliates(prev =>
           prev.map(a => (a.id === affiliateId ? { ...a, badge: tier } : a)),
         );
-        const tierLabel = tier === 'None' ? 'no badge' : `${tier} badge`;
-        Alert.alert('Badge Updated', `Successfully assigned ${tierLabel}.`);
+        const tierLabel = tier === 'None' ? 'badge removed' : `${tier} badge assigned`;
+        Alert.alert('Badge Updated', `${tierLabel} for ${displayName} successfully.`);
       } else {
         Alert.alert('Error', 'Failed to assign badge. Please try again.');
       }
@@ -244,6 +280,9 @@ export default function AssignBadgeScreen({ navigation }: any) {
                   {item.badge}
                 </Text>
               </View>
+              {item.badge !== 'None' && (
+                <Text style={styles.verifiedByLabel}>Verified by your business</Text>
+              )}
               <Text style={styles.joinDate}>Joined {new Date(item.joinedAt).toLocaleDateString()}</Text>
             </View>
           </View>
@@ -584,6 +623,12 @@ const styles = StyleSheet.create({
   joinDate: {
     color: colors.textTertiary,
     fontSize: 12,
+  },
+  verifiedByLabel: {
+    color: colors.accentGreen,
+    fontSize: 11,
+    fontWeight: '500',
+    fontStyle: 'italic',
   },
 
   /* ── Tier Selector ── */

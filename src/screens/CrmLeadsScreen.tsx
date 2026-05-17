@@ -51,7 +51,7 @@ interface CrmLead {
   phone: string;
   source: string;
   status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
-  aiScore: number;
+  leadScore: number;
   notes: string;
   createdAt: string;
   updatedAt: string;
@@ -99,7 +99,7 @@ const CrmLeadsScreen: React.FC = () => {
           phone: d.phone ?? '',
           source: d.source ?? '',
           status: d.status ?? 'new',
-          aiScore: d.aiScore ?? 0,
+          leadScore: d.leadScore ?? 0,
           notes: d.notes ?? '',
           createdAt: ts(d.createdAt),
           updatedAt: ts(d.updatedAt),
@@ -214,18 +214,18 @@ const CrmLeadsScreen: React.FC = () => {
             style={[
               styles.scoreBarFill,
               {
-                width: `${item.aiScore}%`,
+                width: `${item.leadScore}%`,
                 backgroundColor:
-                  item.aiScore >= 70
+                  item.leadScore >= 70
                     ? C.success
-                    : item.aiScore >= 40
+                    : item.leadScore >= 40
                       ? C.warning
                       : C.danger,
               },
             ]}
           />
         </View>
-        <Text style={styles.scoreValue}>{item.aiScore}%</Text>
+        <Text style={styles.scoreValue}>{item.leadScore}%</Text>
       </View>
 
       {item.notes ? (
@@ -365,18 +365,18 @@ const CrmLeadsScreen: React.FC = () => {
                           style={[
                             styles.scoreBarFill,
                             {
-                              width: `${selectedLead.aiScore}%`,
+                              width: `${selectedLead.leadScore}%`,
                               backgroundColor:
-                                selectedLead.aiScore >= 70
+                                selectedLead.leadScore >= 70
                                   ? C.success
-                                  : selectedLead.aiScore >= 40
+                                  : selectedLead.leadScore >= 40
                                     ? C.warning
                                     : C.danger,
                             },
                           ]}
                         />
                       </View>
-                      <Text style={styles.scoreValue}>{selectedLead.aiScore}%</Text>
+                      <Text style={styles.scoreValue}>{selectedLead.leadScore}%</Text>
                     </View>
                   </View>
 

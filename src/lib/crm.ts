@@ -30,7 +30,7 @@ export interface CrmLead {
   jobTitle: string;
   source: LeadSource;
   status: LeadStatus;
-  aiScore: number;
+  leadScore: number;
   assignedTo: string | null;
   notes: string;
   tags: string[];
@@ -61,7 +61,7 @@ export interface CreateLeadData {
   jobTitle?: string;
   source?: LeadSource;
   status?: LeadStatus;
-  aiScore?: number;
+  leadScore?: number;
   assignedTo?: string;
   notes?: string;
   tags?: string[];
@@ -74,9 +74,9 @@ export interface LeadFilters {
   assignedTo?: string;
   tags?: string[];
   search?: string;
-  sortBy?: 'createdAt' | 'updatedAt' | 'aiScore' | 'lastActivityAt';
+  sortBy?: 'createdAt' | 'updatedAt' | 'leadScore' | 'lastActivityAt';
   sortOrder?: 'asc' | 'desc';
-  minAiScore?: number;
+  minLeadScore?: number;
   limit?: number;
 }
 
@@ -88,7 +88,7 @@ export interface LeadStats {
   unqualified: number;
   converted: number;
   lost: number;
-  avgAiScore: number;
+  avgLeadScore: number;
   assignedCount: number;
   unassignedCount: number;
 }
@@ -293,7 +293,7 @@ function docToLead(id: string, d: any): CrmLead {
     jobTitle: d.jobTitle ?? '',
     source: d.source ?? 'manual',
     status: d.status ?? 'new',
-    aiScore: d.aiScore ?? 0,
+    leadScore: d.aiScore ?? 0,
     assignedTo: d.assignedTo ?? null,
     notes: d.notes ?? '',
     tags: Array.isArray(d.tags) ? d.tags : [],
@@ -361,7 +361,7 @@ function docToJourneyEvent(id: string, d: any): JourneyEvent {
  * Uses a weighted heuristic that considers source quality, contact
  * completeness, and engagement level.
  */
-function computeAiScore(source: LeadSource, sourceData: LeadSourceData): number {
+function computeLeadScore(source: LeadSource, sourceData: LeadSourceData): number {
   let score = 10; // baseline
 
   // Source quality weight
@@ -445,14 +445,14 @@ export async function collectLeadFromSource(
     }
 
     // ── Compute lead score ──
-    const aiScore = computeAiScore(source, sourceData);
+    const leadScore = computeLeadScore(source, sourceData);
 
     // ── Update existing lead or create new one ──
     if (existingLead) {
       // Bump score if new engagement signal is stronger
-      const newScore = Math.max(existingLead.aiScore, aiScore);
+      const newScore = Math.max(existingLead.leadScore, leadScore);
       const updateData: Record<string, any> = {
-        aiScore: newScore,
+        aiScore: newScore,  // Firestore field name preserved for backward compat
         lastActivityAt: firestore.FieldValue.serverTimestamp(),
         updatedAt: firestore.FieldValue.serverTimestamp(),
       };
@@ -467,7 +467,7 @@ export async function collectLeadFromSource(
         .doc(existingLead.id)
         .update(updateData);
 
-      console.log(`[CRM] Updated existing lead ${existingLead.id}, score: ${existingLead.aiScore} -> ${newScore}`);
+      console.log(`[CRM] Updated existing lead ${existingLead.id}, score: ${existingLead.leadScore} -> ${newScore}`);
 
       // Fetch and return the updated lead
       const updatedSnap = await firestore().collection('leads').doc(existingLead.id).get();
@@ -485,7 +485,7 @@ export async function collectLeadFromSource(
       jobTitle: '',
       source,
       status: 'new' as LeadStatus,
-      aiScore,
+      aiScore: leadScore,  // Firestore field name preserved for backward compat
       assignedTo: null,
       notes: sourceData.sourceContext || '',
       tags: [],
@@ -498,7 +498,7 @@ export async function collectLeadFromSource(
 
     const docRef = await firestore().collection('leads').add(leadData);
     const snap = await firestore().collection('leads').doc(docRef.id).get();
-    console.log(`[CRM] Created new lead ${docRef.id} from ${source}, aiScore: ${aiScore}`);
+    console.log(`[CRM] Created new lead ${docRef.id} from ${source}, leadScore: ${leadScore}`);
 
     return docToLead(docRef.id, snap.data());
   } catch (error: any) {
@@ -527,7 +527,7 @@ export async function createLead(data: CreateLeadData): Promise<CrmLead> {
       jobTitle: data.jobTitle || '',
       source: data.source || 'manual',
       status: data.status || 'new',
-      aiScore: data.aiScore ?? 0,
+      aiScore: data.leadScore ?? 0,  // Firestore field name preserved for backward compat
       assignedTo: data.assignedTo || null,
       notes: data.notes || '',
       tags: data.tags || [],
@@ -610,15 +610,15 @@ export async function fetchLeads(businessId: string, filters?: LeadFilters): Pro
         query = query.where('assignedTo', '==', filters.assignedTo);
       }
     }
-    if (filters?.minAiScore !== undefined) {
-      query = query.where('aiScore', '>=', filters.minAiScore);
+    if (filters?.minLeadScore !== undefined) {
+      query = query.where('aiScore', '>=', filters.minLeadScore);
     }
 
     const sortBy = filters?.sortBy || 'createdAt';
     const sortOrder = filters?.sortOrder || 'desc';
-    query = query.orderBy(sortBy, sortOrder);
-
-    const limit = filters?.limit || 100;
+    // Map leadScore to Firestore field name (aiScore) for backward compat
+    const firestoreSortField = sortBy === 'leadScore' ? 'aiScore' : sortBy;
+    query = query.orderBy(firestoreSortField, sortOrder);
     query = query.limit(limit);
 
     const snapshot = await query.get();
@@ -959,7 +959,7 @@ export async function exportLeadsCSV(businessId: string): Promise<string> {
 
     const headers = [
       'ID', 'Name', 'Email', 'Phone', 'Company', 'Job Title',
-      'Source', 'Status', 'AI Score', 'Assigned To', 'Tags',
+      'Source', 'Status', 'Lead Score', 'Assigned To', 'Tags',
       'Notes', 'Created At', 'Updated At', 'Last Activity',
     ];
 
@@ -984,7 +984,7 @@ export async function exportLeadsCSV(businessId: string): Promise<string> {
         escapeCSV(lead.jobTitle),
         lead.source,
         lead.status,
-        String(lead.aiScore),
+        String(lead.leadScore),
         lead.assignedTo || '',
         escapeCSV(tags),
         escapeCSV(lead.notes),
@@ -1286,13 +1286,13 @@ export async function getLeadStats(businessId: string): Promise<LeadStats> {
       else if (status === 'converted') stats.converted++;
       else if (status === 'lost') stats.lost++;
 
-      totalScore += d.aiScore || 0;
+      totalScore += d.leadScore || 0;
 
       if (d.assignedTo) stats.assignedCount++;
       else stats.unassignedCount++;
     });
 
-    stats.avgAiScore = stats.total > 0 ? Math.round(totalScore / stats.total) : 0;
+    stats.avgLeadScore = stats.total > 0 ? Math.round(totalScore / stats.total) : 0;
 
     console.log(`[CRM] Lead stats for ${businessId}: ${stats.total} total`);
     return stats;
@@ -2126,7 +2126,7 @@ export async function generateFollowUpMessage(leadId: string): Promise<string | 
     const name = lead.name || 'there';
     const company = lead.companyName ? ` at ${lead.companyName}` : '';
 
-    if (lead.aiScore >= 70) {
+    if (lead.leadScore >= 70) {
       return `Hi ${name}${company}, I wanted to follow up personally. Your interest means a lot to us, and I'd love to discuss how we can help. Would you have 15 minutes this week for a quick call?`;
     }
 
