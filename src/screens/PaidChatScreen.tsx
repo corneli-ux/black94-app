@@ -8,6 +8,7 @@ import {
   Alert,
   StatusBar,
   Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -26,20 +27,29 @@ import {
 } from '../lib/razorpay';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 
+// ── Payment flow states ──
+type PaymentPhase = 'idle' | 'opening_gateway' | 'processing' | 'success' | 'error';
+
 export default function PaidChatScreen({ route, navigation }: any) {
   const { targetUserId, chatPrice } = route.params || {};
   const currentUser = auth()?.currentUser;
 
   const [loading, setLoading] = useState(true);
-  const [paying, setPaying] = useState(false);
   const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [targetUser, setTargetUser] = useState<any>(null);
   const [price, setPrice] = useState<number>(chatPrice || 0);
+
+  // Enhanced payment state machine
+  const [paymentPhase, setPaymentPhase] = useState<PaymentPhase>('idle');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   // Razorpay WebView modal state
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
   const [checkoutHTML, setCheckoutHTML] = useState('');
   const webViewRef = useRef<any>(null);
+
+  // Success modal state
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -82,7 +92,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
       }
     } catch (e) {
       console.error('[PaidChatScreen] Load error:', e);
-      Alert.alert('Error', 'Failed to load chat information.');
+      Alert.alert('Error', 'Failed to load chat information. Please try again.');
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -116,16 +126,20 @@ export default function PaidChatScreen({ route, navigation }: any) {
   };
 
   const handlePay = () => {
-    if (!currentUser || paying) return;
+    if (!currentUser) return;
+    if (paymentPhase !== 'idle') return;
 
     // Check if Razorpay is configured
     if (!isRazorpayConfigured()) {
       Alert.alert(
         'Payment Unavailable',
-        'Online payment is being configured. Please try again later.',
+        'Online payment is being configured. Please try again later or contact the user directly.',
       );
       return;
     }
+
+    setPaymentError(null);
+    setPaymentPhase('opening_gateway');
 
     const amountInPaise = price * 100;
     const planName = `Chat with ${targetUser?.displayName || targetUser?.username || 'User'}`;
@@ -141,22 +155,25 @@ export default function PaidChatScreen({ route, navigation }: any) {
     });
 
     if (keyMissing || !html) {
+      setPaymentPhase('idle');
+      setPaymentError('Payment gateway is not available. Please try again later.');
       Alert.alert('Payment Unavailable', 'Razorpay is not configured. Please try again later.');
       return;
     }
 
     setCheckoutHTML(html);
     setCheckoutModalVisible(true);
-    setPaying(true);
+    // Keep phase as opening_gateway until WebView loads
   };
 
   const handleWebViewMessage = async (event: any) => {
     const result = handleRazorpayMessage(event);
-    setCheckoutModalVisible(false);
-    setPaying(false);
 
     if (result.success && result.paymentId) {
-      // Payment succeeded — grant chat access
+      // Payment succeeded — process the access grant
+      setCheckoutModalVisible(false);
+      setPaymentPhase('processing');
+
       try {
         const accessCreated = await createPaidChatAccess(
           currentUser.uid,
@@ -166,25 +183,55 @@ export default function PaidChatScreen({ route, navigation }: any) {
         );
 
         if (accessCreated) {
+          setPaymentPhase('success');
           const chatId = await findOrCreateChat(currentUser.uid, targetUserId);
           if (chatId) {
-            navigation.replace('ChatRoom' as never, { chatId } as never);
+            // Show success modal briefly then navigate to chat
+            setSuccessModalVisible(true);
+            setTimeout(() => {
+              setSuccessModalVisible(false);
+              navigation.replace('ChatRoom' as never, { chatId } as never);
+            }, 1500);
           } else {
-            Alert.alert('Error', 'Payment successful but could not create chat. Please contact support.');
+            setPaymentPhase('error');
+            setPaymentError('Payment successful but could not create chat room.');
+            Alert.alert(
+              'Almost There',
+              'Payment successful but we could not open the chat. Please contact support with your payment ID.',
+            );
           }
         } else {
-          Alert.alert('Error', 'Payment recorded but could not grant access. Please contact support.');
+          setPaymentPhase('error');
+          setPaymentError('Payment recorded but could not grant access.');
+          Alert.alert(
+            'Payment Issue',
+            'Your payment was recorded but we could not grant chat access. Please contact support with your payment ID for manual activation.',
+          );
         }
       } catch (e) {
         console.error('[PaidChatScreen] Post-payment error:', e);
-        Alert.alert('Error', 'Something went wrong after payment. Please contact support.');
+        setPaymentPhase('error');
+        setPaymentError('Something went wrong after payment.');
+        Alert.alert(
+          'Error',
+          'Something went wrong after your payment. Please contact support — your payment was not lost.',
+        );
       }
     } else {
       // Payment cancelled or failed
+      setCheckoutModalVisible(false);
+      setPaymentPhase('idle');
+
       if (result.error && !result.error.includes('cancelled')) {
+        setPaymentError(result.error);
         Alert.alert('Payment Failed', result.error);
       }
     }
+  };
+
+  const handleRetry = () => {
+    setPaymentError(null);
+    setPaymentPhase('idle');
   };
 
   if (loading) {
@@ -192,6 +239,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
       <View style={[styles.container, styles.centered]}>
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <ActivityIndicator color={colors.accent} size="large" />
+        <Text style={styles.loadingText}>Loading chat info...</Text>
       </View>
     );
   }
@@ -206,6 +254,8 @@ export default function PaidChatScreen({ route, navigation }: any) {
     );
   }
 
+  const isProcessing = paymentPhase === 'opening_gateway' || paymentPhase === 'processing';
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
@@ -213,7 +263,13 @@ export default function PaidChatScreen({ route, navigation }: any) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (isProcessing) {
+              Alert.alert('Payment in Progress', 'Please wait or close the payment window to cancel.');
+              return;
+            }
+            navigation.goBack();
+          }}
           hitSlop={8}
           activeOpacity={0.7}
         >
@@ -282,30 +338,62 @@ export default function PaidChatScreen({ route, navigation }: any) {
           </View>
         </View>
 
-        {/* Action Buttons */}
-        <TouchableOpacity
-          style={[styles.payButton, paying && styles.payButtonDisabled]}
-          onPress={handlePay}
-          disabled={paying}
-          activeOpacity={0.8}
-        >
-          {paying ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <>
-              <Ionicons name="card-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.payButtonText}>Pay {'\u20B9'}{price} & Start Chat</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {/* Payment Error Banner */}
+        {paymentError && paymentPhase === 'error' && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+            <Text style={styles.errorText}>{paymentError}</Text>
+            <TouchableOpacity onPress={handleRetry} style={styles.retryBtn}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
+        {/* Processing Indicator */}
+        {paymentPhase === 'processing' && (
+          <View style={styles.processingBanner}>
+            <ActivityIndicator color={colors.accent} size="small" />
+            <Text style={styles.processingText}>
+              Payment received! Setting up your chat...
+            </Text>
+          </View>
+        )}
+
+        {/* Action Buttons */}
+        {paymentPhase !== 'success' && (
+          <>
+            <TouchableOpacity
+              style={[styles.payButton, isProcessing && styles.payButtonDisabled]}
+              onPress={handlePay}
+              disabled={isProcessing}
+              activeOpacity={0.8}
+            >
+              {isProcessing ? (
+                <>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.payButtonText}>
+                    {paymentPhase === 'processing' ? 'Processing...' : 'Opening Payment...'}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="card-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.payButtonText}>Pay {'\u20B9'}{price} & Start Chat</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {!isProcessing && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => navigation.goBack()}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
 
         <Text style={styles.footnote}>
           By proceeding, you agree to the paid chat terms. Payment is non-refundable.
@@ -318,11 +406,27 @@ export default function PaidChatScreen({ route, navigation }: any) {
         animationType="slide"
         transparent={false}
         onRequestClose={() => {
+          if (paymentPhase === 'processing') return; // Don't allow closing during processing
           setCheckoutModalVisible(false);
-          setPaying(false);
+          setPaymentPhase('idle');
         }}
       >
         <View style={styles.webviewContainer}>
+          <View style={styles.webviewHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                if (paymentPhase === 'processing') return;
+                setCheckoutModalVisible(false);
+                setPaymentPhase('idle');
+              }}
+              hitSlop={8}
+              style={{ padding: 8 }}
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.webviewTitle}>Secure Payment</Text>
+            <View style={{ width: 40 }} />
+          </View>
           <WebView
             ref={webViewRef}
             source={{ html: checkoutHTML }}
@@ -333,11 +437,30 @@ export default function PaidChatScreen({ route, navigation }: any) {
             renderLoading={() => (
               <View style={styles.webviewLoader}>
                 <ActivityIndicator color="#FFFFFF" size="large" />
-                <Text style={styles.webviewLoaderText}>Opening payment gateway...</Text>
+                <Text style={styles.webviewLoaderText}>Opening secure payment...</Text>
               </View>
             )}
           />
         </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        visible={successModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <Pressable style={styles.successOverlay}>
+          <View style={styles.successCard}>
+            <View style={styles.successIconWrap}>
+              <Ionicons name="checkmark-circle" size={56} color={colors.accentGreen} />
+            </View>
+            <Text style={styles.successTitle}>Payment Successful!</Text>
+            <Text style={styles.successDesc}>Opening your chat now...</Text>
+            <ActivityIndicator color={colors.accent} size="small" style={{ marginTop: 12 }} />
+          </View>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
@@ -423,7 +546,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
     padding: 24,
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   priceTitle: {
     color: colors.text,
@@ -462,6 +585,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  /* -- Error Banner -- */
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    gap: 10,
+  },
+  errorText: {
+    flex: 1,
+    color: colors.error,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  retryBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(239,68,68,0.2)',
+    borderRadius: 8,
+  },
+  retryText: {
+    color: colors.error,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  /* -- Processing Banner -- */
+  processingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(42,127,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(42,127,255,0.2)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    gap: 10,
+  },
+  processingText: {
+    color: colors.accent,
+    fontSize: 14,
+    fontWeight: '500',
+  },
   /* -- Buttons -- */
   payButton: {
     flexDirection: 'row',
@@ -471,6 +640,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 16,
     marginBottom: 12,
+    gap: 8,
   },
   payButtonDisabled: {
     opacity: 0.6,
@@ -502,6 +672,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#111111',
   },
+  webviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  webviewTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+  },
   webviewLoader: {
     flex: 1,
     justifyContent: 'center',
@@ -512,5 +696,36 @@ const styles = StyleSheet.create({
   webviewLoaderText: {
     color: '#888888',
     fontSize: 14,
+  },
+  /* -- Success Modal -- */
+  successOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  successCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 32,
+    width: '100%',
+    maxWidth: 300,
+    alignItems: 'center',
+  },
+  successIconWrap: {
+    marginBottom: 16,
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  successDesc: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });

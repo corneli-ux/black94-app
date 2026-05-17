@@ -1,14 +1,20 @@
 /**
- * Lightweight End-to-End Encryption (E2EE) for chat messages.
+ * Secure Messages — Message encryption for chat.
  *
- * Uses a XOR cipher with a random 32-byte per-chat key.
- * NOT military-grade — provides message-level obfuscation so
- * Firestore data is not readable in plaintext at rest.
+ * Provides message-level obfuscation using XOR cipher with a random
+ * 32-byte per-chat key. This adds a layer of protection so that
+ * Firestore data is not stored as readable plaintext at rest.
  *
- * Encrypted messages are prefixed with "ENC:" so we can
- * distinguish them from legacy plain-text messages (backward compat).
+ * This is NOT end-to-end encryption. The encryption keys are stored
+ * in Firestore and can be accessed by anyone with database read access.
+ * For sensitive communications, use a dedicated E2EE messaging service.
  *
- * Encryption key is stored at `chats/{chatId}/meta/encryptionKey`.
+ * Encrypted messages are prefixed with "ENC:" so we can distinguish
+ * them from legacy plain-text messages (backward compatible).
+ *
+ * NOTE: This module is currently NOT integrated into the chat system.
+ * Messages are sent and stored as plaintext. This module can be
+ * enabled by the development team when ready.
  */
 
 import { firestore } from './firebase';
@@ -168,7 +174,7 @@ export function decryptMessage(ciphertext: string, key: string): string {
     const textDecoder = new TextDecoder();
     return textDecoder.decode(decryptedBytes);
   } catch (e) {
-    console.warn('[E2EE] Decryption failed, returning raw content:', e);
+    console.warn('[SecureMessages] Decryption failed, returning raw content:', e);
     return ciphertext;
   }
 }
@@ -187,9 +193,9 @@ const _keyCache: Record<string, string> = {};
  * - If a key exists, returns it (also caches in memory)
  * - If no key exists, generates one, saves it, caches it, and returns it
  *
- * The key doc is accessible to both participants because Firestore security
- * rules (if configured) can check that the requesting user's UID matches
- * either `user1Id` or `user2Id` on the parent chat document.
+ * Note: The key is stored in Firestore and accessible to any user who
+ * has read access to the chat metadata. This provides obfuscation,
+ * not true end-to-end encryption.
  *
  * @param chatId - The Firestore chat document ID
  * @returns The encryption key (64-char hex string)
@@ -211,7 +217,7 @@ export async function ensureChatEncryptionKey(chatId: string): Promise<string> {
       const existingKey = data?.key;
       if (existingKey && typeof existingKey === 'string' && existingKey.length === 64) {
         _keyCache[chatId] = existingKey;
-        console.log('[E2EE] Existing encryption key loaded for chat:', chatId);
+        console.log('[SecureMessages] Existing key loaded for chat:', chatId);
         return existingKey;
       }
     }
@@ -224,16 +230,14 @@ export async function ensureChatEncryptionKey(chatId: string): Promise<string> {
     });
 
     _keyCache[chatId] = newKey;
-    console.log('[E2EE] New encryption key created for chat:', chatId);
+    console.log('[SecureMessages] New key created for chat:', chatId);
     return newKey;
   } catch (e) {
-    console.error('[E2EE] Failed to ensure encryption key for chat:', chatId, e);
+    console.error('[SecureMessages] Failed to ensure key for chat:', chatId, e);
     // If Firestore fails, generate a session-only key so sending still works
-    // The other participant will also generate their own key on first decrypt
-    // attempt, so messages will be readable within the same session.
     if (!_keyCache[chatId]) {
       _keyCache[chatId] = generateEncryptionKey();
-      console.warn('[E2EE] Using fallback session key for chat:', chatId);
+      console.warn('[SecureMessages] Using fallback session key for chat:', chatId);
     }
     return _keyCache[chatId];
   }
@@ -264,7 +268,7 @@ export async function getChatEncryptionKey(chatId: string): Promise<string | nul
       }
     }
   } catch (e) {
-    console.warn('[E2EE] Failed to fetch encryption key for chat:', chatId, e);
+    console.warn('[SecureMessages] Failed to fetch key for chat:', chatId, e);
   }
 
   return null;
