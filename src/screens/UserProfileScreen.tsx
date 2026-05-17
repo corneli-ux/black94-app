@@ -492,6 +492,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
   const [interactionsChecked, setInteractionsChecked] = useState(false);
+  const [privacy, setPrivacy] = useState<{ nameVisibility?: string } | null>(null);
 
   // Fetch one active ad campaign for profile banner
   useEffect(() => {
@@ -509,8 +510,9 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
   const loadData = useCallback(async () => {
     try {
-      const [userData, followersSnap, followingSnap, isFollow, userPostsSnap] = await Promise.all([
+      const [userData, privacyDoc, followersSnap, followingSnap, isFollow, userPostsSnap] = await Promise.all([
         fetchUserProfile(userId),
+        firestore().collection('users').doc(userId).get(),
         firestore().collection('follows').where('followingId', '==', userId).get(),
         firestore().collection('follows').where('followerId', '==', userId).get(),
         currentUid ? checkFollowing(userId) : Promise.resolve(false),
@@ -521,6 +523,10 @@ export default function UserProfileScreen({ navigation, route }: any) {
           .get(),
       ]);
       setUser(userData);
+      // Extract privacy settings from raw Firestore doc
+      if (privacyDoc.exists) {
+        setPrivacy(privacyDoc.data()?.privacy || null);
+      }
       setFollowerCount(followersSnap.size);
       setFollowingCount(followingSnap.size);
       setIsFollowing(isFollow);
@@ -875,7 +881,12 @@ export default function UserProfileScreen({ navigation, route }: any) {
         {/* User Info */}
         <View style={styles.userInfoSection}>
           <View style={styles.nameRow}>
-            <Text style={styles.displayName}>{user.displayName}</Text>
+            {(() => {
+              const showRealName = privacy?.nameVisibility !== 'private' && privacy?.nameVisibility !== 'selected';
+              return showRealName ? (
+                <Text style={styles.displayName}>{user.displayName}</Text>
+              ) : null;
+            })()}
             <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
           </View>
           <Text style={styles.username}>@{user.username}</Text>

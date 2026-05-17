@@ -31,7 +31,7 @@ export default function SearchScreen({ route, navigation }: any) {
           .limit(10).get(),
         firestore().collection('posts')
           .orderBy('createdAt', 'desc')
-          .limit(20).get(),
+          .limit(50).get(),
       ]);
 
       const foundUsers: User[] = uSnap.docs.map(d => {
@@ -43,6 +43,14 @@ export default function SearchScreen({ route, navigation }: any) {
           role: data.role || '', badge: data.badge || '', subscription: data.subscription || '',
           isVerified: data.isVerified || false, createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
+      });
+
+      // Filter out users who have hidden themselves from search
+      const visibleUsers = foundUsers.filter(u => {
+        const doc = uSnap.docs.find(d => d.id === u.id);
+        const data = doc?.data();
+        if (data?.privacy?.searchVisible === false) return false;
+        return true;
       });
 
       const foundPosts: Post[] = pSnap.docs
@@ -61,7 +69,7 @@ export default function SearchScreen({ route, navigation }: any) {
           };
         });
 
-      setUsers(foundUsers);
+      setUsers(visibleUsers);
       setPosts(foundPosts);
     } catch (e) {
       console.error(e);

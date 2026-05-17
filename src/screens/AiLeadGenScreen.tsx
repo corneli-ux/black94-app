@@ -1,8 +1,8 @@
 /**
- * AiLeadGenScreen.tsx — AI Lead Generation & Management
+ * AiLeadGenScreen.tsx — Lead Generation & Management
  *
  * Lead source dashboard, potential customers, auto follow-ups,
- * AI follow-up message generation, lead import/export, and scoring.
+ * follow-up message generation, lead import/export, and scoring.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -242,7 +242,7 @@ export default function AiLeadGenScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>AI Lead Generation</Text>
+          <Text style={styles.headerTitle}>Lead Generation</Text>
           <View style={{ width: 32 }} />
         </View>
 
@@ -305,7 +305,7 @@ export default function AiLeadGenScreen() {
             <View style={styles.emptySection}>
               <Ionicons name="people-outline" size={36} color={colors.textMuted} />
               <Text style={styles.emptyText}>No potential customers identified yet.</Text>
-              <Text style={styles.emptySubText}>AI will identify high-intent users as they interact with your business.</Text>
+              <Text style={styles.emptySubText}>High-intent users will be identified as they interact with your business.</Text>
             </View>
           ) : (
             <View style={styles.leadsList}>
@@ -397,15 +397,15 @@ export default function AiLeadGenScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="sparkles-outline" size={20} color={colors.verified} />
-            <Text style={styles.sectionTitle}>AI Follow-up Generator</Text>
+            <Text style={styles.sectionTitle}>Follow-up Generator</Text>
           </View>
           <Text style={styles.sectionDesc}>
-            Select a lead from the follow-up section and tap the sparkle button to generate an AI-powered personalized follow-up message.
+            Select a lead from the follow-up section and tap the sparkle button to generate a personalized follow-up message.
           </Text>
 
           {/* Lead scoring explanation */}
           <View style={styles.scoringCard}>
-            <Text style={styles.scoringTitle}>How AI Scoring Works</Text>
+            <Text style={styles.scoringTitle}>How Lead Scoring Works</Text>
             <View style={styles.scoringItems}>
               <View style={styles.scoringItem}>
                 <View style={[styles.scoringDot, { backgroundColor: colors.error }]} />
@@ -475,7 +475,7 @@ export default function AiLeadGenScreen() {
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderLeft}>
                 <Ionicons name="sparkles" size={20} color={colors.accentGold} />
-                <Text style={styles.modalTitle}>AI Follow-up Message</Text>
+                <Text style={styles.modalTitle}>Follow-up Message</Text>
               </View>
               <TouchableOpacity onPress={() => setShowMessageModal(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />

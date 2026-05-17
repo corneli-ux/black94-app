@@ -1,5 +1,4 @@
 import { auth, firestore, onAuthStateChanged, signInWithGoogleIdToken, signOut } from './firebase';
-import { ensureChatEncryptionKey, encryptMessage, decryptMessage, clearKeyCache } from './e2ee';
 import { createNotification } from '../services/notificationEngine';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
@@ -586,18 +585,14 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
       .limit(limitCount)
       .get();
 
-    // Get encryption key for this chat (returns null if none exists yet)
-    const encryptionKey = await ensureChatEncryptionKey(chatId);
-
     return snapshot.docs.map(docSnap => {
       const data = docSnap.data();
-      const rawContent = data.content || '';
       return {
         id: docSnap.id,
         chatId,
         senderId: data.senderId || '',
         receiverId: data.receiverId || '',
-        content: decryptMessage(rawContent, encryptionKey),
+        content: data.content || '',
         createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
       };
     });
@@ -625,15 +620,11 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     console.warn('[Messages] Block check failed, allowing message:', e);
   }
 
-  // Encrypt the message content before storing
-  const encryptionKey = await ensureChatEncryptionKey(chatId);
-  const encryptedContent = encryptMessage(content, encryptionKey);
-
   await firestore().collection('chats').doc(chatId).collection('messages').add({
     chatId,
     senderId: userId,
     receiverId,
-    content: encryptedContent,
+    content,
     messageType: 'text',
     status: 'sent',
     createdAt: firestore.FieldValue.serverTimestamp(),
@@ -708,23 +699,26 @@ export async function blockUser(targetUserId: string): Promise<boolean> {
       ...chatSnapshots[1].docs.map(d => d.id),
     ];
 
-    // Delete all messages in each chat
+    // Delete all messages in each chat (batch loop to handle more than 500)
     for (const chatId of chatIds) {
       try {
-        const messagesSnapshot = await firestore()
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .limit(500)
-          .get();
+        const msgRef = firestore().collection('chats').doc(chatId).collection('messages');
 
-        const deletePromises = messagesSnapshot.docs.map(docSnap =>
-          firestore().collection('chats').doc(chatId).collection('messages').doc(docSnap.id).delete()
-        );
-        await Promise.all(deletePromises);
-        if (__DEV__) console.log(`[Block] Deleted ${messagesSnapshot.docs.length} messages in chat ${chatId}`);
+        // Loop until all messages are deleted
+        while (true) {
+          const snapshot = await msgRef.orderBy('createdAt').limit(500).get();
+          if (snapshot.empty) break;
+
+          let batch = firestore().batch();
+          snapshot.docs.forEach(doc => batch.delete(doc.ref));
+          await batch.commit();
+        }
+        if (__DEV__) console.log(`[Block] Deleted all messages in chat ${chatId}`);
+
+        // Also delete the chat document itself
+        await firestore().collection('chats').doc(chatId).delete();
       } catch (e) {
-        console.warn(`[Block] Failed to delete messages for chat ${chatId}:`, e);
+        console.warn(`[Block] Failed to clean up chat ${chatId}:`, e);
       }
     }
 
@@ -1169,7 +1163,7 @@ export async function toggleCommentLike(commentId: string, currentlyLiked: boole
   }
 }
 
-/* ── AI Follow-up System ──────────────────────────────────────────────────── */
+/* ── Follow-up System ──────────────────────────────────────────────────── */
 
 /**
  * Checks for leads assigned to a user that haven't been followed up on in >24h.

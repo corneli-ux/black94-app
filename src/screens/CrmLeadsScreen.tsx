@@ -203,9 +203,9 @@ const CrmLeadsScreen: React.FC = () => {
         ) : null}
       </View>
 
-      {/* AI Score Bar */}
+      {/* Lead Score Bar */}
       <View style={styles.scoreRow}>
-        <Text style={styles.scoreLabel}>AI Score</Text>
+        <Text style={styles.scoreLabel}>Lead Score</Text>
         <View style={styles.scoreBarBg}>
           <View
             style={[
@@ -355,7 +355,7 @@ const CrmLeadsScreen: React.FC = () => {
                   </View>
 
                   <View style={styles.modalField}>
-                    <Text style={styles.modalFieldLabel}>AI Score</Text>
+                    <Text style={styles.modalFieldLabel}>Lead Score</Text>
                     <View style={styles.scoreRow}>
                       <View style={[styles.scoreBarBg, { flex: 1 }]}>
                         <View

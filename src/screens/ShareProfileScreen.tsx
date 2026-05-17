@@ -52,9 +52,22 @@ export default function ShareProfileScreen({ route, navigation }: any) {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<any>(null);
 
-  const generateLink = useCallback(() => {
+  const generateLink = useCallback(async () => {
     const token = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
     const link = `https://black94.app/u/${user?.username || targetUserId}?ref=${token}`;
+
+    // Save token to Firestore with 5-minute expiry
+    try {
+      await firestore().collection('profileShares').doc(token).set({
+        userId: targetUserId,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        used: false,
+      });
+    } catch (e) {
+      console.warn('[ShareProfile] Failed to save share token:', e);
+    }
+
     setShareLink(link);
     setLinkGenerated(true);
     setCountdown(300);

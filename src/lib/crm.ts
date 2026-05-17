@@ -3,7 +3,7 @@
  *
  * Comprehensive CRM engine for business accounts. Handles lead management,
  * deal pipeline, data import/export, business analytics, customer identification,
- * and AI-powered follow-up automation.
+ * and follow-up automation.
  *
  * Uses the same Firestore REST compat layer as api.ts and shop.ts.
  */
@@ -357,7 +357,7 @@ function docToJourneyEvent(id: string, d: any): JourneyEvent {
 }
 
 /**
- * Computes a simple AI score (0–100) based on engagement signals.
+ * Computes a lead score (0–100) based on engagement signals.
  * Uses a weighted heuristic that considers source quality, contact
  * completeness, and engagement level.
  */
@@ -395,14 +395,14 @@ function computeAiScore(source: LeadSource, sourceData: LeadSourceData): number 
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   1. AI LEAD COLLECTION
+   1. LEAD COLLECTION
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
  * Creates a lead from various interaction sources (chat, comment,
  * post engagement, store visit, affiliate).
  *
- * Auto-assigns an AI score based on engagement signals.
+ * Auto-assigns a lead score based on engagement signals.
  * Checks for duplicate leads by email/phone before creating.
  */
 export async function collectLeadFromSource(
@@ -444,7 +444,7 @@ export async function collectLeadFromSource(
       }
     }
 
-    // ── Compute AI score ──
+    // ── Compute lead score ──
     const aiScore = computeAiScore(source, sourceData);
 
     // ── Update existing lead or create new one ──
@@ -2092,7 +2092,7 @@ export async function getCustomerJourney(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   7. AI FOLLOW-UP AUTOMATION
+   7. FOLLOW-UP AUTOMATION
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**

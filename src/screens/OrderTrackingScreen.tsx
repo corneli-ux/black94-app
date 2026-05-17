@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { firestore } from '../lib/firebase';
+import { auth, firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -147,10 +147,61 @@ export default function OrderTrackingScreen() {
     }
   }, [order]);
 
-  const handleContactSeller = useCallback(() => {
-    Alert.alert('Contact Seller', 'Opening chat with seller...');
-    // In production: navigate to ChatRoom with business user
-  }, []);
+  const handleContactSeller = useCallback(async () => {
+    if (!order?.businessId) {
+      Alert.alert('Error', 'Seller information not found.');
+      return;
+    }
+
+    try {
+      const currentUserId = auth()?.currentUser?.uid;
+      if (!currentUserId) {
+        Alert.alert('Error', 'You must be logged in to contact the seller.');
+        return;
+      }
+
+      const sellerId = order.businessId;
+
+      // Check for existing chat between current user and seller
+      const snap1 = await firestore()
+        .collection('chats')
+        .where('user1Id', '==', currentUserId)
+        .get();
+      const existing = snap1.docs.find(d => d.data().user2Id === sellerId);
+
+      if (existing) {
+        navigation.navigate('ChatRoom' as never, { chatId: existing.id } as never);
+        return;
+      }
+
+      const snap2 = await firestore()
+        .collection('chats')
+        .where('user2Id', '==', currentUserId)
+        .get();
+      const existing2 = snap2.docs.find(d => d.data().user1Id === sellerId);
+
+      if (existing2) {
+        navigation.navigate('ChatRoom' as never, { chatId: existing2.id } as never);
+        return;
+      }
+
+      // Create new chat
+      const chatRef = await firestore().collection('chats').add({
+        user1Id: currentUserId,
+        user2Id: sellerId,
+        lastMessage: '',
+        lastMessageTime: firestore.FieldValue.serverTimestamp(),
+        unreadUser1: 0,
+        unreadUser2: 0,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+      navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
+    } catch (e) {
+      console.error('[OrderTrackingScreen] handleContactSeller error:', e);
+      Alert.alert('Error', 'Failed to open chat with seller.');
+    }
+  }, [order, navigation]);
 
   // ── Loading ────────────────────────────────────────────────────────────
   if (loading) {

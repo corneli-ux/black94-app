@@ -69,7 +69,7 @@ const FEATURES: FeatureRow[] = [
   { feature: 'Early Access', free: false, premium: true, business: true },
   { feature: 'Ad Revenue Share', free: false, premium: true, business: true },
   { feature: 'Anonymous Chat', free: false, premium: true, business: true },
-  { feature: 'Store / CRM / AI', free: false, premium: false, business: true },
+  { feature: 'Store / CRM', free: false, premium: false, business: true },
 ];
 
 // ── Usage fetching helpers ─────────────────────────────────────────────────
