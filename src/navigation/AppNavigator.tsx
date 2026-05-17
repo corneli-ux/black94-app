@@ -1,11 +1,12 @@
 import React, { Suspense, lazy } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
+import { signOutUser } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -228,6 +229,29 @@ function CustomDrawerContent({ navigation }: any) {
     { label: 'Upgrade', icon: 'sparkles-outline', screen: 'PremiumDashboard' },
   ];
 
+  const handleLogout = () => {
+    navigation.closeDrawer();
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOutUser();
+            } catch (e) {
+              console.warn('[Drawer] signOutUser error:', e);
+            }
+            useAppStore.getState().logout();
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <DrawerContentScrollView style={styles.drawer} contentContainerStyle={{ paddingTop: insets.top }}>
       {/* Logo */}
@@ -251,6 +275,18 @@ function CustomDrawerContent({ navigation }: any) {
       ))}
 
       <View style={styles.drawerSpacer} />
+
+      {/* Settings */}
+      <TouchableOpacity
+        style={styles.drawerItem}
+        onPress={() => {
+          navigation.closeDrawer();
+          navigation.navigate('Settings');
+        }}
+      >
+        <Ionicons name="settings-outline" size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
+        <Text style={styles.drawerLabel}>Settings</Text>
+      </TouchableOpacity>
 
       {/* Legal links — visible to everyone, especially for payment gateway review */}
       <TouchableOpacity
@@ -291,6 +327,14 @@ function CustomDrawerContent({ navigation }: any) {
             </View>
             <Text style={styles.drawerUserHandle}>@{user.username}</Text>
           </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Logout button — always visible when user is logged in */}
+      {user && (
+        <TouchableOpacity style={styles.drawerLogoutBtn} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={22} color={colors.error} style={{ width: 30, textAlign: 'center' }} />
+          <Text style={styles.drawerLogoutText}>Log Out</Text>
         </TouchableOpacity>
       )}
     </DrawerContentScrollView>
@@ -420,6 +464,8 @@ const styles = StyleSheet.create({
   drawerUser: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, borderTopWidth: 0.5, borderTopColor: colors.border },
   drawerUserName: { color: colors.text, fontWeight: '700', fontSize: 15 },
   drawerUserHandle: { color: colors.textSecondary, fontSize: 14 },
+  drawerLogoutBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, borderTopWidth: 0.5, borderTopColor: colors.border },
+  drawerLogoutText: { color: colors.error, fontSize: 17, fontWeight: '600' },
   tabBadge: {
     position: 'absolute',
     top: 4,

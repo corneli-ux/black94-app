@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "210565807767-lloam9ir7q79iv43vkj7493sl4s2mqi5.apps.googleusercontent.com",
+          "client_id": "210565807767-as89op29stpkrr7tqok32vguvj99tic7.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.black94.app",
-            "certificate_hash": "f53f0d14741d8f88177e49aab82fd02ba2d6ddc4"
+            "certificate_hash": "a4694943708787c81096ec0b13026da7621cb0be"
           }
         },
         {
@@ -30,11 +30,11 @@
           }
         },
         {
-          "client_id": "210565807767-lloam9ir7q79iv43vkj7493sl4s2mqi5.apps.googleusercontent.com",
+          "client_id": "210565807767-r31f91g3q5s149c9sp89me1h90s6936d.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.black94.app",
-            "certificate_hash": "a4694943708787c81096ec0b13026da7621cb0be"
+            "certificate_hash": "f53f0d14741d8f88177e49aab82fd02ba2d6ddc4"
           }
         },
         {

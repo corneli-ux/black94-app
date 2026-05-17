@@ -52,6 +52,21 @@
             "DEFAULT",
             "BROWSABLE"
           ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "black94.firebaseapp.com",
+              "pathPrefix": "/__/auth/handler"
+            }
+          ],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ]
         }
       ]
     },

@@ -5,8 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
-import { signOutUser as signOut } from '../lib/api';
-import { firestore, auth } from '../lib/firebase';
+import { signOutUser } from '../lib/api';
+import { firestore } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { PLANS, formatAmount } from '../lib/payments';
 
@@ -51,12 +51,11 @@ export default function SettingsScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await signOut();
-            setUser(null);
-            useAppStore.getState().setToken(null);
+            await signOutUser();
           } catch (err) {
-            console.error('Logout failed:', err);
+            console.warn('[Settings] signOutUser error:', err);
           }
+          useAppStore.getState().logout();
         },
       },
     ]);

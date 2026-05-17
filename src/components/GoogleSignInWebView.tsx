@@ -15,6 +15,12 @@
  * The redirect URI (https://black94.firebaseapp.com/__/auth/handler) is
  * pre-authorized for every Firebase project with web SDK configured.
  * PKCE prevents Firebase's handler from consuming our auth code.
+ *
+ * ERROR INTERCEPTION:
+ * When Google shows an error page (e.g. policy violation, testing mode),
+ * we detect it via URL parameters and intercept BEFORE the page renders.
+ * The user sees a branded Black94 error instead of Google's raw error page
+ * (which exposes project IDs, developer emails, etc.).
  */
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';
@@ -29,6 +35,23 @@ interface Props {
   onToken: (idToken: string) => void;
   onError: (error: string) => void;
   onCancel: () => void;
+}
+
+/* ─── Error sanitization ──────────────────────────────────────────────────── */
+
+/**
+ * Strip project IDs, emails, and other identifiers from Google error messages.
+ * Prevents exposing internal details (project-210565807767, developer email, etc.)
+ * to the end user.
+ */
+function sanitizeErrorMessage(raw: string): string {
+  return raw
+    .replace(/project-\d+/gi, '[project]')
+    .replace(/\d{12,}/g, '[id]')
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[email]')
+    .replace(/https?:\/\/[^\s]+/gi, '[url]')
+    .replace(/firebaseapp\.com/gi, '[firebase]')
+    .replace(/googleusercontent\.com/gi, '[oauth]');
 }
 
 /* ─── PKCE: Random string generation ───────────────────────────────────────── */
@@ -79,7 +102,7 @@ async function exchangeCodeForToken(code: string, codeVerifier: string): Promise
   const data = await resp.json();
 
   if (!resp.ok) {
-    const errMsg = data.error_description || data.error || `HTTP ${resp.status}`;
+    const errMsg = sanitizeErrorMessage(data.error_description || data.error || `HTTP ${resp.status}`);
     throw new Error(errMsg);
   }
 
@@ -114,13 +137,41 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
   }, [onError]);
 
   /**
-   * Intercept navigation: when Google redirects to the Firebase handler,
-   * extract the auth code BEFORE the page loads.
+   * Intercept navigation events — catch both:
+   * 1. Successful redirect to Firebase handler (extract auth code)
+   * 2. Google error pages (block and show branded error)
+   *
+   * Google error URLs contain error= or error_description= parameters
+   * on accounts.google.com. We block these BEFORE the page renders,
+   * preventing the user from seeing Google's raw error page with
+   * project IDs and developer emails.
    */
   const handleShouldStartLoad = useCallback(
     (request: WebViewNavigation): boolean => {
       const url = request.url;
       console.log('[GoogleSignInWebView] Navigation:', url.substring(0, 120));
+
+      // ── Check for Google OAuth errors in the URL ──
+      // Google includes error parameters when the consent screen fails
+      // (policy violation, testing mode, invalid client, etc.)
+      if (url.includes('accounts.google.com') && (url.includes('error=') || url.includes('error_description='))) {
+        // Extract the error message
+        let errorMsg = 'Unable to sign in with Google. Please try again.';
+        try {
+          const urlObj = new URL(url);
+          const rawError = urlObj.searchParams.get('error_description') || urlObj.searchParams.get('error');
+          if (rawError) {
+            errorMsg = sanitizeErrorMessage(decodeURIComponent(rawError));
+          }
+        } catch {
+          const match = url.match(/[?&]error_description=([^&#]+)/);
+          if (match) errorMsg = sanitizeErrorMessage(decodeURIComponent(match[1]));
+        }
+
+        console.error('[GoogleSignInWebView] Google OAuth error intercepted:', errorMsg);
+        onError(errorMsg);
+        return false; // Block the error page from loading
+      }
 
       // Check if this is the redirect to Firebase's auth handler
       if (url.startsWith(FIREBASE_HANDLER) && !handledRef.current) {
@@ -146,17 +197,18 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
             })
             .catch((err) => {
               console.error('[GoogleSignInWebView] Token exchange failed:', err);
-              onError(err.message);
+              onError(sanitizeErrorMessage(err.message));
             });
         } else {
           // Check for error in redirect
           let error: string | null = null;
           try {
             const urlObj = new URL(url);
-            error = urlObj.searchParams.get('error_description') || urlObj.searchParams.get('error');
+            const rawError = urlObj.searchParams.get('error_description') || urlObj.searchParams.get('error');
+            error = rawError ? sanitizeErrorMessage(decodeURIComponent(rawError)) : null;
           } catch {
             const match = url.match(/[?&]error_description=([^&#]+)/);
-            error = match ? decodeURIComponent(match[1]) : null;
+            error = match ? sanitizeErrorMessage(decodeURIComponent(match[1])) : null;
           }
           onError(error || 'No authorization code received from Google');
         }

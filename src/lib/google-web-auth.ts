@@ -5,41 +5,51 @@
  * This module uses expo-web-browser which opens Chrome Custom Tabs on Android
  * and ASWebAuthenticationSession on iOS — both are "secure browsers" allowed by Google.
  *
- * ANDROID FLOW (Chrome Custom Tabs):
- *   1. Opens Google OAuth in Chrome Custom Tab
+ * IMPORTANT — redirect URI policy:
+ *   Google OAuth 2.0 policy for Web clients only accepts http(s) redirect URIs.
+ *   Custom scheme URIs (e.g. black94://auth) are REJECTED and cause
+ *   "Error 400: invalid_request — doesn't comply with OAuth 2.0 policy".
+ *   We use the Firebase auth handler HTTPS URL which is automatically authorized
+ *   for every Firebase project with web SDK configured.
+ *
+ * FLOW (Chrome Custom Tabs / ASWebAuthenticationSession):
+ *   1. Opens Google OAuth in system browser
  *   2. User authenticates
- *   3. Google redirects to black94://auth?code=...
- *   4. Chrome fires the deep link intent
- *   5. expo-web-browser intercepts it and returns the URL
- *   6. We exchange the auth code for an ID token using PKCE
- *
- *   REQUIREMENT: black94://auth must be registered in Google Cloud Console
- *   as an "Authorized redirect URI" under APIs & Services > Credentials.
- *
- * IOS FLOW (ASWebAuthenticationSession):
- *   1. Opens Google OAuth in system auth session
- *   2. Google redirects to the Firebase HTTPS handler
- *   3. ASWebAuthenticationSession intercepts the HTTPS redirect
- *   4. We exchange the auth code for an ID token using PKCE
+ *   3. Google redirects to https://black94.firebaseapp.com/__/auth/handler?code=...
+ *   4. expo-web-browser intercepts the redirect and returns the URL
+ *   5. We exchange the auth code for an ID token using PKCE
  */
 
 import * as WebBrowser from 'expo-web-browser';
-import { Platform } from 'react-native';
 import { sha256 } from '../utils/crypto';
 
 const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
 
 /**
- * Redirect URI per platform:
- *   Android → black94://auth (custom scheme, intercepted by deep linking)
- *   iOS → Firebase HTTPS handler (ASWebAuthenticationSession intercepts HTTPS)
+ * Redirect URI — HTTPS for ALL platforms.
+ *
+ * WHY HTTPS everywhere:
+ *   Google OAuth 2.0 policy for Web clients only accepts http(s) URIs.
+ *   Custom scheme URIs (e.g. black94://auth) cause Error 400 invalid_request.
+ *   The Firebase handler URL is pre-authorized for every Firebase project.
+ *   PKCE prevents Firebase's handler from consuming our auth code.
  */
 function getRedirectUri(): string {
-  if (Platform.OS === 'android') {
-    return 'black94://auth';
-  }
-  // iOS: ASWebAuthenticationSession can intercept HTTPS redirects
   return 'https://black94.firebaseapp.com/__/auth/handler';
+}
+
+/**
+ * Sanitize error messages from Google OAuth — strip project IDs, emails,
+ * and any other sensitive identifiers before showing to the user.
+ */
+function sanitizeErrorMessage(raw: string): string {
+  return raw
+    .replace(/project-\d+/gi, '[project]')
+    .replace(/\d{12,}/g, '[id]')
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[email]')
+    .replace(/https?:\/\/[^\s]+/gi, '[url]')
+    .replace(/firebaseapp\.com/gi, '[firebase]')
+    .replace(/googleusercontent\.com/gi, '[oauth]');
 }
 
 /**
@@ -74,7 +84,7 @@ export async function signInWithGoogleWeb(): Promise<string> {
   const codeVerifier = generateCodeVerifier(128);
   const codeChallenge = sha256(codeVerifier);
 
-  console.log('[GoogleWebAuth] Starting on', Platform.OS, 'redirect:', redirectUri);
+  console.log('[GoogleWebAuth] Starting, redirect:', redirectUri);
 
   const params = new URLSearchParams({
     client_id: WEB_CLIENT_ID,
@@ -95,8 +105,14 @@ export async function signInWithGoogleWeb(): Promise<string> {
   const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
   if (result.type !== 'success') {
-    console.log('[GoogleWebAuth] Session ended:', result.type);
-    throw new Error('Sign-in cancelled');
+    console.log('[GoogleWebAuth] Session ended without success:', result.type);
+    // When the browser session ends without a success redirect, it typically
+    // means Google showed an error page (policy violation, testing mode, etc.)
+    // OR the user manually closed the browser.
+    throw new Error(
+      'Sign-in was interrupted. If you saw an error page in the browser, ' +
+      'please try again or contact support.',
+    );
   }
 
   console.log('[GoogleWebAuth] Got redirect URL');
@@ -113,14 +129,15 @@ export async function signInWithGoogleWeb(): Promise<string> {
   }
 
   if (!code) {
-    // Check for error in redirect
+    // Check for error in redirect — extract and sanitize error message
     let error: string | null = null;
     try {
       const urlObj = new URL(result.url);
-      error = urlObj.searchParams.get('error_description') || urlObj.searchParams.get('error');
+      const rawError = urlObj.searchParams.get('error_description') || urlObj.searchParams.get('error');
+      error = rawError ? sanitizeErrorMessage(rawError) : null;
     } catch {
       const match = result.url.match(/[?&]error_description=([^&#]+)/);
-      error = match ? decodeURIComponent(match[1]) : null;
+      error = match ? sanitizeErrorMessage(decodeURIComponent(match[1])) : null;
     }
     throw new Error(error || 'No authorization code received from Google');
   }
@@ -143,7 +160,9 @@ export async function signInWithGoogleWeb(): Promise<string> {
   const tokens = await tokenResp.json();
 
   if (!tokenResp.ok) {
-    const errMsg = tokens.error_description || tokens.error || `HTTP ${tokenResp.status}`;
+    const errMsg = sanitizeErrorMessage(
+      tokens.error_description || tokens.error || `HTTP ${tokenResp.status}`,
+    );
     console.error('[GoogleWebAuth] Token exchange failed:', errMsg);
     throw new Error(errMsg);
   }
