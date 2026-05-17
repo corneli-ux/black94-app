@@ -490,6 +490,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
   const [messaging, setMessaging] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const [interactionsChecked, setInteractionsChecked] = useState(false);
   const [profileAd, setProfileAd] = useState<any>(null);
 
@@ -744,9 +745,41 @@ export default function ProfileScreen({ route, navigation }: any) {
   };
 
   const handleFollow = async () => {
-    const newState = await toggleFollow(targetUserId, following);
-    setFollowing(newState);
-    setFollowersCount(c => c + (newState ? 1 : -1));
+    if (followLoading) return;
+    setFollowLoading(true);
+    try {
+      const newState = await toggleFollow(targetUserId, following);
+      setFollowing(newState);
+      setFollowersCount(c => c + (newState ? 1 : -1));
+    } catch (e) {
+      console.warn('[ProfileScreen] follow error:', e);
+    }
+    setFollowLoading(false);
+  };
+
+  const findOrCreateChat = async (myUid: string, theirUid: string) => {
+    const snap1 = await firestore().collection('chats').where('user1Id', '==', myUid).get();
+    const existing = snap1.docs.find(d => d.data().user2Id === theirUid);
+    if (existing) {
+      navigation.navigate('ChatRoom' as never, { chatId: existing.id } as never);
+      return;
+    }
+    const snap2 = await firestore().collection('chats').where('user2Id', '==', myUid).get();
+    const existing2 = snap2.docs.find(d => d.data().user1Id === theirUid);
+    if (existing2) {
+      navigation.navigate('ChatRoom' as never, { chatId: existing2.id } as never);
+      return;
+    }
+    const chatRef = await firestore().collection('chats').add({
+      user1Id: myUid,
+      user2Id: theirUid,
+      lastMessage: '',
+      lastMessageTime: firestore.FieldValue.serverTimestamp(),
+      unreadUser1: 0,
+      unreadUser2: 0,
+      createdAt: firestore.FieldValue.serverTimestamp(),
+    });
+    navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
   };
 
   const handleMessage = async () => {
@@ -761,28 +794,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         const paid = await hasPaidChatAccess(currentUser.uid, targetUserId);
         if (paid) {
           // Already paid — proceed to chat directly
-          const snap1 = await firestore().collection('chats').where('user1Id', '==', currentUser.uid).get();
-          const existing = snap1.docs.find(d => d.data().user2Id === targetUserId);
-          if (existing) {
-            navigation.navigate('ChatRoom' as never, { chatId: existing.id } as never);
-          } else {
-            const snap2 = await firestore().collection('chats').where('user2Id', '==', currentUser.uid).get();
-            const existing2 = snap2.docs.find(d => d.data().user1Id === targetUserId);
-            if (existing2) {
-              navigation.navigate('ChatRoom' as never, { chatId: existing2.id } as never);
-            } else {
-              const chatRef = await firestore().collection('chats').add({
-                user1Id: currentUser.uid,
-                user2Id: targetUserId,
-                lastMessage: '',
-                lastMessageTime: firestore.FieldValue.serverTimestamp(),
-                unreadUser1: 0,
-                unreadUser2: 0,
-                createdAt: firestore.FieldValue.serverTimestamp(),
-              });
-              navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
-            }
-          }
+          await findOrCreateChat(currentUser.uid, targetUserId);
         } else {
           // Not paid — navigate to paid chat screen
           const chatPrice = await getPaidChatPrice(targetUserId);
@@ -793,7 +805,6 @@ export default function ProfileScreen({ route, navigation }: any) {
 
       if (dmPermission === 'no one') {
         Alert.alert('DMs Disabled', 'This user has disabled direct messages.');
-        setMessaging(false);
         return;
       }
 
@@ -802,38 +813,17 @@ export default function ProfileScreen({ route, navigation }: any) {
         const follows = await checkFollowing(targetUserId);
         if (!follows) {
           Alert.alert('Follow Required', 'You need to follow this user to send them a message.');
-          setMessaging(false);
           return;
         }
       }
 
       // DM permission is "all" or "followers_only" (and user follows) — proceed normally
-      const snap1 = await firestore().collection('chats').where('user1Id', '==', currentUser.uid).get();
-      const existing = snap1.docs.find(d => d.data().user2Id === targetUserId);
-      if (existing) {
-        navigation.navigate('ChatRoom' as never, { chatId: existing.id } as never);
-      } else {
-        const snap2 = await firestore().collection('chats').where('user2Id', '==', currentUser.uid).get();
-        const existing2 = snap2.docs.find(d => d.data().user1Id === targetUserId);
-        if (existing2) {
-          navigation.navigate('ChatRoom' as never, { chatId: existing2.id } as never);
-        } else {
-          const chatRef = await firestore().collection('chats').add({
-            user1Id: currentUser.uid,
-            user2Id: targetUserId,
-            lastMessage: '',
-            lastMessageTime: firestore.FieldValue.serverTimestamp(),
-            unreadUser1: 0,
-            unreadUser2: 0,
-            createdAt: firestore.FieldValue.serverTimestamp(),
-          });
-          navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
-        }
-      }
+      await findOrCreateChat(currentUser.uid, targetUserId);
     } catch (e: any) {
       console.warn('[ProfileScreen] message error:', e);
+    } finally {
+      setMessaging(false);
     }
-    setMessaging(false);
   };
 
   if (loading) return (
@@ -896,10 +886,15 @@ export default function ProfileScreen({ route, navigation }: any) {
             <TouchableOpacity
               style={[styles.followBtn, following && styles.followingBtn]}
               onPress={handleFollow}
+              disabled={followLoading}
             >
-              <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
-                {following ? 'Following' : 'Follow'}
-              </Text>
+              {followLoading ? (
+                <ActivityIndicator size="small" color={following ? colors.text : '#000000'} />
+              ) : (
+                <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
+                  {following ? 'Following' : 'Follow'}
+                </Text>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.messageBtn}

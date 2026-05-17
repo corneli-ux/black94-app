@@ -105,6 +105,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const [coverImage, setCoverImage] = useState('');
   const [role, setRole] = useState<Role>('personal');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
 
@@ -117,7 +118,7 @@ export default function EditProfileScreen({ navigation }: any) {
       headerRight: () => (
         <TouchableOpacity
           onPress={handleSave}
-          disabled={saving}
+          disabled={saving || loading}
           style={styles.saveButton}
           activeOpacity={0.7}
         >
@@ -134,27 +135,36 @@ export default function EditProfileScreen({ navigation }: any) {
         </TouchableOpacity>
       ),
     });
-  }, [navigation, saving, displayName, username, bio, profileImage, coverImage, role]);
+  }, [navigation, saving, loading]);
 
   useEffect(() => {
     const loadUser = async () => {
       if (!currentUid) return;
-      const userData = await fetchUserProfile(currentUid);
-      if (userData) {
-        setUser(userData);
-        setDisplayName(userData.displayName);
-        setUsername(userData.username);
-        setBio(userData.bio);
-        setProfileImage(userData.profileImage || '');
-        setCoverImage(userData.coverImage || '');
-        setRole((userData.role as Role) || 'personal');
+      setLoading(true);
+      try {
+        const userData = await fetchUserProfile(currentUid);
+        if (userData) {
+          setUser(userData);
+          setDisplayName(userData.displayName);
+          setUsername(userData.username);
+          setBio(userData.bio);
+          setProfileImage(userData.profileImage || '');
+          setCoverImage(userData.coverImage || '');
+          setRole((userData.role as Role) || 'personal');
+        }
+      } catch (e) {
+        console.warn('[EditProfileScreen] Failed to load user:', e);
+      } finally {
+        setLoading(false);
       }
     };
     loadUser();
   }, [currentUid]);
 
+  const usernameTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const checkUsername = useCallback(
-    async (value: string) => {
+    (value: string) => {
       setUsername(value);
       if (!value || value === user?.username) {
         setUsernameAvailable(null);
@@ -164,16 +174,19 @@ export default function EditProfileScreen({ navigation }: any) {
         setUsernameAvailable(false);
         return;
       }
+      // Debounce username check to avoid race conditions on fast typing
+      if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current);
       setUsernameChecking(true);
-      try {
-        const snap = await firestore().collection('usernames').doc(value.toLowerCase()).get();
-        const exists = snap.exists;
-        // If the doc exists and belongs to someone else, it's taken
-        setUsernameAvailable(!exists);
-      } catch {
-        setUsernameAvailable(false);
-      }
-      setUsernameChecking(false);
+      usernameTimerRef.current = setTimeout(async () => {
+        try {
+          const snap = await firestore().collection('usernames').doc(value.toLowerCase()).get();
+          const exists = snap.exists;
+          setUsernameAvailable(!exists);
+        } catch {
+          setUsernameAvailable(false);
+        }
+        setUsernameChecking(false);
+      }, 400);
     },
     [user?.username],
   );
@@ -264,6 +277,7 @@ export default function EditProfileScreen({ navigation }: any) {
       // Update user profile
       await firestore().collection('users').doc(currentUid).update({
         displayName: displayName.trim(),
+        displayNameLower: displayName.trim().toLowerCase(),
         username: username,
         usernameLower: username.toLowerCase(),
         bio: bio.trim(),
