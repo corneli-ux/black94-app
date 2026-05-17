@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   retryButton: {
-    backgroundColor: '#1d9bf0',
+    backgroundColor: '#2a7fff',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 24,

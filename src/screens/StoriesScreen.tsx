@@ -48,7 +48,7 @@ const STORY_CATEGORIES = [
 const TRENDING_MUSIC = [
   { id: 'm1', title: 'Blinding Lights', artist: 'The Weeknd', gradient: ['#f59e0b', '#ef4444'] as const },
   { id: 'm2', title: 'Tum Hi Ho', artist: 'Arijit Singh', gradient: ['#ec4899', '#8b5cf6'] as const },
-  { id: 'm3', title: 'Levitating', artist: 'Dua Lipa', gradient: ['#06b6d4', '#3b82f6'] as const },
+  { id: 'm3', title: 'Levitating', artist: 'Dua Lipa', gradient: ['#06b6d4', '#8b5cf6'] as const },
   { id: 'm4', title: 'Shape of You', artist: 'Ed Sheeran', gradient: ['#10b981', '#059669'] as const },
   { id: 'm5', title: 'Pasoori', artist: 'Ali Sethi', gradient: ['#f97316', '#eab308'] as const },
   { id: 'm6', title: 'Calm Down', artist: 'Rema', gradient: ['#8b5cf6', '#6366f1'] as const },
@@ -56,7 +56,7 @@ const TRENDING_MUSIC = [
 
 const TRENDING_FILTERS = [
   { id: 'f1', label: 'Warm', colors: ['#f59e0b', '#ef4444'] as const },
-  { id: 'f2', label: 'Cool', colors: ['#3b82f6', '#8b5cf6'] as const },
+  { id: 'f2', label: 'Cool', colors: ['#06b6d4', '#8b5cf6'] as const },
   { id: 'f3', label: 'Vintage', colors: ['#a78bfa', '#ec4899'] as const },
   { id: 'f4', label: 'B&W', colors: ['#6b7280', '#1f2937'] as const },
   { id: 'f5', label: 'Neon', colors: ['#10b981', '#06b6d4'] as const },

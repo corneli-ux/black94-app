@@ -9,6 +9,7 @@ import { colors } from '../theme/colors';
 import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
+import { uploadOptimizedImage } from '../utils/imageUpload';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
@@ -666,8 +667,20 @@ export default function FeedScreen({ navigation }: any) {
     if (!composeText.trim() && composeImages.length === 0) return;
     setPosting(true);
     try {
-      const mediaUrls = composeImages.length > 0 ? composeImages : [];
-      await createPost(composeText.trim(), mediaUrls);
+      // Upload local images to Firebase Storage first (local URIs won't work for other users)
+      const uploadedUrls: string[] = [];
+      if (composeImages.length > 0) {
+        for (const uri of composeImages) {
+          try {
+            const storagePath = `posts/${auth().currentUser?.uid}/${Date.now()}_${uploadedUrls.length}.jpg`;
+            const result = await uploadOptimizedImage(uri, storagePath, { mimeType: 'image/jpeg' });
+            uploadedUrls.push(result.downloadUrl);
+          } catch (err) {
+            console.error('[FeedCompose] Image upload failed:', err);
+          }
+        }
+      }
+      await createPost(composeText.trim(), uploadedUrls);
       setComposeText('');
       setComposeImages([]);
       setComposeVisible(false);
