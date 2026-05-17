@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,10 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
@@ -17,7 +19,11 @@ import {
   fetchUserProfile,
   hasPaidChatAccess,
 } from '../lib/api';
-import { initiatePayment, PaymentPlan } from '../lib/payments';
+import {
+  openRazorpayCheckout,
+  handleRazorpayMessage,
+  isRazorpayConfigured,
+} from '../lib/razorpay';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 
 export default function PaidChatScreen({ route, navigation }: any) {
@@ -29,6 +35,11 @@ export default function PaidChatScreen({ route, navigation }: any) {
   const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [targetUser, setTargetUser] = useState<any>(null);
   const [price, setPrice] = useState<number>(chatPrice || 0);
+
+  // Razorpay WebView modal state
+  const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
+  const [checkoutHTML, setCheckoutHTML] = useState('');
+  const webViewRef = useRef<any>(null);
 
   useEffect(() => {
     loadData();
@@ -104,58 +115,75 @@ export default function PaidChatScreen({ route, navigation }: any) {
     }
   };
 
-  const handlePay = async () => {
+  const handlePay = () => {
     if (!currentUser || paying) return;
 
+    // Check if Razorpay is configured
+    if (!isRazorpayConfigured()) {
+      Alert.alert(
+        'Payment Unavailable',
+        'Online payment is being configured. Please try again later.',
+      );
+      return;
+    }
+
+    const amountInPaise = price * 100;
+    const planName = `Chat with ${targetUser?.displayName || targetUser?.username || 'User'}`;
+
+    const { html, keyMissing } = openRazorpayCheckout({
+      amount: amountInPaise,
+      currency: 'INR',
+      planId: `paid_chat_${targetUserId}`,
+      planName,
+      userId: currentUser.uid,
+      userEmail: currentUser.email || '',
+      userName: currentUser.displayName || '',
+    });
+
+    if (keyMissing || !html) {
+      Alert.alert('Payment Unavailable', 'Razorpay is not configured. Please try again later.');
+      return;
+    }
+
+    setCheckoutHTML(html);
+    setCheckoutModalVisible(true);
     setPaying(true);
-    try {
-      // Build a one-time PaymentPlan for Razorpay
-      const amountInPaise = price * 100;
-      const plan: PaymentPlan = {
-        id: `paid_chat_${targetUserId}`,
-        name: `Chat with ${targetUser?.displayName || targetUser?.username || 'User'}`,
-        amount: amountInPaise,
-        currency: 'INR',
-        duration: 'monthly',
-        features: [`One-time chat access to ${targetUser?.displayName || 'this user'}`],
-      };
+  };
 
-      const result = await initiatePayment({
-        plan,
-        userId: currentUser.uid,
-        userEmail: currentUser.email || '',
-        userName: currentUser.displayName || '',
-      });
+  const handleWebViewMessage = async (event: any) => {
+    const result = handleRazorpayMessage(event);
+    setCheckoutModalVisible(false);
+    setPaying(false);
 
-      if (result.success) {
-        // Record the paid chat access
+    if (result.success && result.paymentId) {
+      // Payment succeeded — grant chat access
+      try {
         const accessCreated = await createPaidChatAccess(
           currentUser.uid,
           targetUserId,
           price,
+          result.paymentId,
         );
 
         if (accessCreated) {
-          // Find or create the chat, then navigate
           const chatId = await findOrCreateChat(currentUser.uid, targetUserId);
           if (chatId) {
             navigation.replace('ChatRoom' as never, { chatId } as never);
           } else {
-            Alert.alert('Error', 'Could not create chat. Please try again.');
+            Alert.alert('Error', 'Payment successful but could not create chat. Please contact support.');
           }
         } else {
           Alert.alert('Error', 'Payment recorded but could not grant access. Please contact support.');
         }
-      } else {
-        if (result.error && !result.error.includes('cancelled')) {
-          Alert.alert('Payment Failed', result.error);
-        }
+      } catch (e) {
+        console.error('[PaidChatScreen] Post-payment error:', e);
+        Alert.alert('Error', 'Something went wrong after payment. Please contact support.');
       }
-    } catch (e: any) {
-      console.error('[PaidChatScreen] Payment error:', e);
-      Alert.alert('Payment', 'Payment failed. Please try again.');
-    } finally {
-      setPaying(false);
+    } else {
+      // Payment cancelled or failed
+      if (result.error && !result.error.includes('cancelled')) {
+        Alert.alert('Payment Failed', result.error);
+      }
     }
   };
 
@@ -235,7 +263,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
             style={{ marginBottom: 12 }}
           />
           <Text style={styles.priceTitle}>Paid Chat</Text>
-          <Text style={styles.priceAmount}>₹{price}</Text>
+          <Text style={styles.priceAmount}>{'\u20B9'}{price}</Text>
           <Text style={styles.priceLabel}>to start a chat</Text>
           <View style={styles.priceDivider} />
           <View style={styles.priceDetails}>
@@ -266,7 +294,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
           ) : (
             <>
               <Ionicons name="card-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.payButtonText}>Pay ₹{price} & Start Chat</Text>
+              <Text style={styles.payButtonText}>Pay {'\u20B9'}{price} & Start Chat</Text>
             </>
           )}
         </TouchableOpacity>
@@ -283,6 +311,34 @@ export default function PaidChatScreen({ route, navigation }: any) {
           By proceeding, you agree to the paid chat terms. Payment is non-refundable.
         </Text>
       </View>
+
+      {/* Razorpay Checkout Modal */}
+      <Modal
+        visible={checkoutModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => {
+          setCheckoutModalVisible(false);
+          setPaying(false);
+        }}
+      >
+        <View style={styles.webviewContainer}>
+          <WebView
+            ref={webViewRef}
+            source={{ html: checkoutHTML }}
+            onMessage={handleWebViewMessage}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.webviewLoader}>
+                <ActivityIndicator color="#FFFFFF" size="large" />
+                <Text style={styles.webviewLoaderText}>Opening payment gateway...</Text>
+              </View>
+            )}
+          />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -301,7 +357,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 12,
   },
-  /* ── Header ── */
+  /* -- Header -- */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,13 +372,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
-  /* ── Content ── */
+  /* -- Content -- */
   content: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 28,
   },
-  /* ── User Card ── */
+  /* -- User Card -- */
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -359,7 +415,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 18,
   },
-  /* ── Price Card ── */
+  /* -- Price Card -- */
   priceCard: {
     backgroundColor: colors.surface,
     borderRadius: 16,
@@ -406,7 +462,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  /* ── Buttons ── */
+  /* -- Buttons -- */
   payButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -440,5 +496,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     paddingHorizontal: 20,
+  },
+  /* -- Razorpay WebView Modal -- */
+  webviewContainer: {
+    flex: 1,
+    backgroundColor: '#111111',
+  },
+  webviewLoader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#111111',
+    gap: 16,
+  },
+  webviewLoaderText: {
+    color: '#888888',
+    fontSize: 14,
   },
 });

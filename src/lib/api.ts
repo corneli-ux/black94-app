@@ -1274,6 +1274,7 @@ export async function createPaidChatAccess(
   payerId: string,
   receiverId: string,
   amount: number,
+  paymentId?: string,
 ): Promise<boolean> {
   try {
     const docId = `${payerId}_${receiverId}`;
@@ -1281,7 +1282,7 @@ export async function createPaidChatAccess(
       payerId,
       receiverId,
       amount,
-      paymentId: `manual_${Date.now()}`,
+      paymentId: paymentId || `manual_${Date.now()}`,
       status: 'active',
       createdAt: firestore.FieldValue.serverTimestamp(),
     });
