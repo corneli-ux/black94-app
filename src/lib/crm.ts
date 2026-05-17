@@ -1267,7 +1267,7 @@ export async function getLeadStats(businessId: string): Promise<LeadStats> {
       unqualified: 0,
       converted: 0,
       lost: 0,
-      avgAiScore: 0,
+      avgLeadScore: 0,
       assignedCount: 0,
       unassignedCount: 0,
     };
@@ -1300,7 +1300,7 @@ export async function getLeadStats(businessId: string): Promise<LeadStats> {
     console.error('[CRM] getLeadStats error:', error?.message);
     return {
       total: 0, new: 0, contacted: 0, qualified: 0,
-      unqualified: 0, converted: 0, lost: 0, avgAiScore: 0,
+      unqualified: 0, converted: 0, lost: 0, avgLeadScore: 0,
       assignedCount: 0, unassignedCount: 0,
     };
   }
