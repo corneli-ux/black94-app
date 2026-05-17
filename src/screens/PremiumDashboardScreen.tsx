@@ -233,11 +233,17 @@ export default function PremiumDashboardScreen() {
     }
   };
 
-  // ── Manage plan placeholder ──
+  // ── Manage plan: view details & cancel subscription ──
   const handleManagePlan = useCallback(() => {
+    const user = useAppStore.getState().user;
+    if (!user || user.subscription === 'free') {
+      Alert.alert('No Active Subscription', 'You are currently on the free plan.');
+      return;
+    }
+
     Alert.alert(
       'Manage Subscription',
-      'Your subscription is active and will renew automatically.\n\nTo cancel, change your plan, or update billing details, visit Razorpay customer portal (coming soon).',
+      `Your ${user.subscription.charAt(0).toUpperCase() + user.subscription.slice(1)} plan is active and will renew automatically.\n\nTo cancel, change your plan, or update billing details, contact support or cancel below.`,
       [
         { text: 'OK', style: 'default' },
         {
@@ -252,11 +258,42 @@ export default function PremiumDashboardScreen() {
                 {
                   text: 'Cancel',
                   style: 'destructive',
-                  onPress: () => {
-                    Alert.alert(
-                      'Coming Soon',
-                      'Self-serve cancellation will be available soon. Please contact support to cancel.',
-                    );
+                  onPress: async () => {
+                    try {
+                      const uid = auth()?.currentUser?.uid;
+                      if (!uid) return;
+
+                      // Update user subscription back to free
+                      await firestore().collection('users').doc(uid).update({
+                        subscription: 'free',
+                        role: user.role === 'business' ? 'business' : user.role,
+                        updatedAt: firestore.FieldValue.serverTimestamp(),
+                      });
+
+                      // Mark any active subscription records as cancelled
+                      const subs = await firestore()
+                        .collection('subscriptions')
+                        .where('userId', '==', uid)
+                        .where('status', '==', 'active')
+                        .get();
+
+                      const batch = firestore().batch();
+                      subs.docs.forEach(doc => {
+                        batch.update(doc.ref, { status: 'cancelled', cancelledAt: new Date().toISOString() });
+                      });
+                      if (subs.docs.length > 0) await batch.commit();
+
+                      // Refresh the app store user data
+                      const updatedUser = await firestore().collection('users').doc(uid).get();
+                      if (updatedUser.exists) {
+                        useAppStore.getState().setUser({ id: uid, ...updatedUser.data() });
+                      }
+
+                      Alert.alert('Subscription Cancelled', 'Your subscription has been cancelled. You can continue using premium features until the end of your billing period.');
+                    } catch (e: any) {
+                      console.error('[PremiumDashboard] Cancel failed:', e);
+                      Alert.alert('Error', 'Failed to cancel subscription. Please try again or contact support.');
+                    }
                   },
                 },
               ],

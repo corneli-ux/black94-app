@@ -185,21 +185,33 @@ export default function AiLeadGenScreen() {
     }
   }, [uid, allLeads.length]);
 
-  // ── Import leads (CSV placeholder) ──────────────────────────────────────
+  // ── Import leads (CSV via expo-document-picker) ────────────────────────────
 
-  const handleImportLeads = useCallback(() => {
-    Alert.alert(
-      'Import Leads',
-      'Upload a CSV file with columns: Name, Email, Phone, Company, Job Title, Source, Tags, Notes.\n\nThe import will create leads and assign AI scores automatically.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Choose File', onPress: () => {
-          // In production, use expo-document-picker or expo-file-system
-          Alert.alert('Coming Soon', 'File picker integration will be available in the next update.');
-        }},
-      ],
-    );
-  }, []);
+  const handleImportLeads = useCallback(async () => {
+    try {
+      const { getDocumentAsync } = require('expo-document-picker');
+      const result = await getDocumentAsync({
+        type: 'text/csv',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const fileUri = result.assets[0].uri;
+      const FileSystem = require('expo-file-system').default;
+      const csvText = await FileSystem.readAsStringAsync(fileUri);
+
+      // Use CRM module's built-in CSV parser
+      const importResult = await CRM.importLeadsFromCSV(csvText, uid);
+
+      Alert.alert('Import Complete', `Successfully imported ${importResult.imported} lead(s).${importResult.skipped > 0 ? `\n${importResult.skipped} row(s) skipped due to errors.` : ''}`);
+      // Refresh the leads list
+      setAllLeads([]);
+    } catch (err: any) {
+      console.error('[AiLeadGen] Import failed:', err);
+      Alert.alert('Import Error', 'Could not read the CSV file. Make sure it is a valid CSV with columns: Name, Email, Phone, Company, Job Title, Source, Tags, Notes.');
+    }
+  }, [uid]);
 
   // ── Loading state ────────────────────────────────────────────────────────
 

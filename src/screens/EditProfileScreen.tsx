@@ -308,9 +308,11 @@ export default function EditProfileScreen({ navigation }: any) {
         }},
       ]);
     } catch (e: any) {
+      console.error('[EditProfileScreen] Save failed:', e?.message || e);
       Alert.alert('Profile', 'Could not update profile. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }, [currentUid, displayName, username, bio, profileImage, coverImage, role, user, navigation]);
 
   return (

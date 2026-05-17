@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, ScrollView, Alert, Share, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { fetchUserProfile, toggleFollow, checkFollowing, toggleLike, toggleBookmark, toggleRepost, getUserDmPermission, getPaidChatPrice, hasPaidChatAccess, fetchActiveAdCampaigns, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
@@ -601,7 +602,12 @@ export default function ProfileScreen({ route, navigation }: any) {
     setCanRefresh(offset <= 0);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  // Refresh profile data whenever the screen gains focus (e.g. returning from EditProfile)
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   // Load replies when replies tab is active
   useEffect(() => {

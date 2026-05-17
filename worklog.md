@@ -83,3 +83,29 @@ Stage Summary:
 - PostCard.tsx remains untouched (FINALIZED)
 - Bottom nav has 6 tabs: Home, Search, Messages, Notifications, Stories, AnonymousChat
 - Drawer has no duplicates from bottom nav
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Audit and fix bugs in black94-app React Native codebase
+
+Work Log:
+- Located correct project at /home/z/black94-app/ (remote: dasucosmos-eng/black94-app.git)
+- Read all critical source files: api.ts, firebase.ts, app.ts store, FeedScreen, ProfileScreen, EditProfileScreen, StoriesScreen, AnonymousChatScreen, ChatRoomScreen, NotificationsScreen, AppNavigator, App.js, CreatePostScreen, GifPickerScreen
+- Identified and fixed 8 bugs:
+  1. FeedScreen compose: Camera/GIF/Emoji/Poll buttons were placeholder Alert.alert('coming soon!') → now navigate to CreatePostScreen which has full support
+  2. FeedScreen handleRepost: missing optimistic state update → added local state mutation matching ProfileScreen behavior
+  3. EditProfileScreen: save navigates to 'Profile' but navigator registers 'ProfileSelf' → fixed route name
+  4. firebase.ts add(): silently dropped increment field transforms → now handles them with warning
+  5. ChatRoomScreen: header not wrapped in SafeAreaView → added SafeAreaView for notch/statusbar
+  6. AppNavigator: GifPicker screen not registered → added lazy import and route
+  7. StoriesScreen: hardcoded blue gradient ['#4a2080', '#2a7fff'] → replaced with theme accent color
+  8. App.js: hardcoded blue '#2a7fff' retry button → replaced with white '#e7e9ea'
+
+Stage Summary:
+- 7 files changed, 40 insertions, 11 deletions
+- Committed as 69141c2 and pushed to main
+- EAS build triggered automatically via GitHub Actions
+- No hardcoded blue colors remain in screens (only colors.ts accent definition)
+- All compose actions now functional (image upload, GIF picker, emoji picker, camera)
+- Navigation routes consistent between screens and navigator
