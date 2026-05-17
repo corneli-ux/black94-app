@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
   RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
@@ -598,7 +599,18 @@ export default function FeedScreen({ navigation }: any) {
     })();
   }, []);
 
-  useEffect(() => { loadFeed(); }, []);
+  useEffect(() => { loadFeed(); }, [loadFeed]);
+
+  // Reload feed when screen regains focus (e.g. returning from CreatePost)
+  useFocusEffect(
+    useCallback(() => {
+      if (!loading) {
+        lastDocRef.current = null;
+        setAllLoaded(false);
+        loadFeed(false);
+      }
+    }, [loadFeed, loading]),
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

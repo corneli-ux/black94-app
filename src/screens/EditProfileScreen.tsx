@@ -135,7 +135,7 @@ export default function EditProfileScreen({ navigation }: any) {
         </TouchableOpacity>
       ),
     });
-  }, [navigation, saving, loading]);
+  }, [navigation, saving, loading, handleSave]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -227,93 +227,93 @@ export default function EditProfileScreen({ navigation }: any) {
         return;
       }
     }
+
+    const doSave = async () => {
+      setSaving(true);
+      try {
+        let finalProfileImage = profileImage;
+        let finalCoverImage = coverImage;
+
+        // Upload images if they are local URIs
+        if (profileImage && !profileImage.startsWith('http')) {
+          finalProfileImage = await uploadImage(
+            profileImage,
+            `users/${currentUid}/profile/${Date.now()}.jpg`,
+          );
+        }
+        if (coverImage && !coverImage.startsWith('http')) {
+          finalCoverImage = await uploadImage(
+            coverImage,
+            `users/${currentUid}/cover/${Date.now()}.jpg`,
+          );
+        }
+
+        // Update username if changed
+        if (username !== user?.username) {
+          const oldUsername = user?.username?.toLowerCase();
+          if (oldUsername) {
+            try { await firestore().collection('usernames').doc(oldUsername).delete(); } catch {}
+          }
+          try {
+            await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: currentUid });
+          } catch {}
+        }
+
+        // Update user profile
+        await firestore().collection('users').doc(currentUid).update({
+          displayName: displayName.trim(),
+          displayNameLower: displayName.trim().toLowerCase(),
+          username: username,
+          usernameLower: username.toLowerCase(),
+          bio: bio.trim(),
+          profileImage: finalProfileImage,
+          coverImage: finalCoverImage,
+          role,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+
+        Alert.alert('Success', 'Profile updated successfully', [
+          { text: 'OK', onPress: () => {
+            // Update Zustand store so sidebar/drawer shows the new profile info immediately
+            setGlobalUser({
+              id: currentUid,
+              email: user?.email || '',
+              username: username,
+              displayName: displayName.trim(),
+              bio: bio.trim(),
+              profileImage: finalProfileImage,
+              coverImage: finalCoverImage,
+              role,
+              badge: user?.badge || '',
+              subscription: user?.subscription || 'free',
+              isVerified: user?.isVerified || false,
+              createdAt: user?.createdAt || Date.now(),
+            });
+            navigation.navigate('ProfileSelf');
+          }},
+        ]);
+      } catch (e: any) {
+        console.error('[EditProfileScreen] Save failed:', e?.message || e);
+        Alert.alert('Profile', 'Could not update profile. Please try again.');
+      } finally {
+        setSaving(false);
+      }
+    };
+
     if (role === 'business' && user?.role !== 'business') {
       Alert.alert(
         'Warning',
         'Once you switch to Business account, you cannot change back. Are you sure?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', style: 'destructive', onPress: () => performSave() },
+          { text: 'Continue', style: 'destructive', onPress: doSave },
         ],
       );
       return;
     }
 
-    performSave();
-  }, [currentUid, displayName, username, bio, profileImage, coverImage, role, user, usernameAvailable]);
-
-  const performSave = useCallback(async () => {
-    if (!currentUid) return;
-    setSaving(true);
-    try {
-      let finalProfileImage = profileImage;
-      let finalCoverImage = coverImage;
-
-      // Upload images if they are local URIs
-      if (profileImage && !profileImage.startsWith('http')) {
-        finalProfileImage = await uploadImage(
-          profileImage,
-          `users/${currentUid}/profile/${Date.now()}.jpg`,
-        );
-      }
-      if (coverImage && !coverImage.startsWith('http')) {
-        finalCoverImage = await uploadImage(
-          coverImage,
-          `users/${currentUid}/cover/${Date.now()}.jpg`,
-        );
-      }
-
-      // Update username if changed
-      if (username !== user?.username) {
-        const oldUsername = user?.username?.toLowerCase();
-        if (oldUsername) {
-          try { await firestore().collection('usernames').doc(oldUsername).delete(); } catch {}
-        }
-        try {
-          await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: currentUid });
-        } catch {}
-      }
-
-      // Update user profile
-      await firestore().collection('users').doc(currentUid).update({
-        displayName: displayName.trim(),
-        displayNameLower: displayName.trim().toLowerCase(),
-        username: username,
-        usernameLower: username.toLowerCase(),
-        bio: bio.trim(),
-        profileImage: finalProfileImage,
-        coverImage: finalCoverImage,
-        role,
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
-
-      Alert.alert('Success', 'Profile updated successfully', [
-        { text: 'OK', onPress: () => {
-          // Update Zustand store so sidebar/drawer shows the new profile info immediately
-          setGlobalUser({
-            id: currentUid,
-            email: user?.email || '',
-            username: username,
-            displayName: displayName.trim(),
-            bio: bio.trim(),
-            profileImage: finalProfileImage,
-            coverImage: finalCoverImage,
-            role,
-            badge: user?.badge || '',
-            subscription: user?.subscription || 'free',
-            isVerified: user?.isVerified || false,
-            createdAt: user?.createdAt || Date.now(),
-          });
-          navigation.navigate('ProfileSelf');
-        }},
-      ]);
-    } catch (e: any) {
-      console.error('[EditProfileScreen] Save failed:', e?.message || e);
-      Alert.alert('Profile', 'Could not update profile. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  }, [currentUid, displayName, username, bio, profileImage, coverImage, role, user, navigation]);
+    doSave();
+  }, [currentUid, displayName, username, bio, profileImage, coverImage, role, user, usernameAvailable, setGlobalUser, navigation]);
 
   return (
     <KeyboardAvoidingView
