@@ -2251,6 +2251,59 @@ export async function getPendingFollowUps(businessId: string): Promise<Scheduled
 }
 
 /**
+ * Checks for pending follow-ups that are due and delivers them as
+ * in-app notifications via the notification engine.
+ * Should be called periodically (e.g., when CRM screens open).
+ */
+export async function deliverPendingFollowUps(userId: string): Promise<number> {
+  try {
+    const pending = await getPendingFollowUps(userId);
+    const now = Date.now();
+    const due = pending.filter(f => {
+      const scheduledAt = f.scheduledAt || f.createdAt || 0;
+      return scheduledAt <= now && !f.delivered;
+    });
+
+    if (due.length === 0) return 0;
+
+    let delivered = 0;
+
+    for (const followUp of due) {
+      try {
+        // Create an in-app notification
+        await firestore().collection('notifications').add({
+          recipientId: userId,
+          type: 'follow_up_reminder',
+          title: 'Follow-up Reminder',
+          body: followUp.message || `Time to follow up with ${followUp.leadId || 'your lead'}.`,
+          data: {
+            leadId: followUp.leadId,
+            dealId: followUp.dealId,
+          },
+          read: false,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Mark as delivered
+        await firestore().collection('scheduled_followups').doc(followUp.id).update({
+          delivered: true,
+          deliveredAt: firestore.FieldValue.serverTimestamp(),
+        });
+
+        delivered++;
+      } catch (e) {
+        console.warn('[CRM] Failed to deliver follow-up:', followUp.id, e);
+      }
+    }
+
+    return delivered;
+  } catch (e) {
+    console.error('[CRM] deliverPendingFollowUps failed:', e);
+    return 0;
+  }
+}
+
+/**
  * Marks a scheduled follow-up as completed with a result.
  */
 export async function markFollowUpCompleted(

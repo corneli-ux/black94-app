@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
+import { deliverPendingFollowUps } from '../lib/crm';
 
 /* ── Theme compat (mirrors source theme tokens) ─────────────────────────────── */
 
@@ -106,6 +107,8 @@ const CrmDealsScreen: React.FC = () => {
 
   useEffect(() => {
     loadDeals();
+    // Deliver any pending follow-up reminders
+    deliverPendingFollowUps(uid).catch(() => {});
   }, [loadDeals]);
 
   useEffect(() => {

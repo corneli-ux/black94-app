@@ -3,6 +3,8 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Activity
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { searchWeb, WebSearchResult } from '../lib/websearch';
+import { Linking } from 'react-native';
 import { auth, firestore } from '../lib/firebase';
 import { User, Post, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -11,15 +13,16 @@ export default function SearchScreen({ route, navigation }: any) {
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [webResults, setWebResults] = useState<WebSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [tab, setTab] = useState<'people' | 'posts'>('people');
+  const [tab, setTab] = useState<'people' | 'posts' | 'web'>('people');
   const [focused, setFocused] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const insets = useSafeAreaInsets();
 
   const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) { setUsers([]); setPosts([]); setSearched(false); return; }
+    if (!q.trim()) { setUsers([]); setPosts([]); setWebResults([]); setSearched(false); return; }
     setLoading(true);
     setSearched(true);
     try {
@@ -71,6 +74,11 @@ export default function SearchScreen({ route, navigation }: any) {
 
       setUsers(visibleUsers);
       setPosts(foundPosts);
+
+      // Also search the web
+      searchWeb(q, 10).then(results => {
+        setWebResults(results);
+      }).catch(() => {});
     } catch (e) {
       console.error(e);
     } finally {
@@ -85,6 +93,7 @@ export default function SearchScreen({ route, navigation }: any) {
       setSearched(false);
       setUsers([]);
       setPosts([]);
+      setWebResults([]);
       return;
     }
     debounceRef.current = setTimeout(() => {
@@ -170,7 +179,7 @@ export default function SearchScreen({ route, navigation }: any) {
           onBlur={() => setFocused(false)}
         />
         {query.length > 0 && (
-          <TouchableOpacity onPress={() => { setQuery(''); setUsers([]); setPosts([]); setSearched(false); }} hitSlop={8}>
+          <TouchableOpacity onPress={() => { setQuery(''); setUsers([]); setPosts([]); setWebResults([]); setSearched(false); }} hitSlop={8}>
             <Ionicons name="close-circle" size={18} color="#64748b" />
           </TouchableOpacity>
         )}
@@ -181,7 +190,7 @@ export default function SearchScreen({ route, navigation }: any) {
         <View style={styles.resultsWrap}>
           {/* People / Posts tabs */}
           <View style={styles.searchTabs}>
-            {(['people', 'posts'] as const).map(t => (
+            {(['people', 'posts', 'web'] as const).map(t => (
               <TouchableOpacity key={t} style={styles.searchTab} onPress={() => setTab(t)}>
                 <Text style={[styles.searchTabText, tab === t && styles.searchTabTextActive]}>
                   {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -203,6 +212,28 @@ export default function SearchScreen({ route, navigation }: any) {
               ListEmptyComponent={
                 <View style={styles.emptyResults}>
                   <Text style={{ color: '#94a3b8', fontSize: 15 }}>No users found</Text>
+                </View>
+              }
+              ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)', marginHorizontal: 16 }} />}
+            />
+          ) : tab === 'web' ? (
+            <FlatList
+              data={webResults}
+              keyExtractor={(item, index) => `web-${index}`}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.webResultRow}
+                  onPress={() => Linking.openURL(item.url)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.webResultName} numberOfLines={2}>{item.name}</Text>
+                  <Text style={styles.webResultHost} numberOfLines={1}>{item.hostName}</Text>
+                  <Text style={styles.webResultSnippet} numberOfLines={2}>{item.snippet}</Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyResults}>
+                  <Text style={{ color: '#94a3b8', fontSize: 15 }}>No web results found</Text>
                 </View>
               }
               ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)', marginHorizontal: 16 }} />}
@@ -313,4 +344,8 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     color: '#94a3b8', fontSize: 14, textAlign: 'center',
   },
+  webResultRow: { paddingHorizontal: 16, paddingVertical: 12 },
+  webResultName: { color: '#1d9bf0', fontSize: 15, fontWeight: '600', lineHeight: 20, marginBottom: 2 },
+  webResultHost: { color: '#94a3b8', fontSize: 12, marginBottom: 4 },
+  webResultSnippet: { color: '#e7e9ea', fontSize: 14, lineHeight: 20 },
 });

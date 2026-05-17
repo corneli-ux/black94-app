@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
+import { deliverPendingFollowUps } from '../lib/crm';
 
 /* ── Theme compat (mirrors source theme tokens) ─────────────────────────────── */
 
@@ -115,6 +116,8 @@ const CrmLeadsScreen: React.FC = () => {
 
   useEffect(() => {
     loadLeads();
+    // Deliver any pending follow-up reminders
+    deliverPendingFollowUps(uid).catch(() => {});
   }, [loadLeads]);
 
   useEffect(() => {
