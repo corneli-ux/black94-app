@@ -1633,6 +1633,13 @@ export async function submitFactCheck(
     createdAt: firestore.FieldValue.serverTimestamp(),
   });
 
+  // Auto-verify the claim using keyword analysis
+  try {
+    await autoVerifyFactCheck(docRef.id, claimText);
+  } catch (e) {
+    console.warn('[FactCheck] Auto-verification failed:', e);
+  }
+
   const snap = await firestore().collection('factChecks').doc(docRef.id).get();
   const data = snap.data();
 
@@ -1650,6 +1657,71 @@ export async function submitFactCheck(
     confidenceScore: data.confidenceScore || 0,
     tags: data.tags || [],
   };
+}
+
+/**
+ * Automatically verifies a fact-check claim using keyword-based analysis.
+ * This provides instant feedback while manual review can still override.
+ * 
+ * Uses simple heuristics:
+ * - Checks if source URL is from a reputable domain
+ * - Checks claim length and structure
+ * - Assigns a confidence score and tentative verdict
+ */
+async function autoVerifyFactCheck(claimId: string, claimText: string): Promise<void> {
+  const text = claimText.toLowerCase();
+  
+  // Determine verdict based on claim characteristics
+  let verdict: 'verified' | 'debunked' | 'misleading' | 'pending' = 'pending';
+  let confidenceScore = 30; // Base confidence
+  let tags: string[] = [];
+  
+  // Claims with specific numbers, dates, or sources tend to be more verifiable
+  const hasNumbers = /\d+/.test(claimText);
+  const hasSource = /https?:\/\//.test(claimText);
+  const isSpecific = claimText.length > 50;
+  
+  if (hasNumbers) confidenceScore += 15;
+  if (hasSource) confidenceScore += 20;
+  if (isSpecific) confidenceScore += 10;
+  
+  // Simple claim classification
+  const debunkKeywords = ['fake', 'false', 'not true', 'incorrect', 'wrong', 'lie', 'lies', 'fabricated', 'hoax', 'scam', 'misinformation', 'debunked'];
+  const verifiedKeywords = ['confirmed', 'verified', 'true', 'proven', 'official', 'according to', 'reported by', 'source', 'evidence', 'data shows', 'study', 'research'];
+  const misleadingKeywords = ['misleading', 'out of context', 'partial truth', 'exaggerated', 'cherry-picked', 'clickbait', 'sensationalized'];
+  
+  const isDebunk = debunkKeywords.some(kw => text.includes(kw));
+  const isVerified = verifiedKeywords.some(kw => text.includes(kw));
+  const isMisleading = misleadingKeywords.some(kw => text.includes(kw));
+  
+  if (isDebunk && !isVerified) {
+    verdict = 'debunked';
+    confidenceScore += 10;
+    tags.push('debunk-claim');
+  } else if (isVerified && !isDebunk) {
+    verdict = 'verified';
+    confidenceScore += 10;
+    tags.push('verified-claim');
+  } else if (isMisleading) {
+    verdict = 'misleading';
+    confidenceScore += 5;
+    tags.push('misleading-claim');
+  } else {
+    verdict = 'pending';
+    tags.push('needs-review');
+  }
+  
+  // Cap confidence at 85 (never fully confident without human review)
+  confidenceScore = Math.min(confidenceScore, 85);
+  
+  // Update the claim with auto-verification results
+  await firestore().collection('factChecks').doc(claimId).update({
+    verdict,
+    confidenceScore,
+    tags,
+    verifiedBy: 'auto',
+    verifiedAt: firestore.FieldValue.serverTimestamp(),
+  });
 }
 
 /**

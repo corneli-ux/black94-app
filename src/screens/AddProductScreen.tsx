@@ -6,6 +6,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
+import { checkPlanLimit } from '../lib/payments';
 import { User, Post } from '../lib/api';
 
 const CATEGORIES = [
@@ -113,6 +114,15 @@ export default function AddProductScreen({ route, navigation }: any) {
     if (!currentUser?.uid) {
       Alert.alert('Error', 'You must be logged in.');
       return;
+    }
+
+    // Check plan limits for new products
+    if (!editProductId) {
+      const productCheck = await checkPlanLimit(currentUser.uid, 'product');
+      if (!productCheck.allowed) {
+        Alert.alert('Limit Reached', productCheck.reason || 'Upgrade to Business plan to add products.');
+        return;
+      }
     }
 
     setSaving(true);

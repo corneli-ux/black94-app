@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, firestore } from '../lib/firebase';
 import { fetchUserProfile } from '../lib/api';
+import { checkPlanLimit } from '../lib/payments';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { colors } from '../theme/colors';
 
@@ -183,6 +184,14 @@ export default function StoryCreatorScreen({ navigation }: any) {
             votes: 0,
             percentage: 0,
           }));
+      }
+
+      // Check plan limits for free users
+      const storyCheck = await checkPlanLimit(currentUid, 'story');
+      if (!storyCheck.allowed) {
+        Alert.alert('Limit Reached', storyCheck.reason || 'Upgrade your plan to create more stories.');
+        setPosting(false);
+        return;
       }
 
       await firestore().collection('stories').add({

@@ -10,6 +10,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
+import { checkPlanLimit } from '../lib/payments';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { auth } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -161,6 +162,14 @@ const CreatePostScreen: React.FC = () => {
       Alert.alert('Not Signed In', 'Please sign in to create a post.');
       return;
     }
+
+    // Check plan limits for free users
+    const planCheck = await checkPlanLimit(user?.id || '', 'post');
+    if (!planCheck.allowed) {
+      Alert.alert('Limit Reached', planCheck.reason || 'Upgrade your plan to create more posts.');
+      return;
+    }
+
     setPosting(true);
     setUploadProgress('');
     try {

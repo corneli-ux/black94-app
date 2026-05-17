@@ -102,6 +102,48 @@ export const PLAN_LIMITS: Record<string, { posts: number; stories: number; produ
   business: { posts: -1, stories: -1, products: 500, storage: 5000 },
 };
 
+/**
+ * Checks if a user can perform an action based on their plan limits.
+ * Returns { allowed: true } or { allowed: false, reason: string }.
+ */
+export async function checkPlanLimit(
+  userId: string,
+  action: 'post' | 'story' | 'product',
+): Promise<{ allowed: boolean; reason?: string }> {
+  try {
+    const userDoc = await firestore().collection('users').doc(userId).get();
+    if (!userDoc.exists) return { allowed: true }; // Safety fallback
+    
+    const subscription = userDoc.data()?.subscription || 'free';
+    const limits = PLAN_LIMITS[subscription] || PLAN_LIMITS.free;
+    
+    if (limits[action] === -1) return { allowed: true }; // Unlimited
+    
+    const collectionMap = { post: 'posts', story: 'stories', product: 'products' };
+    const collectionName = collectionMap[action];
+    
+    const snapshot = await firestore()
+      .collection(collectionName)
+      .where('authorId', '==', userId)
+      .get();
+    
+    const currentCount = snapshot.size;
+    
+    if (currentCount >= limits[action]) {
+      const actionLabels = { post: 'posts', story: 'stories', product: 'products' };
+      return {
+        allowed: false,
+        reason: `Free accounts can create up to ${limits[action]} ${actionLabels[action]}. Upgrade to Premium for unlimited access.`,
+      };
+    }
+    
+    return { allowed: true };
+  } catch (e) {
+    console.error('[PlanLimit] Check failed:', e);
+    return { allowed: true }; // Allow on error to not block users
+  }
+}
+
 // ── Payment initiation ────────────────────────────────────────────────────
 
 /**
