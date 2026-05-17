@@ -6,7 +6,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { ImagePickerAsset, ImagePickerResult } from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
@@ -30,11 +30,16 @@ const COLORS = {
   white06: 'rgba(255,255,255,0.06)',
   white08: 'rgba(255,255,255,0.08)',
   white50: 'rgba(255,255,255,0.5)',
-  accent: '#1d9bf0',
+  accent: '#D4AF37',
   red: '#f4212e',
   green: '#00ba7c',
   amber: '#ffd400',
+  gold: '#D4AF37',
 };
+
+// ── Poll types ────────────────────────────────────────────────────────────
+interface PollOption { id: string; text: string; }
+interface PollData { question: string; options: PollOption[]; duration: number; }
 
 // ── Image picker helper ─────────────────────────────────────────────────────
 
@@ -94,9 +99,14 @@ const CreatePostScreen: React.FC = () => {
   const [selectedGifUrls, setSelectedGifUrls] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
+  const [showPollCreator, setShowPollCreator] = useState(false);
+  const [pollData, setPollData] = useState<PollData | null>(null);
+  const [pollOptionText, setPollOptionText] = useState('');
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollDuration, setPollDuration] = useState(24);
 
   const captionLength = caption.length;
-  const canPost = (caption.trim().length > 0 || selectedImages.length > 0 || selectedGifUrls.length > 0) && !posting;
+  const canPost = (caption.trim().length > 0 || selectedImages.length > 0 || selectedGifUrls.length > 0 || pollData) && !posting;
 
   // ── Image actions ─────────────────────────────────────────────────────
 
@@ -178,7 +188,7 @@ const CreatePostScreen: React.FC = () => {
       }
 
       setUploadProgress('Posting...');
-      await createPost(caption.trim(), [...uploadedUrls, ...selectedGifUrls]);
+      await createPost(caption.trim(), [...uploadedUrls, ...selectedGifUrls], pollData || undefined);
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err) {
@@ -191,7 +201,21 @@ const CreatePostScreen: React.FC = () => {
       setPosting(false);
       setUploadProgress('');
     }
-  }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh]);
+  }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh, pollData]);
+
+  // ── Poll actions ────────────────────────────────────────────────────
+  const addPollOption = useCallback(() => {
+    if (!pollOptionText.trim() || (pollData?.options.length ?? 0) >= 4) return;
+    const newOption: PollOption = { id: `opt_${Date.now()}`, text: pollOptionText.trim() };
+    setPollData(prev => prev ? { ...prev, options: [...prev.options, newOption] } : { question: '', options: [newOption], duration: 24 });
+    setPollOptionText('');
+  }, [pollOptionText, pollData]);
+
+  const removePollOption = useCallback((id: string) => {
+    setPollData(prev => prev ? { ...prev, options: prev.options.filter(o => o.id !== id) } : null);
+  }, []);
+
+  const removePoll = useCallback(() => { setShowPollCreator(false); setPollData(null); setPollQuestion(''); setPollDuration(24); }, []);
 
   // ── Image grid ────────────────────────────────────────────────────────
 
@@ -308,26 +332,81 @@ const CreatePostScreen: React.FC = () => {
           {/* Upload progress */}
           {uploadProgress ? (
             <View style={styles.progressRow}>
-              <ActivityIndicator size="small" color={COLORS.accent} />
+              <ActivityIndicator size="small" color={COLORS.gold} />
               <Text style={styles.progressText}>{uploadProgress}</Text>
             </View>
           ) : null}
+
+          {/* Poll Preview */}
+          {pollData && (
+            <View style={styles.pollPreview}>
+              <View style={styles.pollHeader}>
+                <MaterialCommunityIcons name="poll" size={20} color={COLORS.gold} />
+                <Text style={styles.pollTitle}>Poll</Text>
+                <TouchableOpacity onPress={removePoll} hitSlop={8}>
+                  <Ionicons name="close" size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.pollQuestionText}>{pollData.question || 'Untitled poll'}</Text>
+              {pollData.options.map((opt, i) => (
+                <View key={opt.id} style={styles.pollOptionItem}>
+                  <View style={styles.pollOptionDot}><Text style={styles.pollOptionIndex}>{i + 1}</Text></View>
+                  <Text style={styles.pollOptionText}>{opt.text}</Text>
+                </View>
+              ))}
+              <Text style={styles.pollDurationText}>{pollData.duration}h duration</Text>
+            </View>
+          )}
+
+          {/* Poll Creator */}
+          {showPollCreator && (
+            <View style={styles.pollCreator}>
+              <Text style={styles.pollCreatorTitle}>Create Poll</Text>
+              <TextInput style={styles.pollInput} value={pollQuestion} onChangeText={setPollQuestion} placeholder="Ask a question..." placeholderTextColor={COLORS.textMuted} maxLength={120} />
+              {pollData?.options.map((opt, i) => (
+                <View key={opt.id} style={styles.pollOptionRow}>
+                  <Text style={styles.pollOptionNumber}>{i + 1}.</Text>
+                  <Text style={styles.pollOptionLabel}>{opt.text}</Text>
+                  <TouchableOpacity onPress={() => removePollOption(opt.id)} hitSlop={8}><Ionicons name="close-circle" size={18} color="#f43f5e" /></TouchableOpacity>
+                </View>
+              ))}
+              <View style={styles.pollAddRow}>
+                <TextInput style={styles.pollAddInput} value={pollOptionText} onChangeText={setPollOptionText} placeholder="Add option..." placeholderTextColor={COLORS.textMuted} maxLength={40} onSubmitEditing={addPollOption} />
+                <TouchableOpacity onPress={addPollOption} disabled={!pollOptionText.trim() || (pollData?.options.length ?? 0) >= 4} style={styles.pollAddBtn}>
+                  <Ionicons name="add" size={20} color={COLORS.gold} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.pollDurationRow}>
+                <Text style={styles.pollDurationLabel}>Duration</Text>
+                {[24, 48, 72].map(h => (
+                  <TouchableOpacity key={h} onPress={() => setPollDuration(h)} style={[styles.pollDurationBtn, pollDuration === h && styles.pollDurationBtnActive]}>
+                    <Text style={[styles.pollDurationBtnText, pollDuration === h && styles.pollDurationBtnTextActive]}>{h}h</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity style={styles.pollCreateBtn} onPress={() => {
+                if (!pollData?.options.length) return;
+                setPollData(prev => prev ? { ...prev, question: pollQuestion.trim() || 'Untitled poll' } : prev);
+                setShowPollCreator(false);
+              }}><Text style={styles.pollCreateBtnText}>Done</Text></TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
 
-        {/* Bottom toolbar — sticky above keyboard */}
+        {/* Bottom toolbar */}
         <View style={[styles.toolbar, { paddingBottom: Math.max(8, insets.bottom) }]}>
           <View style={styles.toolbarActions}>
-            {/* Gallery */}
             <TouchableOpacity style={styles.toolBtn} onPress={handleAddImages} activeOpacity={0.7}>
-              <Ionicons name="images-outline" size={22} color={COLORS.accent} />
+              <MaterialCommunityIcons name="image-multiple-outline" size={22} color={COLORS.gold} />
             </TouchableOpacity>
-            {/* Camera */}
             <TouchableOpacity style={styles.toolBtn} onPress={handleCamera} activeOpacity={0.7}>
               <Ionicons name="camera-outline" size={22} color={COLORS.green} />
             </TouchableOpacity>
-            {/* GIF */}
             <TouchableOpacity style={styles.toolBtn} onPress={handleOpenGifPicker} activeOpacity={0.7}>
-              <Ionicons name="gif-outline" size={22} color={COLORS.amber} />
+              <MaterialCommunityIcons name="gif" size={22} color={COLORS.amber} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.toolBtn} onPress={() => setShowPollCreator(!showPollCreator)} activeOpacity={0.7}>
+              <Ionicons name="poll-outline" size={22} color={pollData ? COLORS.gold : '#94a3b8'} />
             </TouchableOpacity>
           </View>
         </View>
@@ -499,6 +578,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textSecondary,
   },
+  pollPreview: {
+    marginHorizontal: 16, marginTop: 16, padding: 14,
+    borderRadius: 12, backgroundColor: 'rgba(212,175,55,0.08)',
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.2)',
+  },
+  pollHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  pollTitle: { color: COLORS.gold, fontSize: 15, fontWeight: '700' },
+  pollQuestionText: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '600', marginBottom: 8 },
+  pollOptionItem: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
+  pollOptionDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(212,175,55,0.15)', alignItems: 'center', justifyContent: 'center' },
+  pollOptionIndex: { color: COLORS.gold, fontSize: 12, fontWeight: '700' },
+  pollOptionText: { color: COLORS.textPrimary, fontSize: 14, flex: 1 },
+  pollDurationText: { color: COLORS.textSecondary, fontSize: 12, marginTop: 8 },
+  pollCreator: {
+    margin: 16, padding: 16, borderRadius: 14, backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  pollCreatorTitle: { color: COLORS.textPrimary, fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  pollInput: {
+    backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: COLORS.textPrimary, fontSize: 15,
+  },
+  pollOptionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, gap: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  pollOptionNumber: { color: COLORS.textSecondary, fontSize: 14, width: 20 },
+  pollOptionLabel: { color: COLORS.textPrimary, fontSize: 14, flex: 1 },
+  pollAddRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  pollAddInput: {
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: COLORS.textPrimary, fontSize: 14,
+  },
+  pollAddBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(212,175,55,0.15)', alignItems: 'center', justifyContent: 'center' },
+  pollDurationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
+  pollDurationLabel: { color: COLORS.textSecondary, fontSize: 13 },
+  pollDurationBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  pollDurationBtnActive: { backgroundColor: 'rgba(212,175,55,0.2)', borderColor: 'rgba(212,175,55,0.3)' },
+  pollDurationBtnText: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
+  pollDurationBtnTextActive: { color: COLORS.gold, fontSize: 14, fontWeight: '600' },
+  pollCreateBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: COLORS.gold, alignItems: 'center', justifyContent: 'center' },
+  pollCreateBtnText: { color: '#000000', fontSize: 15, fontWeight: '700' },
   toolbar: {
     backgroundColor: COLORS.bg,
     borderTopWidth: 0.5,

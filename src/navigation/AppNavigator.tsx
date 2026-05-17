@@ -222,12 +222,13 @@ function CustomDrawerContent({ navigation }: any) {
   const insets = useSafeAreaInsets();
 
   // Drawer only has items NOT already in the bottom tab bar
+  const isBusiness = user?.role === 'business';
   const navItems = [
     { label: 'Explore', icon: 'search-outline', screen: 'Explore' },
     { label: 'Profile', icon: 'person-outline', screen: 'ProfileSelf' },
     { label: 'Bookmarks', icon: 'bookmark-outline', screen: 'Bookmarks' },
-    { label: 'Cart', icon: 'cart-outline', screen: 'Cart' },
-    { label: 'Upgrade', icon: 'sparkles-outline', screen: 'PremiumDashboard' },
+    ...(isBusiness ? [{ label: 'My Store', icon: 'storefront-outline', screen: 'MyStore' }] : []),
+    { label: 'Upgrade', icon: 'diamond-outline', screen: 'PremiumDashboard' },
   ];
 
   const handleLogout = () => {
@@ -275,8 +276,6 @@ function CustomDrawerContent({ navigation }: any) {
         </TouchableOpacity>
       ))}
 
-      <View style={styles.drawerSpacer} />
-
       {/* Settings */}
       <TouchableOpacity
         style={styles.drawerItem}
@@ -287,28 +286,6 @@ function CustomDrawerContent({ navigation }: any) {
       >
         <Ionicons name="settings-outline" size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
         <Text style={styles.drawerLabel}>Settings</Text>
-      </TouchableOpacity>
-
-      {/* Legal links — visible to everyone, especially for payment gateway review */}
-      <TouchableOpacity
-        style={styles.drawerItem}
-        onPress={() => {
-          navigation.closeDrawer();
-          navigation.navigate('PrivacyPolicy');
-        }}
-      >
-        <Ionicons name="shield-checkmark-outline" size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
-        <Text style={styles.drawerLabel}>Privacy Policy</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.drawerItem}
-        onPress={() => {
-          navigation.closeDrawer();
-          navigation.navigate('Terms');
-        }}
-      >
-        <Ionicons name="document-text-outline" size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
-        <Text style={styles.drawerLabel}>Terms & Conditions</Text>
       </TouchableOpacity>
 
       {/* User info at bottom */}
@@ -334,7 +311,7 @@ function CustomDrawerContent({ navigation }: any) {
       {/* Logout button — always visible when user is logged in */}
       {user && (
         <TouchableOpacity style={styles.drawerLogoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={22} color={colors.error} style={{ width: 30, textAlign: 'center' }} />
+          <Ionicons name="log-out-outline" size={22} color="#D4AF37" style={{ width: 30, textAlign: 'center' }} />
           <Text style={styles.drawerLogoutText}>Log Out</Text>
         </TouchableOpacity>
       )}
@@ -462,12 +439,12 @@ const styles = StyleSheet.create({
   drawerItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 18 },
   drawerIcon: { fontSize: 24, width: 30, textAlign: 'center' },
   drawerLabel: { color: colors.text, fontSize: 17, fontWeight: '600' },
-  drawerSpacer: { flex: 1, minHeight: 40 },
+  drawerSpacer: { flex: 1 },
   drawerUser: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, borderTopWidth: 0.5, borderTopColor: colors.border },
   drawerUserName: { color: colors.text, fontWeight: '700', fontSize: 15 },
   drawerUserHandle: { color: colors.textSecondary, fontSize: 14 },
   drawerLogoutBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, borderTopWidth: 0.5, borderTopColor: colors.border },
-  drawerLogoutText: { color: colors.error, fontSize: 17, fontWeight: '600' },
+  drawerLogoutText: { color: '#D4AF37', fontSize: 17, fontWeight: '600' },
   tabBadge: {
     position: 'absolute',
     top: 4,

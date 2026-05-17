@@ -10,6 +10,8 @@ import { firestore } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { PLANS, formatAmount } from '../lib/payments';
 
+const GOLD = '#D4AF37';
+
 export default function SettingsScreen() {
   const navigation = useNavigation() as any;
   const { user, setUser } = useAppStore();
@@ -179,11 +181,22 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {user?.role === 'business' && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Business</Text>
           <View style={styles.card}>
             <SettingsLink icon="storefront" label="My Store" onPress={() => navigation.navigate('MyStore' as never)} />
             <SettingsLink icon="newspaper" label="Write Article" onPress={() => navigation.navigate('WriteArticle' as never)} />
+          </View>
+        </View>
+        )}
+
+        {/* Legal — moved from drawer to settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Legal</Text>
+          <View style={styles.card}>
+            <SettingsLink icon="shield-checkmark" label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy' as never)} />
+            <SettingsLink icon="document-text" label="Terms & Conditions" onPress={() => navigation.navigate('Terms' as never)} />
           </View>
         </View>
 
@@ -198,19 +211,13 @@ export default function SettingsScreen() {
         {/* Logout */}
         <View style={styles.section}>
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={18} color={colors.error} />
+            <Ionicons name="log-out-outline" size={18} color="#D4AF37" />
             <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.legalRow}>
-          <TouchableOpacity onPress={() => Linking.openURL('https://black94.web.app/privacy-policy.html')}>
-            <Text style={styles.legalText}>Privacy Policy</Text>
-          </TouchableOpacity>
-          <Text style={styles.legalDot}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL('https://black94.web.app/terms-of-service.html')}>
-            <Text style={styles.legalText}>Terms of Service</Text>
-          </TouchableOpacity>
+          <Text style={styles.legalText}>Black94 v1.8.3</Text>
         </View>
       </ScrollView>
       </SafeAreaView>
@@ -239,14 +246,14 @@ const styles = StyleSheet.create({
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 20, paddingVertical: 12, borderRadius: 12,
-    backgroundColor: 'rgba(42,127,255,0.1)', borderWidth: 1, borderColor: 'rgba(42,127,255,0.2)',
+    backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',
   },
-  saveBtnText: { color: colors.accent, fontWeight: '600', fontSize: 15 },
+  saveBtnText: { color: '#D4AF37', fontWeight: '600', fontSize: 15 },
   profileSection: { alignItems: 'center', paddingVertical: 20 },
   upgradeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   upgradeCard: {
     backgroundColor: colors.surface, borderRadius: 16,
-    borderWidth: 1, borderColor: 'rgba(42,127,255,0.3)', overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', overflow: 'hidden',
   },
   upgradeCardTop: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -255,7 +262,7 @@ const styles = StyleSheet.create({
   },
   upgradeIconWrap: {
     width: 52, height: 52, borderRadius: 14,
-    backgroundColor: 'rgba(42,127,255,0.1)',
+    backgroundColor: 'rgba(212,175,55,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },
   upgradeTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
@@ -269,7 +276,7 @@ const styles = StyleSheet.create({
   planName: { fontSize: 15, fontWeight: '600', color: colors.text },
   planFeatures: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   planPriceWrap: { flexDirection: 'row', alignItems: 'baseline' },
-  planPrice: { fontSize: 17, fontWeight: '700', color: colors.accent },
+  planPrice: { fontSize: 17, fontWeight: '700', color: '#D4AF37' },
   planDuration: { fontSize: 12, color: colors.textMuted },
   formSection: { paddingHorizontal: 16, marginTop: 8 },
   label: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 16 },
@@ -299,10 +306,10 @@ const styles = StyleSheet.create({
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: 16,
-    backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+    backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',
     marginBottom: 40,
   },
-  logoutText: { color: colors.error, fontSize: 15, fontWeight: '600' },
+  logoutText: { color: '#D4AF37', fontSize: 15, fontWeight: '600' },
   legalRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: 16, gap: 12,

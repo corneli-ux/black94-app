@@ -321,7 +321,7 @@ export default function ChatListScreen({ navigation }: any) {
           size={18}
           color="#FFFFFF"
         />
-        <Text style={styles.tabTextActive}>Chats</Text>
+        <Text style={styles.tabTextActive}>Messages</Text>
       </View>
     </View>
   );
@@ -429,7 +429,7 @@ export default function ChatListScreen({ navigation }: any) {
             onPress={handleCompose}
             activeOpacity={0.7}
           >
-            <Ionicons name="create-outline" size={22} color={colors.text} />
+            <Ionicons name="create-outline" size={22} color="#D4AF37" />
           </TouchableOpacity>
         </View>
       </SafeAreaView>

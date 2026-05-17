@@ -74,8 +74,7 @@ const QUEUE_TTL_SECONDS = 60;        // Queue entries expire after 60s
 const NO_ONE_ONLINE_TIMEOUT = 30;    // Show "no one online" after 30s of searching
 
 // Graceful message shown when Firestore rules block anon chat operations.
-// This is NOT an error the user can fix — it's a server-side setup issue.
-const ANON_CHAT_UNAVAILABLE_MSG = 'Anonymous chat is being configured. Check back soon!';
+const ANON_CHAT_UNAVAILABLE_MSG = 'Could not connect to matching server. Please try again in a moment.';
 
 const ADJECTIVES = [
   'Shadow', 'Mystic', 'Cosmic', 'Neon', 'Phantom',

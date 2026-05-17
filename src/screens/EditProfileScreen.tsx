@@ -14,10 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { auth, firestore, getValidToken } from '../lib/firebase';
+import { auth, firestore } from '../lib/firebase';
 import { fetchUserProfile, User } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
+import { uploadOptimizedImage } from '../utils/imageUpload';
 
 type Role = 'personal' | 'creator' | 'professional' | 'business';
 
@@ -31,50 +32,7 @@ const ROLE_OPTIONS: { key: Role; label: string; description: string }[] = [
 const BIO_MAX_LENGTH = 160;
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
-const STORAGE_BASE = 'https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o';
-
-async function uploadImage(uri: string, storagePath: string): Promise<string> {
-  const token = await getValidToken();
-
-  // Read local file as base64 using expo-file-system.
-  // fetch(uri) does NOT work with file:// URIs in React Native.
-  const FileSystem = require('expo-file-system').default;
-  const filePath = uri.startsWith('file://') ? uri.slice(7) : uri;
-  const base64Data = await FileSystem.readAsStringAsync(filePath, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-
-  // Decode base64 → binary ArrayBuffer so Firebase Storage stores a real image
-  const binaryString = atob(base64Data);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-
-  // Upload to Firebase Storage via REST (simple upload)
-  const uploadResp = await fetch(
-    `${STORAGE_BASE}?uploadType=media&name=${encodeURIComponent(storagePath)}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: bytes.buffer,
-    },
-  );
-
-  if (!uploadResp.ok) throw new Error('Image upload failed');
-
-  // Include download token from upload response so the URL actually works
-  const respData = await uploadResp.json();
-  const downloadToken = respData.downloadTokens?.split(',')[0];
-  if (downloadToken) {
-    return `https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o/${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
-  }
-  // Fallback: return URL without token (may require auth to view)
-  return `https://firebasestorage.googleapis.com/v0/b/black94.appspot.com/o/${encodeURIComponent(storagePath)}?alt=media`;
-}
+const GOLD = '#D4AF37';
 
 // Lazy image picker (avoid crash if library not linked)
 async function openImageLibrary() {
@@ -244,16 +202,20 @@ export default function EditProfileScreen({ navigation }: any) {
 
         // Upload images if they are local URIs
         if (profileImage && !profileImage.startsWith('http')) {
-          finalProfileImage = await uploadImage(
+          const result = await uploadOptimizedImage(
             profileImage,
             `users/${currentUid}/profile/${Date.now()}.jpg`,
+            { mimeType: 'image/jpeg' },
           );
+          finalProfileImage = result.downloadUrl;
         }
         if (coverImage && !coverImage.startsWith('http')) {
-          finalCoverImage = await uploadImage(
+          const result = await uploadOptimizedImage(
             coverImage,
             `users/${currentUid}/cover/${Date.now()}.jpg`,
+            { mimeType: 'image/jpeg' },
           );
+          finalCoverImage = result.downloadUrl;
         }
 
         // Update username if changed

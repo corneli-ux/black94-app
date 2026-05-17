@@ -45,23 +45,7 @@ const STORY_CATEGORIES = [
   { id: 'festival', label: 'Festival', icon: 'happy' },
 ];
 
-const TRENDING_MUSIC = [
-  { id: 'm1', title: 'Blinding Lights', artist: 'The Weeknd', gradient: ['#f59e0b', '#ef4444'] as const },
-  { id: 'm2', title: 'Tum Hi Ho', artist: 'Arijit Singh', gradient: ['#ec4899', '#8b5cf6'] as const },
-  { id: 'm3', title: 'Levitating', artist: 'Dua Lipa', gradient: ['#06b6d4', '#8b5cf6'] as const },
-  { id: 'm4', title: 'Shape of You', artist: 'Ed Sheeran', gradient: ['#10b981', '#059669'] as const },
-  { id: 'm5', title: 'Pasoori', artist: 'Ali Sethi', gradient: ['#f97316', '#eab308'] as const },
-  { id: 'm6', title: 'Calm Down', artist: 'Rema', gradient: ['#8b5cf6', '#6366f1'] as const },
-];
 
-const TRENDING_FILTERS = [
-  { id: 'f1', label: 'Warm', colors: ['#f59e0b', '#ef4444'] as const },
-  { id: 'f2', label: 'Cool', colors: ['#06b6d4', '#8b5cf6'] as const },
-  { id: 'f3', label: 'Vintage', colors: ['#a78bfa', '#ec4899'] as const },
-  { id: 'f4', label: 'B&W', colors: ['#6b7280', '#1f2937'] as const },
-  { id: 'f5', label: 'Neon', colors: ['#10b981', '#06b6d4'] as const },
-  { id: 'f6', label: 'Sunset', colors: ['#f97316', '#eab308'] as const },
-];
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -638,9 +622,6 @@ export default function StoriesScreen({ navigation }: any) {
       {/* ── Header (no "Stories" text) ──────────────────────────────────── */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation?.goBack?.()} style={styles.headerBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
           <View style={{ flex: 1 }} />
           <TouchableOpacity onPress={openCameraForStory} style={styles.headerBtn}>
             <Ionicons name="camera-outline" size={24} color={colors.text} />
@@ -734,77 +715,6 @@ export default function StoriesScreen({ navigation }: any) {
                 >
                   {cat.label}
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* ── Trending Music ───────────────────────────────────────────── */}
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Ionicons name="musical-notes" size={18} color={colors.accent} />
-              <Text style={styles.sectionTitle}>Trending Music</Text>
-            </View>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>See all</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.musicScroll}
-          >
-            {TRENDING_MUSIC.map((track) => (
-              <TouchableOpacity key={track.id} style={styles.musicCard}>
-                <View style={styles.musicCardCoverWrap}>
-                  <LinearGradient
-                    colors={track.gradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.musicCardCover}
-                  >
-                    <Ionicons name="musical-notes" size={20} color="rgba(255,255,255,0.4)" />
-                  </LinearGradient>
-                  {/* Play button overlay */}
-                  <View style={styles.musicPlayBtn}>
-                    <Ionicons name="play" size={18} color="#fff" />
-                  </View>
-                </View>
-                <Text style={styles.musicTitle} numberOfLines={1}>
-                  {track.title}
-                </Text>
-                <Text style={styles.musicArtist} numberOfLines={1}>
-                  {track.artist}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* ── Filters (circular, Instagram-style) ──────────────────────── */}
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Ionicons name="color-filter-outline" size={18} color={colors.accent} />
-              <Text style={styles.sectionTitle}>Filters</Text>
-            </View>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>See all</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtersScroll}
-          >
-            {TRENDING_FILTERS.map((filter) => (
-              <TouchableOpacity key={filter.id} style={styles.filterItem}>
-                <LinearGradient
-                  colors={filter.colors}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.filterCircle}
-                >
-                  <View style={styles.filterCircleInner} />
-                </LinearGradient>
-                <Text style={styles.filterLabel}>{filter.label}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
