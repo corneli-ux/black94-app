@@ -15,6 +15,9 @@ import { onAuthStateChanged, auth, restoreAuth, getValidToken } from './src/lib/
 import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
 import { fetchUserProfile } from './src/lib/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const USER_CACHE_KEY = '@black94/user_cache';
 
 // NOTE: Text.defaultProps mutation was removed in RN 0.73+
 // Default styles are now set explicitly on each <Text> or via a wrapper component.
@@ -116,6 +119,20 @@ export default function App() {
     let unsubscribe = undefined;
     let forceReady = false;
 
+    // FIX: Cache last known user profile so offline opens show correct name.
+    // Previously, offline fallback built username from fbUser.displayName which
+    // produced WRONG names (e.g., "JohnDoe" instead of stored "johndoe123").
+    const loadCachedProfile = async (): Promise<any> => {
+      try {
+        const raw = await AsyncStorage.getItem(USER_CACHE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+      return null;
+    };
+    const saveCachedProfile = async (profile: any) => {
+      try { await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(profile)); } catch {}
+    };
+
     // Safety timeout — longer to allow auth restoration
     const safetyTimer = setTimeout(() => {
       console.warn('[App] Safety timeout reached — forcing ready');
@@ -139,19 +156,26 @@ export default function App() {
               const fbUser = authInstance.currentUser;
               setToken(fbUser.uid);
               setLoading(false);
-              // Set a preliminary user immediately so the app doesn't flash login screen
-              // even if the full profile fetch is slow
-              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+              // FIX: Try cached profile first — shows correct name instantly when offline
+              const cached = await loadCachedProfile();
+              if (cached && cached.id === fbUser.uid) {
+                console.log('[App] Using cached profile for offline restore:', cached.username);
+                setUser(cached);
+              } else {
+                // No cache or different user — build from Firebase auth data
+                setUser({ id: fbUser.uid, email: fbUser.email || '', username: cached?.username || fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: cached?.displayName || fbUser.displayName || 'User', bio: cached?.bio || '', profileImage: cached?.profileImage || fbUser.photoURL || null, coverImage: cached?.coverImage || null, role: cached?.role || 'personal', badge: cached?.badge || '', subscription: cached?.subscription || 'free', isVerified: cached?.isVerified ?? false, createdAt: cached?.createdAt || Date.now() });
+              }
               // Cancel safety timeout since auth is validated
               clearTimeout(safetyTimer);
               // Fetch full profile in background and update
               fetchUserProfile(fbUser.uid).then(profile => {
-                if (profile) { setUser(profile); }
-                // If this is very slow, isReady was already set above
+                if (profile) {
+                  setUser(profile);
+                  saveCachedProfile(profile); // Update cache with fresh data
+                }
                 setIsReady(true);
               }).catch(err => {
-                console.warn('[App] Profile fetch failed after restore, keeping preliminary user:', err);
-                // isReady was already set above
+                console.warn('[App] Profile fetch failed after restore, keeping cached user:', err);
                 setIsReady(true);
               });
               return; // Skip onAuthStateChanged — we handled it
@@ -204,14 +228,30 @@ export default function App() {
             setToken(fbUser.uid);
             setLoading(false);
             fetchUserProfile(fbUser.uid).then(profile => {
-              if (profile) { setUser(profile); } else {
-                // Firestore doc missing — build from Firebase auth data
-                setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+              if (profile) {
+                setUser(profile);
+                saveCachedProfile(profile); // Cache for offline use
+              } else {
+                // Firestore doc missing — try cached profile, then fallback to Firebase data
+                loadCachedProfile().then(cached => {
+                  if (cached && cached.id === fbUser.uid) {
+                    setUser(cached);
+                  } else {
+                    setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+                  }
+                });
               }
               setIsReady(true);
             }).catch(err => {
-              console.warn('[App] Profile fetch failed, using Firebase data:', err);
-              setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+              console.warn('[App] Profile fetch failed, using cached or Firebase data:', err);
+              // FIX: Use cached profile if available, don't show wrong name when offline
+              loadCachedProfile().then(cached => {
+                if (cached && cached.id === fbUser.uid) {
+                  setUser(cached);
+                } else {
+                  setUser({ id: fbUser.uid, email: fbUser.email || '', username: fbUser.displayName?.replace(/\s/g, '').toLowerCase() || `user_${fbUser.uid.slice(0,8)}`, displayName: fbUser.displayName || 'User', bio: '', profileImage: fbUser.photoURL || null, coverImage: null, role: 'personal', badge: '', subscription: 'free', isVerified: false, createdAt: Date.now() });
+                }
+              });
               setIsReady(true);
             });
           } else {
