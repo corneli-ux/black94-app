@@ -9,7 +9,7 @@ import { useAppStore } from '../stores/app';
 
 /* ── Types ──────────────────────────────────────────────────────────────── */
 interface PrivacySettings {
-  nameVisibility: 'public' | 'selected' | 'private';
+  nameVisibility: 'public' | 'private';
   dmPermission: 'all' | 'followers' | 'paid';
   searchVisible: boolean;
   accountLocked: boolean;
@@ -24,7 +24,6 @@ const DEFAULT_PRIVACY: PrivacySettings = {
 
 const NAME_VISIBILITY_OPTIONS: { value: PrivacySettings['nameVisibility']; label: string }[] = [
   { value: 'public', label: 'Public' },
-  { value: 'selected', label: 'Selected Users Only' },
   { value: 'private', label: 'Private' },
 ];
 
@@ -115,12 +114,11 @@ export default function PrivacySettingsScreen() {
 
   const toggleSwitch = (field: keyof PrivacySettings) => {
     if (field === 'nameVisibility') {
-      setPrivacy(prev => {
-        const order: PrivacySettings['nameVisibility'][] = ['public', 'selected', 'private'];
-        const currentIdx = order.indexOf(prev.nameVisibility);
-        const nextIdx = (currentIdx + 1) % order.length;
-        return { ...prev, nameVisibility: order[nextIdx] };
-      });
+      // Toggle between 'public' and 'private' only
+      setPrivacy(prev => ({
+        ...prev,
+        nameVisibility: prev.nameVisibility === 'public' ? 'private' : 'public',
+      }));
     } else {
       setPrivacy(prev => ({
         ...prev,
@@ -192,14 +190,6 @@ export default function PrivacySettingsScreen() {
               </TouchableOpacity>
             ))}
           </View>
-          {privacy.nameVisibility === 'selected' && (
-            <View style={styles.selectedNote}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.accent} />
-              <Text style={styles.selectedNoteText}>
-                Only users you select will see your real name
-              </Text>
-            </View>
-          )}
         </View>
 
         <View style={styles.separator} />

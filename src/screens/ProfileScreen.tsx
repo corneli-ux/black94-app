@@ -809,12 +809,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         return;
       }
 
-      if (dmPermission === 'no one') {
-        Alert.alert('DMs Disabled', 'This user has disabled direct messages.');
-        return;
-      }
-
-      if (dmPermission === 'followers_only') {
+      if (dmPermission === 'followers') {
         // Check if current user follows the target
         const follows = await checkFollowing(targetUserId);
         if (!follows) {
@@ -823,7 +818,7 @@ export default function ProfileScreen({ route, navigation }: any) {
         }
       }
 
-      // DM permission is "all" or "followers_only" (and user follows) — proceed normally
+      // DM permission is "all" (or null/undefined), or "followers" (and user follows) — proceed normally
       await findOrCreateChat(currentUser.uid, targetUserId);
     } catch (e: any) {
       console.warn('[ProfileScreen] message error:', e);

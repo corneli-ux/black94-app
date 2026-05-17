@@ -78,16 +78,10 @@ export default function ChatListScreen({ navigation }: any) {
     try {
       const privacy = await fetchUserPrivacySettings(targetUser.id);
 
-      if (privacy.dmPermission === 'no one') {
-        Alert.alert('Cannot Message', "This user doesn't accept messages.");
-        setComposeChecking(null);
-        return;
-      }
-
-      if (privacy.dmPermission === 'followers_only') {
+      if (privacy.dmPermission === 'followers') {
         const isFollowing = await checkFollowing(targetUser.id);
         if (!isFollowing) {
-          Alert.alert('Cannot Message', 'You can only message users you follow.');
+          Alert.alert('Cannot Message', 'You need to follow this user to send them a message.');
           setComposeChecking(null);
           return;
         }

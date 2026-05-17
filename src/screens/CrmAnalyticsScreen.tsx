@@ -49,6 +49,8 @@ interface AnalyticsData {
   topProducts: Array<{ name: string; revenue: number; sold: number }>;
   revenueByMonth: Array<{ month: string; revenue: number }>;
   leadFunnel: Array<{ stage: string; count: number; color: string }>;
+  repeatCustomers: number;
+  topRegion: string;
 }
 
 const CrmAnalyticsScreen: React.FC = () => {
@@ -141,6 +143,28 @@ const CrmAnalyticsScreen: React.FC = () => {
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 5);
 
+      // Repeat customers: count buyers with more than one order
+      const customerOrderCounts: Record<string, number> = {};
+      orders.forEach((o: any) => {
+        const buyerId = o.buyerId || o.userId || '';
+        if (buyerId) {
+          customerOrderCounts[buyerId] = (customerOrderCounts[buyerId] || 0) + 1;
+        }
+      });
+      const repeatCustomers = Object.values(customerOrderCounts).filter(count => count > 1).length;
+
+      // Top region: count most common city/shippingAddress from orders
+      const regionCounts: Record<string, number> = {};
+      orders.forEach((o: any) => {
+        const city = o.shippingCity || o.city ||
+          (o.shippingAddress && typeof o.shippingAddress === 'object' ? o.shippingAddress.city : '') || '';
+        if (city) {
+          regionCounts[city] = (regionCounts[city] || 0) + 1;
+        }
+      });
+      const topRegionEntries = Object.entries(regionCounts).sort((a, b) => b[1] - a[1]);
+      const topRegion = topRegionEntries.length > 0 ? topRegionEntries[0][0] : 'N/A';
+
       setData({
         totalRevenue,
         totalOrders,
@@ -151,6 +175,8 @@ const CrmAnalyticsScreen: React.FC = () => {
         topProducts,
         revenueByMonth,
         leadFunnel,
+        repeatCustomers,
+        topRegion,
       });
     } catch {
       // silent

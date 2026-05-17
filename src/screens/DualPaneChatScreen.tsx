@@ -19,12 +19,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { firestore, auth } from '../lib/firebase';
-import { fetchUserProfile } from '../lib/api';
+import { fetchUserProfile, blockUser } from '../lib/api';
 import { colors } from '../theme/colors';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -98,6 +100,8 @@ export default function DualPaneChatScreen({ navigation }: any) {
   const [messageText, setMessageText] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [phoneTab, setPhoneTab] = useState<'list' | 'room'>('list');
+  const [showNuclearConfirm, setShowNuclearConfirm] = useState(false);
+  const [blocking, setBlocking] = useState(false);
 
   const messagesEndRef = useRef<FlatList>(null);
   const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -298,6 +302,31 @@ export default function DualPaneChatScreen({ navigation }: any) {
     [],
   );
 
+  // ── Nuclear Block ──────────────────────────────────────────────────────
+  const handleNuclearBlock = useCallback(async () => {
+    if (!selectedChat) return;
+    const otherId =
+      selectedChat.user1Id === currentUserId
+        ? selectedChat.user2Id
+        : selectedChat.user1Id;
+    setShowNuclearConfirm(false);
+    setBlocking(true);
+    try {
+      const success = await blockUser(otherId);
+      if (success) {
+        Alert.alert('Nuclear Block', 'Chat permanently deleted for both users');
+        navigation.replace('Drawer');
+      } else {
+        Alert.alert('Error', 'Failed to block user. Please try again.');
+      }
+    } catch (e) {
+      console.error('[NuclearBlock] Error:', e);
+      Alert.alert('Error', 'Failed to block user.');
+    } finally {
+      setBlocking(false);
+    }
+  }, [selectedChat, currentUserId, navigation]);
+
   // ── Render chat list item ──────────────────────────────────────────────
   const renderChatItem = ({ item }: { item: ChatItem }) => {
     const isSelected = item.id === selectedChatId;
@@ -367,7 +396,56 @@ export default function DualPaneChatScreen({ navigation }: any) {
           <Text style={styles.roomName}>
             {selectedChat.otherUser?.displayName ?? 'Chat'}
           </Text>
+          <TouchableOpacity
+            style={styles.blockBtn}
+            onPress={() => setShowNuclearConfirm(true)}
+            hitSlop={8}
+          >
+            <Ionicons name="alert-circle-outline" size={22} color="#f43f5e" />
+          </TouchableOpacity>
         </View>
+
+        {/* Nuclear Block Confirmation Modal */}
+        <Modal
+          visible={showNuclearConfirm}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowNuclearConfirm(false)}
+        >
+          <View style={styles.nuclearOverlay}>
+            <View style={styles.nuclearDialog}>
+              <View style={styles.nuclearIconContainer}>
+                <Ionicons name="alert-circle" size={48} color="#f43f5e" />
+              </View>
+              <Text style={styles.nuclearTitle}>💣 Nuclear Block</Text>
+              <Text style={styles.nuclearMessage}>
+                This will permanently delete ALL messages, media, and attachments for BOTH users. This cannot be undone.
+              </Text>
+              <Text style={styles.nuclearSubtitle}>
+                The user will also be blocked from contacting you again.
+              </Text>
+              <View style={styles.nuclearActions}>
+                <TouchableOpacity
+                  style={styles.nuclearCancelBtn}
+                  onPress={() => setShowNuclearConfirm(false)}
+                >
+                  <Text style={styles.nuclearCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.nuclearConfirmBtn}
+                  onPress={handleNuclearBlock}
+                  disabled={blocking}
+                >
+                  {blocking ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.nuclearConfirmText}>Block Forever</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Messages */}
         {loadingMessages ? (
@@ -732,5 +810,85 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     opacity: 0.4,
+  },
+  // Nuclear block
+  blockBtn: {
+    padding: 4,
+    marginLeft: 'auto',
+  },
+  nuclearOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  nuclearDialog: {
+    backgroundColor: '#16181c',
+    borderRadius: 20,
+    padding: 28,
+    width: '100%',
+    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: 'rgba(244,63,94,0.3)',
+  },
+  nuclearIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(244,63,94,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  nuclearTitle: {
+    color: '#f43f5e',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  nuclearMessage: {
+    color: '#e7e9ea',
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  nuclearSubtitle: {
+    color: '#94a3b8',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  nuclearActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  nuclearCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+  },
+  nuclearCancelText: {
+    color: '#e7e9ea',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  nuclearConfirmBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#f43f5e',
+    alignItems: 'center',
+  },
+  nuclearConfirmText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

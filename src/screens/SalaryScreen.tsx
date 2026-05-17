@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, RefreshControl, } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, RefreshControl, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -30,6 +30,15 @@ export default function SalaryScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [canRefresh, setCanRefresh] = useState(true);
+
+  // Form modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formRole, setFormRole] = useState('');
+  const [formSalary, setFormSalary] = useState('');
+  const [formCommission, setFormCommission] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!currentUser) { setLoading(false); return; }
@@ -74,6 +83,91 @@ export default function SalaryScreen({ navigation }: any) {
 
   useEffect(() => { load(); }, []);
 
+  const openAddModal = () => {
+    setEditingId(null);
+    setFormName('');
+    setFormRole('');
+    setFormSalary('');
+    setFormCommission('');
+    setModalVisible(true);
+  };
+
+  const openEditModal = (member: TeamMember) => {
+    setEditingId(member.id);
+    setFormName(member.name);
+    setFormRole(member.role);
+    setFormSalary(String(member.baseSalary));
+    setFormCommission(String(member.commission));
+    setModalVisible(true);
+  };
+
+  const handleSaveMember = async () => {
+    if (!currentUser || !formName.trim()) {
+      Alert.alert('Validation', 'Name is required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const salary = Number(formSalary) || 0;
+      const commission = Number(formCommission) || 0;
+      const total = salary + commission;
+
+      if (editingId) {
+        // Update existing
+        await firestore().collection('teamMembers').doc(editingId).update({
+          name: formName.trim(),
+          role: formRole.trim() || 'Team Member',
+          baseSalary: salary,
+          commission,
+          total,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Create new
+        await firestore().collection('teamMembers').add({
+          businessId: currentUser.uid,
+          name: formName.trim(),
+          role: formRole.trim() || 'Team Member',
+          baseSalary: salary,
+          commission,
+          total,
+          paymentStatus: 'Pending',
+          createdAt: firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      setModalVisible(false);
+      load();
+    } catch (e) {
+      console.error('[Salary] Save failed:', e);
+      Alert.alert('Error', 'Failed to save member.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteMember = (member: TeamMember) => {
+    Alert.alert(
+      'Delete Member',
+      `Remove ${member.name} from the team?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await firestore().collection('teamMembers').doc(member.id).delete();
+              load();
+            } catch (e) {
+              console.error('[Salary] Delete failed:', e);
+              Alert.alert('Error', 'Failed to delete member.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const totals = members.reduce(
     (acc, m) => ({
       base: acc.base + m.baseSalary,
@@ -99,7 +193,9 @@ export default function SalaryScreen({ navigation }: any) {
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Salary</Text>
-          <View style={{ width: 32 }} />
+          <TouchableOpacity onPress={openAddModal} style={styles.addBtn}>
+            <Text style={styles.addBtnText}>+ Add</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
@@ -139,26 +235,31 @@ export default function SalaryScreen({ navigation }: any) {
             {/* Member Rows */}
             {members.map(member => (
               <View key={member.id} style={styles.row}>
-                <View style={styles.nameCell}>
+                <TouchableOpacity style={styles.nameCell} onPress={() => openEditModal(member)}>
                   <Avatar uri={member.profileImage} name={member.name} size={28} />
                   <View style={styles.nameInfo}>
                     <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
                     <Text style={styles.memberRole} numberOfLines={1}>{member.role}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
                 <Text style={styles.cellValue} numberOfLines={1}>{formatINR(member.baseSalary)}</Text>
                 <Text style={styles.cellValue} numberOfLines={1}>{formatINR(member.commission)}</Text>
                 <Text style={styles.cellValue} numberOfLines={1}>{formatINR(member.total)}</Text>
-                <View style={[
-                  styles.statusBadge,
-                  { backgroundColor: member.paymentStatus === 'Paid' ? 'rgba(0,186,124,0.15)' : 'rgba(255,215,0,0.15)' },
-                ]}>
-                  <Text style={[
-                    styles.statusText,
-                    { color: member.paymentStatus === 'Paid' ? colors.accentGreen : colors.accentGold },
+                <View style={styles.statusAndActions}>
+                  <View style={[
+                    styles.statusBadge,
+                    { backgroundColor: member.paymentStatus === 'Paid' ? 'rgba(0,186,124,0.15)' : 'rgba(255,215,0,0.15)' },
                   ]}>
-                    {member.paymentStatus}
-                  </Text>
+                    <Text style={[
+                      styles.statusText,
+                      { color: member.paymentStatus === 'Paid' ? colors.accentGreen : colors.accentGold },
+                    ]}>
+                      {member.paymentStatus}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => handleDeleteMember(member)} hitSlop={8}>
+                    <Text style={styles.deleteIcon}>✕</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             ))}
@@ -184,6 +285,66 @@ export default function SalaryScreen({ navigation }: any) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Add/Edit Member Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{editingId ? 'Edit Member' : 'Add Member'}</Text>
+            <TextInput
+              style={styles.formInput}
+              placeholder="Name *"
+              placeholderTextColor={colors.textSecondary}
+              value={formName}
+              onChangeText={setFormName}
+              autoFocus
+            />
+            <TextInput
+              style={styles.formInput}
+              placeholder="Role"
+              placeholderTextColor={colors.textSecondary}
+              value={formRole}
+              onChangeText={setFormRole}
+            />
+            <TextInput
+              style={styles.formInput}
+              placeholder="Salary (₹)"
+              placeholderTextColor={colors.textSecondary}
+              value={formSalary}
+              onChangeText={setFormSalary}
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={styles.formInput}
+              placeholder="Commission (₹)"
+              placeholderTextColor={colors.textSecondary}
+              value={formCommission}
+              onChangeText={setFormCommission}
+              keyboardType="numeric"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setModalVisible(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSaveMember} disabled={saving}>
+                {saving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalSaveText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -237,4 +398,18 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: 16 },
   emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 8 },
   emptyText: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', paddingHorizontal: 40 },
+  // Add/Edit modal
+  addBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  deleteIcon: { color: '#f43f5e', fontSize: 16, fontWeight: '700', marginLeft: 4 },
+  statusAndActions: { width: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalContent: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: colors.border },
+  modalTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  formInput: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: colors.text, fontSize: 15, marginBottom: 10 },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 6 },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  modalCancelText: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  modalSaveBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: colors.accent, alignItems: 'center' },
+  modalSaveText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
