@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { User } from '../lib/api';
+import { tsToMillis } from '../utils/datetime';
 import { startNotificationPolling, stopNotificationPolling } from '../services/notificationEngine';
 
 interface AppState {
@@ -44,7 +45,7 @@ function safeUser(data: any): User | null {
     badge: data.badge || '',
     subscription: data.subscription || 'free',
     isVerified: data.isVerified || false,
-    createdAt: data.createdAt || Date.now(),
+    createdAt: tsToMillis(data.createdAt),
   };
 }
 

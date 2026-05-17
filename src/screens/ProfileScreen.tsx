@@ -530,7 +530,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
           likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
           repostCount: data.repostCount || 0, liked: false, bookmarked: false, reposted: false,
-          createdAt: tsToMillis(data.createdAt),
+          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       });
       // Sort client-side by createdAt descending (avoids composite index requirement)
@@ -653,7 +653,7 @@ export default function ProfileScreen({ route, navigation }: any) {
             authorProfileImage: data.authorProfileImage || '',
             authorIsVerified: data.authorIsVerified || false,
             authorBadge: data.authorBadge || '',
-            createdAt: tsToMillis(data.createdAt),
+            createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
           });
         }
         // Sort client-side to avoid composite index requirement
@@ -701,7 +701,7 @@ export default function ProfileScreen({ route, navigation }: any) {
                 caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
                 likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
                 repostCount: data.repostCount || 0, liked: true, bookmarked: false, reposted: false,
-                createdAt: tsToMillis(data.createdAt),
+                createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
               });
             }
           } catch { /* skip */ }
@@ -1024,19 +1024,19 @@ const styles = StyleSheet.create({
   /* Follow button (not following): bg-[#e7e9ea] text-black px-6 py-2 rounded-full text-[15px] font-bold */
   followBtn: {
     backgroundColor: '#e7e9ea', borderRadius: 999,
-    paddingHorizontal: 24, paddingVertical: 8,
+    paddingHorizontal: 20, paddingVertical: 6,
   },
   /* Follow button (following): border border-[#64748b] text-[#e7e9ea] */
   followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#64748b' },
-  followBtnText: { color: '#000000', fontWeight: '700', fontSize: 15 },
+  followBtnText: { color: '#000000', fontWeight: '700', fontSize: 14 },
   followingBtnText: { color: '#e7e9ea' },
   /* Message button: border border-[#FFFFFF]/40 text-[#FFFFFF] px-5 py-2 rounded-full text-[15px] font-bold */
   messageBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 999,
-    paddingHorizontal: 20, paddingVertical: 8,
+    paddingHorizontal: 16, paddingVertical: 6,
   },
-  messageBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  messageBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
   /* Bio section: px-5 pb-4 border-b border-white/[0.06] */
   bioSection: {
     paddingHorizontal: 20, paddingTop: 0, paddingBottom: 16,

@@ -50,10 +50,19 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+
   const loadComments = useCallback(async () => {
     setLoading(true);
-    const data = await fetchPostComments(postId);
-    setComments(data);
+    setCommentsError(null);
+    try {
+      const data = await fetchPostComments(postId);
+      setComments(data);
+    } catch (e: any) {
+      console.error('[PostComments] loadComments error:', e?.message);
+      setCommentsError(e?.message || 'Failed to load comments');
+      setComments([]);
+    }
     setLoading(false);
   }, [postId]);
 
@@ -262,6 +271,15 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           loading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color="#94a3b8" size="small" />
+            </View>
+          ) : commentsError ? (
+            <View style={styles.emptyWrap}>
+              <Ionicons name="alert-circle-outline" size={48} color="#f43f5e" />
+              <Text style={styles.emptyTitle}>Could not load replies</Text>
+              <Text style={styles.emptySub}>{commentsError}</Text>
+              <TouchableOpacity onPress={loadComments} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                <Text style={{ color: '#e7e9ea', fontSize: 14, fontWeight: '600' }}>Retry</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.emptyWrap}>

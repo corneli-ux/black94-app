@@ -87,7 +87,7 @@ export default function NotificationsScreen({ navigation }: any) {
           postCaption: data.postCaption || '',
           postId: data.postId || '',
           read: data.read || false,
-          createdAt: tsToMillis(data.createdAt),
+          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       });
       // Sort client-side descending by createdAt

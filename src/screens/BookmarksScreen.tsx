@@ -53,7 +53,7 @@ export default function BookmarksScreen() {
               caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
               likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
               repostCount: data.repostCount || 0, liked: false, bookmarked: true, reposted: false,
-              createdAt: tsToMillis(data.createdAt),
+              createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
             });
           }
         } catch { /* skip */ }

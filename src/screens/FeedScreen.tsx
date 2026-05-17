@@ -437,7 +437,7 @@ export default function FeedScreen({ navigation }: any) {
           liked: false,
           bookmarked: false,
           reposted: false,
-          createdAt: tsToMillis(data.createdAt),
+          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       });
 

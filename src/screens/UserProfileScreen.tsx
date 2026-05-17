@@ -543,7 +543,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
           liked: false,
           bookmarked: false,
           reposted: false,
-          createdAt: tsToMillis(data.createdAt),
+          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       });
       // Sort client-side by createdAt descending
@@ -635,7 +635,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
             authorProfileImage: data.authorProfileImage || '',
             authorIsVerified: data.authorIsVerified || false,
             authorBadge: data.authorBadge || '',
-            createdAt: tsToMillis(data.createdAt),
+            createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
           });
         }
         replyList.sort((a, b) => b.createdAt - a.createdAt);
@@ -682,7 +682,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
                 caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
                 likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
                 repostCount: data.repostCount || 0, liked: true, bookmarked: false, reposted: false,
-                createdAt: tsToMillis(data.createdAt),
+                createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
               });
             }
           } catch { /* skip */ }
@@ -1099,8 +1099,8 @@ const styles = StyleSheet.create({
   },
   followBtn: {
     flex: 1,
-    height: 44,
-    borderRadius: 22,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#e7e9ea',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1111,17 +1111,17 @@ const styles = StyleSheet.create({
     borderColor: '#64748b',
   },
   followBtnText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#e7e9ea',
+    color: '#000000',
   },
   followingBtnText: {
     color: '#e7e9ea',
   },
   messageBtn: {
     flex: 1,
-    height: 44,
-    borderRadius: 22,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1129,7 +1129,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.4)',
   },
   messageBtnText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },

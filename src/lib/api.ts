@@ -151,6 +151,14 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     // If Firestore had no photo but Google does, use Google's (recovery).
     const recoveredPhoto = (!existingData?.profileImage && googlePhoto) ? googlePhoto : null;
 
+    // Safely convert createdAt — must never throw as it blocks sign-in
+    let createdAt: number;
+    try {
+      createdAt = tsToMillis(existingData?.createdAt);
+    } catch {
+      createdAt = Date.now();
+    }
+
     return {
       id: fbUser.uid,
       email: fbUser.email || '',
@@ -163,7 +171,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       badge: existingData?.badge || '',
       subscription: existingData?.subscription || 'free',
       isVerified: existingData?.isVerified || false,
-      createdAt: tsToMillis(existingData?.createdAt),
+      createdAt,
     };
   } catch (error: any) {
     if (error?.code === '12501') return null;
@@ -997,6 +1005,10 @@ export interface FactCheckClaim {
 }
 
 export async function fetchPostComments(postId: string): Promise<CommentData[]> {
+  if (!postId) {
+    console.warn('[Comments] No postId provided, returning empty');
+    return [];
+  }
   try {
     // NOTE: No .orderBy('createdAt', 'asc') — that composite index may not exist.
     // Fetch without orderBy, then sort client-side (same as web's fetchPostComments).
@@ -1005,8 +1017,15 @@ export async function fetchPostComments(postId: string): Promise<CommentData[]> 
       .where('postId', '==', postId)
       .limit(50)
       .get();
+    console.log(`[Comments] Fetched ${snapshot.docs.length} comments for post ${postId}`);
     const results = snapshot.docs.map(docSnap => {
       const data = docSnap.data();
+      let createdAt: number;
+      try {
+        createdAt = tsToMillis(data.createdAt);
+      } catch {
+        createdAt = Date.now();
+      }
       return {
         id: docSnap.id,
         postId: data.postId || '',
@@ -1018,15 +1037,16 @@ export async function fetchPostComments(postId: string): Promise<CommentData[]> 
         authorBadge: data.authorBadge || '',
         content: data.content || '',
         imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : undefined,
-        createdAt: tsToMillis(data.createdAt),
+        createdAt,
       };
     });
     // Sort client-side ascending by createdAt
     results.sort((a, b) => a.createdAt - b.createdAt);
     return results;
-  } catch (e) {
-    console.error('[Comments] Failed to fetch:', e);
-    return [];
+  } catch (e: any) {
+    console.error('[Comments] Failed to fetch:', e?.message, e?.code);
+    // Re-throw so callers can show the error instead of silently returning empty
+    throw new Error('Failed to load comments. Please try again.');
   }
 }
 

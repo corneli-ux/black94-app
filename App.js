@@ -41,17 +41,28 @@ class AppErrorBoundary extends Component {
     this.setState({ errorStack: stack });
   }
 
+  sanitizeError(msg) {
+    if (!msg) return 'Something went wrong';
+    return msg
+      .replace(/project-\d+/gi, '[project]')
+      .replace(/\d{12,}/g, '[id]')
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[email]')
+      .replace(/https?:\/\/[^\s]+/gi, '[url]')
+      .replace(/firebaseapp\.com/gi, '[firebase]')
+      .replace(/googleusercontent\.com/gi, '[oauth]')
+      .replace(/toMillis|toDate|\.seconds|\.nanoseconds/gi, '[timestamp]')
+      .replace(/Property.*doesn't exist/gi, 'A data error occurred');
+  }
+
   render() {
     if (this.state.hasError) {
+      const safeMsg = this.sanitizeError(this.state.error?.message);
       return (
         <View style={styles.container}>
           <StatusBar style="light" />
           <ScrollView contentContainerStyle={styles.errorContainer}>
             <Text style={styles.errorTitle}>Something went wrong</Text>
-            <Text style={styles.errorMessage}>{this.state.error?.message || 'Unknown error'}</Text>
-            {this.state.errorStack ? (
-              <Text style={styles.errorStack}>{this.state.errorStack.slice(0, 500)}</Text>
-            ) : null}
+            <Text style={styles.errorMessage}>{safeMsg}</Text>
             <TouchableOpacity
               style={styles.retryButton}
               onPress={() => this.setState({ hasError: false, error: null, errorStack: '' })}

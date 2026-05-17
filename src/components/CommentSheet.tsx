@@ -37,6 +37,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
   const { user } = useAppStore();
   const [comments, setComments] = useState<CommentData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: string; username: string; displayName: string } | null>(null);
@@ -57,8 +58,15 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
 
   const loadComments = async () => {
     setLoading(true);
-    const data = await fetchPostComments(postId);
-    setComments(data);
+    setCommentsError(null);
+    try {
+      const data = await fetchPostComments(postId);
+      setComments(data);
+    } catch (e: any) {
+      console.error('[CommentSheet] loadComments error:', e?.message);
+      setCommentsError(e?.message || 'Failed to load comments');
+      setComments([]);
+    }
     setLoading(false);
   };
 
@@ -121,6 +129,15 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
               ListEmptyComponent={
                 loading ? (
                   <View style={styles.emptyWrap}><ActivityIndicator color="#94a3b8" size="small" /></View>
+                ) : commentsError ? (
+                  <View style={styles.emptyWrap}>
+                    <Ionicons name="alert-circle-outline" size={40} color="#f43f5e" />
+                    <Text style={styles.emptyTitle}>Could not load comments</Text>
+                    <Text style={styles.emptySub}>{commentsError}</Text>
+                    <TouchableOpacity onPress={loadComments} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                      <Text style={{ color: '#e7e9ea', fontSize: 13, fontWeight: '600' }}>Retry</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
                   <View style={styles.emptyWrap}>
                     <Ionicons name="chatbubble-outline" size={40} color="#64748b" />
