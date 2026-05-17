@@ -119,7 +119,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
         sku: d.sku || '',
         variants: d.variants || [],
         tags: d.tags || [],
-        createdAt: tsToMillis(d.createdAt),
+        createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
       };
       setProduct(p);
 

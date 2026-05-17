@@ -51,7 +51,7 @@ export default function MyStoreScreen({ route, navigation }: any) {
           featured: d.featured || false,
           soldCount: d.soldCount || d.sold || 0,
           stock: d.stock ?? d.stockQuantity ?? 0,
-          createdAt: tsToMillis(d.createdAt),
+          createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
         };
       });
       setProducts(ps);

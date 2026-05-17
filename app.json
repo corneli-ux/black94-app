@@ -30,8 +30,6 @@
       "googleServicesFile": "./google-services.json",
       "versionCode": 13,
       "permissions": [
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
         "CAMERA"
       ],
       "softwareKeyboardLayoutMode": "resize",

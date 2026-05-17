@@ -164,6 +164,13 @@ export default function EditProfileScreen({ navigation }: any) {
 
   const usernameTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Cleanup timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current);
+    };
+  }, []);
+
   const checkUsername = useCallback(
     (value: string) => {
       setUsername(value);

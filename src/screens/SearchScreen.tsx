@@ -41,7 +41,7 @@ export default function SearchScreen({ route, navigation }: any) {
           displayName: data.displayName || '', bio: data.bio || '',
           profileImage: data.profileImage || null, coverImage: data.coverImage || null,
           role: data.role || '', badge: data.badge || '', subscription: data.subscription || '',
-          isVerified: data.isVerified || false, createdAt: tsToMillis(data.createdAt),
+          isVerified: data.isVerified || false, createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       });
 
@@ -57,7 +57,7 @@ export default function SearchScreen({ route, navigation }: any) {
             caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
             likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
             repostCount: data.repostCount || 0, liked: false, bookmarked: false, reposted: false,
-            createdAt: tsToMillis(data.createdAt),
+            createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
           };
         });
 

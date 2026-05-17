@@ -236,7 +236,7 @@ export const useBusinessStore = create<BusinessState>((set, get) => ({
         const status = d.status || 'unknown';
         statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
 
-        const createdAt = tsToMillis(d.createdAt);
+        const createdAt = (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })();
         const monthKey = new Date(createdAt).toISOString().slice(0, 7);
         monthlyRevenueMap[monthKey] = (monthlyRevenueMap[monthKey] || 0) + amount;
       }

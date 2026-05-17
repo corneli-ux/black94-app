@@ -222,7 +222,7 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
       liked: false,
       bookmarked: false,
       reposted: false,
-      createdAt: tsToMillis(data.createdAt),
+      createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
       factCheckVerified: data.factCheckVerified || 0,
       factCheckDebunked: data.factCheckDebunked || 0,
     };
@@ -550,7 +550,7 @@ export async function fetchChatList(): Promise<Chat[]> {
         lastMessage: typeof data.lastMessage === 'string'
           ? data.lastMessage
           : (data.lastMessage?.content || data.lastMessage?.text || ''),
-        lastMessageTime: tsToMillis(data.lastMessageTime),
+        lastMessageTime: (() => { try { return tsToMillis(data.lastMessageTime); } catch { return Date.now(); } })(),
         unreadCount,
         otherUser: otherData ? {
           id: otherId,
@@ -564,7 +564,7 @@ export async function fetchChatList(): Promise<Chat[]> {
           badge: otherData.badge || '',
           subscription: otherData.subscription || 'free',
           isVerified: otherData.isVerified || false,
-          createdAt: tsToMillis(otherData.createdAt),
+          createdAt: (() => { try { return tsToMillis(otherData.createdAt); } catch { return Date.now(); } })(),
         } : null,
       };
     });
@@ -598,7 +598,7 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
         senderId: data.senderId || '',
         receiverId: data.receiverId || '',
         content: decryptMessage(rawContent, encryptionKey),
-        createdAt: tsToMillis(data.createdAt),
+        createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
       };
     });
   } catch (e) {
@@ -834,7 +834,7 @@ export async function hybridSearch(query: string): Promise<SearchResult> {
           badge: data.badge || '',
           subscription: data.subscription || 'free',
           isVerified: data.isVerified || false,
-          createdAt: tsToMillis(data.createdAt),
+          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         });
       }
     }
@@ -866,7 +866,7 @@ export async function hybridSearch(query: string): Promise<SearchResult> {
         liked: false,
         bookmarked: false,
         reposted: false,
-        createdAt: tsToMillis(data.createdAt),
+        createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
       };
     });
 
@@ -1199,9 +1199,8 @@ export async function checkAndSendFollowUps(userId: string): Promise<void> {
     for (const docSnap of allLeads) {
       const leadData = docSnap.data();
       const leadId = docSnap.id;
-      const lastFollowUpAt = leadData.lastFollowUpAt
-        ? tsToMillis(leadData.lastFollowUpAt)
-        : 0;
+      let lastFollowUpAt = 0;
+      try { lastFollowUpAt = leadData.lastFollowUpAt ? tsToMillis(leadData.lastFollowUpAt) : 0; } catch {}
 
       // Only process leads whose last follow-up is older than 24 hours (or never)
       if (lastFollowUpAt > twentyFourHoursAgo) continue;
@@ -1463,7 +1462,7 @@ export async function searchUsers(query: string): Promise<User[]> {
             badge: data.badge || '',
             subscription: data.subscription || 'free',
             isVerified: data.isVerified || false,
-            createdAt: tsToMillis(data.createdAt),
+            createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
           });
         }
       };
@@ -1545,7 +1544,7 @@ export async function fetchCart(userId: string): Promise<CartItem[]> {
         cartItems.push({
           productId,
           quantity: cartData.quantity || 1,
-          addedAt: tsToMillis(cartData.addedAt),
+          addedAt: (() => { try { return tsToMillis(cartData.addedAt); } catch { return Date.now(); } })(),
           name: productData.name || 'Unknown Product',
           price: productData.price || 0,
           comparePrice: productData.compareAtPrice || undefined,
@@ -1647,13 +1646,13 @@ export async function submitFactCheck(
     id: docRef.id,
     postId,
     claimedBy: userId,
-    claimedAt: tsToMillis(data.claimedAt),
+    claimedAt: (() => { try { return tsToMillis(data.claimedAt); } catch { return Date.now(); } })(),
     text: data.text || '',
     sourceUrl: data.sourceUrl || '',
     sourceTitle: data.sourceTitle || '',
     verdict: data.verdict || 'pending',
     verifiedBy: data.verifiedBy || null,
-    verifiedAt: data.verifiedAt ? tsToMillis(data.verifiedAt) : null,
+    verifiedAt: data.verifiedAt ? (() => { try { return tsToMillis(data.verifiedAt); } catch { return null; } })() : null,
     confidenceScore: data.confidenceScore || 0,
     tags: data.tags || [],
   };
@@ -1677,13 +1676,13 @@ export async function fetchPostFactChecks(postId: string): Promise<FactCheckClai
         id: docSnap.id,
         postId: data.postId || '',
         claimedBy: data.claimedBy || '',
-        claimedAt: tsToMillis(data.claimedAt),
+        claimedAt: (() => { try { return tsToMillis(data.claimedAt); } catch { return Date.now(); } })(),
         text: data.text || '',
         sourceUrl: data.sourceUrl || '',
         sourceTitle: data.sourceTitle || '',
         verdict: data.verdict || 'pending',
         verifiedBy: data.verifiedBy || null,
-        verifiedAt: data.verifiedAt ? tsToMillis(data.verifiedAt) : null,
+        verifiedAt: data.verifiedAt ? (() => { try { return tsToMillis(data.verifiedAt); } catch { return null; } })() : null,
         confidenceScore: data.confidenceScore || 0,
         tags: data.tags || [],
       };

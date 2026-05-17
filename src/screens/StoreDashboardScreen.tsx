@@ -200,7 +200,7 @@ export default function StoreDashboardScreen() {
       }
 
       for (const order of allOrders) {
-        const orderTime = tsToMillis(order.createdAt);
+        const orderTime = (() => { try { return tsToMillis(order.createdAt); } catch { return Date.now(); } })();
         const total = order.total || 0;
         totalRev += total;
         if (orderTime >= todayStartMs) todayRev += total;
@@ -250,7 +250,7 @@ export default function StoreDashboardScreen() {
         buyerName: order.buyerName || 'Unknown',
         total: order.total || 0,
         status: order.status || 'pending',
-        createdAt: tsToMillis(order.createdAt),
+        createdAt: (() => { try { return tsToMillis(order.createdAt); } catch { return Date.now(); } })(),
       }));
       setRecentOrders(recent);
 

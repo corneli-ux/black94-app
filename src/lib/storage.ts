@@ -209,7 +209,7 @@ function uploadWithProgress(
     const xhr = new XMLHttpRequest();
 
     xhr.open('POST', url);
-    xhr.setRequestHeader('Authorization', `Bearer ''`); // placeholder — replaced below
+    // Don't set Authorization header here — it will be set with the real token below
     xhr.setRequestHeader('Content-Type', mimeType);
 
     xhr.upload.onprogress = (event) => {

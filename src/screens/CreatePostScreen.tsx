@@ -146,10 +146,14 @@ const CreatePostScreen: React.FC = () => {
 
   const handlePost = useCallback(async () => {
     if (!canPost || !user) return;
+    const currentUser = auth().currentUser;
+    if (!currentUser?.uid) {
+      Alert.alert('Not Signed In', 'Please sign in to create a post.');
+      return;
+    }
     setPosting(true);
     setUploadProgress('');
     try {
-      const currentUser = auth().currentUser;
       const uploadedUrls: string[] = [];
 
       // Upload images

@@ -298,10 +298,10 @@ function docToLead(id: string, d: any): CrmLead {
     notes: d.notes ?? '',
     tags: Array.isArray(d.tags) ? d.tags : [],
     customFields: d.customFields ?? {},
-    lastFollowUpAt: tsToMillis(d.lastFollowUpAt),
-    lastActivityAt: tsToMillis(d.lastActivityAt),
-    createdAt: tsToMillis(d.createdAt),
-    updatedAt: tsToMillis(d.updatedAt),
+    lastFollowUpAt: (() => { try { return tsToMillis(d.lastFollowUpAt); } catch { return null; } })(),
+    lastActivityAt: (() => { try { return tsToMillis(d.lastActivityAt); } catch { return null; } })(),
+    createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
+    updatedAt: (() => { try { return tsToMillis(d.updatedAt); } catch { return Date.now(); } })(),
   };
 }
 
@@ -321,12 +321,12 @@ function docToDeal(id: string, d: any): CrmDeal {
     contactEmail: d.contactEmail ?? '',
     contactPhone: d.contactPhone ?? '',
     companyName: d.companyName ?? '',
-    expectedCloseDate: tsToMillis(d.expectedCloseDate),
-    actualCloseDate: tsToMillis(d.actualCloseDate),
+    expectedCloseDate: (() => { try { return tsToMillis(d.expectedCloseDate); } catch { return null; } })(),
+    actualCloseDate: (() => { try { return tsToMillis(d.actualCloseDate); } catch { return null; } })(),
     tags: Array.isArray(d.tags) ? d.tags : [],
     customFields: d.customFields ?? {},
-    createdAt: tsToMillis(d.createdAt),
-    updatedAt: tsToMillis(d.updatedAt),
+    createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
+    updatedAt: (() => { try { return tsToMillis(d.updatedAt); } catch { return Date.now(); } })(),
   };
 }
 
@@ -335,13 +335,13 @@ function docToScheduledFollowUp(id: string, d: any): ScheduledFollowUp {
     id,
     leadId: d.leadId ?? '',
     businessId: d.businessId ?? '',
-    scheduledAt: tsToMillis(d.scheduledAt),
+    scheduledAt: (() => { try { return tsToMillis(d.scheduledAt); } catch { return Date.now(); } })(),
     message: d.message ?? '',
     status: d.status ?? 'pending',
     result: d.result ?? '',
     assignedTo: d.assignedTo ?? '',
-    createdAt: tsToMillis(d.createdAt),
-    completedAt: tsToMillis(d.completedAt),
+    createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
+    completedAt: (() => { try { return tsToMillis(d.completedAt); } catch { return null; } })(),
   };
 }
 
@@ -352,7 +352,7 @@ function docToJourneyEvent(id: string, d: any): JourneyEvent {
     businessId: d.businessId ?? '',
     action: d.action ?? '',
     metadata: d.metadata ?? {},
-    createdAt: tsToMillis(d.createdAt),
+    createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
   };
 }
 
@@ -1703,7 +1703,7 @@ export async function fetchCustomerStats(businessId: string): Promise<CustomerSt
       const d = docSnap.data();
       const buyerId = d.buyerId || '';
       const total = d.total || 0;
-      const createdAt = tsToMillis(d.createdAt);
+      const createdAt = (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })();
 
       totalRevenue += total;
 
@@ -1844,7 +1844,7 @@ export async function identifyPotentialCustomers(businessId: string): Promise<Po
 
         candidateMap[otherId].score += 20;
         candidateMap[otherId].signals.push('Sent messages');
-        const chatTime = tsToMillis(cd.lastMessageTime);
+        const chatTime = (() => { try { return tsToMillis(cd.lastMessageTime); } catch { return 0; } })();
         if (chatTime > candidateMap[otherId].lastActivity) {
           candidateMap[otherId].lastActivity = chatTime;
         }
@@ -1892,7 +1892,7 @@ export async function identifyPotentialCustomers(businessId: string): Promise<Po
           if (!candidateMap[commentUserId].signals.includes('Commented on posts')) {
             candidateMap[commentUserId].signals.push('Commented on posts');
           }
-          const commentTime = tsToMillis(cData.createdAt);
+          const commentTime = (() => { try { return tsToMillis(cData.createdAt); } catch { return 0; } })();
           if (commentTime > candidateMap[commentUserId].lastActivity) {
             candidateMap[commentUserId].lastActivity = commentTime;
           }
@@ -1967,7 +1967,7 @@ export async function identifyPotentialCustomers(businessId: string): Promise<Po
       if (!candidateMap[buyerId].signals.includes('Previous customer')) {
         candidateMap[buyerId].signals.push('Previous customer');
       }
-      const orderTime = tsToMillis(oData.createdAt);
+      const orderTime = (() => { try { return tsToMillis(oData.createdAt); } catch { return 0; } })();
       if (orderTime > candidateMap[buyerId].lastActivity) {
         candidateMap[buyerId].lastActivity = orderTime;
       }

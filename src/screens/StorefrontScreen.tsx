@@ -78,7 +78,7 @@ export default function StorefrontScreen({ route, navigation }: any) {
           badge: d?.badge || '',
           subscription: d?.subscription || 'free',
           isVerified: d?.isVerified || false,
-          createdAt: tsToMillis(d?.createdAt),
+          createdAt: (() => { try { return tsToMillis(d?.createdAt); } catch { return Date.now(); } })(),
         });
       }
 
@@ -101,7 +101,7 @@ export default function StorefrontScreen({ route, navigation }: any) {
           ownerId: d.ownerId || userId,
           active: d.active !== false,
           featured: d.featured || false,
-          createdAt: tsToMillis(d.createdAt),
+          createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
         };
         ps.push(p);
         if (p.rating > 0) { ratingSum += p.rating; ratingCount++; }

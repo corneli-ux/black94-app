@@ -86,7 +86,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
             content: data.content || data.text || '',
             mediaUrl: data.mediaUrl || '',
             pollOptions: data.pollOptions || undefined,
-            createdAt: tsToMillis(data.createdAt),
+            createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
           };
         });
 

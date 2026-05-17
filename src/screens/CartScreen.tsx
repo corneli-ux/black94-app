@@ -229,7 +229,7 @@ export default function CartScreen({ route, navigation }: any) {
               if (navigation.canGoBack()) {
                 navigation.goBack();
               } else {
-                navigation.navigate('Shop');
+                navigation.navigate('Storefront');
               }
             }}
           >

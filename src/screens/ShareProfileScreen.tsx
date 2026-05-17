@@ -78,7 +78,7 @@ export default function ShareProfileScreen({ route, navigation }: any) {
             badge: data?.badge || '',
             subscription: data?.subscription || 'free',
             isVerified: data?.isVerified || false,
-            createdAt: tsToMillis(data?.createdAt),
+            createdAt: (() => { try { return tsToMillis(data?.createdAt); } catch { return Date.now(); } })(),
           });
         }
       } catch (e) {

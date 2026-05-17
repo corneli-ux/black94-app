@@ -278,7 +278,7 @@ export default function StoriesScreen({ navigation }: any) {
             type: data.type || 'text',
             viewCount: data.viewCount || 0,
             likeCount: data.likeCount || 0,
-            createdAt: tsToMillis(data.createdAt),
+            createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
             category: data.category || 'all',
           };
         })

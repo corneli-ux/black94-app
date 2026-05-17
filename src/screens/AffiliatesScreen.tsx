@@ -59,7 +59,7 @@ export default function AffiliatesScreen({ navigation }: any) {
           commissionRate: data.commissionRate || 0,
           totalCommissionsEarned: data.totalCommissionsEarned || 0,
           status: data.status || 'Active',
-          joinedAt: tsToMillis(data.joinedAt),
+          joinedAt: (() => { try { return tsToMillis(data.joinedAt); } catch { return Date.now(); } })(),
         };
       });
       setAffiliates(list);

@@ -152,7 +152,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     const isMine = item.senderId === currentUser?.uid;
     return (
       <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
-        {!isMine && <Avatar uri={chat.otherUser?.profileImage} name={chat.otherUser?.displayName} size={28} />}
+        {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
           <Text style={[styles.bubbleText, isMine && { color: '#000000' }]}>{item.content}</Text>
           <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }]}>
@@ -162,6 +162,14 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       </View>
     );
   };
+
+  if (!chat) {
+    return (
+      <View style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>

@@ -45,7 +45,7 @@ function safeUser(data: any): User | null {
     badge: data.badge || '',
     subscription: data.subscription || 'free',
     isVerified: data.isVerified || false,
-    createdAt: tsToMillis(data.createdAt),
+    createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
   };
 }
 

@@ -40,9 +40,9 @@ async function _persistAuth(): Promise<void> {
       idToken: _idToken,
       refreshToken: _refreshToken,
     }));
-    console.log('[Firebase] Auth state persisted to AsyncStorage');
+    if (__DEV__) console.log('[Firebase] Auth state persisted to AsyncStorage');
   } catch (e) {
-    console.warn('[Firebase] Failed to persist auth:', e);
+    if (__DEV__) console.warn('[Firebase] Failed to persist auth:', e);
   }
 }
 
@@ -55,12 +55,12 @@ async function _restoreAuth(): Promise<boolean> {
       _refreshToken = data.refreshToken;
       _idToken = data.idToken || null;
       _authUser = data.authUser || null;
-      console.log('[Firebase] Auth state restored from AsyncStorage, uid:', _authUser?.uid);
+      if (__DEV__) console.log('[Firebase] Auth state restored from AsyncStorage, uid:', _authUser?.uid);
       return true;
     }
     return false;
   } catch (e) {
-    console.warn('[Firebase] Failed to restore auth:', e);
+    if (__DEV__) console.warn('[Firebase] Failed to restore auth:', e);
     return false;
   }
 }
@@ -68,9 +68,9 @@ async function _restoreAuth(): Promise<boolean> {
 async function _clearAuthStorage(): Promise<void> {
   try {
     await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
-    console.log('[Firebase] Auth storage cleared');
+    if (__DEV__) console.log('[Firebase] Auth storage cleared');
   } catch (e) {
-    console.warn('[Firebase] Failed to clear auth storage:', e);
+    if (__DEV__) console.warn('[Firebase] Failed to clear auth storage:', e);
   }
 }
 
@@ -95,7 +95,7 @@ function onAuthStateChanged(
 }
 
 async function signInWithGoogleIdToken(googleIdToken: string) {
-  console.log('[Firebase] Signing in via REST API...');
+  if (__DEV__) console.log('[Firebase] Signing in via REST API...');
   const resp = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${API_KEY}`,
     {
@@ -113,7 +113,7 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
 
   if (!resp.ok) {
     const msg = data.error?.message || `Auth HTTP ${resp.status}`;
-    console.error('[Firebase] Auth REST error:', msg);
+    if (__DEV__) console.error('[Firebase] Auth REST error:', msg);
     throw new Error(msg);
   }
 
@@ -132,7 +132,7 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
   _idToken = data.idToken;
   _refreshToken = data.refreshToken;
 
-  console.log('[Firebase] Sign-in successful (REST):', _authUser.uid);
+  if (__DEV__) console.log('[Firebase] Sign-in successful (REST):', _authUser.uid);
   _notifyAuthListeners();
   _persistAuth(); // Persist tokens so user stays logged in
 
@@ -145,7 +145,7 @@ async function signOut(_authRef?: any) {
   _authUser = null;
   _idToken = null;
   _refreshToken = null;
-  console.log('[Firebase] Signed out (REST)');
+  if (__DEV__) console.log('[Firebase] Signed out (REST)');
   _notifyAuthListeners();
   _clearAuthStorage(); // Clear persisted tokens on sign out
 }
@@ -228,15 +228,16 @@ async function _firestoreFetch(
   const opts: RequestInit = { method, headers };
   if (body !== undefined) opts.body = JSON.stringify(body);
 
-  console.log(`[Firestore] ${method} ${url}`);
-  if (body !== undefined) console.log(`[Firestore] body: ${JSON.stringify(body).slice(0, 500)}`);
+  const logPath = url.includes('/documents/') ? url.split('/documents/')[1]?.split('?')[0] : url.split('?')[0];
+  if (__DEV__) console.log(`[Firestore] ${method} ${logPath}`);
+  if (__DEV__ && body !== undefined) console.log('[Firestore] body:', typeof body === 'string' ? body.slice(0, 200) : JSON.stringify(body).slice(0, 200));
 
   let resp = await fetch(url, opts);
-  console.log(`[Firestore] response: ${resp.status} ${resp.statusText}`);
+  if (__DEV__) console.log(`[Firestore] response: ${resp.status} ${resp.statusText}`);
 
   // Auto-refresh on 401 — invalidate token first so refresh actually runs
   if (resp.status === 401) {
-    console.log(`[Firestore] 401 on ${method} ${path} — refreshing token...`);
+    if (__DEV__) console.log(`[Firestore] 401 on ${method} ${path} — refreshing token...`);
     _idToken = null; // Force refresh
     try {
       token = await _getValidToken();
@@ -247,7 +248,7 @@ async function _firestoreFetch(
       ...opts,
       headers: { ...headers, Authorization: `Bearer ${token}` },
     });
-    console.log(`[Firestore] After token refresh: ${resp.status}`);
+    if (__DEV__) console.log(`[Firestore] After token refresh: ${resp.status}`);
   }
 
   // Safely parse response — may not be JSON on errors
@@ -256,7 +257,7 @@ async function _firestoreFetch(
   try {
     data = JSON.parse(respText);
   } catch {
-    console.error(`[Firestore] Non-JSON response (${resp.status}): ${respText.slice(0, 500)}`);
+    if (__DEV__) console.error(`[Firestore] Non-JSON response (${resp.status}): ${respText.slice(0, 500)}`);
     throw new Error(`Firestore HTTP ${resp.status}: ${respText.slice(0, 200)}`);
   }
 
@@ -266,14 +267,14 @@ async function _firestoreFetch(
     err.status = resp.status;
     err.code = data.error?.status;
     // Log full error details for debugging
-    console.error(`[Firestore] ${method} ${path} FAILED: ${resp.status} ${data.error?.status} - ${errMsg}`);
-    console.error(`[Firestore] Full error response: ${respText.slice(0, 500)}`);
+    if (__DEV__) console.error(`[Firestore] ${method} ${path} FAILED: ${resp.status} ${data.error?.status} - ${errMsg}`);
+    if (__DEV__) console.error(`[Firestore] Full error response: ${respText.slice(0, 500)}`);
     // If it's a composite index error, include helpful info
     if (data.error?.message?.includes('FAILED_PRECONDITION') || errMsg.includes('index')) {
-      console.error(`[Firestore] COMPOSITE INDEX NEEDED for query on path: ${path}`);
-      console.error(`[Firestore] Create index at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
+      if (__DEV__) console.error(`[Firestore] COMPOSITE INDEX NEEDED for query on path: ${path}`);
+      if (__DEV__) console.error(`[Firestore] Create index at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
       // Return empty result with a special flag so callers can detect this
-      console.warn(`[Firestore] Returning empty result due to missing index`);
+      if (__DEV__) console.warn(`[Firestore] Returning empty result due to missing index`);
       const emptyResult: any = [];
       emptyResult._missingIndex = true;
       return emptyResult;
@@ -434,7 +435,7 @@ class CompatCollectionRef {
       // Document snapshot — extract values based on orderBy fields
       const orderConstraints = this._constraints.filter(c => c.type === 'orderBy');
       if (orderConstraints.length === 0) {
-        console.warn('[Firestore] startAfter called without orderBy — skipping cursor');
+        if (__DEV__) console.warn('[Firestore] startAfter called without orderBy — skipping cursor');
         return this;
       }
       const data = docOrValue.data();
@@ -520,7 +521,7 @@ class CompatCollectionRef {
       // Since documents have unique timestamps, startAt effectively works as startAfter.
     }
 
-    console.log(`[Firestore] Collection get: ${this._path}, constraints: ${JSON.stringify(this._constraints)}`);
+    if (__DEV__) console.log(`[Firestore] Collection get: ${this._path}, constraints: ${JSON.stringify(this._constraints)}`);
 
     // Firestore REST runQuery endpoint format:
     //   Top-level collection (path='posts'):
@@ -557,7 +558,7 @@ class CompatCollectionRef {
         };
       });
 
-    console.log(`[Firestore] Collection get: ${this._path} returned ${docs.length} docs`);
+    if (__DEV__) console.log(`[Firestore] Collection get: ${this._path} returned ${docs.length} docs`);
     return { docs, empty: docs.length === 0, size: docs.length };
   }
 
@@ -574,7 +575,7 @@ class CompatCollectionRef {
         } else if (t.increment) {
           // increment → can't resolve client-side in a create (no existing doc to read).
           // Store as 0 for new documents. Increment should be used with update(), not add().
-          console.warn(`[Firestore] increment(${t.increment.integerValue || t.increment.doubleValue || 0}) in add() has no existing value — defaulting to 0. Use update() for increments.`);
+          if (__DEV__) console.warn(`[Firestore] increment(${t.increment.integerValue || t.increment.doubleValue || 0}) in add() has no existing value — defaulting to 0. Use update() for increments.`);
           fields[t.fieldPath] = t.increment;
         }
       }
@@ -585,7 +586,7 @@ class CompatCollectionRef {
       const docId = resp.name?.split('/').pop();
       return { id: docId };
     } catch (e: any) {
-      console.error('[Firestore] add error:', e?.message);
+      if (__DEV__) console.error('[Firestore] add error:', e?.message);
       throw e;
     }
   }
@@ -624,7 +625,7 @@ class CompatDocRef {
       // Re-throw all other errors (network, permission, server) so callers
       // can handle them properly. Swallowing these would cause data loss
       // in signInWithGoogle (non-merge set overwrites existing user docs).
-      console.error('[Firestore] Doc get error:', e?.message);
+      if (__DEV__) console.error('[Firestore] Doc get error:', e?.message);
       throw e;
     }
   }
@@ -662,7 +663,7 @@ class CompatDocRef {
     try {
       await _firestoreFetch(this._path, 'DELETE');
     } catch (e: any) {
-      console.warn('[Firestore] delete error:', e?.message);
+      if (__DEV__) console.warn('[Firestore] delete error:', e?.message);
     }
   }
 }
@@ -702,7 +703,7 @@ class CompatWriteBatch {
           await op.ref.update(op.data);
         }
       } catch (e: any) {
-        console.warn('[Batch] Operation failed:', e?.message);
+        if (__DEV__) console.warn('[Batch] Operation failed:', e?.message);
       }
     });
     await Promise.all(promises);

@@ -61,7 +61,7 @@ export default function AdsManagerScreen({ navigation }: any) {
           impressions: data.impressions || 0,
           clicks: data.clicks || 0,
           conversions: data.conversions || 0,
-          createdAt: tsToMillis(data.createdAt),
+          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       });
       setCampaigns(list);

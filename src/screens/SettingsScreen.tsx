@@ -69,7 +69,7 @@ export default function SettingsScreen() {
       <SafeAreaView style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { navigation.navigate('Profile'); } }}>
+        <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { navigation.navigate('ProfileSelf'); } }}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
