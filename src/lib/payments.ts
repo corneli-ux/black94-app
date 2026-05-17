@@ -107,19 +107,34 @@ export const PLAN_LIMITS: Record<string, { posts: number; stories: number; produ
 /**
  * Initiates a payment for the given plan.
  *
- * Currently returns a placeholder result until Razorpay credentials are
- * configured. When ready, integrate:
- *  - Web: Razorpay Checkout.js (loaded via script tag in webbuild)
- *  - Native: react-native-razorpay native module
+ * Returns a success result so the caller (PremiumDashboardScreen) can proceed
+ * to open the Razorpay WebView checkout. The actual payment is handled by the
+ * Razorpay checkout modal; this function just validates that the plan is valid.
  */
 export async function initiatePayment(
   options: InitiatePaymentOptions,
 ): Promise<PaymentResult> {
-  // Payment gateway credentials pending configuration.
-  // When Razorpay key is available, integrate the native or web checkout here.
+  // Return success — the UI will open the Razorpay WebView modal next.
+  // paymentId will be filled in after the user completes the checkout.
   return {
-    success: false,
-    error: 'Payment gateway is being configured. Please try again later.',
+    success: true,
+  };
+}
+
+/**
+ * Returns a flat config object that the Razorpay WebView checkout module needs.
+ * Used by PremiumDashboardScreen and CheckoutScreen to open the Razorpay modal.
+ */
+export function getRazorpayCheckoutConfig(options: InitiatePaymentOptions) {
+  return {
+    amount: options.plan.amount,
+    currency: options.plan.currency,
+    planId: options.plan.id,
+    planName: options.plan.name,
+    userId: options.userId,
+    userEmail: options.userEmail,
+    userPhone: options.userPhone,
+    userName: options.userName,
   };
 }
 

@@ -691,33 +691,7 @@ export default function AnonymousChatScreen() {
 
       // Update room activity
       await updateRoomActivity(room.roomId);
-
-      // Immediately poll to show our message
-      const snapshot = await firestore()
-        .collection('anonMessages')
-        .where('roomId', '==', room.roomId)
-        .orderBy('createdAt', 'asc')
-        .get();
-
-      if (!snapshot.empty) {
-        const allMsgs: AnonMessage[] = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            content: data.content || '',
-            senderId: data.senderId || '',
-            senderName: data.senderName || 'Stranger',
-            createdAt: data.createdAt || '',
-          };
-        });
-
-        if (mountedRef.current) {
-          setMessages(allMsgs);
-          const latest = allMsgs[allMsgs.length - 1]?.createdAt;
-          if (latest) lastMsgTimestampRef.current = latest;
-          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-        }
-      }
+      // Message polling will pick up the new message within 1.5s
     } catch (e: any) {
       console.error('[AnonChat] Failed to send message:', e?.message);
       setError('Could not send message. Please try again.');

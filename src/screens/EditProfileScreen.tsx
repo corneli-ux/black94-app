@@ -135,7 +135,8 @@ export default function EditProfileScreen({ navigation }: any) {
         </TouchableOpacity>
       ),
     });
-  }, [navigation, saving, loading, handleSave]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, saving, loading]);
 
   useEffect(() => {
     const loadUser = async () => {

@@ -34,7 +34,7 @@ function safeUser(data: any): User | null {
     username: data.username || '',
     // displayName: prefer explicit value, then fallback chain to 'User'.
     // Empty string is falsy in JS — Avatar treats it as no name → "?".
-    displayName: data.displayName || data.name || 'User',
+    displayName: data.displayName || 'User',
     bio: data.bio || '',
     // profileImage: keep null/empty as-is (triggers initials in Avatar),
     // but DO use photoURL from Firebase auth if no stored image exists.

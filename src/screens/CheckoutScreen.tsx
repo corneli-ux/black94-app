@@ -1,12 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Modal, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { User, Post } from '../lib/api';
+import {
+  openRazorpayCheckout,
+  handleRazorpayMessage,
+  isRazorpayConfigured,
+} from '../lib/razorpay';
+import type { RazorpayResult } from '../lib/razorpay';
 
 const SHIPPING_PARTNERS = [
   { id: 'standard', name: 'Standard Shipping', price: 99, days: '5-7 days' },
@@ -70,6 +77,11 @@ export default function CheckoutScreen({ route, navigation }: any) {
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'prepaid'>('prepaid');
   const [placingOrder, setPlacingOrder] = useState(false);
 
+  // Razorpay WebView modal state for prepaid orders
+  const [razorpayModalVisible, setRazorpayModalVisible] = useState(false);
+  const [razorpayHTML, setRazorpayHTML] = useState('');
+  const pendingOrderDataRef = useRef<Record<string, any> | null>(null);
+
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shippingCost = selectedPartner.price;
   const total = subtotal + shippingCost;
@@ -101,6 +113,66 @@ export default function CheckoutScreen({ route, navigation }: any) {
       return;
     }
 
+    // For prepaid orders, open Razorpay checkout first
+    if (paymentMethod === 'prepaid') {
+      if (!isRazorpayConfigured()) {
+        Alert.alert(
+          'Payment Unavailable',
+          'Online payment is being configured. Please use Cash on Delivery or try again later.',
+        );
+        return;
+      }
+
+      const currentUser = auth()?.currentUser;
+      const { html, keyMissing } = openRazorpayCheckout({
+        amount: total * 100, // convert ₹ to paise
+        currency: 'INR',
+        planId: 'order',
+        planName: `Order for ${cartItems.length} item(s)`,
+        userId: currentUser?.uid || 'anonymous',
+        userEmail: '',
+        userPhone: shippingForm.phone || '',
+        userName: shippingForm.fullName || '',
+      });
+
+      if (keyMissing) {
+        Alert.alert('Error', 'Payment key is missing. Please use Cash on Delivery.');
+        return;
+      }
+
+      // Prepare order data for after successful payment
+      const orderData: Record<string, any> = {
+        userId: currentUser?.uid || 'anonymous',
+        items: cartItems.map(item => ({
+          productId: item.productId,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          variant: item.variant || null,
+        })),
+        shippingAddress: { ...shippingForm },
+        shippingPartner: selectedPartner.id,
+        shippingCost,
+        subtotal,
+        total,
+        paymentMethod,
+        paymentId: null, // filled in after Razorpay success
+        status: 'placed',
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      };
+
+      pendingOrderDataRef.current = orderData;
+      setRazorpayHTML(html);
+      setRazorpayModalVisible(true);
+      return;
+    }
+
+    // COD: place order directly
+    await placeOrderInFirestore();
+  };
+
+  const placeOrderInFirestore = async (paymentId?: string) => {
     setPlacingOrder(true);
     try {
       const currentUser = auth()?.currentUser;
@@ -124,6 +196,10 @@ export default function CheckoutScreen({ route, navigation }: any) {
         updatedAt: firestore.FieldValue.serverTimestamp(),
       };
 
+      if (paymentId) {
+        orderData.paymentId = paymentId;
+      }
+
       await firestore().collection('orders').add(orderData);
 
       Alert.alert(
@@ -142,6 +218,22 @@ export default function CheckoutScreen({ route, navigation }: any) {
     } finally {
       setPlacingOrder(false);
     }
+  };
+
+  const handleRazorpayResult = (result: RazorpayResult) => {
+    setRazorpayModalVisible(false);
+    setRazorpayHTML('');
+    pendingOrderDataRef.current = null;
+
+    if (!result.success || !result.paymentId) {
+      if (result.error && result.error !== 'Payment was cancelled.') {
+        Alert.alert('Payment Failed', result.error);
+      }
+      return;
+    }
+
+    // Payment successful — create order with paymentId
+    placeOrderInFirestore(result.paymentId);
   };
 
   const inputProps = {
@@ -349,6 +441,47 @@ export default function CheckoutScreen({ route, navigation }: any) {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ═══ Razorpay WebView Modal (prepaid orders) ═══ */}
+      <Modal
+        visible={razorpayModalVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => {
+          setRazorpayModalVisible(false);
+          setRazorpayHTML('');
+          pendingOrderDataRef.current = null;
+        }}>
+        <SafeAreaView style={styles.razorpayModalContainer} edges={['top', 'bottom']}>
+          <View style={styles.razorpayModalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                setRazorpayModalVisible(false);
+                setRazorpayHTML('');
+                pendingOrderDataRef.current = null;
+              }}
+              hitSlop={8}
+              style={{ padding: 8 }}>
+              <Text style={styles.backArrow}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Pay {formatINR(total)}</Text>
+            <View style={{ width: 36 }} />
+          </View>
+          {razorpayHTML ? (
+            <WebView
+              source={{ html: razorpayHTML }}
+              onMessage={(event) => handleRazorpayResult(handleRazorpayMessage(event))}
+              style={{ flex: 1 }}
+              javaScriptEnabled
+              domStorageEnabled
+            />
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={colors.accent} />
+            </View>
+          )}
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -422,4 +555,11 @@ const styles = StyleSheet.create({
   },
   placeOrderBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   placeOrderBtnTotal: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  // ── Razorpay modal ──
+  razorpayModalContainer: { flex: 1, backgroundColor: colors.bg },
+  razorpayModalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
+    borderBottomWidth: 0.5, borderBottomColor: colors.border,
+  },
 });

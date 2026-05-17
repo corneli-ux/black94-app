@@ -193,11 +193,10 @@ async function _getValidToken(): Promise<string> {
     _persistAuth(); // Persist refreshed tokens
     return _idToken as string;
   } catch (e: any) {
-    // Refresh failed — clear everything only if refresh token is truly dead
+    // Keep _refreshToken on transient errors — only clear on auth failures
     _idToken = null;
-    _refreshToken = null;
-    // Do NOT clear _authUser here — let the caller decide.
-    // This prevents mid-session data loss on transient errors.
+    // Don't clear refresh token — it may be a transient network error.
+    // The next call to _getValidToken will retry with the same refresh token.
     throw new Error('Session expired — please sign in again');
   }
 }

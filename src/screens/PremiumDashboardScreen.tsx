@@ -6,7 +6,7 @@
  * and manage subscription controls.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -19,20 +19,27 @@ import {
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import {
-  initiatePayment,
   verifyAndActivateSubscription,
+  getRazorpayCheckoutConfig,
   PLANS,
   PLAN_LIMITS,
   formatAmount,
   getPlanById,
 } from '../lib/payments';
-import type { PaymentPlan } from '../lib/payments';
+import type { PaymentPlan, InitiatePaymentOptions } from '../lib/payments';
 import type { User } from '../lib/api';
+import {
+  openRazorpayCheckout,
+  handleRazorpayMessage,
+  isRazorpayConfigured,
+} from '../lib/razorpay';
+import type { RazorpayResult } from '../lib/razorpay';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -132,6 +139,12 @@ export default function PremiumDashboardScreen() {
   // Payment state
   const [paymentLoading, setPaymentLoading] = useState(false);
 
+  // Razorpay WebView modal state
+  const [razorpayModalVisible, setRazorpayModalVisible] = useState(false);
+  const [razorpayHTML, setRazorpayHTML] = useState('');
+  const pendingPlanRef = useRef<PaymentPlan | null>(null);
+  const pendingUserIdRef = useRef<string | null>(null);
+
   // Success modal state
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [activatedPlan, setActivatedPlan] = useState<PaymentPlan | null>(null);
@@ -183,43 +196,41 @@ export default function PremiumDashboardScreen() {
     [],
   );
 
-  const processPayment = async (plan: PaymentPlan, userId: string) => {
-    setPaymentLoading(true);
+  // ── Handle Razorpay WebView result ──
+  const handleRazorpayResult = useCallback(async (result: RazorpayResult) => {
+    setRazorpayModalVisible(false);
+    setRazorpayHTML('');
+
+    const plan = pendingPlanRef.current;
+    const userId = pendingUserIdRef.current;
+    pendingPlanRef.current = null;
+    pendingUserIdRef.current = null;
+
+    if (!plan || !userId) {
+      setPaymentLoading(false);
+      return;
+    }
+
+    if (!result.success || !result.paymentId) {
+      setPaymentLoading(false);
+      if (result.error && result.error !== 'Payment was cancelled.') {
+        Alert.alert('Payment Failed', result.error);
+      }
+      return;
+    }
 
     try {
-      // 1. Open Razorpay checkout
-      const paymentResult = await initiatePayment({
-        plan,
-        userId,
-        userEmail: user?.email || '',
-        userPhone: '',
-        userName: user?.displayName || user?.username || '',
-      });
-
-      if (!paymentResult.success || !paymentResult.paymentId) {
-        setPaymentLoading(false);
-        if (paymentResult.error && paymentResult.error !== 'Payment was cancelled.') {
-          Alert.alert('Payment Failed', paymentResult.error);
-        }
-        return;
-      }
-
-      // 2. Verify payment & activate subscription in Firestore
+      // Verify payment & activate subscription in Firestore
       const updatedUser = await verifyAndActivateSubscription(
         userId,
         plan.id,
-        paymentResult.paymentId,
+        result.paymentId,
       );
 
       if (updatedUser) {
-        // 3. Update Zustand store
         setUser(updatedUser);
         setCurrentPlan(plan.id as PlanType);
-
-        // 4. Refresh usage stats for new plan limits
         await loadUsageStats(plan.id as PlanType);
-
-        // 5. Show success modal
         setActivatedPlan(plan);
         setSuccessModalVisible(true);
       } else {
@@ -231,6 +242,44 @@ export default function PremiumDashboardScreen() {
     } finally {
       setPaymentLoading(false);
     }
+  }, [setUser, loadUsageStats]);
+
+  const processPayment = async (plan: PaymentPlan, userId: string) => {
+    setPaymentLoading(true);
+
+    if (!isRazorpayConfigured()) {
+      setPaymentLoading(false);
+      Alert.alert(
+        'Payment Unavailable',
+        'Razorpay key not configured. Add razorpayKeyId to app.json extra field.',
+      );
+      return;
+    }
+
+    const paymentOptions: InitiatePaymentOptions = {
+      plan,
+      userId,
+      userEmail: user?.email || '',
+      userPhone: '',
+      userName: user?.displayName || user?.username || '',
+    };
+
+    const checkoutConfig = getRazorpayCheckoutConfig(paymentOptions);
+    const { html, keyMissing } = openRazorpayCheckout(checkoutConfig);
+
+    if (keyMissing) {
+      setPaymentLoading(false);
+      Alert.alert('Error', 'Razorpay key is missing. Please contact support.');
+      return;
+    }
+
+    // Store refs for the callback
+    pendingPlanRef.current = plan;
+    pendingUserIdRef.current = userId;
+
+    // Open Razorpay WebView modal
+    setRazorpayHTML(html);
+    setRazorpayModalVisible(true);
   };
 
   // ── Manage plan: view details & cancel subscription ──
@@ -597,6 +646,51 @@ export default function PremiumDashboardScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      {/* ═══ Razorpay WebView Modal ═══ */}
+      <Modal
+        visible={razorpayModalVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => {
+          setRazorpayModalVisible(false);
+          setRazorpayHTML('');
+          setPaymentLoading(false);
+          pendingPlanRef.current = null;
+          pendingUserIdRef.current = null;
+        }}>
+        <SafeAreaView style={styles.razorpayModalContainer} edges={['top', 'bottom']}>
+          <View style={styles.razorpayModalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                setRazorpayModalVisible(false);
+                setRazorpayHTML('');
+                setPaymentLoading(false);
+                pendingPlanRef.current = null;
+                pendingUserIdRef.current = null;
+              }}
+              hitSlop={8}
+              style={{ padding: 8 }}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.razorpayModalTitle}>Payment</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          {razorpayHTML ? (
+            <WebView
+              source={{ html: razorpayHTML }}
+              onMessage={(event) => handleRazorpayResult(handleRazorpayMessage(event))}
+              style={{ flex: 1 }}
+              javaScriptEnabled
+              domStorageEnabled
+            />
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          )}
+        </SafeAreaView>
+      </Modal>
 
       {/* ═══ Success Modal ═══ */}
       <Modal
@@ -1010,6 +1104,27 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.background,
+    fontFamily: 'Roboto-Bold',
+  },
+
+  // ── Razorpay WebView modal ──
+  razorpayModalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  razorpayModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  razorpayModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
     fontFamily: 'Roboto-Bold',
   },
 });
