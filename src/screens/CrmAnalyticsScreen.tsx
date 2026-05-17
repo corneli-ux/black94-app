@@ -333,7 +333,7 @@ const CrmAnalyticsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Customer Demographics Placeholder */}
+        {/* Customer Demographics */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
             <Ionicons name="people-circle-outline" size={18} color={C.badgeQualified} />
@@ -348,15 +348,16 @@ const CrmAnalyticsScreen: React.FC = () => {
             </View>
             <View style={styles.demographicRow}>
               <Text style={styles.demographicLabel}>Repeat Customers</Text>
-              <Text style={styles.demographicValue}>—</Text>
+              <Text style={styles.demographicValue}>
+                {data?.repeatCustomers ?? 0}
+              </Text>
             </View>
             <View style={styles.demographicRow}>
               <Text style={styles.demographicLabel}>Top Region</Text>
-              <Text style={styles.demographicValue}>—</Text>
+              <Text style={styles.demographicValue}>
+                {data?.topRegion || 'N/A'}
+              </Text>
             </View>
-            <Text style={styles.demographicNote}>
-              Demographics data requires enhanced tracking enabled in Business settings
-            </Text>
           </View>
         </View>
 

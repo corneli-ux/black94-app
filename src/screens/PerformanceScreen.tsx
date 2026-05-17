@@ -27,7 +27,7 @@ interface AggregateMetrics {
   roi: number;
 }
 
-const AI_SUGGESTIONS = [
+const AD_TIPS = [
   {
     icon: '🎯',
     title: 'Improve CTR with Better Headlines',
@@ -218,13 +218,12 @@ export default function PerformanceScreen({ navigation }: any) {
               })}
             </View>
 
-            {/* AI Suggestions */}
+            {/* Performance Tips */}
             <View style={styles.section}>
               <View style={styles.aiHeader}>
-                <Text style={styles.sectionTitle}>AI Suggestions</Text>
-                <Text style={styles.aiLabel}>✨ Powered by AI</Text>
+                <Text style={styles.sectionTitle}>Tips</Text>
               </View>
-              {AI_SUGGESTIONS.map((tip, index) => (
+              {AD_TIPS.map((tip, index) => (
                 <View key={index} style={styles.tipCard}>
                   <Text style={styles.tipIcon}>{tip.icon}</Text>
                   <View style={styles.tipContent}>

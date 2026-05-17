@@ -27,7 +27,7 @@ eas build --platform android --profile store
 ```
 
 ### Step 2: Download the `.aab` file
-From the EAS dashboard: https://expo.dev/accounts/tabiblia/projects/black94/builds
+From the EAS dashboard: https://expo.dev/accounts/corneli1/projects/black94/builds
 
 ### Step 3: Submit to App Store
 - **Google Play**: https://play.google.com/console
@@ -70,9 +70,9 @@ eas credentials -p android
 
 | Item | Location |
 |---|---|
-| Source code | https://github.com/tabibliaai-cpu/black94-app |
-| EAS dashboard | https://expo.dev/accounts/tabiblia/projects/black94 |
-| Build history | https://expo.dev/accounts/tabiblia/projects/black94/builds |
+| Source code | https://github.com/dasucosmos-eng/black94-app |
+| EAS dashboard | https://expo.dev/accounts/corneli1/projects/black94 |
+| Build history | https://expo.dev/accounts/corneli1/projects/black94/builds |
 | Signing credentials | Managed by EAS (or upload your own) |
 
 ## 2026-05-05: Complete UI Overhaul to Match Webapp
@@ -91,4 +91,4 @@ All screens rewritten to match black94real Next.js webapp exactly:
 ### Push Details
 - Commit: 835be9d "feat: exact UI match to webapp - all screens overhauled"
 - Branch: main
-- Remote: tabibliaai-cpu/black94-app
+- Remote: dasucosmos-eng/black94-app

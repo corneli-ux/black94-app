@@ -1,8 +1,11 @@
 /**
  * AudioCallScreen.tsx — Full-screen audio call UI
  *
- * Simulated call flow: Calling (3s) → Connected (timer) → End Call → navigate back.
- * No actual calling — UI only.
+ * PREVIEW: This screen shows the call UI but does not establish a real
+ * VoIP connection. Audio/VoIP integration (Agora/Twilio) is needed for
+ * actual calling functionality.
+ *
+ * Current flow: Calling (3s timer) → Connected (timer) → End Call → navigate back.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -33,9 +36,9 @@ export default function AudioCallScreen({ route, navigation }: any) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rippleAnim = useRef(new Animated.Value(0)).current;
 
-  // ── Simulated call flow ────────────────────────────────────────────────
+  // ── Preview call flow (no real VoIP connection) ────────────────────────
   useEffect(() => {
-    // After 3s, connect
+    // After 3s, show connected state
     const connectTimeout = setTimeout(() => {
       setCallStatus('connected');
     }, 3000);

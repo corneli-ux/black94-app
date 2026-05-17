@@ -8,7 +8,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
 
-type TabType = 'chat' | 'ads';
+type TabType = 'chat';
 
 export default function ChatListScreen({ navigation }: any) {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -312,57 +312,17 @@ export default function ChatListScreen({ navigation }: any) {
     </View>
   );
 
-  // Chat Ads placeholder
-  const renderChatAds = () => (
-    <View style={styles.adsContainer}>
-      <View style={styles.emptyIcon}>
-        <Ionicons name="card-outline" size={32} color="#64748b" />
-      </View>
-      <Text style={styles.adsEmptyText}>No ads right now</Text>
-      <Text style={styles.adsEmptySubtext}>Check back later for new sponsored content</Text>
-    </View>
-  );
-
-  // Tab switcher
-  const renderTabSwitcher = () => (
+  // Tab header
+  const renderTabHeader = () => (
     <View style={styles.tabBar}>
-      <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => setActiveTab('chat')}
-        activeOpacity={0.7}
-      >
-        <View style={styles.tabContent}>
-          <Ionicons
-            name="chatbubble-outline"
-            size={18}
-            color={activeTab === 'chat' ? '#FFFFFF' : '#94a3b8'}
-          />
-          <Text style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>
-            Chats
-          </Text>
-        </View>
-        {activeTab === 'chat' && <View style={styles.tabIndicator} />}
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => setActiveTab('ads')}
-        activeOpacity={0.7}
-      >
-        <View style={styles.tabContent}>
-          <Ionicons
-            name="card-outline"
-            size={18}
-            color={activeTab === 'ads' ? '#FFFFFF' : '#94a3b8'}
-          />
-          <Text style={[styles.tabText, activeTab === 'ads' && styles.tabTextActive]}>
-            Chat Ads
-          </Text>
-          <View style={[styles.newBadge, activeTab === 'ads' && styles.newBadgeActive]}>
-            <Text style={[styles.newBadgeText, activeTab === 'ads' && styles.newBadgeTextActive]}>NEW</Text>
-          </View>
-        </View>
-        {activeTab === 'ads' && <View style={styles.tabIndicator} />}
-      </TouchableOpacity>
+      <View style={styles.tabContent}>
+        <Ionicons
+          name="chatbubble-outline"
+          size={18}
+          color="#FFFFFF"
+        />
+        <Text style={styles.tabTextActive}>Chats</Text>
+      </View>
     </View>
   );
 
@@ -475,13 +435,10 @@ export default function ChatListScreen({ navigation }: any) {
       </SafeAreaView>
 
       {/* Tab Switcher */}
-      {renderTabSwitcher()}
+      {renderTabHeader()}
 
-      {/* Tab Content */}
-      {activeTab === 'ads' ? (
-        renderChatAds()
-      ) : (
-        <>
+      {/* Chat Content */}
+      <>
           {/* Search */}
           <View style={styles.searchContainer}>
             <Ionicons name="search" size={16} color="#64748b" style={styles.searchIcon} />
