@@ -4,17 +4,23 @@
  * Sensitive values (Firebase API Key, Razorpay Key ID) are read from
  * environment variables at build time so they are NEVER committed to git.
  *
+ * This file auto-loads a .env file via dotenv (silent — no error if missing).
+ *
  * Setup:
- *   Local dev:  create a .env file (gitignored) with:
- *     RAZORPAY_KEY_ID=rzp_live_...
- *     FIREBASE_API_KEY=AIzaSy...
+ *   Local dev:  copy .env.example → .env, fill in the values:
+ *     cp .env.example .env
+ *     (then edit .env with your real keys)
  *
- *   CI (GitHub Actions / EAS): set these as repository secrets,
- *     then expose them as env vars in the build step.
- *
- *   EAS Build: configure in eas.json → build.extraEnv or
- *     set as EAS secrets: eas secret:create --name RAZORPAY_KEY_ID --value "..."
+ *   CI (GitHub Actions): secrets are injected as env vars in the workflow.
+ *     dotenv has no effect — process.env already has the values.
  */
+
+// Load .env file if present (silent — won't error if missing)
+try {
+  require('dotenv').config();
+} catch {
+  // dotenv not installed — skip (CI uses real env vars)
+}
 
 module.exports = function () {
   return {
