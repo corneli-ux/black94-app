@@ -24,6 +24,60 @@ import {
 admin.initializeApp();
 const db = admin.firestore();
 
+// ── Auth verification helper ───────────────────────────────────────────
+
+/**
+ * Extracts the authenticated user's UID from a callable request.
+ *
+ * The Firebase Functions v2 SDK (firebase-functions@5.x) callable middleware
+ * only populates `request.auth` when the call originates from the Firebase
+ * Client SDK (which adds internal protocol headers). Direct REST calls via
+ * fetch() — even with a valid `Authorization: Bearer <id_token>` header —
+ * leave `request.auth` as `null`.
+ *
+ * This helper works in both cases:
+ *  1. Firebase Client SDK call → uses `request.auth` directly.
+ *  2. Direct REST call → falls back to `admin.auth().verifyIdToken()`
+ *     using the Bearer token from the raw request headers.
+ */
+async function getAuthenticatedUid(request: any): Promise<string> {
+  // Fast path: Firebase Client SDK populated request.auth
+  if (request.auth?.uid) {
+    return request.auth.uid;
+  }
+
+  // Fallback: manually verify the Bearer token from the raw request.
+  // Express normalises header names to lowercase.
+  const authHeader: string | undefined =
+    request.rawRequest?.headers?.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'You must be signed in. No valid auth token found.',
+    );
+  }
+
+  const idToken = authHeader.slice(7); // strip "Bearer "
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    if (!decoded.uid) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Token is valid but has no UID.',
+      );
+    }
+    console.log(`[Auth] Verified token for uid=${decoded.uid} (fallback path)`);
+    return decoded.uid;
+  } catch (error: any) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Authentication failed. Please sign in again.',
+    );
+  }
+}
+
 // ── Razorpay Instance (lazy init) ──────────────────────────────────────────
 
 /**
@@ -65,13 +119,8 @@ function getRazorpay(): Razorpay {
  */
 export const createRazorpayOrder = functions.https.onCall(
   async (request: any) => {
-    // Verify the user is authenticated
-    if (!request.auth) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'You must be signed in to create a payment order.',
-      );
-    }
+    // Verify the user is authenticated (works with both SDK and direct REST calls)
+    const uid = await getAuthenticatedUid(request);
 
     const { amount, currency = 'INR', receipt, notes = {} } = request.data;
 
@@ -96,7 +145,7 @@ export const createRazorpayOrder = functions.https.onCall(
         currency,
         receipt,
         notes: {
-          userId: request.auth.uid,
+          userId: uid,
           ...notes,
         },
       });
@@ -142,12 +191,8 @@ export const createRazorpayOrder = functions.https.onCall(
  */
 export const verifyRazorpayPayment = functions.https.onCall(
   async (request: any) => {
-    if (!request.auth) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'You must be signed in to verify a payment.',
-      );
-    }
+    // Verify the user is authenticated (works with both SDK and direct REST calls)
+    const uid = await getAuthenticatedUid(request);
 
     const {
       razorpayOrderId,
@@ -222,7 +267,7 @@ export const verifyRazorpayPayment = functions.https.onCall(
     }
 
     // ── Step 3: Dispatch to type-specific handler ──
-    const uid = request.auth.uid;
+    // uid already resolved above via getAuthenticatedUid(request)
 
     try {
       let result: any;
