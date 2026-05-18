@@ -18,6 +18,20 @@ export interface User {
   createdAt: number;
 }
 
+export interface PollOptionData {
+  id: string;
+  text: string;
+  votes: number;
+}
+
+export interface PostPollData {
+  question: string;
+  options: PollOptionData[];
+  duration: number;
+  totalVotes: number;
+  createdAt?: any;
+}
+
 export interface Post {
   id: string;
   authorId: string;
@@ -28,6 +42,7 @@ export interface Post {
   authorIsVerified: boolean;
   caption: string;
   mediaUrls: string[];
+  pollData?: PostPollData;
   likeCount: number;
   commentCount: number;
   repostCount: number;
@@ -215,6 +230,7 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
       authorIsVerified: data.authorIsVerified || false,
       caption: data.caption || '',
       mediaUrls: parseMediaUrls(data.mediaUrls),
+      pollData: data.pollData || undefined,
       likeCount: data.likeCount || 0,
       commentCount: data.commentCount || 0,
       repostCount: data.repostCount || 0,
@@ -359,14 +375,24 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
   return posts;
 }
 
-export async function createPost(caption: string, mediaUrls: string[] = []): Promise<string> {
+export interface PollData {
+  question: string;
+  options: Array<{ id: string; text: string }>;
+  duration: number;
+}
+
+export async function createPost(
+  caption: string,
+  mediaUrls: string[] = [],
+  pollData?: PollData,
+): Promise<string> {
   const userId = currentUser()?.uid;
   if (!userId) throw new Error('Not authenticated');
 
   const userDocSnap = await firestore().collection('users').doc(userId).get();
   const userData = userDocSnap.data();
 
-  const docRef = await firestore().collection('posts').add({
+  const docData: Record<string, any> = {
     authorId: userId,
     authorUsername: userData?.username || '',
     authorDisplayName: userData?.displayName || '',
@@ -380,7 +406,24 @@ export async function createPost(caption: string, mediaUrls: string[] = []): Pro
     repostCount: 0,
     createdAt: firestore.FieldValue.serverTimestamp(),
     updatedAt: firestore.FieldValue.serverTimestamp(),
-  });
+  };
+
+  // Persist poll data to Firestore so feed readers can render it
+  if (pollData) {
+    docData.pollData = {
+      question: pollData.question,
+      options: pollData.options.map((o) => ({
+        id: o.id,
+        text: o.text,
+        votes: 0,
+      })),
+      duration: pollData.duration,
+      totalVotes: 0,
+      createdAt: firestore.FieldValue.serverTimestamp(),
+    };
+  }
+
+  const docRef = await firestore().collection('posts').add(docData);
 
   return docRef.id;
 }
@@ -486,6 +529,58 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
 
     return true;
   }
+}
+
+/* ── Poll Voting ───────────────────────────────────────────────────────────── */
+
+export async function votePostPoll(
+  postId: string,
+  optionId: string,
+): Promise<PostPollData | null> {
+  const userId = currentUser()?.uid;
+  if (!userId) return null;
+
+  const postRef = firestore().collection('posts').doc(postId);
+  const voteRef = postRef.collection('poll_votes').doc(userId);
+
+  // Check if already voted
+  const existingVote = await voteRef.get();
+  if (existingVote.exists) {
+    // Already voted — return current poll data
+    const postDoc = await postRef.get();
+    if (!postDoc.exists) return null;
+    return postDoc.data()?.pollData || null;
+  }
+
+  // Record the vote
+  await voteRef.set({
+    optionId,
+    userId,
+    votedAt: firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Atomically increment the option vote count and total votes
+  const postDoc = await postRef.get();
+  if (!postDoc.exists) return null;
+
+  const currentPoll = postDoc.data()?.pollData;
+  if (!currentPoll) return null;
+
+  const updatedOptions = (currentPoll.options || []).map((opt: any) =>
+    opt.id === optionId ? { ...opt, votes: (opt.votes || 0) + 1 } : opt,
+  );
+
+  const newTotalVotes = (currentPoll.totalVotes || 0) + 1;
+
+  const updatedPoll = {
+    ...currentPoll,
+    options: updatedOptions,
+    totalVotes: newTotalVotes,
+  };
+
+  await postRef.update({ pollData: updatedPoll });
+
+  return updatedPoll;
 }
 
 /* ── Chat ─────────────────────────────────────────────────────────────────── */
@@ -854,6 +949,7 @@ export async function hybridSearch(query: string): Promise<SearchResult> {
         authorIsVerified: data.authorIsVerified || false,
         caption: data.caption || '',
         mediaUrls: parseMediaUrls(data.mediaUrls),
+        pollData: data.pollData || undefined,
         likeCount: data.likeCount || 0,
         commentCount: data.commentCount || 0,
         repostCount: data.repostCount || 0,

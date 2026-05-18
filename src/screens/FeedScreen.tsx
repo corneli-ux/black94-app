@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, Post, tsToMillis, parseMediaUrls } from '../lib/api';
+import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { uploadOptimizedImage } from '../utils/imageUpload';
@@ -108,6 +108,81 @@ function SkeletonFeed() {
       {[0, 1, 2, 3, 4].map(i => (
         <SkeletonCard key={i} />
       ))}
+    </View>
+  );
+}
+
+/* ── Inline Poll (inside PostCard) ─────────────────────────────────────────── */
+
+function InlinePoll({ post }: { post: Post }) {
+  const currentUser = auth()?.currentUser;
+  const poll = post.pollData;
+  const [localPoll, setLocalPoll] = useState<PostPollData | null>(poll || null);
+  const [voted, setVoted] = useState(false);
+  const [voting, setVoting] = useState(false);
+
+  // Sync when post prop changes
+  React.useEffect(() => {
+    setLocalPoll(poll || null);
+    setVoted(false);
+  }, [poll]);
+
+  const totalVotes = localPoll?.totalVotes || 0;
+
+  const handleVote = async (optionId: string) => {
+    if (voted || !currentUser || voting) return;
+    setVoting(true);
+    try {
+      const result = await votePostPoll(post.id, optionId);
+      if (result) {
+        setLocalPoll(result);
+        setVoted(true);
+      }
+    } catch (e) {
+      console.warn('[InlinePoll] Vote failed:', e);
+    } finally {
+      setVoting(false);
+    }
+  };
+
+  if (!localPoll) return null;
+
+  return (
+    <View style={styles.pollCard}>
+      <Text style={styles.pollQuestion}>{localPoll.question}</Text>
+      {localPoll.options.map((option) => {
+        const votePercent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0;
+        const isSelected = voted && localPoll.options.some(o => o.id === option.id && o.votes > 0);
+
+        return (
+          <TouchableOpacity
+            key={option.id}
+            style={[styles.pollOptionBtn, voted && styles.pollOptionVoted]}
+            onPress={() => handleVote(option.id)}
+            activeOpacity={0.7}
+            disabled={voted || voting}
+          >
+            {voted && (
+              <View
+                style={[
+                  styles.pollOptionFill,
+                  { width: `${votePercent}%` },
+                  isSelected && styles.pollOptionFillSelected,
+                ]}
+              />
+            )}
+            <View style={styles.pollOptionContent}>
+              <Text style={[styles.pollOptionText, isSelected && styles.pollOptionTextSelected]}>
+                {option.text}
+              </Text>
+              {voted && (
+                <Text style={styles.pollOptionPercent}>{votePercent}%</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+      <Text style={styles.pollTotalVotes}>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</Text>
     </View>
   );
 }
@@ -264,6 +339,11 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                 />
               </View>
             </TouchableOpacity>
+          )}
+
+          {/* Poll */}
+          {post.pollData && (
+            <InlinePoll post={post} />
           )}
 
           {/* Action bar */}
@@ -431,6 +511,7 @@ export default function FeedScreen({ navigation }: any) {
           authorIsVerified: data.authorIsVerified || false,
           caption: data.caption || '',
           mediaUrls: parseMediaUrls(data.mediaUrls),
+          pollData: data.pollData || undefined,
           likeCount: data.likeCount || 0,
           commentCount: data.commentCount || 0,
           repostCount: data.repostCount || 0,
@@ -1377,5 +1458,70 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.03)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  /* ── Inline Poll ── */
+  pollCard: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: 'rgba(212,175,55,0.04)',
+  },
+  pollQuestion: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  pollOptionBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  pollOptionVoted: {
+    backgroundColor: 'rgba(255,255,255,0.02)',
+  },
+  pollOptionFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+  },
+  pollOptionFillSelected: {
+    backgroundColor: 'rgba(212,175,55,0.18)',
+  },
+  pollOptionContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pollOptionText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  pollOptionTextSelected: {
+    color: colors.accent,
+    fontWeight: '700',
+  },
+  pollOptionPercent: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  pollTotalVotes: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 4,
   },
 });
