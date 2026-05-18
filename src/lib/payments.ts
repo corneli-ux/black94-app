@@ -122,10 +122,14 @@ export async function checkPlanLimit(
     const collectionMap = { post: 'posts', story: 'stories', product: 'products' };
     const collectionName = collectionMap[action];
     
-    const snapshot = await firestore()
-      .collection(collectionName)
-      .where('authorId', '==', userId)
-      .get();
+            let query = firestore()
+          .collection(collectionName)
+          .where('authorId', '==', userId);
+        // For stories, only count non-expired ones (expired stories remain in Firestore)
+        if (action === 'story') {
+          query = query.where('expiresAt', '>', firestore.Timestamp.now());
+        }
+        const snapshot = await query.get();
     
     const currentCount = snapshot.size;
     
