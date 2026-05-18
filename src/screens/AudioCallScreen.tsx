@@ -1,7 +1,7 @@
 /**
  * AudioCallScreen.tsx — Full-screen audio call UI
  *
- * PREVIEW: This screen shows the call UI but does not establish a real
+ * BETA: This screen shows the call UI but does not establish a real
  * VoIP connection. Audio/VoIP integration (Agora/Twilio) is needed for
  * actual calling functionality.
  *
@@ -147,6 +147,11 @@ export default function AudioCallScreen({ route, navigation }: any) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
+
+      {/* Beta banner — audio calls are preview-only */}
+      <View style={styles.betaBanner}>
+        <Text style={styles.betaBannerText}>BETA — Voice calls coming soon</Text>
+      </View>
 
       {/* Red flash overlay on end call */}
       {showRedFlash && <View style={styles.redFlash} />}
@@ -427,5 +432,18 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 60,
+  },
+  betaBanner: {
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212, 175, 55, 0.3)',
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  betaBannerText: {
+    color: '#D4AF37',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });

@@ -65,13 +65,25 @@ export default function NotificationsScreen({ navigation }: any) {
   const load = async () => {
     if (!currentUser) { setLoading(false); return; }
     try {
-      // No .orderBy — composite index (recipientId, createdAt) may not exist.
-      // Sort client-side instead.
-      const snap = await firestore()
-        .collection('notifications')
-        .where('recipientId', '==', currentUser.uid)
-        .limit(50)
-        .get();
+      // Order by createdAt descending to get most recent first.
+      // Requires composite index: recipientId ASC, createdAt DESC
+      let snap;
+      try {
+        snap = await firestore()
+          .collection('notifications')
+          .where('recipientId', '==', currentUser.uid)
+          .orderBy('createdAt', 'desc')
+          .limit(50)
+          .get();
+      } catch (orderByError) {
+        // Fallback: no composite index yet — fetch without orderBy, sort client-side
+        if (__DEV__) console.warn('[Notifications] orderBy failed (missing index?), falling back:', orderByError);
+        snap = await firestore()
+          .collection('notifications')
+          .where('recipientId', '==', currentUser.uid)
+          .limit(50)
+          .get();
+      }
 
       const ns: Notification[] = snap.docs.map(d => {
         const data = d.data();

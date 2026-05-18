@@ -29,6 +29,7 @@ import {
 } from '../lib/razorpay';
 import type { RazorpayResult } from '../lib/razorpay';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
+import { scale, fontScale as fs } from '../theme/responsive';
 
 // ── Payment flow states ──
 type PaymentPhase = 'idle' | 'opening_gateway' | 'processing' | 'success' | 'error';
@@ -744,7 +745,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 32,
     width: '100%',
-    maxWidth: 300,
+    maxWidth: scale(300),
     alignItems: 'center',
   },
   successIconWrap: {

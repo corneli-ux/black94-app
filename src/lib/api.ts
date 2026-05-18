@@ -583,28 +583,23 @@ export async function votePostPoll(
     votedAt: firestore.FieldValue.serverTimestamp(),
   });
 
-  // Atomically increment the option vote count and total votes
-  const postDoc = await postRef.get();
-  if (!postDoc.exists) return null;
-
-  const currentPoll = postDoc.data()?.pollData;
+  // Atomically increment vote counts using FieldValue.increment
+  // This avoids the race condition of read-modify-write
+  const currentPoll = await postDoc.get();
   if (!currentPoll) return null;
 
-  const updatedOptions = (currentPoll.options || []).map((opt: any) =>
-    opt.id === optionId ? { ...opt, votes: (opt.votes || 0) + 1 } : opt,
-  );
+  // Find which option index to increment
+  const optionIndex = (currentPoll.options || []).findIndex((opt: any) => opt.id === optionId);
+  if (optionIndex < 0) return null;
 
-  const newTotalVotes = (currentPoll.totalVotes || 0) + 1;
+  await postRef.update({
+    [`pollData.options.${optionIndex}.votes`]: firestore.FieldValue.increment(1),
+    'pollData.totalVotes': firestore.FieldValue.increment(1),
+  });
 
-  const updatedPoll = {
-    ...currentPoll,
-    options: updatedOptions,
-    totalVotes: newTotalVotes,
-  };
-
-  await postRef.update({ pollData: updatedPoll });
-
-  return updatedPoll;
+  // Return updated poll for UI
+  const updatedDoc = await postRef.get();
+  return updatedDoc.data()?.pollData || null;
 }
 
 /* ── Chat ─────────────────────────────────────────────────────────────────── */
@@ -742,9 +737,9 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
   }
 }
 
-export async function sendMessage(chatId: string, receiverId: string, content: string): Promise<void> {
+export async function sendMessage(chatId: string, receiverId: string, content: string): Promise<{ sent: boolean; reason?: string }> {
   const userId = currentUser()?.uid;
-  if (!userId) return;
+  if (!userId) return { sent: false, reason: 'not_authenticated' };
 
   // ── Nuclear Block Check: prevent messaging if either user blocked the other ──
   try {
@@ -754,7 +749,7 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     ]);
     if (iBlockedThem.exists || theyBlockedMe.exists) {
       if (__DEV__) console.log('[Messages] Blocked — message not sent');
-      return;
+      return { sent: false, reason: 'blocked' };
     }
   } catch (e) {
     console.warn('[Messages] Block check failed, allowing message:', e);
@@ -822,6 +817,8 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   } catch (e) {
     console.warn('[Messages] Notification fire-and-forget failed:', e);
   }
+
+  return { sent: true };
 }
 
 /* ── Nuclear Block ─────────────────────────────────────────────────────────── */
@@ -1091,6 +1088,19 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
 
   if (currentlyFollowing) {
     await followRef.delete();
+    // Update follower/following counts (fire-and-forget)
+    try {
+      await Promise.all([
+        firestore().collection('users').doc(targetUserId).update({
+          followerCount: firestore.FieldValue.increment(-1),
+        }),
+        firestore().collection('users').doc(userId).update({
+          followingCount: firestore.FieldValue.increment(-1),
+        }),
+      ]);
+    } catch (e) {
+      console.warn('[Follow] Count update failed:', e);
+    }
     return false;
   } else {
     await followRef.set({
@@ -1098,6 +1108,19 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
       followingId: targetUserId,
       createdAt: firestore.FieldValue.serverTimestamp(),
     });
+    // Update follower/following counts (fire-and-forget)
+    try {
+      await Promise.all([
+        firestore().collection('users').doc(targetUserId).update({
+          followerCount: firestore.FieldValue.increment(1),
+        }),
+        firestore().collection('users').doc(userId).update({
+          followingCount: firestore.FieldValue.increment(1),
+        }),
+      ]);
+    } catch (e) {
+      console.warn('[Follow] Count update failed:', e);
+    }
 
     // ── Notification: tell target user they got a new follower ──
     try {

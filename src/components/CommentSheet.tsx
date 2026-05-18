@@ -10,6 +10,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { CommentData, fetchPostComments, addPostComment, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
+import { scale, fontScale as fs } from '../theme/responsive';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
@@ -22,8 +23,7 @@ function RepostIcon({ size = 16, color = '#94a3b8' }: { size?: number; color?: s
   );
 }
 
-const { height: SCREEN_H } = Dimensions.get('window');
-const SHEET_HEIGHT = SCREEN_H * 0.75;
+const SHEET_HEIGHT_RATIO = 0.75;
 
 interface CommentSheetProps {
   visible: boolean;
@@ -98,7 +98,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  const translateY = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [SHEET_HEIGHT, 0] });
+  const translateY = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [Dimensions.get('window').height * SHEET_HEIGHT_RATIO, 0] });
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>

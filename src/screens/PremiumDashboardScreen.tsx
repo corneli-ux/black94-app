@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
+import { scale, fontScale as fs } from '../theme/responsive';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import {
@@ -1097,7 +1098,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 32,
     width: '100%',
-    maxWidth: 360,
+    maxWidth: scale(360),
     alignItems: 'center',
   },
   modalIconWrap: {
