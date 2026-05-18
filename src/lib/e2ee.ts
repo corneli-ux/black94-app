@@ -134,14 +134,27 @@ export async function publishPublicKey(userUid: string): Promise<void> {
 
 /**
  * Delete the local key pair from secure storage.
+ * Zeroes all key material in memory before clearing.
  * Used during logout or account deletion.
  */
 export async function destroyLocalKeys(): Promise<void> {
+  // Zero in-memory key material before clearing (defense-in-depth)
+  if (_localKeyPair) {
+    try { _localKeyPair.secretKey.fill(0); } catch {}
+    try { _localKeyPair.publicKey.fill(0); } catch {}
+    _localKeyPair = null;
+  }
+  // Zero cached shared secrets before clearing
+  for (const key of Object.keys(_sharedSecretCache)) {
+    try { _sharedSecretCache[key].secret.fill(0); } catch {}
+    delete _sharedSecretCache[key];
+  }
+  // Clear public key cache (public keys are not secret, but clean up anyway)
+  for (const key of Object.keys(_publicKeyCache)) {
+    delete _publicKeyCache[key];
+  }
+  // Remove from device secure storage
   await SecureStore.deleteItemAsync(SK_KEY);
-  _localKeyPair = null;
-  // Clear all caches
-  for (const key of Object.keys(_sharedSecretCache)) delete _sharedSecretCache[key];
-  for (const key of Object.keys(_publicKeyCache)) delete _publicKeyCache[key];
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -317,7 +330,7 @@ export async function decryptMessage(
     const parts = encrypted.substring(E2EE_PREFIX.length).split(':');
     if (parts.length !== 2) {
       console.warn('[E2EE] Invalid encrypted message format');
-      return encrypted; // return raw — better than crashing
+      return '[Unable to decrypt message]'; // Never show raw ciphertext
     }
 
     const nonce = base64UrlToBytes(parts[0]);
@@ -342,7 +355,7 @@ export async function decryptMessage(
     return new TextDecoder().decode(decrypted);
   } catch (e) {
     console.error('[E2EE] Decryption error:', e);
-    return encrypted; // Fallback to showing raw content
+    return '[Unable to decrypt message]'; // Never show raw ciphertext to user
   }
 }
 

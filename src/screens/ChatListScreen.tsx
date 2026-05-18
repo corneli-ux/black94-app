@@ -267,10 +267,19 @@ export default function ChatListScreen({ navigation }: any) {
 
   const getLastMessageContent = (item: Chat): string => {
     if (typeof item.lastMessage === 'string') {
+      // Never display raw E2EE ciphertext in the chat list preview
+      if (item.lastMessage.startsWith('E2EE:')) {
+        return '🔒 Encrypted message';
+      }
       return item.lastMessage;
     }
     const msg = item.lastMessage as any;
-    if (msg?.content) return msg.content;
+    if (msg?.content) {
+      if (typeof msg.content === 'string' && msg.content.startsWith('E2EE:')) {
+        return '🔒 Encrypted message';
+      }
+      return msg.content;
+    }
     if (msg?.text) return msg.text;
     if (msg) return JSON.stringify(msg)?.slice(0, 50);
     return 'No messages yet';

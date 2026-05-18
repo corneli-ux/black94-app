@@ -284,13 +284,20 @@ export default function DualPaneChatScreen({ navigation }: any) {
 
     const plainText = messageText.trim();
 
-    // ── E2E Encryption ──
+    // ── E2E Encryption: NEVER store plaintext ──
     let storedContent: string;
+    let encryptionFailed = false;
     try {
       const encrypted = await encryptMessage(plainText, currentUserId, otherId);
-      storedContent = encrypted ?? plainText;
+      if (encrypted) {
+        storedContent = encrypted;
+      } else {
+        encryptionFailed = true;
+        storedContent = '[Encryption setup in progress — message not delivered]';
+      }
     } catch {
-      storedContent = plainText;
+      encryptionFailed = true;
+      storedContent = '[Encryption setup in progress — message not delivered]';
     }
 
     firestore()
@@ -302,19 +309,19 @@ export default function DualPaneChatScreen({ navigation }: any) {
         senderId: currentUserId,
         receiverId: otherId,
         content: storedContent,
-        messageType: 'text',
+        messageType: encryptionFailed ? 'system' : 'text',
         mediaUrl: null,
-        status: 'sent',
+        status: encryptionFailed ? 'failed' : 'sent',
         createdAt: firestore.FieldValue.serverTimestamp(),
       })
       .then(() => {
-        // Update lastMessage — use encrypted preview if E2EE, else plaintext
+        // lastMessage: ALWAYS privacy-safe — NEVER plaintext
         firestore()
           .collection('chats')
           .doc(selectedChat.id)
           .update({
             updatedAt: firestore.FieldValue.serverTimestamp(),
-            lastMessage: storedContent.startsWith('E2EE:') ? encryptedPreviewText() : plainText,
+            lastMessage: encryptedPreviewText(),
             lastMessageTime: firestore.FieldValue.serverTimestamp(),
           })
           .catch(() => {});

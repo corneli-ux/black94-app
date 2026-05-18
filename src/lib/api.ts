@@ -6,6 +6,7 @@ import {
   decryptMessage,
   encryptedPreviewText,
   isE2EEReady,
+  destroyLocalKeys,
 } from './e2ee';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
@@ -180,6 +181,11 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       createdAt = Date.now();
     }
 
+    // ── Initialize E2EE: generate/publish identity key pair (BEFORE return!) ──
+    // Fire-and-forget — must complete before user can send messages.
+    // If this fails, messages fall back to plaintext with a visible warning.
+    initE2EE(fbUser.uid).catch(e => console.warn('[E2EE] Background init failed:', e));
+
     return {
       id: fbUser.uid,
       email: fbUser.email || '',
@@ -194,9 +200,6 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       isVerified: existingData?.isVerified || false,
       createdAt,
     };
-
-    // ── Initialize E2EE: generate/publish identity key pair (non-blocking) ──
-    initE2EE(fbUser.uid).catch(e => console.warn('[E2EE] Background init failed:', e));
 
   } catch (error: any) {
     if (error?.code === '12501') return null;
@@ -213,6 +216,10 @@ export async function signOutUser(): Promise<void> {
   } catch {}
   try {
     await signOut(auth());
+  } catch {}
+  // ── Destroy E2EE keys on logout ──
+  try {
+    await destroyLocalKeys();
   } catch {}
 }
 
@@ -744,12 +751,36 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   }
 
   // ── E2E Encryption: encrypt content before storing ──
+  // CRITICAL: If encryption fails, we REFUSE to send — never store plaintext.
   let storedContent: string;
+  let encryptionFailed = false;
   try {
     const encrypted = await encryptMessage(content, userId, receiverId);
-    storedContent = encrypted ?? content; // fallback to plaintext if E2EE not ready
-  } catch {
-    storedContent = content;
+    if (encrypted) {
+      storedContent = encrypted;
+    } else {
+      // Recipient has no public key — E2EE not ready for this user
+      encryptionFailed = true;
+      throw new Error('Recipient E2EE key not available');
+    }
+  } catch (e) {
+    // Last resort: attempt to init E2EE for recipient and retry once
+    if (__DEV__) console.warn('[E2EE] Encryption failed, retrying after key init:', e);
+    try {
+      const { initE2EE } = await import('./e2ee');
+      await initE2EE(userId); // ensure our key is published
+      const retryEncrypted = await encryptMessage(content, userId, receiverId);
+      if (retryEncrypted) {
+        storedContent = retryEncrypted;
+        encryptionFailed = false;
+      } else {
+        throw new Error('Recipient still has no E2EE key after retry');
+      }
+    } catch {
+      encryptionFailed = true;
+      // Store a warning placeholder — NEVER the plaintext
+      storedContent = '[Encryption setup in progress — message not delivered]';
+    }
   }
 
   await firestore().collection('chats').doc(chatId).collection('messages').add({
@@ -757,13 +788,13 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     senderId: userId,
     receiverId,
     content: storedContent,
-    messageType: 'text',
-    status: 'sent',
+    messageType: encryptionFailed ? 'system' : 'text',
+    status: encryptionFailed ? 'failed' : 'sent',
     createdAt: firestore.FieldValue.serverTimestamp(),
   });
 
   // Increment unread count for receiver, reset sender's unread to 0
-  // lastMessage preview is now a privacy-safe placeholder (no plaintext leak)
+  // lastMessage: ALWAYS use privacy-safe placeholder — NEVER plaintext
   const chatDoc = await firestore().collection('chats').doc(chatId).get();
   const chatData = chatDoc.exists ? chatDoc.data() : null;
   const senderIsUser1 = chatData?.user1Id === userId;
@@ -771,9 +802,9 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   const receiverUnreadField = senderIsUser1 ? 'unreadUser2' : 'unreadUser1';
 
   await firestore().collection('chats').doc(chatId).update({
-    lastMessage: storedContent.startsWith('E2EE:') ? encryptedPreviewText() : content,
+    lastMessage: encryptedPreviewText(),
     lastMessageTime: firestore.FieldValue.serverTimestamp(),
-    [receiverUnreadField]: firestore.FieldValue.increment(1),
+    [receiverUnreadField]: encryptionFailed ? 0 : firestore.FieldValue.increment(1),
     [senderUnreadField]: 0,
   });
 

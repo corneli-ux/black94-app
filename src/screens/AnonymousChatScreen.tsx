@@ -703,18 +703,25 @@ export default function AnonymousChatScreen() {
     await setMyTypingState(room.roomId, false);
 
     try {
-      // ── E2E Encryption for anonymous chat ──
+      // ── E2E Encryption for anonymous chat: NEVER store plaintext ──
       const otherId = room.partnerId;
       let storedContent: string;
-      try {
-        if (otherId) {
+      if (otherId) {
+        try {
           const encrypted = await encryptMessage(content, myUserId, otherId);
-          storedContent = encrypted ?? content;
-        } else {
-          storedContent = content;
+          if (encrypted) {
+            storedContent = encrypted;
+          } else {
+            storedContent = '[Encryption not ready]';
+          }
+        } catch {
+          storedContent = '[Encryption not ready]';
         }
-      } catch {
-        storedContent = content;
+      } else {
+        // No partner ID yet — refuse to send plaintext
+        setError('Encryption not ready. Please wait for partner to connect.');
+        setInputText(content);
+        return;
       }
 
       await firestore().collection('anonMessages').add({
