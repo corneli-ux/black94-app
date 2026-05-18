@@ -130,3 +130,32 @@ Stage Summary:
 - Added votePostPoll() function for in-feed poll voting
 - Added InlinePoll component to FeedScreen PostCard with vote UI and percentage bars
 - Committed as 4b98304, pushed to origin/main
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Add proper Razorpay integration with server-side verification
+
+Work Log:
+- Explored existing payment implementation: WebView-based Razorpay with empty key, no server verification
+- Read all payment files: razorpay.ts, payments.ts, PremiumDashboardScreen.tsx, CheckoutScreen.tsx, PaidChatScreen.tsx
+- Created Firebase Cloud Functions infrastructure (.firebaserc, firebase.json, functions/)
+- Built 3 Cloud Functions:
+  - createRazorpayOrder: server-side order creation (prevents amount tampering)
+  - verifyRazorpayPayment: HMAC signature verification + type-specific activation
+  - razorpayWebhook: webhook handler for payment.captured/failed/refunded
+- Created 3 payment type handlers (functions/src/handlers.ts):
+  - handleSubscriptionPayment: activates plan/badge/role in Firestore
+  - handleOrderPayment: creates order document
+  - handlePaidChatPayment: grants chat access + payment record
+- Rewrote razorpay.ts to use server-created orders via Cloud Functions HTTPS REST
+- Updated PremiumDashboardScreen: createOrder → checkout → verify flow
+- Updated CheckoutScreen: createOrder → checkout → verify flow (COD unchanged)
+- Updated PaidChatScreen: createOrder → checkout → verify flow
+- Added SETUP.md with full deployment guide
+
+Stage Summary:
+- Commit c15b10b pushed to origin/main
+- All 3 payment flows now use server-side order creation + signature verification
+- To activate: set razorpayKeyId in app.json + deploy Cloud Functions with Razorpay secrets
+- No native SDK dependency — uses WebView approach (compatible with Expo)
