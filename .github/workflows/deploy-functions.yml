@@ -42,5 +42,13 @@ jobs:
           echo "${{ secrets.RAZORPAY_KEY_SECRET }}" | firebase functions:secrets:set RAZORPAY_KEY_SECRET --project black94 --force
           echo "${{ secrets.RAZORPAY_WEBHOOK_SECRET }}" | firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET --project black94 --force
 
+      - name: Delete old callable functions (type mismatch with new HTTPS)
+        run: |
+          # Functions were previously deployed as onCall (callable) but code now
+          # uses onRequest (HTTPS). Firebase doesn't allow changing the type
+          # without deleting first.
+          firebase functions:delete createRazorpayOrder verifyRazorpayPayment razorpayWebhook \
+            --project black94 --force || true
+
       - name: Deploy Cloud Functions
         run: firebase deploy --only functions --project black94 --force
