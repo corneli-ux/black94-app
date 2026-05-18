@@ -1,0 +1,51 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper: check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: user owns the path (path starts with their UID)
+    function isPathOwner() {
+      return isAuthenticated() && 
+             request.resource.name.matches(request.auth.uid + "/.*");
+    }
+
+    // Avatars — user can read/write their own
+    match /avatars/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Posts images — user can write to their own posts folder
+    match /posts/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() && userId == request.auth.uid;
+    }
+
+    // Stories images — user can write to their own stories folder
+    match /stories/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() && userId == request.auth.uid;
+    }
+
+    // Chat media — any authenticated user can write (needed for DMs)
+    match /chat_media/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Shop/product images
+    match /products/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // General uploads (fallback)
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+  }
+}

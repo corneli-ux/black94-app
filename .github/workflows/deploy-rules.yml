@@ -1,0 +1,46 @@
+name: Deploy Firebase Security Rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'firebase.json'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Firestore & Storage Rules
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: |
+          for i in 1 2 3; do
+            if npm install -g firebase-tools; then
+              break
+            fi
+            echo "Attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+
+      - name: Authenticate with Firebase
+        run: |
+          printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/fb_sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/fb_sa.json" >> $GITHUB_ENV
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy Firestore Rules
+        run: firebase deploy --only firestore:rules --project black94 --force
+
+      - name: Deploy Storage Rules
+        run: firebase deploy --only storage:rules --project black94 --force
