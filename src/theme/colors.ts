@@ -27,7 +27,7 @@ export const colors = {
   input: '#374151',
 
   // ── Brand Accents ──
-  accent: '#2a7fff',               // web: --chart-2, brand blue
+  accent: '#D4AF37',               // gold accent (was brand blue)
   accentGold: '#f59e0b',           // web: --chart-3, amber-500
   accentRed: '#f4212e',            // web: destructive
   accentGreen: '#10b981',          // web: emerald-500
@@ -40,7 +40,7 @@ export const colors = {
   headerBg: '#000000',
 
   // ── Verified badges (exact match to web PAvatar.tsx resolveBadgeColor) ──
-  verified: '#3b82f6',             // web: badge 'pro' or 'blue' → #3b82f6
+  verified: '#D4AF37',             // gold (was blue) — badge 'pro' or 'blue'
   verifiedGold: '#ffd700',         // web: badge 'gold' → #ffd700
   verifiedDefault: '#FFFFFF',      // web: generic verified → #FFFFFF
 

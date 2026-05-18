@@ -75,17 +75,42 @@ async function callCloudFunction(
   functionName: string,
   data: Record<string, any>,
 ): Promise<any> {
-  const token = await getValidToken();
+  let token: string;
+  try {
+    token = await getValidToken();
+  } catch {
+    throw new Error('Not authenticated — please sign in again.');
+  }
+
   const url = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/${functionName}`;
 
-  const resp = await fetch(url, {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+
+  let resp = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
     body: JSON.stringify({ data }),
   });
+
+  // ── Retry once with a fresh token on auth errors ──
+  // Firebase ID tokens expire after 1 hour. The cached token may be
+  // stale by the time it reaches the Cloud Function. Force-refresh and
+  // retry (same pattern used by _firestoreFetch in firebase.ts).
+  if (resp.status === 401 || resp.status === 403) {
+    try {
+      token = await getValidToken();
+    } catch {
+      throw new Error('Session expired — please sign in again.');
+    }
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: { ...headers, Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ data }),
+    });
+  }
 
   const result = await resp.json();
 

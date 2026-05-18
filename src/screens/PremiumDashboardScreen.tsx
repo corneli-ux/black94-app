@@ -572,7 +572,7 @@ export default function PremiumDashboardScreen() {
                 activeOpacity={0.7}
                 disabled={paymentLoading}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="rocket" size={16} color={colors.primary} />
+                  <Ionicons name="rocket" size={16} color={colors.accentGold} />
                   <Text style={styles.upgradeBtnOutlineTitle}>Business</Text>
                 </View>
                 <Text style={styles.upgradeBtnOutlinePrice}>{formatAmount(PLANS[1].amount)}/mo</Text>
@@ -732,7 +732,7 @@ export default function PremiumDashboardScreen() {
             <Text style={styles.modalDesc}>
               {activatedPlan?.id === 'business'
                 ? 'Your Business plan is now active. You\'ve been upgraded with a Gold badge, Business role, and 2 free affiliate badges.'
-                : 'Your Premium plan is now active. You\'ve been upgraded with a Blue badge and access to all premium features.'}
+                : 'Your Premium plan is now active. You\'ve been upgraded with a Gold badge and access to all premium features.'}
             </Text>
             <TouchableOpacity
               style={styles.modalBtn}
@@ -882,7 +882,7 @@ const styles = StyleSheet.create({
   },
   upgradeBtn: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -891,7 +891,7 @@ const styles = StyleSheet.create({
   upgradeBtnTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.background,
+    color: '#000000',
     fontFamily: 'Roboto-Bold',
   },
   upgradeBtnPrice: {
@@ -907,12 +907,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.accentGold,
   },
   upgradeBtnOutlineTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.primary,
+    color: colors.accentGold,
     fontFamily: 'Roboto-Bold',
   },
   upgradeBtnOutlinePrice: {
@@ -1069,7 +1069,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.accentGold,
     gap: 12,
   },
   manageBtnText: {
@@ -1116,7 +1116,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto-Regular',
   },
   modalBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 32,
@@ -1126,7 +1126,7 @@ const styles = StyleSheet.create({
   modalBtnText: {
     fontSize: 15,
     fontWeight: '600',
-    color: colors.background,
+    color: '#000000',
     fontFamily: 'Roboto-Bold',
   },
 

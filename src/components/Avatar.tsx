@@ -68,7 +68,7 @@ export function Avatar({
  *
  * Badge color resolution (resolveBadgeColor):
  *   'gold'    → #ffd700
- *   'pro'/'blue' → #3b82f6
+ *   'pro'/'blue' → colors.verified (#D4AF37 gold)
  *   default   → #FFFFFF
  */
 export function VerifiedBadge({ badge, isVerified, size = 18 }: { badge?: string; isVerified?: boolean; size?: number }) {

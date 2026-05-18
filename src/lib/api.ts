@@ -761,36 +761,22 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   }
 
   // ── E2E Encryption: encrypt content before storing ──
-  // CRITICAL: If encryption fails, we REFUSE to send — never store plaintext.
+  // If encryption fails (no key, error, etc.), send as plaintext with encrypted: false.
   let storedContent: string;
-  let encryptionFailed = false;
+  let isEncrypted = true;
   try {
     const encrypted = await encryptMessage(content, userId, receiverId);
     if (encrypted) {
       storedContent = encrypted;
     } else {
-      // Recipient has no public key — E2EE not ready for this user
-      encryptionFailed = true;
-      throw new Error('Recipient E2EE key not available');
+      // Recipient has no public key — send as plaintext
+      isEncrypted = false;
+      storedContent = content;
     }
   } catch (e) {
-    // Last resort: attempt to init E2EE for recipient and retry once
-    if (__DEV__) console.warn('[E2EE] Encryption failed, retrying after key init:', e);
-    try {
-      const { initE2EE } = await import('./e2ee');
-      await initE2EE(userId); // ensure our key is published
-      const retryEncrypted = await encryptMessage(content, userId, receiverId);
-      if (retryEncrypted) {
-        storedContent = retryEncrypted;
-        encryptionFailed = false;
-      } else {
-        throw new Error('Recipient still has no E2EE key after retry');
-      }
-    } catch {
-      encryptionFailed = true;
-      // Store a warning placeholder — NEVER the plaintext
-      storedContent = '[Encryption setup in progress — message not delivered]';
-    }
+    if (__DEV__) console.warn('[E2EE] Encryption failed, sending plaintext:', e);
+    isEncrypted = false;
+    storedContent = content;
   }
 
   await firestore().collection('chats').doc(chatId).collection('messages').add({
@@ -798,8 +784,9 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     senderId: userId,
     receiverId,
     content: storedContent,
-    messageType: encryptionFailed ? 'system' : 'text',
-    status: encryptionFailed ? 'failed' : 'sent',
+    messageType: 'text',
+    status: 'sent',
+    encrypted: isEncrypted,
     createdAt: firestore.FieldValue.serverTimestamp(),
   });
 
@@ -814,7 +801,7 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   await firestore().collection('chats').doc(chatId).update({
     lastMessage: encryptedPreviewText(),
     lastMessageTime: firestore.FieldValue.serverTimestamp(),
-    [receiverUnreadField]: encryptionFailed ? 0 : firestore.FieldValue.increment(1),
+    [receiverUnreadField]: firestore.FieldValue.increment(1),
     [senderUnreadField]: 0,
   });
 

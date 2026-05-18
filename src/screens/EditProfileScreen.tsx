@@ -446,10 +446,10 @@ export default function EditProfileScreen({ navigation }: any) {
           {user?.badge && (
             <View style={styles.badgeSection}>
               <Text style={styles.fieldLabel}>Current Badge</Text>
-              <View style={[styles.badgeDisplay, user.badge === 'gold' ? styles.badgeGold : styles.badgeBlue]}>
+              <View style={[styles.badgeDisplay, user.badge === 'gold' ? styles.badgeGold : styles.badgeVerified]}>
                 <Text style={styles.badgeEmoji}>{user.badge === 'gold' ? '★' : '●'}</Text>
                 <Text style={styles.badgeText}>
-                  {user.badge === 'gold' ? 'Gold Verified' : 'Blue Verified'}
+                  {user.badge === 'gold' ? 'Gold Verified' : 'Verified'}
                 </Text>
               </View>
             </View>
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.accentGold,
   },
-  badgeBlue: {
+  badgeVerified: {
     borderWidth: 1,
     borderColor: colors.verified,
   },

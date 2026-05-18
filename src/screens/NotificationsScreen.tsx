@@ -33,7 +33,7 @@ function NotifTypeIcon({ type }: { type: string }) {
     : type === 'repost' ? '#10b981'
     : type === 'follow' ? '#FFFFFF'
     : type === 'comment' ? '#FFFFFF'
-    : type === 'chat' ? '#60a5fa'
+    : type === 'chat' ? '#f59e0b'
     : '#94a3b8';
   const name = type === 'like' ? 'heart'
     : type === 'repost' ? 'repeat'

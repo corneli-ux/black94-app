@@ -1,19 +1,16 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  View, Text, FlatList, Image as RNImage, TouchableOpacity, StyleSheet,
-  RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Dimensions, Share, Image,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  RefreshControl, ActivityIndicator, Alert, Dimensions, Share, Image,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchFeed, createPost, toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
+import { fetchFeed, toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
-import { uploadOptimizedImage } from '../utils/imageUpload';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import { useAppStore } from '../stores/app';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -54,22 +51,6 @@ function formatCount(n: number | undefined): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return n.toString();
-}
-
-/* ── Lazy image picker (avoids crashes if expo-image-picker not installed) ── */
-async function openImagePicker() {
-  try {
-    const { launchImageLibrary } = require('expo-image-picker');
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      quality: 0.8,
-      selectionLimit: 4,
-    });
-    return result;
-  } catch (err) {
-    console.error('[Compose] Image picker not available:', err);
-    return { assets: [], didCancel: true, errorCode: 'unavailable', errorMessage: 'Image picker not available' };
-  }
 }
 
 /* ── Skeleton Loader ──────────────────────────────────────────────────────── */
@@ -453,16 +434,11 @@ type FeedItem =
 /* ── FeedScreen ───────────────────────────────────────────────────────────── */
 
 export default function FeedScreen({ navigation }: any) {
-  const { user: storeUser } = useAppStore();
   const [posts, setPosts] = useState<Post[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
-  const [composeVisible, setComposeVisible] = useState(false);
-  const [composeText, setComposeText] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [composeImages, setComposeImages] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('Black94');
   const [ads, setAds] = useState<any[]>([]);
   const currentUser = auth()?.currentUser;
@@ -737,60 +713,6 @@ export default function FeedScreen({ navigation }: any) {
     navigation.navigate('PostComments', { postId, postCaption: caption || '', postAuthorUsername: authorUsername || '', postAuthorDisplayName: authorDisplayName || '' });
   };
 
-  const handleAddImages = async () => {
-    const remaining = 4 - composeImages.length;
-    if (remaining <= 0) {
-      Alert.alert('Limit reached', 'You can add up to 4 images.');
-      return;
-    }
-    const result = await openImagePicker();
-    if (result.didCancel || result.errorCode) return;
-    const assets = result.assets ?? [];
-    const newUris = assets
-      .filter((a: any) => a.uri)
-      .map((a: any) => a.uri)
-      .slice(0, remaining);
-    if (newUris.length > 0) {
-      setComposeImages(prev => [...prev, ...newUris]);
-    }
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setComposeImages(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handlePost = async () => {
-    if (!composeText.trim() && composeImages.length === 0) return;
-    setPosting(true);
-    try {
-      // Upload local images to Firebase Storage first (local URIs won't work for other users)
-      const uploadedUrls: string[] = [];
-      if (composeImages.length > 0) {
-        for (const uri of composeImages) {
-          try {
-            const storagePath = `posts/${auth().currentUser?.uid}/${Date.now()}_${uploadedUrls.length}.jpg`;
-            const result = await uploadOptimizedImage(uri, storagePath, { mimeType: 'image/jpeg' });
-            uploadedUrls.push(result.downloadUrl);
-          } catch (err) {
-            console.error('[FeedCompose] Image upload failed:', err);
-          }
-        }
-      }
-      await createPost(composeText.trim(), uploadedUrls);
-      setComposeText('');
-      setComposeImages([]);
-      setComposeVisible(false);
-      // Reload from scratch
-      lastDocRef.current = null;
-      setAllLoaded(false);
-      loadFeed(false);
-    } catch {
-      Alert.alert('Error', 'Failed to post');
-    } finally {
-      setPosting(false);
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.container}>
@@ -944,129 +866,11 @@ export default function FeedScreen({ navigation }: any) {
       {/* FAB */}
       <TouchableOpacity
         style={[styles.fab, { bottom: fabBottom }]}
-        onPress={() => setComposeVisible(true)}
+        onPress={() => navigation.navigate('CreatePost')}
         activeOpacity={0.8}
       >
         <Ionicons name="add" size={24} color="#000000" />
       </TouchableOpacity>
-
-      {/* Compose Modal */}
-      <Modal visible={composeVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { setComposeVisible(false); setComposeImages([]); }} />
-          <View style={styles.composeSheet}>
-            {/* Header */}
-            <View style={styles.composeHeader}>
-              {/* Cancel = X icon */}
-              <TouchableOpacity
-                style={styles.composeCloseBtn}
-                onPress={() => { setComposeVisible(false); setComposeImages([]); }}
-              >
-                <Ionicons name="close" size={20} color="#e7e9ea" />
-              </TouchableOpacity>
-              <Text style={styles.composeTitle}>New Post</Text>
-              <TouchableOpacity
-                style={[styles.postBtn, (!composeText.trim() && composeImages.length === 0) && styles.postBtnDisabled]}
-                onPress={handlePost}
-                disabled={posting || (!composeText.trim() && composeImages.length === 0)}
-              >
-                {posting
-                  ? <ActivityIndicator color="#000" size="small" />
-                  : <Text style={[styles.postBtnText, (!composeText.trim() && composeImages.length === 0) && styles.postBtnTextDisabled]}>Post</Text>
-                }
-              </TouchableOpacity>
-            </View>
-
-            {/* Body */}
-            <View style={styles.composeBody}>
-              <Avatar uri={storeUser?.profileImage} name={storeUser?.displayName} size={38} />
-              <View style={{ flex: 1 }}>
-                <TextInput
-                  style={styles.composeInput}
-                  placeholder="What's on your mind?"
-                  placeholderTextColor="#64748b"
-                  value={composeText}
-                  onChangeText={setComposeText}
-                  multiline
-                  autoFocus
-                  maxLength={4000}
-                />
-
-                {/* Image preview grid */}
-                {composeImages.length > 0 && (
-                  <View style={styles.imagePreviewGrid}>
-                    {composeImages.map((uri, index) => (
-                      <View key={uri} style={styles.imagePreviewCard}>
-                        <RNImage source={{ uri }} style={styles.imagePreviewThumb} resizeMode="cover" />
-                        <TouchableOpacity
-                          style={styles.imageRemoveBtn}
-                          onPress={() => handleRemoveImage(index)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="close" size={12} color="#ffffff" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                    {composeImages.length < 4 && (
-                      <TouchableOpacity style={styles.imageAddCard} onPress={handleAddImages} activeOpacity={0.7}>
-                        <Ionicons name="add" size={24} color="rgba(255,255,255,0.5)" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-
-                {/* Action buttons row */}
-                <View style={styles.composeActions}>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={handleAddImages}>
-                    <Ionicons name="image-outline" size={20} color={colors.accent} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => {
-                    setComposeVisible(false);
-                    setComposeImages([]);
-                    navigation.navigate('CreatePost');
-                  }}>
-                    <Ionicons name="camera-outline" size={20} color="#00ba7c" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => {
-                    setComposeVisible(false);
-                    setComposeImages([]);
-                    navigation.navigate('CreatePost');
-                  }}>
-                    <Ionicons name="film-outline" size={20} color="#f59e0b" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => {
-                    setComposeVisible(false);
-                    setComposeImages([]);
-                    navigation.navigate('CreatePost');
-                  }}>
-                    <Ionicons name="happy-outline" size={20} color={colors.accent} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.composeActionBtn} onPress={() => {
-                    setComposeVisible(false);
-                    setComposeImages([]);
-                    navigation.navigate('CreatePost');
-                  }}>
-                    <Ionicons name="stats-chart-outline" size={20} color="#8b5cf6" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Character count (only show when > 3400) */}
-                {composeText.length > 3400 && (
-                  <Text style={[
-                    styles.charCountBottom,
-                    composeText.length > 4000 * 0.95 && { color: colors.error },
-                  ]}>
-                    {composeText.length}/4000
-                  </Text>
-                )}
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
@@ -1344,120 +1148,6 @@ const styles = StyleSheet.create({
     color: '#71767b',
     fontSize: 11,
     marginTop: 4,
-  },
-
-  /* ── Compose Modal ── */
-  modalOverlay: { flex: 1, backgroundColor: 'transparent' },
-  composeSheet: {
-    backgroundColor: '#000000',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 16,
-    minHeight: 280,
-    maxHeight: '85%',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  composeHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-    paddingBottom: 12,
-  },
-  composeCloseBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  composeTitle: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 16,
-    position: 'absolute',
-    left: 0, right: 0,
-    textAlign: 'center',
-  },
-  composeBody: { flexDirection: 'row', gap: 14 },
-  composeInput: {
-    flex: 1,
-    color: '#e7e9ea',
-    fontSize: 17,
-    lineHeight: 24,
-    minHeight: 110,
-    textAlignVertical: 'top',
-  },
-  composeActions: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-  },
-  composeActionBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  charCountBottom: {
-    color: '#94a3b8',
-    fontSize: 13,
-    textAlign: 'right',
-    marginTop: 4,
-  },
-  postBtn: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  postBtnDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  postBtnText: { color: '#000000', fontWeight: '700' },
-  postBtnTextDisabled: { color: '#64748b' },
-
-  /* ── Image Preview Grid ── */
-  imagePreviewGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-  },
-  imagePreviewCard: {
-    width: '47%',
-    aspectRatio: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    position: 'relative',
-  },
-  imagePreviewThumb: {
-    width: '100%',
-    height: '100%',
-  },
-  imageRemoveBtn: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageAddCard: {
-    width: '47%',
-    aspectRatio: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   /* ── Inline Poll ── */
