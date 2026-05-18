@@ -5,7 +5,7 @@
  * REST API (consistent with the project's no-SDK approach in firebase.ts).
  *
  * Features:
- *  - Resumable uploads with progress tracking via XMLHttpRequest
+ *  - Simple (one-shot) uploads with progress tracking via XMLHttpRequest
  *  - Automatic retry with exponential backoff on transient failures
  *  - Auth token injection for Firebase Storage security rules
  *  - Download URL generation (public or token-authenticated)
@@ -17,13 +17,20 @@
  *  adding a large native dependency just for storage, keeps the app size
  *  smaller, and eliminates polyfill/shim issues.
  *
- * Firebase Storage REST API reference:
- *  https://firebase.google.com/docs/storage/rest/start
+ * Why simple upload instead of resumable?
+ *  The previous resumable upload implementation failed on some Android devices
+ *  because fetch() may not return the Location header needed for the second
+ *  step. Simple upload sends the entire file in a single POST request — fewer
+ *  moving parts, no header dependency, works reliably across all devices.
+ *  For the typical post photo (< 5MB after compression), simple upload is
+ *  more than adequate.
  *
  * Upload flow:
- *  1. POST to create a resumable upload session → get upload URL
- *  2. PUT file data to the upload URL → get final metadata
- *  3. Construct download URL from the returned object metadata
+ *  1. Read local file as base64 via expo-file-system
+ *  2. Decode base64 → binary ArrayBuffer
+ *  3. POST binary data to Firebase Storage (uploadType=media)
+ *  4. Extract download token from response
+ *  5. Construct download URL from storage path + token
  *
  * Memory & battery:
  *  - Uses XMLHttpRequest (available in RN) for upload progress events
@@ -60,8 +67,8 @@ const PROJECT_ID = 'black94';
  *  Firebase now defaults to {projectId}.firebasestorage.app for new projects. */
 const STORAGE_BUCKET = `${PROJECT_ID}.firebasestorage.app`;
 
-/** Base URL for Firebase Storage REST API */
-const STORAGE_BASE = `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}`;
+/** Base URL for Firebase Storage REST API (includes /o for object operations) */
+const STORAGE_BASE = `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o`;
 
 /** Maximum number of upload retry attempts */
 const MAX_RETRIES = 3;
@@ -133,7 +140,8 @@ function detectMimeType(uri: string, override?: string): string {
 
 /**
  * Encodes a Firebase Storage path for use in URLs.
- * Firebase uses URL-encoded object paths (spaces → %20, etc.)
+ * Encodes each path segment separately, preserving '/' separators.
+ * This is correct for use in both query parameters and URL paths.
  */
 function encodeStoragePath(path: string): string {
   return path
@@ -150,22 +158,6 @@ function getRetryDelay(attempt: number): number {
   const baseDelay = Math.min(RETRY_BASE_DELAY * Math.pow(2, attempt), RETRY_MAX_DELAY);
   const jitter = baseDelay * 0.2 * (Math.random() * 2 - 1);
   return Math.max(0, Math.round(baseDelay + jitter));
-}
-
-/**
- * Checks if an error is transient and worth retrying.
- * Network errors, timeouts, and 5xx server errors are retryable.
- * 4xx errors (auth, not found, etc.) are NOT retryable.
- */
-function isRetryableError(error: any): boolean {
-  if (!error) return false;
-
-  // Network-level errors (no response received)
-  if (!error.status) return true;
-
-  // HTTP status codes that are safe to retry
-  const retryableStatuses = [408, 429, 500, 502, 503, 504];
-  return retryableStatuses.includes(error.status);
 }
 
 /**
@@ -276,43 +268,117 @@ async function getFileSize(uri: string): Promise<number> {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   UPLOAD — Core Implementation
+   UPLOAD — Core Implementation (Simple/One-shot Upload)
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Perform a single upload attempt using XMLHttpRequest with progress tracking.
+ *
+ * Uses Firebase Storage's simple (one-shot) upload endpoint:
+ *   POST /v0/b/{bucket}/o?uploadType=media&name={path}
+ *   Headers: Authorization, Content-Type
+ *   Body: raw binary ArrayBuffer
+ *
+ * The server responds with JSON containing downloadTokens.
+ *
+ * @returns Download URL string
+ */
+function doUpload(
+  uploadUrl: string,
+  binaryBody: ArrayBuffer,
+  mimeType: string,
+  token: string,
+  encodedPath: string,
+  onProgress?: UploadProgressCallback,
+  abortSignal?: AbortSignal,
+): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    // Track upload progress
+    if (onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          onProgress(event.loaded, event.total);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          const downloadToken = data.downloadTokens?.split(',')[0];
+          if (downloadToken) {
+            resolve(`${STORAGE_BASE}/${encodedPath}?alt=media&token=${downloadToken}`);
+          } else {
+            // No token — construct URL without it (works for public-read rules)
+            resolve(`${STORAGE_BASE}/${encodedPath}?alt=media`);
+          }
+        } catch {
+          // Non-JSON response — construct URL from known path
+          resolve(`${STORAGE_BASE}/${encodedPath}?alt=media`);
+        }
+      } else {
+        const error: any = new Error(
+          `Upload failed: HTTP ${xhr.status} — ${xhr.responseText?.slice(0, 300)}`,
+        );
+        error.status = xhr.status;
+        reject(error);
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network error during upload — check your internet connection'));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error('Upload timed out — try again with a better connection'));
+    };
+
+    // Handle abort signal
+    const onAbort = () => {
+      xhr.abort();
+      reject(new Error('Upload aborted'));
+    };
+    abortSignal?.addEventListener('abort', onAbort, { once: true });
+
+    // Send the upload
+    xhr.open('POST', uploadUrl);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.setRequestHeader('Content-Type', mimeType);
+    xhr.timeout = 5 * 60 * 1000; // 5 minutes
+    xhr.send(binaryBody);
+
+    // Cleanup abort listener when xhr completes
+    xhr.onloadend = () => {
+      abortSignal?.removeEventListener('abort', onAbort);
+    };
+  });
+}
 
 /**
  * uploadOptimizedImage — Uploads an optimized image to Firebase Storage
  *
- * Uses Firebase Storage's resumable upload REST endpoint with full
- * progress tracking and automatic retry on transient failures.
+ * Uses Firebase Storage's simple (one-shot) upload REST endpoint with
+ * progress tracking via XMLHttpRequest and automatic retry on transient
+ * failures.
  *
- * The resumable upload protocol works in two steps:
- *  1. POST to initiate → server returns an upload URL
- *  2. PUT the file data to the upload URL
+ * The simple upload protocol sends the entire file in a single POST:
+ *   POST /v0/b/{bucket}/o?uploadType=media&name={path}
+ *   Headers: Authorization: Bearer {token}, Content-Type: {mimeType}
+ *   Body: raw binary bytes
  *
- * Using resumable (instead of simple upload) because:
- *  - Supports upload progress tracking
- *  - Can be resumed after network interruptions
- *  - Handles larger files more reliably
+ * This is more reliable than resumable upload on React Native because:
+ *  - No dependency on the Location response header (which may be stripped
+ *    by Android's OkHttp on some devices/configurations)
+ *  - Single request — fewer failure points
+ *  - Same proven approach used by storage.ts for avatars, chat media, etc.
  *
  * @param uri - Local file URI of the optimized image
  * @param path - Firebase Storage path (e.g., 'users/uid/posts/photo123.jpg')
  * @param options - Upload configuration (progress callback, MIME type, etc.)
  * @returns UploadResult with download URL and metadata
- *
- * @example
- * ```typescript
- * const result = await uploadOptimizedImage(
- *   optimizedImage.uri,
- *   `users/${userId}/posts/${postId}.jpg`,
- *   {
- *     mimeType: 'image/jpeg',
- *     onProgress: (uploaded, total) => {
- *       console.log(`${Math.round((uploaded / total) * 100)}%`);
- *     },
- *   }
- * );
- * console.log('Download URL:', result.downloadUrl);
- * ```
  */
 export async function uploadOptimizedImage(
   uri: string,
@@ -328,12 +394,30 @@ export async function uploadOptimizedImage(
   } = options;
 
   const mimeType = detectMimeType(uri, mimeTypeOverride);
-  const fileSize = await getFileSize(uri);
   const startTime = Date.now();
 
+  // Read the file as base64, then decode to binary ArrayBuffer.
+  // Firebase Storage expects raw binary bytes — sending base64 as a string
+  // would store the base64 characters as the file content (corrupted image).
+  console.log(`[imageUpload] Reading file: ${uri} (${mimeType})`);
+  const base64Data = await readFileAsBase64(uri);
+  const bytes = safeBase64Decode(base64Data);
+
+  const fileSize = bytes.byteLength;
   if (fileSize === 0) {
-    throw new Error(`File is empty or does not exist: ${uri}`);
+    throw new Error(`File is empty or could not be read: ${uri}`);
   }
+
+  console.log(`[imageUpload] File read successfully: ${fileSize} bytes`);
+
+  // Ensure clean ArrayBuffer copy (avoid SharedArrayBuffer views)
+  const binaryBody: ArrayBuffer = bytes.buffer.byteLength === bytes.byteLength
+    ? bytes.buffer
+    : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+
+  // Build the simple upload URL
+  const encodedPath = encodeStoragePath(path);
+  const uploadUrl = `${STORAGE_BASE}?name=${encodedPath}&uploadType=media`;
 
   let lastError: any = null;
 
@@ -344,159 +428,30 @@ export async function uploadOptimizedImage(
         throw new Error('Upload aborted');
       }
 
-      // Step 1: Get an auth token for the upload
-      // On retry attempts (attempt > 0), invalidate the cached token first
-      // to force a fresh refresh — the previous token may have expired
-      // between the failed attempt and now.
+      // Get an auth token
+      // On retry attempts, invalidate the cached token first to force a fresh refresh
       const token = attempt > 0
         ? await _invalidateTokenAndRetry()
         : await getValidToken();
 
-      // Step 2: Initiate a resumable upload session
-      // POST to the storage endpoint with object metadata
-      const initiateUrl = `${STORAGE_BASE}/o?uploadType=resumable&name=${encodeStoragePath(path)}`;
+      console.log(`[imageUpload] Upload attempt ${attempt + 1}/${maxRetries + 1} to ${path}`);
 
-      const metadataObj: Record<string, string> = {
-        name: path,
-        contentType: mimeType,
-        ...metadata,
-      };
-
-      const initiateResponse = await fetch(initiateUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json; charset=UTF-8',
-          'X-Goog-Upload-Protocol': 'resumable',
-          'X-Goog-Upload-Command': 'start',
-        },
-        body: JSON.stringify(metadataObj),
-      });
-
-      if (!initiateResponse.ok) {
-        const errorBody = await initiateResponse.text();
-        const error: any = new Error(`Upload failed (HTTP ${initiateResponse.status}): ${errorBody.slice(0, 200)}`);
-        error.status = initiateResponse.status;
-        error.body = errorBody;
-        // 401 = auth token expired — invalidate and retry immediately
-        if (initiateResponse.status === 401 && attempt < maxRetries) {
-          if (__DEV__) console.log('[imageUpload] 401 on initiate — invalidating token and retrying');
-          const retryDelay = getRetryDelay(attempt);
-          await delay(retryDelay);
-          continue; // Skip to next retry iteration
-        }
-        // 403 = permission denied (storage rules). Log clearly so it's not confused with network error.
-        if (initiateResponse.status === 403) {
-          console.error(
-            `[imageUpload] 403 PERMISSION DENIED uploading to ${path}. ` +
-            `This usually means Firebase Storage security rules are not deployed. ` +
-            `Fix: run 'firebase deploy --only storage:rules' or check the deploy-rules GitHub workflow. ` +
-            `Error: ${errorBody.slice(0, 300)}`
-          );
-        }
-        throw error;
-      }
-
-      // The upload URL is returned in the Location header
-      const uploadUrl = initiateResponse.headers.get('Location');
-      if (!uploadUrl) {
-        throw new Error('Upload session initiated but no upload URL returned');
-      }
-
-      // Step 3: Upload the file data
-      // Read as base64, then decode to binary ArrayBuffer for Firebase Storage.
-      // Firebase Storage expects raw binary bytes — sending base64 as a string
-      // would store the base64 characters as the file content (corrupted image).
-      const base64Data = await readFileAsBase64(uri);
-
-      // Decode base64 → binary ArrayBuffer
-      // Use safeBase64Decode instead of atob() — atob is NOT reliably available
-      // in all React Native / Expo environments (especially with New Architecture).
-      const bytes = safeBase64Decode(base64Data);
-
-      const downloadUrl = await new Promise<string>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-
-        // Track upload progress
-        if (onProgress) {
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable && event.total > 0) {
-              onProgress(event.loaded, event.total);
-            }
-          };
-        }
-
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            // Success — parse the response to get download tokens
-            try {
-              const responseData = JSON.parse(xhr.responseText);
-              // The download URL can be constructed from the object metadata
-              // Format: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token={token}
-              const downloadToken = responseData.downloadTokens;
-              if (downloadToken) {
-                const url = `${STORAGE_BASE}/o/${encodeStoragePath(path)}?alt=media&token=${downloadToken.split(',')[0]}`;
-                resolve(url);
-              } else {
-                // Fallback: construct without token (works for public rules)
-                resolve(`${STORAGE_BASE}/o/${encodeStoragePath(path)}?alt=media`);
-              }
-            } catch {
-              // If response isn't valid JSON, construct URL from the known path
-              resolve(`${STORAGE_BASE}/o/${encodeStoragePath(path)}?alt=media`);
-            }
-          } else {
-            const error: any = new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`);
-            error.status = xhr.status;
-            error.body = xhr.responseText;
-            reject(error);
-          }
-        };
-
-        xhr.onerror = () => {
-          const error = new Error('Network error during upload');
-          reject(error);
-        };
-
-        xhr.ontimeout = () => {
-          const error = new Error('Upload timed out');
-          reject(error);
-        };
-
-        // Handle abort signal
-        const onAbort = () => {
-          xhr.abort();
-          reject(new Error('Upload aborted'));
-        };
-        abortSignal?.addEventListener('abort', onAbort, { once: true });
-
-        // Open and send the upload
-        xhr.open('PUT', uploadUrl);
-        xhr.setRequestHeader('Content-Type', mimeType);
-        // Set a reasonable timeout (5 minutes for large files on slow connections)
-        xhr.timeout = 5 * 60 * 1000;
-
-        // Send decoded binary data — Firebase Storage expects raw bytes.
-        // CRITICAL: Use bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-        // instead of bytes.buffer directly. When bytes is a Uint8Array view into a larger
-        // ArrayBuffer (common with Buffer.from() in React Native), sending bytes.buffer
-        // would include ALL bytes in the underlying buffer, not just the image data.
-        // This causes Firebase to store corrupted files (extra trailing bytes).
-        const arrayBuffer = bytes.buffer.byteLength === bytes.byteLength
-          ? bytes.buffer
-          : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-        xhr.send(arrayBuffer);
-
-        // Cleanup abort listener when xhr completes
-        xhr.onloadend = () => {
-          abortSignal?.removeEventListener('abort', onAbort);
-        };
-      });
+      const downloadUrl = await doUpload(
+        uploadUrl,
+        binaryBody,
+        mimeType,
+        token,
+        encodedPath,
+        onProgress,
+        abortSignal,
+      );
 
       // Final progress callback at 100%
       if (onProgress) {
         onProgress(fileSize, fileSize);
       }
+
+      console.log(`[imageUpload] Upload succeeded in ${Date.now() - startTime}ms: ${downloadUrl.slice(0, 80)}...`);
 
       return {
         downloadUrl,
@@ -507,15 +462,19 @@ export async function uploadOptimizedImage(
       };
     } catch (err: any) {
       lastError = err;
+      console.warn(`[imageUpload] Attempt ${attempt + 1} failed: ${err.message} (status: ${err.status || 'none'})`);
 
       // Don't retry aborted uploads
       if (abortSignal?.aborted || err.message === 'Upload aborted') {
         break;
       }
 
-      // Auth errors ('Not authenticated', 'Session expired', 'Token refresh failed')
-      // are retryable by invalidating the token cache and forcing a fresh refresh.
-      // These errors have no .status property since they come from getValidToken().
+      // Don't retry if we've exhausted retries
+      if (attempt >= maxRetries) {
+        break;
+      }
+
+      // Determine if error is retryable
       const isAuthError = !err.status && (
         err.message?.includes('Not authenticated') ||
         err.message?.includes('Session expired') ||
@@ -523,31 +482,35 @@ export async function uploadOptimizedImage(
         err.message?.includes('sign in again')
       );
 
-      // Don't retry if we've exhausted retries
-      if (attempt >= maxRetries) {
-        break;
-      }
+      // Network errors (no status) — could be transient
+      const isNetworkError = !err.status && !isAuthError;
 
-      // Retry on auth errors (will invalidate token at top of loop)
-      // or on retryable HTTP errors
-      if (isAuthError || isRetryableError(err)) {
+      // HTTP status codes that are safe to retry
+      const retryableStatus = err.status && [401, 408, 429, 500, 502, 503, 504].includes(err.status);
+
+      if (isAuthError || isNetworkError || retryableStatus) {
         const retryDelay = getRetryDelay(attempt);
-        console.warn(
-          `[imageUpload] Upload attempt ${attempt + 1} failed: ${err.message}. ` +
-          `Retrying in ${retryDelay}ms...`,
-        );
+        console.log(`[imageUpload] Retrying in ${retryDelay}ms...`);
         await delay(retryDelay);
-        continue; // Retry
+        continue;
       }
 
       // Non-retryable error (e.g., 403 forbidden, 404 not found)
+      // 403 = storage rules issue — log helpful message
+      if (err.status === 403) {
+        console.error(
+          `[imageUpload] 403 PERMISSION DENIED uploading to ${path}. ` +
+          `This means Firebase Storage security rules are blocking the upload. ` +
+          `Fix: run 'firebase deploy --only storage:rules' or check deploy-rules GitHub workflow.`,
+        );
+      }
       break;
     }
   }
 
   // All retries exhausted
   const errorMessage = lastError?.message || 'Upload failed after all retry attempts';
-  console.error(`[imageUpload] Upload failed permanently: ${errorMessage}`);
+  console.error(`[imageUpload] Upload FAILED permanently: ${errorMessage}`);
   throw new Error(errorMessage);
 }
 
@@ -576,7 +539,7 @@ export async function deleteImage(storagePath: string): Promise<void> {
     const token = await getValidToken();
 
     const encodedPath = encodeStoragePath(storagePath);
-    const url = `${STORAGE_BASE}/o/${encodedPath}`;
+    const url = `${STORAGE_BASE}/${encodedPath}`;
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -635,7 +598,7 @@ export async function getImageDownloadUrl(
     const token = await getValidToken();
 
     const encodedPath = encodeStoragePath(storagePath);
-    const url = `${STORAGE_BASE}/o/${encodedPath}`;
+    const url = `${STORAGE_BASE}/${encodedPath}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -662,13 +625,13 @@ export async function getImageDownloadUrl(
     if (!downloadTokens) {
       // No token means the bucket may have default public access rules
       // Return the URL without a token
-      return `${STORAGE_BASE}/o/${encodedPath}?alt=media`;
+      return `${STORAGE_BASE}/${encodedPath}?alt=media`;
     }
 
     // downloadTokens is a comma-separated string of tokens
     // Use the first (most recent) token
     const firstToken = downloadTokens.split(',')[0];
-    return `${STORAGE_BASE}/o/${encodedPath}?alt=media&token=${firstToken}`;
+    return `${STORAGE_BASE}/${encodedPath}?alt=media&token=${firstToken}`;
   } catch (err: any) {
     console.warn(`[imageUpload] getImageDownloadUrl error:`, err.message);
     return null;

@@ -166,13 +166,26 @@ async function withRetry<T>(
  * );
  * ```
  */
+/**
+ * Encodes a storage path for use in URLs.
+ * Encodes each segment separately, preserving '/' separators.
+ * Using encodeURIComponent on the full path would encode '/' to '%2F'
+ * which breaks URL paths (servers don't decode %2F in path components).
+ */
+function encodeStoragePath(path: string): string {
+  return path
+    .split('/')
+    .map(segment => encodeURIComponent(segment))
+    .join('/');
+}
+
 export async function uploadFile(
   uri: string,
   path: string,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
   const mimeType = getImageMimeType(uri);
-  const encodedPath = encodeURIComponent(path);
+  const encodedPath = encodeStoragePath(path);
   const base64 = await readFileAsBase64(uri, mimeType);
 
   console.log(`[Storage] Uploading to ${path} (${mimeType}, ${Math.round(base64.length * 0.75)} bytes)`);
@@ -264,8 +277,8 @@ function uploadWithProgress(
             reject(new Error('Upload succeeded but no download token in response'));
             return;
           }
-          const encodedPath = encodeURIComponent(path);
-          const downloadURL = `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+          const enc = encodeStoragePath(path);
+          const downloadURL = `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${enc}?alt=media&token=${downloadToken}`;
           console.log(`[Storage] Upload complete: ${downloadURL}`);
           resolve(downloadURL);
         } catch (e) {
@@ -331,8 +344,8 @@ function uploadWithProgressRetry(
             reject(new Error('Upload succeeded but no download token in response'));
             return;
           }
-          const encodedPath = encodeURIComponent(path);
-          resolve(`https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodedPath}?alt=media&token=${downloadToken}`);
+          const enc = encodeStoragePath(path);
+          resolve(`https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${enc}?alt=media&token=${downloadToken}`);
         } catch {
           reject(new Error('Failed to parse upload response'));
         }
@@ -364,7 +377,7 @@ function uploadWithProgressRetry(
  * ```
  */
 export async function deleteFile(path: string): Promise<void> {
-  const encodedPath = encodeURIComponent(path);
+  const encodedPath = encodeStoragePath(path);
   const url = `${STORAGE_BASE}/${encodedPath}`;
 
   await withRetry(async (token) => {
@@ -407,7 +420,7 @@ export async function deleteFile(path: string): Promise<void> {
  * ```
  */
 export async function getDownloadURL(path: string): Promise<string> {
-  const encodedPath = encodeURIComponent(path);
+  const encodedPath = encodeStoragePath(path);
   const url = `${STORAGE_BASE}/${encodedPath}`;
 
   return withRetry(async (token) => {
