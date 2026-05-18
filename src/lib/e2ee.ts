@@ -49,7 +49,7 @@ import 'react-native-get-random-values';
 const E2EE_PREFIX = 'E2EE:';
 const SK_KEY = '@black94/e2ee_sk'; // SecureStore key for our private key
 const PK_FIRESTORE = 'e2eePublicKey'; // Firestore field name on user doc
-const SHARED_SECRET_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const PUBLIC_KEY_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -58,15 +58,14 @@ export interface KeyPair {
   secretKey: Uint8Array;  // 32 bytes
 }
 
-interface CachedSecret {
-  secret: Uint8Array;
+interface CachedPublicKey {
+  key: Uint8Array;
   expiresAt: number;
 }
 
 /* ── In-memory caches ──────────────────────────────────────────────────────── */
 let _localKeyPair: KeyPair | null = null;
-const _sharedSecretCache: Record<string, CachedSecret> = {};
-const _publicKeyCache: Record<string, Uint8Array> = {};
+const _publicKeyCache: Record<string, CachedPublicKey> = {};
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    1. IDENTITY KEY MANAGEMENT — on-device only
@@ -91,7 +90,7 @@ export async function getMyKeyPair(): Promise<KeyPair> {
       _localKeyPair = { publicKey, secretKey };
       return _localKeyPair;
     } catch (e) {
-      console.warn('[E2EE] Failed to load stored key pair, generating new one:', e);
+      if (__DEV__) console.warn('[E2EE] Failed to load stored key pair, generating new one:', e);
     }
   }
 
@@ -128,7 +127,7 @@ export async function publishPublicKey(userUid: string): Promise<void> {
     );
     if (__DEV__) console.log('[E2EE] Public key published for user:', userUid);
   } catch (e) {
-    console.error('[E2EE] Failed to publish public key:', e);
+    if (__DEV__) console.error('[E2EE] Failed to publish public key:', e);
   }
 }
 
@@ -144,12 +143,7 @@ export async function destroyLocalKeys(): Promise<void> {
     try { _localKeyPair.publicKey.fill(0); } catch {}
     _localKeyPair = null;
   }
-  // Zero cached shared secrets before clearing
-  for (const key of Object.keys(_sharedSecretCache)) {
-    try { _sharedSecretCache[key].secret.fill(0); } catch {}
-    delete _sharedSecretCache[key];
-  }
-  // Clear public key cache (public keys are not secret, but clean up anyway)
+  // Zero cached public keys
   for (const key of Object.keys(_publicKeyCache)) {
     delete _publicKeyCache[key];
   }
@@ -163,19 +157,20 @@ export async function destroyLocalKeys(): Promise<void> {
 
 /**
  * Fetch another user's public key from Firestore.
- * Results are cached in memory to avoid repeated reads.
+ * Results are cached with TTL to allow key rotation.
  */
 export async function getRecipientPublicKey(recipientUid: string): Promise<Uint8Array | null> {
-  // Check cache first
-  if (_publicKeyCache[recipientUid]) {
-    return _publicKeyCache[recipientUid];
+  // Check cache with TTL
+  const cached = _publicKeyCache[recipientUid];
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.key;
   }
 
   try {
     const { firestore } = await import('./firebase');
     const doc = await firestore().collection('users').doc(recipientUid).get();
     if (!doc.exists) {
-      console.warn('[E2EE] User not found:', recipientUid);
+      if (__DEV__) console.warn('[E2EE] User not found:', recipientUid);
       return null;
     }
 
@@ -187,66 +182,16 @@ export async function getRecipientPublicKey(recipientUid: string): Promise<Uint8
     }
 
     const publicKey = base64UrlToBytes(pkB64);
-    _publicKeyCache[recipientUid] = publicKey;
+    _publicKeyCache[recipientUid] = { key: publicKey, expiresAt: Date.now() + PUBLIC_KEY_CACHE_TTL };
     return publicKey;
   } catch (e) {
-    console.error('[E2EE] Failed to fetch public key for:', recipientUid, e);
+    if (__DEV__) console.error('[E2EE] Failed to fetch public key for:', recipientUid, e);
     return null;
   }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   3. SHARED SECRET DERIVATION — X25519 ECDH
-   ═══════════════════════════════════════════════════════════════════════════════ */
-
-/**
- * Derive a shared 32-byte secret via X25519 ECDH.
- * Both users derive the SAME secret when they combine:
- *   - Their own secret key
- *   - The other user's public key
- *
- * The result is cached for SHARED_SECRET_CACHE_TTL to avoid recomputation.
- * Cache key: sorted pair of UIDs to ensure both parties use the same cache key.
- */
-export async function deriveSharedSecret(myUid: string, theirUid: string): Promise<Uint8Array | null> {
-  // Deterministic cache key (sorted UIDs)
-  const cacheKey = [myUid, theirUid].sort().join(':');
-
-  // Check cache
-  const cached = _sharedSecretCache[cacheKey];
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.secret;
-  }
-
-  // Get our key pair and their public key in parallel
-  const [myKeyPair, theirPublicKey] = await Promise.all([
-    getMyKeyPair(),
-    getRecipientPublicKey(theirUid),
-  ]);
-
-  if (!theirPublicKey) {
-    console.warn('[E2EE] Cannot derive shared secret — missing recipient public key');
-    return null;
-  }
-
-  // Compute shared secret: nacl.scalarMult(mySk, theirPk)
-  // This produces the same 32 bytes on both sides:
-  //   Alice: scalarMult(alice_sk, bob_pk)   = shared_secret
-  //   Bob:   scalarMult(bob_sk, alice_pk)   = shared_secret
-  const sharedSecret = nacl.scalarMult(myKeyPair.secretKey, theirPublicKey);
-
-  // Cache the result
-  _sharedSecretCache[cacheKey] = {
-    secret: sharedSecret,
-    expiresAt: Date.now() + SHARED_SECRET_CACHE_TTL,
-  };
-
-  if (__DEV__) console.log('[E2EE] Shared secret derived for:', cacheKey);
-  return sharedSecret;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════════
-   4. MESSAGE ENCRYPTION — NaCl box (XSalsa20-Poly1305 + X25519)
+   3. MESSAGE ENCRYPTION — NaCl box (XSalsa20-Poly1305 + X25519)
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 /**
@@ -284,7 +229,7 @@ export async function encryptMessage(
     const ciphertext = nacl.box(messageBytes, nonce, theirPublicKey, myKeyPair.secretKey);
 
     if (!ciphertext) {
-      console.error('[E2EE] nacl.box returned null — encryption failed');
+      if (__DEV__) console.error('[E2EE] nacl.box returned null — encryption failed');
       return null;
     }
 
@@ -294,7 +239,7 @@ export async function encryptMessage(
 
     return `${E2EE_PREFIX}${nonceB64}:${cipherB64}`;
   } catch (e) {
-    console.error('[E2EE] Encryption error:', e);
+    if (__DEV__) console.error('[E2EE] Encryption error:', e);
     return null;
   }
 }
@@ -329,7 +274,7 @@ export async function decryptMessage(
     // Parse: "E2EE:{nonce}:{ciphertext}"
     const parts = encrypted.substring(E2EE_PREFIX.length).split(':');
     if (parts.length !== 2) {
-      console.warn('[E2EE] Invalid encrypted message format');
+      if (__DEV__) console.warn('[E2EE] Invalid encrypted message format');
       return '[Unable to decrypt message]'; // Never show raw ciphertext
     }
 
@@ -348,13 +293,13 @@ export async function decryptMessage(
     const decrypted = nacl.box.open(ciphertext, nonce, senderPublicKey, myKeyPair.secretKey);
 
     if (!decrypted) {
-      console.error('[E2EE] nacl.box.open returned null — decryption failed (tampered?)');
+      if (__DEV__) console.error('[E2EE] nacl.box.open returned null — decryption failed (tampered?)');
       return null; // Message was tampered with
     }
 
     return new TextDecoder().decode(decrypted);
   } catch (e) {
-    console.error('[E2EE] Decryption error:', e);
+    if (__DEV__) console.error('[E2EE] Decryption error:', e);
     return '[Unable to decrypt message]'; // Never show raw ciphertext to user
   }
 }
@@ -391,7 +336,7 @@ export async function initE2EE(userUid: string): Promise<void> {
 
     if (__DEV__) console.log('[E2EE] Initialized for user:', userUid);
   } catch (e) {
-    console.error('[E2EE] Initialization failed:', e);
+    if (__DEV__) console.error('[E2EE] Initialization failed:', e);
   }
 }
 

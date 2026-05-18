@@ -286,6 +286,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               value={text}
               onChangeText={setText}
               multiline
+              maxLength={2000}
             />
           </View>
           <TouchableOpacity

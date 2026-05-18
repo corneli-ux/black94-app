@@ -486,13 +486,15 @@ export default function AnonymousChatScreen() {
               const rawContent = data.content || '';
               const senderId = data.senderId || '';
 
-              // Attempt E2E decryption; falls back to raw for legacy messages
+              // Attempt E2E decryption; null = tampered → placeholder, NEVER raw ciphertext
               let content: string;
               try {
                 const decrypted = await decryptMessage(rawContent, senderId);
-                content = decrypted ?? rawContent;
+                content = decrypted ?? '[Unable to decrypt this message]';
               } catch {
-                content = rawContent;
+                content = rawContent.startsWith('E2EE:')
+                  ? '[Unable to decrypt this message]'
+                  : rawContent;
               }
 
               return {

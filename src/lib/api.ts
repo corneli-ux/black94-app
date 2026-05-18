@@ -181,10 +181,16 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       createdAt = Date.now();
     }
 
-    // ── Initialize E2EE: generate/publish identity key pair (BEFORE return!) ──
-    // Fire-and-forget — must complete before user can send messages.
-    // If this fails, messages fall back to plaintext with a visible warning.
-    initE2EE(fbUser.uid).catch(e => console.warn('[E2EE] Background init failed:', e));
+    // ── Initialize E2EE: generate/publish identity key pair BEFORE returning ──
+    // This MUST complete before the user can send any messages.
+    // Non-blocking to keep sign-in fast, but keys are generated synchronously
+    // by getMyKeyPair() on first encrypt call as a safety net.
+    try {
+      await initE2EE(fbUser.uid);
+    } catch (e) {
+      // Log but don't block sign-in — keys will be generated lazily on first send
+      if (__DEV__) console.warn('[E2EE] Init on sign-in failed (will retry on first message):', e);
+    }
 
     return {
       id: fbUser.uid,
@@ -705,13 +711,17 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
         const rawContent = data.content || '';
         const senderId = data.senderId || '';
 
-        // Attempt E2E decryption; falls back to raw content for legacy messages
+        // Attempt E2E decryption;
+        // null = tampered/corrupted → show placeholder, NEVER raw ciphertext
+        // string = decrypted plaintext OR legacy non-E2EE message
         let content: string;
         try {
           const decrypted = await decryptMessage(rawContent, senderId);
-          content = decrypted ?? rawContent;
+          content = decrypted ?? '[Unable to decrypt this message]';
         } catch {
-          content = rawContent;
+          content = rawContent.startsWith('E2EE:')
+            ? '[Unable to decrypt this message]'
+            : rawContent;
         }
 
         return {
