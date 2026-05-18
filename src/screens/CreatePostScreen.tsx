@@ -248,7 +248,6 @@ const CreatePostScreen: React.FC = () => {
     }
 
     // Check plan limits for free users
-    let planAllowed = true;
     try {
       const planCheck = await checkPlanLimit(user?.id || '', 'post');
       if (!planCheck.allowed) {
@@ -259,7 +258,6 @@ const CreatePostScreen: React.FC = () => {
       // If plan check fails (network, auth), allow the post to continue
       // rather than silently failing. The server-side rules will enforce limits.
       console.warn('[CreatePost] Plan limit check failed, allowing post:', e);
-      planAllowed = true;
     }
 
     setPosting(true);

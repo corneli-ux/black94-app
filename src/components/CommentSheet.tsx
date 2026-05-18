@@ -255,7 +255,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                   onPress={handleSend}
                   disabled={!text.trim() || sending}
                 >
-                  {sending ? <ActivityIndicator size="small" color="#000" /> : <Ionicons name="send" size={18} color="#000" />}
+                  {sending ? <ActivityIndicator size="small" color="#000" /> : <Ionicons name="send" size={18} color={text.trim() ? '#000' : '#555'} />}
                 </TouchableOpacity>
               </View>
             </SafeAreaView>

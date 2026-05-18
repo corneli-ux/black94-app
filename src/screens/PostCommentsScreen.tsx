@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import { CommentData, fetchPostComments, addPostComment, fetchActiveAdCampaigns } from '../lib/api';
+import { CommentData, fetchPostComments, addPostComment, fetchActiveAdCampaigns, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark } from '../lib/api';
 import FactCheckBottomSheet from './FactCheckBottomSheet';
 import { useAppStore } from '../stores/app';
 import { auth, firestore } from '../lib/firebase';
@@ -111,7 +111,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     setText('');
     setReplyingTo(null);
     try {
-      const real = await addPostComment(postId, text.trim());
+      const real = await addPostComment(postId, text.trim(), replyingTo?.id, replyingTo?.username);
       if (real) {
         setComments(prev => prev.map(c => c.id === optimistic.id ? real : c));
       } else {
@@ -198,12 +198,24 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
                 <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.commentActionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [item2.id]: !prev[item2.id] }))}>
+            <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
+              const wasReposted = repostMap[item2.id] || false;
+              setRepostMap(prev => ({ ...prev, [item2.id]: !wasReposted }));
+              toggleCommentRepost(item2.id, wasReposted).catch(() => {
+                setRepostMap(prev => ({ ...prev, [item2.id]: wasReposted }));
+              });
+            }}>
               <View style={styles.actionIconWrap}>
                 {repostMap[item2.id] ? <RepostIcon size={18} color="#10b981" /> : <RepostIcon size={18} color="#94a3b8" />}
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.commentActionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [item2.id]: !prev[item2.id] }))}>
+            <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
+              const wasLiked = likeMap[item2.id] || false;
+              setLikeMap(prev => ({ ...prev, [item2.id]: !wasLiked }));
+              toggleCommentLike(item2.id, wasLiked).catch(() => {
+                setLikeMap(prev => ({ ...prev, [item2.id]: wasLiked }));
+              });
+            }}>
               <View style={styles.actionIconWrap}>
                 <Ionicons name={likeMap[item2.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[item2.id] ? '#f43f5e' : '#94a3b8'} />
               </View>
@@ -214,7 +226,13 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               </View>
             </TouchableOpacity>
             <View style={styles.actionPair}>
-              <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item2.id]: !prev[item2.id] }))}>
+              <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
+                const wasBookmarked = bookmarkMap[item2.id] || false;
+                setBookmarkMap(prev => ({ ...prev, [item2.id]: !wasBookmarked }));
+                toggleCommentBookmark(item2.id, wasBookmarked).catch(() => {
+                  setBookmarkMap(prev => ({ ...prev, [item2.id]: wasBookmarked }));
+                });
+              }}>
                 <View style={styles.actionIconWrap}>
                   <Ionicons name={bookmarkMap[item2.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item2.id] ? '#ffffff' : '#94a3b8'} />
                 </View>

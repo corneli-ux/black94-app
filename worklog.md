@@ -159,3 +159,39 @@ Stage Summary:
 - All 3 payment flows now use server-side order creation + signature verification
 - To activate: set razorpayKeyId in app.json + deploy Cloud Functions with Razorpay secrets
 - No native SDK dependency — uses WebView approach (compatible with Expo)
+---
+Task ID: 1
+Agent: Main Agent
+Task: Deep investigation and real fixes for payments, message sending, image upload, story upload
+
+Work Log:
+- Read ALL source files: functions/src/index.ts, handlers.ts, src/lib/razorpay.ts, src/lib/payments.ts, src/lib/firebase.ts, src/lib/api.ts, src/lib/storage.ts, src/lib/e2ee.ts, src/utils/imageUpload.ts, src/utils/imageOptimizer.ts, storage.rules, firestore.rules, app.config.js, App.js, ChatRoomScreen.tsx, StoryCreatorScreen.tsx, CreatePostScreen.tsx, PremiumDashboardScreen.tsx
+- Read GitHub Actions workflows: deploy-functions.yml, build-android.yml
+- Analyzed the FULL request/response path for each failing feature
+- Identified 3 real root causes (not guesses)
+
+Stage Summary:
+- ROOT CAUSE 1 (Payment "Bad request"): Cloud Function had no credential check — empty Razorpay keys caused cryptic API errors. Also, client callCloudFunction didn't handle non-JSON responses (e.g., if function not deployed).
+- ROOT CAUSE 2 (Image/Story upload failures): atob() used in imageUpload.ts is NOT reliably available in React Native/Expo with newArchEnabled:true. This was THE upload killer — all uploads silently failed.
+- ROOT CAUSE 3 (Generic errors): All Alert dialogs showed generic messages without the actual error, making debugging impossible.
+- Fixed: functions/src/index.ts (credential check), src/lib/razorpay.ts (safe JSON parse), src/utils/imageUpload.ts (safeBase64Decode), src/utils/imageOptimizer.ts (Buffer path for atob), src/screens/ChatRoomScreen.tsx (real errors), src/screens/StoryCreatorScreen.tsx (real errors), src/screens/PremiumDashboardScreen.tsx (null check)
+- Committed as fc4d4fb and pushed to GitHub
+- Cloud Functions deployment triggered automatically by paths filter (functions/**)
+---
+Task ID: 1
+Agent: main
+Task: Audit Razorpay API key removal across the entire codebase
+
+Work Log:
+- Searched all files for "razorpay", "RAZORPAY", "rzp_live", "rzp_test" patterns
+- Found hardcoded key `rzp_live_SqhiNhA1ELaiVP` in `app.config.js` line 93 as fallback value
+- Verified `.env` has the key but is gitignored (not in repo)
+- Verified Cloud Functions use env vars only (no hardcoded keys)
+- Verified client code (`src/lib/razorpay.ts`) reads from expo config (no hardcoded keys)
+- Verified `.env.example` has placeholder only
+- Checked git: `app.config.js` with hardcoded key is committed in latest commit `fc4d4fb`
+
+Stage Summary:
+- ❌ Key NOT fully removed: still hardcoded in `app.config.js:93`
+- ✅ All other locations are clean
+- User needs to: (1) remove hardcoded fallback from app.config.js, (2) set new key as env var / GitHub Secret / Firebase Functions secret

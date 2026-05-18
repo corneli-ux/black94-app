@@ -59,6 +59,7 @@ interface Story {
   content: string;
   mediaUrl: string | null;
   type: string;
+  fontSize?: number;
   viewCount: number;
   likeCount: number;
   createdAt: number;
@@ -259,7 +260,8 @@ export default function StoriesScreen({ navigation }: any) {
             authorProfileImage: data.authorProfileImage || null,
             content: data.content || data.text || '',
             mediaUrl: data.mediaUrl || null,
-            type: data.type || 'text',
+            type: data.type || data.format || 'text',
+            fontSize: data.fontSize || null,
             viewCount: data.viewCount || 0,
             likeCount: data.likeCount || 0,
             createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
@@ -458,9 +460,9 @@ export default function StoriesScreen({ navigation }: any) {
     }
   }, []);
 
-  /* ── Like a story ─────────────────────────────────────────────────────── */
+  /* ── Like a story (double-tap — only if not already liked) ────────────── */
   const doLike = useCallback(async () => {
-    if (!viewingStory || !currentUser) return;
+    if (!viewingStory || !currentUser || liked) return;
     setLiked(true);
     try {
       await firestore()
@@ -470,7 +472,7 @@ export default function StoriesScreen({ navigation }: any) {
     } catch (e) {
       console.warn('[StoriesScreen] Failed to like story:', e);
     }
-  }, [viewingStory, currentUser]);
+  }, [viewingStory, currentUser, liked]);
 
   const toggleLike = useCallback(async () => {
     if (!viewingStory || !currentUser) return;
@@ -485,6 +487,29 @@ export default function StoriesScreen({ navigation }: any) {
       console.warn('[StoriesScreen] Failed to like story:', e);
     }
   }, [viewingStory, currentUser, liked]);
+
+  /* ── Submit story comment (saves to Firestore) ───────────────────────── */
+  const submitStoryComment = useCallback(async () => {
+    if (!commentText.trim() || !viewingStory || !currentUser) return;
+    const text = commentText.trim();
+    setCommentText('');
+    setShowCommentInput(false);
+    try {
+      const storeUserData = storeUser;
+      await firestore().collection('story_comments').add({
+        storyId: viewingStory.id,
+        authorId: currentUser.uid,
+        authorUsername: storeUserData?.username || currentUser.email?.split('@')[0] || 'user',
+        authorDisplayName: storeUserData?.displayName || currentUser.displayName || 'Anonymous',
+        authorProfileImage: storeUserData?.profileImage || currentUser.photoURL || null,
+        content: text,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      console.error('[StoriesScreen] Failed to save comment:', e);
+      Alert.alert('Comment', 'Failed to post comment. Please try again.');
+    }
+  }, [commentText, viewingStory, currentUser, storeUser]);
 
   /* ── Story viewer: open, navigation, timer ───────────────────────────── */
   const openStoryViewer = useCallback(
@@ -509,6 +534,13 @@ export default function StoriesScreen({ navigation }: any) {
       setShowCommentInput(false);
       setCommentText('');
       pausedElapsedRef.current = 0;
+      // Mark this story (and all author stories) as viewed in local state
+      setStories(prev => prev.map(s =>
+        s.authorId === authorId ? { ...s, viewed: true } : s
+      ));
+      setFiltered(prev => prev.map(s =>
+        s.authorId === authorId ? { ...s, viewed: true } : s
+      ));
       incrementViewCount(authorStoryList[startIndex].id);
     },
     [stories, incrementViewCount],
@@ -912,7 +944,7 @@ export default function StoriesScreen({ navigation }: any) {
                 />
               ) : (
                 <View style={styles.viewerTextContent}>
-                  <Text style={styles.viewerStoryText}>{viewingStory.content}</Text>
+                  <Text style={[styles.viewerStoryText, viewingStory.fontSize ? { fontSize: viewingStory.fontSize } : undefined]}>{viewingStory.content}</Text>
                 </View>
               )}
 
@@ -959,10 +991,15 @@ export default function StoriesScreen({ navigation }: any) {
                   >
                     <Ionicons name="chatbubble-outline" size={24} color="#fff" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.reactionBtn}>
+                  <TouchableOpacity style={styles.reactionBtn} onPress={() => {
+                    try {
+                      const { Share } = require('react-native');
+                      Share.share({ message: viewingStory.content || viewingStory.mediaUrl || '' });
+                    } catch {}
+                  }}>
                     <Ionicons name="send-outline" size={24} color="#fff" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.reactionBtn}>
+                  <TouchableOpacity style={styles.reactionBtn} onPress={closeStoryViewer}>
                     <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
                   </TouchableOpacity>
                 </View>
@@ -1001,23 +1038,11 @@ export default function StoriesScreen({ navigation }: any) {
                         onChangeText={setCommentText}
                         autoFocus
                         returnKeyType="send"
-                        onSubmitEditing={() => {
-                          if (commentText.trim()) {
-                            Alert.alert('Comment', `Comment posted: "${commentText.trim()}"`);
-                            setCommentText('');
-                            setShowCommentInput(false);
-                          }
-                        }}
+                        onSubmitEditing={submitStoryComment}
                       />
                     </View>
                     <TouchableOpacity
-                      onPress={() => {
-                        if (commentText.trim()) {
-                          Alert.alert('Comment', `Comment posted: "${commentText.trim()}"`);
-                          setCommentText('');
-                          setShowCommentInput(false);
-                        }
-                      }}
+                      onPress={submitStoryComment}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Ionicons

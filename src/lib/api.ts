@@ -1205,7 +1205,7 @@ export async function fetchPostComments(postId: string): Promise<CommentData[]> 
   }
 }
 
-export async function addPostComment(postId: string, content: string): Promise<CommentData | null> {
+export async function addPostComment(postId: string, content: string, replyToId?: string, replyToUsername?: string): Promise<CommentData | null> {
   const userId = currentUser()?.uid;
   if (!userId || !content.trim()) return null;
   
@@ -1221,6 +1221,8 @@ export async function addPostComment(postId: string, content: string): Promise<C
     authorIsVerified: userData?.isVerified || false,
     authorBadge: userData?.badge || '',
     content: content.trim(),
+    replyToId: replyToId || null,
+    replyToUsername: replyToUsername || null,
     createdAt: firestore.FieldValue.serverTimestamp(),
   });
 
