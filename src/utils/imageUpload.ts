@@ -53,11 +53,12 @@ async function _invalidateTokenAndRetry(): Promise<string> {
    CONSTANTS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/** Firebase project ID — must match firebase.ts */
+/** Firebase project ID — must match firebase.ts and google-services.json */
 const PROJECT_ID = 'black94';
 
-/** Firebase Storage bucket (default: {projectId}.appspot.com) */
-const STORAGE_BUCKET = `${PROJECT_ID}.appspot.com`;
+/** Firebase Storage bucket — must match google-services.json storage_bucket field.
+ *  Firebase now defaults to {projectId}.firebasestorage.app for new projects. */
+const STORAGE_BUCKET = `${PROJECT_ID}.firebasestorage.app`;
 
 /** Base URL for Firebase Storage REST API */
 const STORAGE_BASE = `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}`;

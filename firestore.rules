@@ -1,49 +1,99 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper: authenticated user
+    // ── Helpers ────────────────────────────────────────────────────────
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Helper: user is the owner of the document
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Users collection
+    // ── Users ───────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if true; // Anyone can read user profiles
-      allow create: if isAuthenticated(); // Can create own profile on signup
-      allow update: if isOwner(userId); // Only owner can update
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isOwner(userId);
       allow delete: if isOwner(userId);
     }
 
-    // Posts collection
+    // ── Usernames (unique username lookup) ──────────────────────────────
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if isAuthenticated();
+    }
+
+    // ── Posts ───────────────────────────────────────────────────────────
     match /posts/{postId} {
       allow read: if true;
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated(); // Allow likes, comments count updates from any signed-in user
+      allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
     }
 
-    // Messages (subcollection under chats)
-    match /chats/{chatId}/messages/{messageId} {
-      allow read: if isAuthenticated();
+    // Post likes (composite ID: postId_userId)
+    match /post_likes/{likeId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated();
+      allow update: if false;
+    }
+
+    // Post bookmarks (composite ID: postId_userId)
+    match /post_bookmarks/{bookmarkId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated();
+      allow update: if false;
+    }
+
+    // Post reposts (composite ID: postId_userId)
+    match /post_reposts/{repostId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated();
+      allow update: if false;
+    }
+
+    // Post comments
+    match /post_comments/{commentId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+    }
+
+    // Post comment subcollections (likes, reposts, bookmarks)
+    match /post_comments/{commentId}/likes/{likeId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated();
+      allow update: if false;
+    }
+    match /post_comments/{commentId}/reposts/{repostId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated();
+      allow update: if false;
+    }
+    match /post_comments/{commentId}/bookmarks/{bookmarkId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated();
+      allow update: if false;
+    }
+
+    // Poll votes (subcollection under posts)
+    match /posts/{postId}/poll_votes/{voteId} {
+      allow read: if true;
       allow create: if isAuthenticated();
       allow update: if false;
       allow delete: if false;
     }
 
-    // Chats collection
-    match /chats/{chatId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-
-    // Stories collection
+    // ── Stories ─────────────────────────────────────────────────────────
     match /stories/{storyId} {
       allow read: if true;
       allow create: if isAuthenticated();
@@ -51,31 +101,57 @@ service cloud.firestore {
       allow delete: if isAuthenticated();
     }
 
-    // Comments collection
-    match /comments/{commentId} {
+    // Story votes (subcollection)
+    match /stories/{storyId}/votes/{voteId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Story comments
+    match /story_comments/{commentId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
     }
 
-    // Likes collection
-    match /likes/{likeId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow delete: if isAuthenticated();
-      allow update: if false;
-    }
-
-    // Subscriptions collection
-    match /subscriptions/{subId} {
+    // ── Chats & Messages ────────────────────────────────────────────────
+    match /chats/{chatId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    match /chats/{chatId}/messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false;
       allow delete: if false;
     }
 
-    // Notifications collection
+    // ── Anonymous Chat ──────────────────────────────────────────────────
+    match /anonRooms/{roomId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+    match /anonRooms/{roomId}/anonMessages/{msgId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+    match /anonQueue/{queueId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Notifications ───────────────────────────────────────────────────
     match /notifications/{notifId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
@@ -83,71 +159,43 @@ service cloud.firestore {
       allow delete: if isAuthenticated();
     }
 
-    // Blocks collection
-    match /blocks/{blockId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow delete: if isAuthenticated();
-      allow update: if false;
-    }
-
-    // Follows collection
+    // ── Follows & Blocks ────────────────────────────────────────────────
     match /follows/{followId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow delete: if isAuthenticated();
       allow update: if false;
     }
-
-    // Orders collection
-    match /orders/{orderId} {
+    match /blocks/{blockId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
+      allow delete: if isAuthenticated();
+      allow update: if false;
+    }
+    match /blockedBy/{blockId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
     }
 
-    // Products collection
-    match /products/{productId} {
+    // ── Likes, Reposts, Bookmarks (generic, for articles etc.) ──────────
+    match /likes/{likeId} {
       allow read: if true;
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
       allow delete: if isAuthenticated();
+      allow update: if false;
     }
-
-    // CRM leads collection
-    match /crm_leads/{leadId} {
-      allow read: if isAuthenticated();
+    match /reposts/{repostId} {
+      allow read: if true;
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
       allow delete: if isAuthenticated();
+      allow update: if false;
     }
-
-    // Paid chat access
-    match /paid_chat_access/{accessId} {
-      allow read: if isAuthenticated();
+    match /bookmarks/{bookmarkId} {
+      allow read: if true;
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
+      allow delete: if isAuthenticated();
+      allow update: if false;
     }
-
-    // Chat payments
-    match /chat_payments/{paymentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // Reports
-    match /reports/{reportId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // Saved posts
     match /saved/{savedId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
@@ -155,10 +203,260 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    // Feed / recommendations
+    // ── Comments (generic, for articles etc.) ───────────────────────────
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+    }
+
+    // ── Subscriptions ───────────────────────────────────────────────────
+    match /subscriptions/{subId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ── Orders & Payments ───────────────────────────────────────────────
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /chat_payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /paid_chat_access/{accessId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ── Products & Shop ─────────────────────────────────────────────────
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    match /carts/{cartId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    match /cart/{cartId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /shipments/{shipmentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /shippingPartners/{partnerId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ── Business / CRM ─────────────────────────────────────────────────
+    match /businesses/{businessId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    match /business_profiles/{profileId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /employees/{employeeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    match /teamMembers/{memberId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    match /payroll/{payrollId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /crm_leads/{leadId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    match /leads/{leadId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    match /deals/{dealId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /customer_behavior/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /customer_journeys/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /scheduled_followups/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /integrations/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /shiprocket_config/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ── Articles ────────────────────────────────────────────────────────
+    match /articles/{articleId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+    }
+    match /article_bookmarks/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated();
+      allow update: if false;
+    }
+
+    // ── Ads ─────────────────────────────────────────────────────────────
+    match /adCampaigns/{campaignId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // ── Affiliates ───────────────────────────────────────────────────────
+    match /affiliates/{affiliateId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ── Fact Checks ─────────────────────────────────────────────────────
+    match /factChecks/{checkId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ── Events ───────────────────────────────────────────────────────────
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ── Config (app-wide settings) ──────────────────────────────────────
+    match /config/{key} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    match /configs/{key} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ── Profile Shares ──────────────────────────────────────────────────
+    match /profileShares/{id} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Activities / Feed ───────────────────────────────────────────────
+    match /activities/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
     match /feed/{feedId} {
       allow read: if true;
       allow write: if false;
+    }
+    match /web_results/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Reports ─────────────────────────────────────────────────────────
+    match /reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // ── Votes (generic, for polls) ──────────────────────────────────────
+    match /votes/{voteId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

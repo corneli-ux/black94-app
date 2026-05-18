@@ -5,7 +5,9 @@
 import { getValidToken } from './firebase';
 
 const PROJECT_ID = 'black94';
-const BUCKET = `${PROJECT_ID}.appspot.com`;
+// Must match google-services.json storage_bucket field.
+// Firebase now defaults to {projectId}.firebasestorage.app for new projects.
+const BUCKET = `${PROJECT_ID}.firebasestorage.app`;
 const STORAGE_BASE = `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o`;
 
 const MAX_RETRIES = 3;
