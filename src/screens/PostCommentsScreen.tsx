@@ -178,6 +178,12 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             </TouchableOpacity>
             <Text style={styles.commentTime}>{timeAgo(item2.createdAt)}</Text>
           </View>
+          {/* Reply-to indicator — shows when this comment is replying to another */}
+          {item2.replyToUsername ? (
+            <Text style={styles.replyToIndicator}>
+              Replying to <Text style={styles.replyToName}>@{item2.replyToUsername}</Text>
+            </Text>
+          ) : null}
           <Text style={styles.commentContent}>{item2.content}</Text>
           {/* Action bar — matches feed PostCard exactly */}
           <View style={styles.commentActions}>
@@ -395,6 +401,8 @@ const styles = StyleSheet.create({
   commentHandle: { color: '#71767b', fontSize: 15, lineHeight: 20 },
   commentTime: { color: '#71767b', fontSize: 15, lineHeight: 20 },
   commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
+  replyToIndicator: { color: '#71767b', fontSize: 13, lineHeight: 18, marginTop: 2 },
+  replyToName: { color: '#1d9bf0', fontWeight: '500' },
   /* Action bar — matches feed PostCard exactly */
   commentActions: {
     flexDirection: 'row',

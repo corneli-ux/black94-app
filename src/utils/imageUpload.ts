@@ -192,23 +192,30 @@ function safeBase64Decode(base64: string): Uint8Array {
     lookup.set(chars[i], i);
   }
 
-  // Remove whitespace and padding
-  const cleaned = base64.replace(/[\s=]/g, '');
+  // Remove whitespace only — do NOT remove '=' padding characters!
+  // Padding is meaningful: it indicates how many bytes the last group encodes.
+  // Removing it breaks decoding for inputs whose length % 4 !== 0.
+  const cleaned = base64.replace(/\s/g, '');
   const len = cleaned.length;
-  const result = new Uint8Array(Math.floor(len * 3 / 4));
+
+  // Calculate output length based on padding
+  const paddingCount = (cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0);
+  const outputLength = Math.floor((len * 3) / 4) - paddingCount;
+  const result = new Uint8Array(outputLength);
 
   let byteIndex = 0;
   for (let i = 0; i < len; i += 4) {
     const c0 = lookup.get(cleaned[i]) || 0;
     const c1 = lookup.get(cleaned[i + 1] || '') || 0;
-    const c2 = lookup.get(cleaned[i + 2] || '') || 0;
-    const c3 = lookup.get(cleaned[i + 3] || '') || 0;
+    // Padding characters '=' map to 0, which is correct for decoding
+    const c2 = cleaned[i + 2] === '=' ? 0 : (lookup.get(cleaned[i + 2] || '') || 0);
+    const c3 = cleaned[i + 3] === '=' ? 0 : (lookup.get(cleaned[i + 3] || '') || 0);
 
     const triplet = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
 
     result[byteIndex++] = (triplet >> 16) & 0xFF;
-    if (byteIndex < result.length) result[byteIndex++] = (triplet >> 8) & 0xFF;
-    if (byteIndex < result.length) result[byteIndex++] = triplet & 0xFF;
+    if (byteIndex < outputLength) result[byteIndex++] = (triplet >> 8) & 0xFF;
+    if (byteIndex < outputLength) result[byteIndex++] = triplet & 0xFF;
   }
 
   return result;
@@ -220,15 +227,36 @@ function safeBase64Decode(base64: string): Uint8Array {
  * sending raw file URIs in all environments.
  */
 async function readFileAsBase64(uri: string): Promise<string> {
-  // React Native file URIs: 'file:///path/to/file'
-  // expo-file-system expects the path without the 'file://' prefix for readAsStringAsync
-  const filePath = uri.startsWith('file://') ? uri.slice(7) : uri;
-
   const { default: FileSystem } = await import('expo-file-system');
-  const base64 = await FileSystem.readAsStringAsync(filePath, {
-    encoding: 'base64' as const,
-  });
-  return base64;
+
+  // expo-file-system v16+ (Expo SDK 54+) accepts full URIs directly
+  // including file://, content://, asset://, and expo-file-system:// URIs.
+  // Stripping the scheme (old approach) breaks content:// URIs on Android
+  // and asset:// URIs on both platforms.
+  //
+  // Strategy:
+  //   1. Try reading the URI directly (works for most cases in SDK 54+)
+  //   2. If that fails with a "not found" error AND the URI starts with file://,
+  //      fall back to stripping file:// (legacy behavior for older SDK versions)
+  try {
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: 'base64' as const,
+    });
+    return base64;
+  } catch (directErr: any) {
+    if (uri.startsWith('file://')) {
+      try {
+        const filePath = uri.slice(7);
+        const base64 = await FileSystem.readAsStringAsync(filePath, {
+          encoding: 'base64' as const,
+        });
+        return base64;
+      } catch {
+        // Fall through to throw original error
+      }
+    }
+    throw directErr;
+  }
 }
 
 /**
@@ -439,8 +467,16 @@ export async function uploadOptimizedImage(
         // Set a reasonable timeout (5 minutes for large files on slow connections)
         xhr.timeout = 5 * 60 * 1000;
 
-        // Send decoded binary data — Firebase Storage expects raw bytes
-        xhr.send(bytes.buffer);
+        // Send decoded binary data — Firebase Storage expects raw bytes.
+        // CRITICAL: Use bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+        // instead of bytes.buffer directly. When bytes is a Uint8Array view into a larger
+        // ArrayBuffer (common with Buffer.from() in React Native), sending bytes.buffer
+        // would include ALL bytes in the underlying buffer, not just the image data.
+        // This causes Firebase to store corrupted files (extra trailing bytes).
+        const arrayBuffer = bytes.buffer.byteLength === bytes.byteLength
+          ? bytes.buffer
+          : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        xhr.send(arrayBuffer);
 
         // Cleanup abort listener when xhr completes
         xhr.onloadend = () => {

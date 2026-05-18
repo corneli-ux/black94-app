@@ -46,6 +46,10 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
   const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
   const slideAnim = useRef(new Animated.Value(0)).current;
   const listRef = useRef<FlatList>(null);
+  // Keep the modal mounted during close animation so the slide-out is visible.
+  // Without this, setting visible=false unmounts the Modal immediately,
+  // making the close animation invisible.
+  const [modalVisible, setModalVisible] = useState(false);
 
   const loadComments = useCallback(async () => {
     setLoading(true);
@@ -63,12 +67,19 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
 
   useEffect(() => {
     if (visible) {
-      Animated.timing(slideAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      setModalVisible(true);
+      // Small delay to ensure Modal is mounted before animating
+      requestAnimationFrame(() => {
+        Animated.timing(slideAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      });
       loadComments();
       setReplyingTo(null);
       setText('');
     } else {
-      Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+      // Animate out, then unmount the modal AFTER animation completes
+      Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
+        setModalVisible(false);
+      });
     }
   }, [visible, loadComments]);
 
@@ -104,7 +115,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
   const translateY = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [sheetHeight, 0] });
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={modalVisible} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <TouchableOpacity style={styles.backdropTouch} activeOpacity={1} onPress={onClose} />
         <KeyboardAvoidingView style={styles.sheetContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -161,6 +172,12 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                       <Text style={styles.commentHandle}>@{item.authorUsername}</Text>
                       <Text style={styles.commentTime}>{timeAgo(item.createdAt)}</Text>
                     </View>
+                    {/* Reply-to indicator */}
+                    {item.replyToUsername ? (
+                      <Text style={styles.replyToIndicator}>
+                        Replying to <Text style={styles.replyToName}>@{item.replyToUsername}</Text>
+                      </Text>
+                    ) : null}
                     <Text style={styles.commentContent}>{item.content}</Text>
                     <View style={styles.commentActions}>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={() => {
@@ -291,6 +308,8 @@ const styles = StyleSheet.create({
   commentHandle: { color: '#71767b', fontSize: 15, lineHeight: 20 },
   commentTime: { color: '#71767b', fontSize: 15, lineHeight: 20 },
   commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
+  replyToIndicator: { color: '#71767b', fontSize: 13, lineHeight: 18, marginTop: 2 },
+  replyToName: { color: '#1d9bf0', fontWeight: '500' },
   inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: '#000000' },
   inputWrap: { flex: 1, backgroundColor: '#16181c', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, maxHeight: 100, justifyContent: 'center' },
   input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },

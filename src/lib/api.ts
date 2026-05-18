@@ -1168,6 +1168,8 @@ export interface CommentData {
   authorBadge: string;
   content: string;
   imageUrls?: string[];
+  replyToId?: string | null;
+  replyToUsername?: string | null;
   createdAt: number;
 }
 
@@ -1219,6 +1221,8 @@ export async function fetchPostComments(postId: string): Promise<CommentData[]> 
         authorBadge: data.authorBadge || '',
         content: data.content || '',
         imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : undefined,
+        replyToId: data.replyToId || null,
+        replyToUsername: data.replyToUsername || null,
         createdAt,
       };
     });
@@ -1296,6 +1300,8 @@ export async function addPostComment(postId: string, content: string, replyToId?
     authorIsVerified: userData?.isVerified || false,
     authorBadge: userData?.badge || '',
     content: content.trim(),
+    replyToId: replyToId || null,
+    replyToUsername: replyToUsername || null,
     createdAt: Date.now(),
   };
 }
