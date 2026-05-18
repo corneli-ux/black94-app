@@ -31,7 +31,9 @@ interface GifItem {
 
 // ── API ───────────────────────────────────────────────────────────────────
 
-const TENOR_KEY = 'AIzaSyDi7RJ3mPuN9gBjDXCMrhjS8ypHwm1nHB0';
+import Constants from 'expo-constants';
+
+const TENOR_KEY = (Constants.expoConfig?.extra?.tenorApiKey as string) || '';
 const PAGE_SIZE = 30;
 
 async function fetchTrending(pos?: number): Promise<GifItem[]> {

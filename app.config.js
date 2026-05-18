@@ -94,6 +94,7 @@ module.exports = function () {
         },
         firebaseApiKey: process.env.FIREBASE_API_KEY || '',
         razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
+        tenorApiKey: process.env.TENOR_API_KEY || '',
       },
       owner: 'corneli1',
     },
