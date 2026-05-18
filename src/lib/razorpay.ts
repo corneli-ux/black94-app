@@ -18,7 +18,7 @@ import { getValidToken } from './firebase';
 // ── Config ──────────────────────────────────────────────────────────────────
 
 const PROJECT_ID = 'black94';
-const REGION = 'asia-south1'; // Use your deployed region
+const REGION = 'us-central1'; // Must match the Cloud Functions deployment region
 
 const RAZORPAY_KEY_ID = (Constants.expoConfig?.extra?.razorpayKeyId as string) || '';
 
