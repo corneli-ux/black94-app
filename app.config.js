@@ -90,7 +90,7 @@ module.exports = function () {
           projectId: '9dff44f7-2b2b-432d-a355-902a3d75e970',
         },
         firebaseApiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDOGRbI4V82VJ0KZND3v1ggfO5s3933-3w',
-        razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SqhiNhA1ELaiVP',
+                  razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
         tenorApiKey: process.env.TENOR_API_KEY || 'AIzaSyDi7RJ3mPuN9gBjDXCMrhjS8ypHwm1nHB0',
       },
       owner: 'corneli1',
