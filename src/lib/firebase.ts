@@ -155,11 +155,19 @@ async function signOut(_authRef?: any) {
 // Decode JWT payload to check expiry (no library needed)
 function _isTokenExpired(token: string): boolean {
   try {
-    // JWT uses base64url encoding — convert to standard base64 for atob()
+    // JWT uses base64url encoding — convert to standard base64
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(base64));
+    let payload: string;
+    try {
+      payload = atob(base64);
+    } catch {
+      // atob() may not be available in RN New Architecture — use Buffer fallback
+      const { Buffer } = require('buffer') as { Buffer: typeof globalThis.Buffer };
+      payload = Buffer.from(base64, 'base64').toString('utf-8');
+    }
+    const parsed = JSON.parse(payload);
     // Consider expired if less than 60 seconds remaining
-    return payload.exp * 1000 < Date.now() + 60000;
+    return parsed.exp * 1000 < Date.now() + 60000;
   } catch {
     return true; // If we can't parse, assume expired
   }

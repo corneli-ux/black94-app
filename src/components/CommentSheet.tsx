@@ -84,7 +84,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     setText('');
     setReplyingTo(null);
     try {
-      const real = await addPostComment(postId, text.trim());
+      const real = await addPostComment(postId, text.trim(), replyingTo?.id, replyingTo?.username);
       if (real) {
         setComments(prev => prev.map(c => c.id === optimistic.id ? real : c));
         onCommentSent?.();

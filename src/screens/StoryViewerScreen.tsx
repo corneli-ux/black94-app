@@ -30,6 +30,7 @@ interface StoryItem {
   content: string;
   mediaUrl: string;
   pollOptions?: Array<{ id: string; text: string; votes: number; percentage: number }>;
+  fontSize?: number;
   createdAt: number;
 }
 
@@ -86,6 +87,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
             content: data.content || data.text || '',
             mediaUrl: data.mediaUrl || '',
             pollOptions: data.pollOptions || undefined,
+            fontSize: data.fontSize || undefined,
             createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
           };
         });
@@ -287,7 +289,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
       {isTextStory ? (
         <View style={[styles.gradientBg, { backgroundColor: getGradientColor(currentStory.mediaUrl) }]}>
           {currentStory.content ? (
-            <Text style={styles.textStoryContent}>{currentStory.content}</Text>
+            <Text style={[styles.textStoryContent, currentStory.fontSize ? { fontSize: currentStory.fontSize } : undefined]}>{currentStory.content}</Text>
           ) : null}
         </View>
       ) : isImageStory ? (
