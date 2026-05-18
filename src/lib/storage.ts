@@ -51,26 +51,21 @@ export function getFilePath(folder: string, filename: string, uid: string): stri
 
 /**
  * Read a local file URI as a base64 data string.
- * On React Native, uses `fetch(uri)` → `blob()` → `FileReader`.
+ * Uses expo-file-system which properly handles file:// URIs in React Native.
  * @param uri - Local file URI (e.g. `file:///...` or `content://...`)
- * @param mimeType - Expected MIME type
+ * @param mimeType - Expected MIME type (unused — kept for API compat)
  * @returns Base64-encoded string (raw, no data-URI prefix)
  */
 async function readFileAsBase64(uri: string, mimeType: string): Promise<string> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
+  // React Native's fetch() does NOT support file:// URIs.
+  // expo-file-system is the correct approach for reading local files.
+  const filePath = uri.startsWith('file://') ? uri.slice(7) : uri;
 
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // FileReader.readAsDataURL returns "data:<mime>;base64,<data>"
-      const base64 = result.split(',')[1] || result;
-      resolve(base64);
-    };
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(blob);
+  const { default: FileSystem } = await import('expo-file-system');
+  const base64 = await FileSystem.readAsStringAsync(filePath, {
+    encoding: 'base64' as const,
   });
+  return base64;
 }
 
 /**

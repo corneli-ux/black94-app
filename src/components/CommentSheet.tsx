@@ -47,16 +47,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
   const slideAnim = useRef(new Animated.Value(0)).current;
   const listRef = useRef<FlatList>(null);
 
-  useEffect(() => {
-    if (visible) {
-      Animated.timing(slideAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-      loadComments();
-    } else {
-      Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
-    }
-  }, [visible]);
-
-  const loadComments = async () => {
+  const loadComments = useCallback(async () => {
     setLoading(true);
     setCommentsError(null);
     try {
@@ -68,7 +59,18 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
       setComments([]);
     }
     setLoading(false);
-  };
+  }, [postId]);
+
+  useEffect(() => {
+    if (visible) {
+      Animated.timing(slideAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      loadComments();
+      setReplyingTo(null);
+      setText('');
+    } else {
+      Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+    }
+  }, [visible, loadComments]);
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
@@ -98,7 +100,8 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  const translateY = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [Dimensions.get('window').height * SHEET_HEIGHT_RATIO, 0] });
+  const sheetHeight = Dimensions.get('window').height * SHEET_HEIGHT_RATIO;
+  const translateY = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [sheetHeight, 0] });
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -162,7 +165,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                     <View style={styles.commentActions}>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={() => {
                         setReplyingTo({
-                          id: item.authorId,
+                          id: item.id,
                           username: item.authorUsername,
                           displayName: item.authorDisplayName || item.authorUsername,
                         });
@@ -270,7 +273,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   backdropTouch: { flex: 1 },
   sheetContainer: { justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#000000', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: SHEET_HEIGHT, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  sheet: { backgroundColor: '#000000', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: Dimensions.get('window').height * 0.75, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   handleWrap: { alignItems: 'center', paddingVertical: 10 },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },

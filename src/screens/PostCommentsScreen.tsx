@@ -80,17 +80,11 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     })();
   }, []);
 
-  // Auto-set replyingTo only when replying to a DIFFERENT user
-  useEffect(() => {
-    const currentUserUsername = user?.username || currentUser?.displayName || '';
-    if (postAuthorUsername && postAuthorUsername.toLowerCase() !== currentUserUsername.toLowerCase()) {
-      setReplyingTo({
-        id: '',
-        username: postAuthorUsername,
-        displayName: postAuthorDisplayName || postAuthorUsername,
-      });
-    }
-  }, [postAuthorUsername, postAuthorDisplayName]);
+  // Note: We intentionally do NOT auto-set replyingTo here.
+  // The first comment on a post is a top-level comment, not a "reply".
+  // Setting replyToId to '' caused inconsistent Firestore state
+  // (replyToUsername set but replyToId null). Users can tap reply on
+  // any comment to explicitly reply to it.
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
@@ -189,7 +183,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           <View style={styles.commentActions}>
             <TouchableOpacity style={styles.commentActionBtn} onPress={() => {
               setReplyingTo({
-                id: item2.authorId,
+                id: item2.id,
                 username: item2.authorUsername,
                 displayName: item2.authorDisplayName || item2.authorUsername,
               });

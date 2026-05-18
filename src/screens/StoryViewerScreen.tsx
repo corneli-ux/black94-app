@@ -159,7 +159,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
     return () => {
       progressAnim.stopAnimation();
     };
-  }, [currentIndex, stories.length, isPaused]);
+  }, [currentIndex, stories.length, isPaused, goNext]);
 
   // Pan responder for swipe dismiss
   useEffect(() => {
