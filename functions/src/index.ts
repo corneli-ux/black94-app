@@ -24,18 +24,27 @@ import {
 admin.initializeApp();
 const db = admin.firestore();
 
-// ── Razorpay Instance ──────────────────────────────────────────────────────
+// ── Razorpay Instance (lazy init) ──────────────────────────────────────────
 
 /**
- * Reads RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET from Firebase Functions config.
+ * Reads RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET from Firebase Functions secrets.
  * Set them with:
  *   firebase functions:secrets:set RAZORPAY_KEY_ID
  *   firebase functions:secrets:set RAZORPAY_KEY_SECRET
+ *
+ * Lazy-initialized to avoid crashing during Firebase's code analysis phase,
+ * when env vars are not yet injected.
  */
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || '',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || '',
-});
+let _razorpay: Razorpay | null = null;
+function getRazorpay(): Razorpay {
+  if (!_razorpay) {
+    _razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID || '',
+      key_secret: process.env.RAZORPAY_KEY_SECRET || '',
+    });
+  }
+  return _razorpay;
+}
 
 // ── Callable: createRazorpayOrder ─────────────────────────────────────────
 
@@ -82,7 +91,7 @@ export const createRazorpayOrder = functions.https.onCall(
     }
 
     try {
-      const order = await razorpay.orders.create({
+      const order = await getRazorpay().orders.create({
         amount,
         currency,
         receipt,
@@ -192,7 +201,7 @@ export const verifyRazorpayPayment = functions.https.onCall(
     // ── Step 2: Fetch payment details from Razorpay ──
     let paymentDetails: any;
     try {
-      paymentDetails = await razorpay.payments.fetch(razorpayPaymentId);
+      paymentDetails = await getRazorpay().payments.fetch(razorpayPaymentId);
       console.log(
         `[Razorpay] Payment verified: ${razorpayPaymentId}, status: ${paymentDetails.status}`,
       );
