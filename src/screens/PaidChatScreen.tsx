@@ -21,10 +21,13 @@ import {
   hasPaidChatAccess,
 } from '../lib/api';
 import {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
   openRazorpayCheckout,
   handleRazorpayMessage,
   isRazorpayConfigured,
 } from '../lib/razorpay';
+import type { RazorpayResult } from '../lib/razorpay';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 
 // ── Payment flow states ──
@@ -125,7 +128,10 @@ export default function PaidChatScreen({ route, navigation }: any) {
     }
   };
 
-  const handlePay = () => {
+  // Store Razorpay order ID for verification
+  const pendingOrderIdRef = useRef<string | null>(null);
+
+  const handlePay = async () => {
     if (!currentUser) return;
     if (paymentPhase !== 'idle') return;
 
@@ -141,52 +147,80 @@ export default function PaidChatScreen({ route, navigation }: any) {
     setPaymentError(null);
     setPaymentPhase('opening_gateway');
 
-    const amountInPaise = price * 100;
-    const planName = `Chat with ${targetUser?.displayName || targetUser?.username || 'User'}`;
+    try {
+      // Step 1: Create Razorpay order server-side
+      const orderResult = await createRazorpayOrder({
+        amount: price * 100,
+        currency: 'INR',
+        receipt: `chat_${currentUser.uid}_${targetUserId}_${Date.now()}`,
+        notes: {
+          userId: currentUser.uid,
+          targetUserId,
+          type: 'paid_chat',
+        },
+      });
 
-    const { html, keyMissing } = openRazorpayCheckout({
-      amount: amountInPaise,
-      currency: 'INR',
-      planId: `paid_chat_${targetUserId}`,
-      planName,
-      userId: currentUser.uid,
-      userEmail: currentUser.email || '',
-      userName: currentUser.displayName || '',
-    });
+      // Step 2: Open checkout with server-created order
+      const amountInPaise = price * 100;
+      const planName = `Chat with ${targetUser?.displayName || targetUser?.username || 'User'}`;
 
-    if (keyMissing || !html) {
+      const { html, keyMissing } = openRazorpayCheckout(
+        {
+          amount: amountInPaise,
+          currency: 'INR',
+          receipt: orderResult.receipt,
+          planName,
+          userName: currentUser.displayName || '',
+          userEmail: currentUser.email || '',
+          notes: {
+            userId: currentUser.uid,
+            targetUserId,
+            type: 'paid_chat',
+          },
+        },
+        orderResult.orderId,
+      );
+
+      if (keyMissing || !html) {
+        setPaymentPhase('idle');
+        setPaymentError('Payment gateway is not available. Please try again later.');
+        Alert.alert('Payment Unavailable', 'Razorpay is not configured. Please try again later.');
+        return;
+      }
+
+      pendingOrderIdRef.current = orderResult.orderId;
+      setCheckoutHTML(html);
+      setCheckoutModalVisible(true);
+    } catch (e: any) {
       setPaymentPhase('idle');
-      setPaymentError('Payment gateway is not available. Please try again later.');
-      Alert.alert('Payment Unavailable', 'Razorpay is not configured. Please try again later.');
-      return;
+      setPaymentError(e.message || 'Failed to create payment order.');
+      Alert.alert('Error', e.message || 'Could not create payment order.');
     }
-
-    setCheckoutHTML(html);
-    setCheckoutModalVisible(true);
-    // Keep phase as opening_gateway until WebView loads
   };
 
   const handleWebViewMessage = async (event: any) => {
     const result = handleRazorpayMessage(event);
 
     if (result.success && result.paymentId) {
-      // Payment succeeded — process the access grant
+      // Payment succeeded — verify server-side + grant access
       setCheckoutModalVisible(false);
       setPaymentPhase('processing');
 
       try {
-        const accessCreated = await createPaidChatAccess(
-          currentUser.uid,
+        // Verify payment & grant chat access server-side
+        const verifyResult = await verifyRazorpayPayment({
+          razorpayOrderId: result.razorpayOrderId || '',
+          razorpayPaymentId: result.paymentId,
+          razorpaySignature: result.razorpaySignature || '',
+          type: 'paid_chat',
           targetUserId,
-          price,
-          result.paymentId,
-        );
+          chatPrice: price,
+        });
 
-        if (accessCreated) {
+        if (verifyResult.verified) {
           setPaymentPhase('success');
           const chatId = await findOrCreateChat(currentUser.uid, targetUserId);
           if (chatId) {
-            // Show success modal briefly then navigate to chat
             setSuccessModalVisible(true);
             setTimeout(() => {
               setSuccessModalVisible(false);
@@ -202,19 +236,19 @@ export default function PaidChatScreen({ route, navigation }: any) {
           }
         } else {
           setPaymentPhase('error');
-          setPaymentError('Payment recorded but could not grant access.');
+          setPaymentError('Payment verification failed.');
           Alert.alert(
             'Payment Issue',
-            'Your payment was recorded but we could not grant chat access. Please contact support with your payment ID for manual activation.',
+            'Payment verification failed. Please contact support with your payment ID for manual activation.',
           );
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('[PaidChatScreen] Post-payment error:', e);
         setPaymentPhase('error');
-        setPaymentError('Something went wrong after payment.');
+        setPaymentError(e.message || 'Something went wrong after payment.');
         Alert.alert(
           'Error',
-          'Something went wrong after your payment. Please contact support — your payment was not lost.',
+          e.message || 'Something went wrong after your payment. Please contact support — your payment was not lost.',
         );
       }
     } else {

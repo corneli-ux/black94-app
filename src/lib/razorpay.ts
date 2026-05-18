@@ -1,32 +1,50 @@
 /**
- * razorpay.ts — Razorpay Checkout via WebView
+ * razorpay.ts — Razorpay Checkout via WebView (with server-side order creation)
  *
- * Opens the Razorpay Checkout.js SDK inside a react-native-webview.
+ * Flow:
+ *  1. Client calls Cloud Function `createRazorpayOrder` → gets order_id
+ *  2. Client opens Razorpay Checkout.js in a WebView with the order_id
+ *  3. User completes payment → WebView posts result back
+ *  4. Client calls Cloud Function `verifyRazorpayPayment` → server verifies signature
+ *  5. Server activates subscription / creates order / grants chat access
+ *
  * The Razorpay key ID is loaded from app.json → extra.razorpayKeyId.
- *
- * Usage (inside a React component that renders a <Modal> + <WebView>):
- *   const { html, handleMessage } = openRazorpayCheckout(options, webViewRef);
- *   // set the modal visible, then:
- *   <WebView source={{ html }} onMessage={handleMessage} />
+ * Cloud Functions are called via HTTPS REST (no Firebase SDK dependency).
  */
 
 import Constants from 'expo-constants';
+import { getValidToken } from './firebase';
 
-// ── Razorpay key from app.json extra field ───────────────────────────────────
+// ── Config ──────────────────────────────────────────────────────────────────
+
+const PROJECT_ID = 'black94';
+const REGION = 'asia-south1'; // Use your deployed region
 
 const RAZORPAY_KEY_ID = (Constants.expoConfig?.extra?.razorpayKeyId as string) || '';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface RazorpayCheckoutOptions {
-  amount: number;       // amount in paise (e.g. 44900 = ₹449)
-  currency: string;     // 'INR'
-  planId: string;
-  planName: string;
-  userId: string;
-  userEmail: string;
-  userPhone?: string;
+export type PaymentType = 'subscription' | 'order' | 'paid_chat';
+
+export interface RazorpayOrderOptions {
+  amount: number;       // amount in paise (e.g. 52000 = ₹520)
+  currency?: string;    // default 'INR'
+  receipt: string;      // unique receipt ID (e.g. "sub_uid_123")
+  notes?: Record<string, string>;
+}
+
+export interface RazorpayCheckoutOptions extends RazorpayOrderOptions {
+  planName: string;     // display name for checkout
   userName?: string;
+  userEmail?: string;
+  userPhone?: string;
+}
+
+export interface RazorpayOrderResult {
+  orderId: string;
+  amount: number;
+  currency: string;
+  receipt: string;
 }
 
 export interface RazorpayResult {
@@ -37,13 +55,107 @@ export interface RazorpayResult {
   error?: string;
 }
 
+export interface VerifyPaymentOptions {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+  type: PaymentType;
+  [key: string]: any; // type-specific fields (planId, items, etc.)
+}
+
+export interface VerifyPaymentResult {
+  verified: boolean;
+  type: PaymentType;
+  details: any;
+}
+
+// ── Cloud Functions HTTP caller ─────────────────────────────────────────────
+
+async function callCloudFunction(
+  functionName: string,
+  data: Record<string, any>,
+): Promise<any> {
+  const token = await getValidToken();
+  const url = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/${functionName}`;
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ data }),
+  });
+
+  const result = await resp.json();
+
+  if (!resp.ok) {
+    const errorMessage =
+      result.error?.message || result.message || `Cloud function error (${resp.status})`;
+    throw new Error(errorMessage);
+  }
+
+  // Firebase callable functions return { result: { ... } }
+  return result.result || result;
+}
+
+// ── Server-side Order Creation ──────────────────────────────────────────────
+
+/**
+ * Creates a Razorpay order via Cloud Function.
+ *
+ * This is the server-side step that generates a secure order_id
+ * to prevent amount tampering on the client.
+ */
+export async function createRazorpayOrder(
+  options: RazorpayOrderOptions,
+): Promise<RazorpayOrderResult> {
+  try {
+    const result = await callCloudFunction('createRazorpayOrder', {
+      amount: options.amount,
+      currency: options.currency || 'INR',
+      receipt: options.receipt,
+      notes: options.notes,
+    });
+
+    return result as RazorpayOrderResult;
+  } catch (error: any) {
+    console.error('[Razorpay] Failed to create order:', error);
+    throw new Error(
+      error?.message || 'Failed to create payment order. Please try again.',
+    );
+  }
+}
+
+// ── Server-side Payment Verification ────────────────────────────────────────
+
+/**
+ * Verifies a Razorpay payment via Cloud Function.
+ *
+ * The server checks the payment signature, fetches payment details from
+ * Razorpay, and then activates the subscription / creates order / grants chat access.
+ */
+export async function verifyRazorpayPayment(
+  options: VerifyPaymentOptions,
+): Promise<VerifyPaymentResult> {
+  try {
+    const result = await callCloudFunction('verifyRazorpayPayment', options);
+    return result as VerifyPaymentResult;
+  } catch (error: any) {
+    console.error('[Razorpay] Payment verification failed:', error);
+    throw new Error(
+      error?.message || 'Payment verification failed. Please contact support.',
+    );
+  }
+}
+
 // ── HTML generator ───────────────────────────────────────────────────────────
 
-export function generateCheckoutHTML(
+function generateCheckoutHTML(
   options: RazorpayCheckoutOptions,
   keyId: string,
+  razorpayOrderId: string,
 ): string {
-  // JSON-encode user strings safely for embedding in HTML
   const safeName = JSON.stringify(options.userName || '');
   const safeEmail = JSON.stringify(options.userEmail || '');
   const safePhone = JSON.stringify(options.userPhone || '');
@@ -75,10 +187,11 @@ export function generateCheckoutHTML(
       var options = {
         key: '${keyId}',
         amount: ${options.amount},
-        currency: '${options.currency}',
+        currency: '${options.currency || 'INR'}',
         name: 'Black94',
         description: '${safeDescription}',
         image: '',
+        order_id: '${razorpayOrderId}',
         prefill: {
           name: ${safeName},
           email: ${safeEmail},
@@ -124,45 +237,28 @@ export function generateCheckoutHTML(
 </html>`;
 }
 
-// ── Public API ───────────────────────────────────────────────────────────────
+// ── WebView Checkout ───────────────────────────────────────────────────────
 
 /**
- * Prepare Razorpay checkout data for use in a WebView-based modal.
+ * Opens the Razorpay checkout in a WebView.
+ *
+ * Call this AFTER createRazorpayOrder() returns an orderId.
+ * Pass the orderId along with the checkout options.
  *
  * Returns:
  *  - `html`          — the full HTML string to load in a WebView
- *  - `handleMessage` — callback for WebView's onMessage; returns a RazorpayResult
- *
- * Example usage inside a screen component:
- * ```tsx
- * const [modalVisible, setModalVisible] = useState(false);
- * const webViewRef = useRef<WebView>(null);
- *
- * const openCheckout = () => {
- *   const { html } = openRazorpayCheckout(options, webViewRef);
- *   setCheckoutHTML(html);
- *   setModalVisible(true);
- * };
- *
- * const onWebViewMessage = (event) => {
- *   const result = handleRazorpayMessage(event);
- *   setModalVisible(false);
- *   if (result.success) { /* activate subscription *\/ }
- * };
- * ```
+ *  - `keyMissing`    — true if the Razorpay key is not configured
  */
 export function openRazorpayCheckout(
   options: RazorpayCheckoutOptions,
+  razorpayOrderId: string,
 ): { html: string; keyMissing: boolean } {
   if (!RAZORPAY_KEY_ID) {
-    return {
-      html: '',
-      keyMissing: true,
-    };
+    return { html: '', keyMissing: true };
   }
 
   return {
-    html: generateCheckoutHTML(options, RAZORPAY_KEY_ID),
+    html: generateCheckoutHTML(options, RAZORPAY_KEY_ID, razorpayOrderId),
     keyMissing: false,
   };
 }
@@ -187,7 +283,6 @@ export function handleRazorpayMessage(event: any): RazorpayResult {
         error: 'Payment was cancelled.',
       };
     }
-    // data.type === 'error'
     return {
       success: false,
       error: data.error || 'Payment failed',

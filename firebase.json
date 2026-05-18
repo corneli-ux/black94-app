@@ -1,0 +1,21 @@
+/**
+ * firebase.json — Firebase project configuration
+ *
+ * Specifies hosting, functions, and other Firebase service settings.
+ * The functions directory points to our Cloud Functions.
+ */
+
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20",
+    "secrets": [
+      "RAZORPAY_KEY_ID",
+      "RAZORPAY_KEY_SECRET",
+      "RAZORPAY_WEBHOOK_SECRET"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

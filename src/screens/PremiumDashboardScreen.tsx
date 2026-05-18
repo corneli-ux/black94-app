@@ -25,16 +25,16 @@ import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import {
-  verifyAndActivateSubscription,
-  getRazorpayCheckoutConfig,
   PLANS,
   PLAN_LIMITS,
   formatAmount,
   getPlanById,
 } from '../lib/payments';
-import type { PaymentPlan, InitiatePaymentOptions } from '../lib/payments';
-import type { User } from '../lib/api';
+import type { PaymentPlan } from '../lib/payments';
+import { fetchUserProfile } from '../lib/api';
 import {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
   openRazorpayCheckout,
   handleRazorpayMessage,
   isRazorpayConfigured,
@@ -220,25 +220,31 @@ export default function PremiumDashboardScreen() {
     }
 
     try {
-      // Verify payment & activate subscription in Firestore
-      const updatedUser = await verifyAndActivateSubscription(
-        userId,
-        plan.id,
-        result.paymentId,
-      );
+      // Verify payment server-side (signature check + subscription activation)
+      const verifyResult = await verifyRazorpayPayment({
+        razorpayOrderId: result.razorpayOrderId || '',
+        razorpayPaymentId: result.paymentId,
+        razorpaySignature: result.razorpaySignature || '',
+        type: 'subscription',
+        planId: plan.id,
+      });
 
-      if (updatedUser) {
-        setUser(updatedUser);
-        setCurrentPlan(plan.id as PlanType);
-        await loadUsageStats(plan.id as PlanType);
+      if (verifyResult.verified) {
+        // Fetch the updated user profile (server already activated subscription)
+        const updatedUser = await fetchUserProfile(userId);
+        if (updatedUser) {
+          setUser(updatedUser);
+          setCurrentPlan(plan.id as PlanType);
+          await loadUsageStats(plan.id as PlanType);
+        }
         setActivatedPlan(plan);
         setSuccessModalVisible(true);
       } else {
-        Alert.alert('Error', 'Payment verified but could not activate subscription. Please contact support.');
+        Alert.alert('Error', 'Payment verification failed. Please contact support.');
       }
     } catch (e: any) {
       console.error('[Premium] Upgrade error:', e);
-      Alert.alert('Upgrade', 'Something went wrong. Please try again.');
+      Alert.alert('Upgrade', e.message || 'Something went wrong. Please try again.');
     } finally {
       setPaymentLoading(false);
     }
@@ -256,16 +262,33 @@ export default function PremiumDashboardScreen() {
       return;
     }
 
-    const paymentOptions: InitiatePaymentOptions = {
-      plan,
-      userId,
-      userEmail: user?.email || '',
-      userPhone: '',
-      userName: user?.displayName || user?.username || '',
-    };
+    // Step 1: Create Razorpay order server-side (prevents amount tampering)
+    let orderResult;
+    try {
+      orderResult = await createRazorpayOrder({
+        amount: plan.amount,
+        currency: plan.currency,
+        receipt: `sub_${userId}_${Date.now()}`,
+        notes: { userId, planId: plan.id, type: 'subscription' },
+      });
+    } catch (e: any) {
+      setPaymentLoading(false);
+      Alert.alert('Error', e.message || 'Could not create payment order. Please try again.');
+      return;
+    }
 
-    const checkoutConfig = getRazorpayCheckoutConfig(paymentOptions);
-    const { html, keyMissing } = openRazorpayCheckout(checkoutConfig);
+    const { html, keyMissing } = openRazorpayCheckout(
+      {
+        amount: plan.amount,
+        currency: plan.currency,
+        receipt: orderResult.receipt,
+        planName: `Black94 ${plan.name} Subscription`,
+        userName: user?.displayName || user?.username || '',
+        userEmail: user?.email || '',
+        userPhone: '',
+      },
+      orderResult.orderId,
+    );
 
     if (keyMissing) {
       setPaymentLoading(false);

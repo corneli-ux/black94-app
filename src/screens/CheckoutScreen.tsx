@@ -9,6 +9,8 @@ import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { User, Post } from '../lib/api';
 import {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
   openRazorpayCheckout,
   handleRazorpayMessage,
   isRazorpayConfigured,
@@ -113,7 +115,7 @@ export default function CheckoutScreen({ route, navigation }: any) {
       return;
     }
 
-    // For prepaid orders, open Razorpay checkout first
+    // For prepaid orders, create Razorpay order + open checkout
     if (paymentMethod === 'prepaid') {
       if (!isRazorpayConfigured()) {
         Alert.alert(
@@ -124,48 +126,65 @@ export default function CheckoutScreen({ route, navigation }: any) {
       }
 
       const currentUser = auth()?.currentUser;
-      const { html, keyMissing } = openRazorpayCheckout({
-        amount: total * 100, // convert ₹ to paise
-        currency: 'INR',
-        planId: 'order',
-        planName: `Order for ${cartItems.length} item(s)`,
-        userId: currentUser?.uid || 'anonymous',
-        userEmail: '',
-        userPhone: shippingForm.phone || '',
-        userName: shippingForm.fullName || '',
-      });
+      const uid = currentUser?.uid || 'anonymous';
 
-      if (keyMissing) {
-        Alert.alert('Error', 'Payment key is missing. Please use Cash on Delivery.');
+      setPlacingOrder(true);
+
+      try {
+        // Step 1: Create Razorpay order server-side
+        const orderResult = await createRazorpayOrder({
+          amount: total * 100,
+          currency: 'INR',
+          receipt: `order_${uid}_${Date.now()}`,
+          notes: { userId: uid, type: 'order' },
+        });
+
+        const { html, keyMissing } = openRazorpayCheckout(
+          {
+            amount: total * 100,
+            currency: 'INR',
+            receipt: orderResult.receipt,
+            planName: `Order for ${cartItems.length} item(s)`,
+            userName: shippingForm.fullName || '',
+            userEmail: '',
+            userPhone: shippingForm.phone || '',
+          },
+          orderResult.orderId,
+        );
+
+        if (keyMissing) {
+          setPlacingOrder(false);
+          Alert.alert('Error', 'Payment key is missing. Please use Cash on Delivery.');
+          return;
+        }
+
+        // Prepare order data for after successful payment
+        const orderData: Record<string, any> = {
+          userId: uid,
+          items: cartItems.map(item => ({
+            productId: item.productId,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            variant: item.variant || null,
+          })),
+          shippingAddress: { ...shippingForm },
+          shippingPartner: selectedPartner.id,
+          shippingCost,
+          subtotal,
+          total,
+          paymentMethod,
+        };
+
+        pendingOrderDataRef.current = orderData;
+        setRazorpayHTML(html);
+        setRazorpayModalVisible(true);
+        return;
+      } catch (e: any) {
+        setPlacingOrder(false);
+        Alert.alert('Error', e.message || 'Could not create payment order.');
         return;
       }
-
-      // Prepare order data for after successful payment
-      const orderData: Record<string, any> = {
-        userId: currentUser?.uid || 'anonymous',
-        items: cartItems.map(item => ({
-          productId: item.productId,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          variant: item.variant || null,
-        })),
-        shippingAddress: { ...shippingForm },
-        shippingPartner: selectedPartner.id,
-        shippingCost,
-        subtotal,
-        total,
-        paymentMethod,
-        paymentId: null, // filled in after Razorpay success
-        status: 'placed',
-        createdAt: firestore.FieldValue.serverTimestamp(),
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      };
-
-      pendingOrderDataRef.current = orderData;
-      setRazorpayHTML(html);
-      setRazorpayModalVisible(true);
-      return;
     }
 
     // COD: place order directly
@@ -220,20 +239,47 @@ export default function CheckoutScreen({ route, navigation }: any) {
     }
   };
 
-  const handleRazorpayResult = (result: RazorpayResult) => {
+  const handleRazorpayResult = async (result: RazorpayResult) => {
     setRazorpayModalVisible(false);
     setRazorpayHTML('');
+    const orderData = pendingOrderDataRef.current;
     pendingOrderDataRef.current = null;
 
     if (!result.success || !result.paymentId) {
+      setPlacingOrder(false);
       if (result.error && result.error !== 'Payment was cancelled.') {
         Alert.alert('Payment Failed', result.error);
       }
       return;
     }
 
-    // Payment successful — create order with paymentId
-    placeOrderInFirestore(result.paymentId);
+    try {
+      // Verify payment server-side — server creates the order in Firestore
+      const verifyResult = await verifyRazorpayPayment({
+        razorpayOrderId: result.razorpayOrderId || '',
+        razorpayPaymentId: result.paymentId,
+        razorpaySignature: result.razorpaySignature || '',
+        type: 'order',
+        ...orderData,
+      });
+
+      if (verifyResult.verified) {
+        Alert.alert(
+          'Order Placed!',
+          `Your order of ${formatINR(total)} has been placed successfully. You'll receive updates on your order status.`,
+          [{
+            text: 'OK',
+            onPress: () => navigation.navigate('Cart'),
+          }],
+        );
+      } else {
+        Alert.alert('Error', 'Payment verification failed. Please contact support.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not verify payment.');
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
   const inputProps = {
