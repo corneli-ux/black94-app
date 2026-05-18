@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Functions compiled output
+functions/lib/
+
 # Expo
 .expo/
 dist/

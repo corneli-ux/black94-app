@@ -33,6 +33,9 @@ jobs:
       - name: Install functions dependencies
         run: cd functions && npm install
 
+      - name: Build functions (compile TypeScript)
+        run: cd functions && npx tsc
+
       - name: Set Firebase Secrets
         run: |
           echo "${{ secrets.RAZORPAY_KEY_ID }}" | firebase functions:secrets:set RAZORPAY_KEY_ID --project black94 --force
