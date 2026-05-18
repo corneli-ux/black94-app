@@ -31,9 +31,15 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Install dependencies
+        env:
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: npm install
 
       - name: Expo prebuild
+        env:
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: npx expo prebuild --platform android --clean
 
       - name: Fix splashscreen_logo drawable

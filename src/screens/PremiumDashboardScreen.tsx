@@ -257,7 +257,7 @@ export default function PremiumDashboardScreen() {
       setPaymentLoading(false);
       Alert.alert(
         'Payment Unavailable',
-        'Razorpay key not configured. Add razorpayKeyId to app.json extra field.',
+        'Razorpay key not configured. Set the RAZORPAY_KEY_ID environment variable.',
       );
       return;
     }
