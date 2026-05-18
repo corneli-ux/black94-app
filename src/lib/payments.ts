@@ -122,18 +122,34 @@ export async function checkPlanLimit(
     const collectionMap = { post: 'posts', story: 'stories', product: 'products' };
     const collectionName = collectionMap[action];
     
-            let query = firestore()
-          .collection(collectionName)
-          .where('authorId', '==', userId);
-        // For stories, only count non-expired ones (expired stories remain in Firestore)
-        if (action === 'story') {
-          // Use ISO string comparison — our custom firebase.ts returns
-          // timestamps as ISO strings, not Firestore Timestamp objects.
-          query = query.where('expiresAt', '>', new Date().toISOString());
+    let query = firestore()
+      .collection(collectionName)
+      .where('authorId', '==', userId);
+    // For stories, only count non-expired ones (stories are created with createdAt,
+    // NOT expiresAt — so we filter by createdAt > 24h ago on the client side).
+    // We cannot use .where('createdAt', '>', ...) reliably because our custom
+    // firebase.ts stores serverTimestamp() as a sentinel that gets resolved on write,
+    // and the Firestore REST API may not support inequality filters on timestamp fields
+    // without a composite index. Instead, fetch all and filter client-side.
+    const snapshot = await query.get();
+
+    let currentCount = snapshot.docs.length;
+    if (action === 'story') {
+      // Filter client-side: only count stories created in the last 24 hours
+      const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+      currentCount = snapshot.docs.filter((doc: any) => {
+        try {
+          const data = doc.data ? doc.data() : (doc.data || {});
+          const createdAt = data.createdAt;
+          // Handle both ISO string timestamps and numeric timestamps
+          if (typeof createdAt === 'number') return createdAt > twentyFourHoursAgo;
+          if (typeof createdAt === 'string') return new Date(createdAt).getTime() > twentyFourHoursAgo;
+          return false;
+        } catch {
+          return false;
         }
-        const snapshot = await query.get();
-    
-    const currentCount = snapshot.size;
+      }).length;
+    }
     
     if (currentCount >= limits[action]) {
       const actionLabels = { post: 'posts', story: 'stories', product: 'products' };

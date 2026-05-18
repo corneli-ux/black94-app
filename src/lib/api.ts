@@ -583,15 +583,19 @@ export async function votePostPoll(
     votedAt: firestore.FieldValue.serverTimestamp(),
   });
 
-  // Atomically increment vote counts using FieldValue.increment
-  // This avoids the race condition of read-modify-write
-  const currentPoll = await postDoc.get();
+  // Read the post to find which option index to increment.
+  // postDoc was already fetched above (line 574) and is a snapshot { id, exists, data() }.
+  // We need to re-fetch here to get the freshest data (avoid stale read).
+  const freshPostDoc = await postRef.get();
+  if (!freshPostDoc.exists) return null;
+  const currentPoll = freshPostDoc.data()?.pollData;
   if (!currentPoll) return null;
 
   // Find which option index to increment
   const optionIndex = (currentPoll.options || []).findIndex((opt: any) => opt.id === optionId);
   if (optionIndex < 0) return null;
 
+  // Atomically increment vote counts using FieldValue.increment
   await postRef.update({
     [`pollData.options.${optionIndex}.votes`]: firestore.FieldValue.increment(1),
     'pollData.totalVotes': firestore.FieldValue.increment(1),
