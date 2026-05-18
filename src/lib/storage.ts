@@ -59,15 +59,36 @@ export function getFilePath(folder: string, filename: string, uid: string): stri
  * @returns Base64-encoded string (raw, no data-URI prefix)
  */
 async function readFileAsBase64(uri: string, mimeType: string): Promise<string> {
-  // React Native's fetch() does NOT support file:// URIs.
-  // expo-file-system is the correct approach for reading local files.
-  const filePath = uri.startsWith('file://') ? uri.slice(7) : uri;
-
   const { default: FileSystem } = await import('expo-file-system');
-  const base64 = await FileSystem.readAsStringAsync(filePath, {
-    encoding: 'base64' as const,
-  });
-  return base64;
+
+  // expo-file-system v16+ (Expo SDK 54+) accepts full URIs directly
+  // including file://, content://, asset://, and expo-file-system:// URIs.
+  // Stripping the scheme (old approach) breaks content:// URIs on Android
+  // and asset:// URIs on both platforms.
+  //
+  // Strategy:
+  //   1. Try reading the URI directly (works for most cases in SDK 54+)
+  //   2. If that fails with a "not found" error AND the URI starts with file://,
+  //      fall back to stripping file:// (legacy behavior for older SDK versions)
+  try {
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: 'base64' as const,
+    });
+    return base64;
+  } catch (directErr: any) {
+    if (uri.startsWith('file://')) {
+      try {
+        const filePath = uri.slice(7);
+        const base64 = await FileSystem.readAsStringAsync(filePath, {
+          encoding: 'base64' as const,
+        });
+        return base64;
+      } catch {
+        // Fall through to throw original error
+      }
+    }
+    throw directErr;
+  }
 }
 
 /**
@@ -156,10 +177,27 @@ export async function uploadFile(
 
   console.log(`[Storage] Uploading to ${path} (${mimeType}, ${Math.round(base64.length * 0.75)} bytes)`);
 
+  // Decode base64 → binary ArrayBuffer
+  // Firebase Storage expects raw binary bytes — sending base64 as a string
+  // would store the base64 characters as the file content (corrupted image).
+  // Use Buffer.from() (available in React Native) for decoding.
+  let binaryBody: ArrayBuffer;
+  try {
+    const uint8 = typeof Buffer !== 'undefined'
+      ? new Uint8Array(Buffer.from(base64, 'base64'))
+      : Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    // Ensure clean ArrayBuffer copy (avoid SharedArrayBuffer views)
+    binaryBody = uint8.buffer.byteLength === uint8.byteLength
+      ? uint8.buffer
+      : uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength);
+  } catch (e) {
+    throw new Error(`Failed to decode base64 for upload: ${e}`);
+  }
+
   const uploadUrl = `${STORAGE_BASE}?name=${encodedPath}&uploadType=media`;
 
   if (onProgress) {
-    return uploadWithProgress(uploadUrl, base64, mimeType, path, onProgress);
+    return uploadWithProgress(uploadUrl, binaryBody, base64, mimeType, path, onProgress);
   }
 
   return withRetry(async (token) => {
@@ -169,7 +207,7 @@ export async function uploadFile(
         'Authorization': `Bearer ${token}`,
         'Content-Type': mimeType,
       },
-      body: base64,
+      body: binaryBody,
     });
 
     if (!resp.ok) {
@@ -197,6 +235,7 @@ export async function uploadFile(
  */
 function uploadWithProgress(
   url: string,
+  binaryBody: ArrayBuffer,
   base64: string,
   mimeType: string,
   path: string,
@@ -236,7 +275,7 @@ function uploadWithProgress(
         // Retry with a fresh token
         try {
           const token = await getValidToken();
-          const result = await uploadWithProgressRetry(url, base64, mimeType, path, token, onProgress);
+          const result = await uploadWithProgressRetry(url, binaryBody, mimeType, path, token, onProgress);
           resolve(result);
         } catch (retryErr: any) {
           reject(retryErr);
@@ -250,11 +289,11 @@ function uploadWithProgress(
 
     xhr.onerror = () => reject(new Error('Network error during upload'));
 
-    // Set real auth header and send
+    // Set real auth header and send binary data (not base64 string)
     getValidToken()
       .then(token => {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.send(base64);
+        xhr.send(binaryBody);
       })
       .catch(err => reject(err));
   });
@@ -265,7 +304,7 @@ function uploadWithProgress(
  */
 function uploadWithProgressRetry(
   url: string,
-  base64: string,
+  binaryBody: ArrayBuffer,
   mimeType: string,
   path: string,
   token: string,
@@ -305,7 +344,7 @@ function uploadWithProgressRetry(
     };
 
     xhr.onerror = () => reject(new Error('Network error during upload retry'));
-    xhr.send(base64);
+    xhr.send(binaryBody);
   });
 }
 

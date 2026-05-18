@@ -57,6 +57,7 @@ export interface Post {
   liked: boolean;
   bookmarked: boolean;
   reposted: boolean;
+  pollVoted?: boolean;
   createdAt: number;
   factCheckVerified?: number;
   factCheckDebunked?: number;

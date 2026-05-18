@@ -2,10 +2,11 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, Dimensions, Share, Image,
+  RefreshControl, ActivityIndicator, Alert, Share, Image,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
+import { scale, verticalScale as vs, moderateScale as ms, fontScale as fs } from '../theme/responsive';
 import { fetchFeed, toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
@@ -13,7 +14,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const SCREEN_W = scale(390);
 
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
 function RepostIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
@@ -99,14 +100,22 @@ function InlinePoll({ post }: { post: Post }) {
   const currentUser = auth()?.currentUser;
   const poll = post.pollData;
   const [localPoll, setLocalPoll] = useState<PostPollData | null>(poll || null);
-  const [voted, setVoted] = useState(false);
+  // Initialize voted state from post.pollVoted (batch-checked during feed load)
+  // so it survives re-renders instead of resetting to false every time.
+  const [voted, setVoted] = useState(!!post.pollVoted);
   const [voting, setVoting] = useState(false);
 
-  // Sync when post prop changes
+  // Sync poll data when post prop changes, but preserve voted state
+  // unless this is a genuinely new post (different ID).
+  const prevPostIdRef = React.useRef(post.id);
   React.useEffect(() => {
+    if (prevPostIdRef.current !== post.id) {
+      // New post — reset voted state from the new post's pollVoted flag
+      setVoted(!!post.pollVoted);
+      prevPostIdRef.current = post.id;
+    }
     setLocalPoll(poll || null);
-    setVoted(false);
-  }, [poll]);
+  }, [poll, post.id, post.pollVoted]);
 
   const totalVotes = localPoll?.totalVotes || 0;
 
@@ -619,6 +628,34 @@ export default function FeedScreen({ navigation }: any) {
           post.bookmarked = bookmarkedIds.has(post.id);
           post.reposted = repostedIds.has(post.id);
         }
+
+        // Batch check poll votes for posts that have polls
+        const pollPostIds = newPosts.filter(p => p.pollData).map(p => p.id);
+        if (pollPostIds.length > 0) {
+          const pollVotedIds = new Set<string>();
+          // poll_votes is a subcollection under each post doc
+          // Check each poll post individually (subcollection queries can't be batched across parents)
+          await Promise.all(
+            pollPostIds.map(async (postId) => {
+              try {
+                const voteDoc = await firestore()
+                  .collection('posts').doc(postId)
+                  .collection('poll_votes').doc(userId)
+                  .get();
+                if (voteDoc.exists) {
+                  pollVotedIds.add(postId);
+                }
+              } catch (e) {
+                console.warn(`[Feed] Failed to check poll vote for post ${postId}:`, e);
+              }
+            })
+          );
+          for (const post of newPosts) {
+            if (post.pollData) {
+              post.pollVoted = pollVotedIds.has(post.id);
+            }
+          }
+        }
       }
 
       if (append) {
@@ -883,8 +920,8 @@ const styles = StyleSheet.create({
   /* ── Header ── */
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10,
-    height: 56,
+    paddingHorizontal: scale(20), paddingTop: scale(8), paddingBottom: scale(10),
+    height: scale(56),
     borderBottomWidth: 0.5, borderBottomColor: colors.separator,
     backgroundColor: colors.bg,
   },
@@ -907,7 +944,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   tabText: {
-    fontSize: 15,
+    fontSize: fs(15),
   },
   tabTextActive: {
     color: '#ffffff',
@@ -968,23 +1005,23 @@ const styles = StyleSheet.create({
   displayName: {
     color: '#e7e9ea',
     fontWeight: '700',
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: fs(15),
+    lineHeight: vs(20),
   },
   username: {
     color: '#71767b',
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: fs(15),
+    lineHeight: vs(20),
   },
   dot: {
     color: '#71767b',
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: fs(15),
+    lineHeight: vs(20),
   },
   time: {
     color: '#71767b',
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: fs(15),
+    lineHeight: vs(20),
   },
   moreBtn: {
     position: 'absolute',
@@ -996,15 +1033,15 @@ const styles = StyleSheet.create({
   },
   caption: {
     color: '#e7e9ea',
-    fontSize: 15,
-    lineHeight: 20,
-    marginTop: 4,
+    fontSize: fs(15),
+    lineHeight: vs(20),
+    marginTop: scale(4),
   },
   seeMoreText: {
     color: colors.accent,
-    fontSize: 15,
-    lineHeight: 20,
-    marginTop: 4,
+    fontSize: fs(15),
+    lineHeight: vs(20),
+    marginTop: scale(4),
   },
   mediaContainer: {
     marginTop: 12,
@@ -1015,7 +1052,7 @@ const styles = StyleSheet.create({
   },
   media: {
     width: '100%',
-    height: Math.min(SCREEN_W * 0.85, 510),
+    height: Math.min(SCREEN_W * 0.85, vs(510)),
     backgroundColor: '#000000',
   },
 
@@ -1025,7 +1062,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     marginLeft: -4,
-    maxWidth: 440,
+    maxWidth: scale(440),
     justifyContent: 'space-between',
   },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
@@ -1036,9 +1073,9 @@ const styles = StyleSheet.create({
   },
   actionCount: {
     color: '#71767b',
-    fontSize: 13,
-    lineHeight: 16,
-    marginLeft: 1,
+    fontSize: fs(13),
+    lineHeight: vs(16),
+    marginLeft: scale(1),
   },
 
   /* ── Heart overlay ── */
@@ -1159,7 +1196,29 @@ const styles = StyleSheet.create({
     padding: 14,
     backgroundColor: 'rgba(212,175,55,0.04)',
   },
-  pollQuestion: {
+  pollQuestion: { color: '#e7e9ea', fontSize: fs(15), fontWeight: '600' },
+  pollOptionBtn: {
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: scale(20), paddingVertical: scale(12), paddingHorizontal: scale(16),
+    backgroundColor: 'rgba(255,255,255,0.04)', marginBottom: scale(8), overflow: 'hidden', position: 'relative', minHeight: scale(44), justifyContent: 'center',
+  },
+  pollOptionVoted: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  pollOptionFill: { position: 'absolute', top: 0, left: 0, bottom: 0, backgroundColor: 'rgba(42,127,255,0.35)', borderRadius: scale(20) },
+  pollOptionFillSelected: { backgroundColor: 'rgba(42,127,255,0.5)' },
+  pollOptionContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 },
+  pollOptionText: { color: '#e7e9ea', fontSize: fs(15), lineHeight: vs(20) },
+  pollOptionTextSelected: { color: '#ffffff', fontWeight: '600' },
+  pollOptionPercent: { color: '#71767b', fontSize: fs(13) },
+  pollTotalVotes: { color: '#71767b', fontSize: fs(13), marginTop: scale(8) },
+  pollCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: scale(16), padding: scale(16), marginTop: scale(12), borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  adCtaBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.accentGold, borderRadius: scale(16),
+    paddingHorizontal: scale(16), paddingVertical: scale(8), marginTop: scale(10),
+  },
+  adCtaText: { color: '#000000', fontSize: fs(14), fontWeight: '700' },
+  adSponsored: { color: '#71767b', fontSize: fs(11), marginTop: scale(6) },
+  pollQuestionOriginal: {
     color: colors.text,
     fontSize: 15,
     fontWeight: '700',
