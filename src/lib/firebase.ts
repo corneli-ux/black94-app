@@ -764,3 +764,8 @@ export {
 export { _getValidToken as getValidToken };
 export { _restoreAuth as restoreAuth };
 export { _persistAuth as persistAuth };
+
+/** Force-invalidate the cached ID token so the next getValidToken() call does a fresh refresh. */
+export function _invalidateTokenCache(): void {
+  _idToken = null;
+}

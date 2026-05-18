@@ -248,10 +248,18 @@ const CreatePostScreen: React.FC = () => {
     }
 
     // Check plan limits for free users
-    const planCheck = await checkPlanLimit(user?.id || '', 'post');
-    if (!planCheck.allowed) {
-      Alert.alert('Limit Reached', planCheck.reason || 'Upgrade your plan to create more posts.');
-      return;
+    let planAllowed = true;
+    try {
+      const planCheck = await checkPlanLimit(user?.id || '', 'post');
+      if (!planCheck.allowed) {
+        Alert.alert('Limit Reached', planCheck.reason || 'Upgrade your plan to create more posts.');
+        return;
+      }
+    } catch (e) {
+      // If plan check fails (network, auth), allow the post to continue
+      // rather than silently failing. The server-side rules will enforce limits.
+      console.warn('[CreatePost] Plan limit check failed, allowing post:', e);
+      planAllowed = true;
     }
 
     setPosting(true);
@@ -303,7 +311,7 @@ const CreatePostScreen: React.FC = () => {
             next[i] = 'failed';
             return next;
           });
-          console.error(`[CreatePost] Image ${i + 1} upload failed:`, err);
+          console.error(`[CreatePost] Image ${i + 1} upload failed:`, err?.message || err);
           return null; // Signal failure but don't throw
         }
       });

@@ -325,10 +325,31 @@ export default function StoriesScreen({ navigation }: any) {
       setUploading(true);
 
       // Upload image to Firebase Storage first (Firestore has 1MB doc limit — no inline base64)
-      const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
-      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
-        mimeType: 'image/jpeg',
-      });
+      // Retry up to 2 times on failure (handles transient auth/network issues)
+      let uploadResult: any = null;
+      let uploadSuccess = false;
+      for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
+        try {
+          const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
+          uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+            mimeType: 'image/jpeg',
+          });
+          uploadSuccess = true;
+          break;
+        } catch (uploadErr: any) {
+          console.warn(`[StoriesScreen] Upload attempt ${uploadAttempt + 1} failed:`, uploadErr?.message || uploadErr);
+          if (uploadAttempt < 2) {
+            // Try invalidating the token cache before retrying
+            try {
+              const { _invalidateTokenCache } = await import('../lib/firebase');
+              _invalidateTokenCache();
+            } catch {}
+          }
+        }
+      }
+      if (!uploadSuccess || !uploadResult) {
+        throw new Error('Image upload failed after retries');
+      }
 
       const storyData = {
         authorId: currentUser.uid,
@@ -373,10 +394,30 @@ export default function StoriesScreen({ navigation }: any) {
       setUploading(true);
 
       // Upload image to Firebase Storage first
-      const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
-      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
-        mimeType: 'image/jpeg',
-      });
+      // Retry up to 2 times on failure (handles transient auth/network issues)
+      let uploadResult: any = null;
+      let uploadSuccess = false;
+      for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
+        try {
+          const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
+          uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+            mimeType: 'image/jpeg',
+          });
+          uploadSuccess = true;
+          break;
+        } catch (uploadErr: any) {
+          console.warn(`[StoriesScreen] Camera upload attempt ${uploadAttempt + 1} failed:`, uploadErr?.message || uploadErr);
+          if (uploadAttempt < 2) {
+            try {
+              const { _invalidateTokenCache } = await import('../lib/firebase');
+              _invalidateTokenCache();
+            } catch {}
+          }
+        }
+      }
+      if (!uploadSuccess || !uploadResult) {
+        throw new Error('Camera upload failed after retries');
+      }
 
       const storyData = {
         authorId: currentUser.uid,

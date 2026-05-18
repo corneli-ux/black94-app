@@ -33,6 +33,22 @@
 
 import { getValidToken } from '../lib/firebase';
 
+/** Reference to the firebase module for token cache invalidation */
+let _firebaseModule: any = null;
+async function _invalidateTokenAndRetry(): Promise<string> {
+  // Dynamic import to avoid circular dependency
+  if (!_firebaseModule) {
+    _firebaseModule = await import('../lib/firebase');
+  }
+  // Force-invalidate the cached token so the next getValidToken() call
+  // does a fresh refresh instead of returning a stale cached token.
+  // The firebase module exports _invalidateTokenCache for this purpose.
+  if (typeof _firebaseModule._invalidateTokenCache === 'function') {
+    _firebaseModule._invalidateTokenCache();
+  }
+  return getValidToken();
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -254,7 +270,12 @@ export async function uploadOptimizedImage(
       }
 
       // Step 1: Get an auth token for the upload
-      const token = await getValidToken();
+      // On retry attempts (attempt > 0), invalidate the cached token first
+      // to force a fresh refresh — the previous token may have expired
+      // between the failed attempt and now.
+      const token = attempt > 0
+        ? await _invalidateTokenAndRetry()
+        : await getValidToken();
 
       // Step 2: Initiate a resumable upload session
       // POST to the storage endpoint with object metadata
@@ -282,6 +303,13 @@ export async function uploadOptimizedImage(
         const error: any = new Error(`Failed to initiate upload: ${initiateResponse.status}`);
         error.status = initiateResponse.status;
         error.body = errorBody;
+        // 401 = auth token expired — invalidate and retry immediately
+        if (initiateResponse.status === 401 && attempt < maxRetries) {
+          if (__DEV__) console.log('[imageUpload] 401 on initiate — invalidating token and retrying');
+          const retryDelay = getRetryDelay(attempt);
+          await delay(retryDelay);
+          continue; // Skip to next retry iteration
+        }
         throw error;
       }
 
@@ -390,22 +418,40 @@ export async function uploadOptimizedImage(
     } catch (err: any) {
       lastError = err;
 
-      // Don't retry if the error is not retryable or we've exhausted retries
-      if (!isRetryableError(err) || attempt >= maxRetries) {
-        break;
-      }
-
       // Don't retry aborted uploads
       if (abortSignal?.aborted || err.message === 'Upload aborted') {
         break;
       }
 
-      const retryDelay = getRetryDelay(attempt);
-      console.warn(
-        `[imageUpload] Upload attempt ${attempt + 1} failed: ${err.message}. ` +
-        `Retrying in ${retryDelay}ms...`,
+      // Auth errors ('Not authenticated', 'Session expired', 'Token refresh failed')
+      // are retryable by invalidating the token cache and forcing a fresh refresh.
+      // These errors have no .status property since they come from getValidToken().
+      const isAuthError = !err.status && (
+        err.message?.includes('Not authenticated') ||
+        err.message?.includes('Session expired') ||
+        err.message?.includes('Token refresh') ||
+        err.message?.includes('sign in again')
       );
-      await delay(retryDelay);
+
+      // Don't retry if we've exhausted retries
+      if (attempt >= maxRetries) {
+        break;
+      }
+
+      // Retry on auth errors (will invalidate token at top of loop)
+      // or on retryable HTTP errors
+      if (isAuthError || isRetryableError(err)) {
+        const retryDelay = getRetryDelay(attempt);
+        console.warn(
+          `[imageUpload] Upload attempt ${attempt + 1} failed: ${err.message}. ` +
+          `Retrying in ${retryDelay}ms...`,
+        );
+        await delay(retryDelay);
+        continue; // Retry
+      }
+
+      // Non-retryable error (e.g., 403 forbidden, 404 not found)
+      break;
     }
   }
 

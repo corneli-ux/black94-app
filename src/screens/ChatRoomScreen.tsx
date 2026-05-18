@@ -131,11 +131,34 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     try {
       await sendMessage(chat.id, chat.otherUser?.id || '', content);
       await load(true);
-    } catch (e) {
-      console.error('[ChatRoom] Send failed:', e);
+    } catch (e: any) {
+      console.error('[ChatRoom] Send failed:', e?.message || e);
       // Roll back the optimistic temp message
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-      Alert.alert('Send Failed', 'Could not send your message. Please try again.');
+
+      // If it looks like an auth error, try once more with a fresh token
+      const isAuthError = e?.message?.includes('Not authenticated') ||
+        e?.message?.includes('Session expired') ||
+        e?.message?.includes('sign in again') ||
+        e?.message?.includes('permission');
+      if (isAuthError) {
+        console.log('[ChatRoom] Auth error on send — retrying with fresh token...');
+        try {
+          const { _invalidateTokenCache } = await import('../lib/firebase');
+          _invalidateTokenCache();
+        } catch {}
+        try {
+          await sendMessage(chat.id, chat.otherUser?.id || '', content);
+          // Re-add the temp message and reload
+          setMessages(prev => [...prev, tempMsg]);
+          await load(true);
+        } catch (retryErr: any) {
+          console.error('[ChatRoom] Retry also failed:', retryErr?.message || retryErr);
+          Alert.alert('Send Failed', 'Could not send your message. Please check your connection and try again.');
+        }
+      } else {
+        Alert.alert('Send Failed', 'Could not send your message. Please try again.');
+      }
     } finally {
       setSending(false);
     }
