@@ -33,6 +33,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { firestore, auth } from '../lib/firebase';
+import { encryptMessage, decryptMessage, initE2EE } from '../lib/e2ee';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../stores/app';
@@ -149,6 +150,13 @@ export default function AnonymousChatScreen() {
   const mountedRef = useRef(true);
   const lastMsgTimestampRef = useRef<string | null>(null);
   const roomRef = useRef<RoomData | null>(null);
+
+  // ── Initialize E2EE on mount ──
+  useEffect(() => {
+    if (myUserId) {
+      initE2EE(myUserId).catch(() => {});
+    }
+  }, [myUserId]);
 
   // ── Store & Navigation ────────────────────────────────────────────────────
   const { user } = useAppStore();
@@ -471,16 +479,31 @@ export default function AnonymousChatScreen() {
           .get();
 
         if (!snapshot.empty && mountedRef.current) {
-          const newMessages: AnonMessage[] = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              content: data.content || '',
-              senderId: data.senderId || '',
-              senderName: data.senderName || 'Stranger',
-              createdAt: data.createdAt || '',
-            };
-          });
+          // Decrypt all messages in parallel
+          const newMessages: AnonMessage[] = await Promise.all(
+            snapshot.docs.map(async doc => {
+              const data = doc.data();
+              const rawContent = data.content || '';
+              const senderId = data.senderId || '';
+
+              // Attempt E2E decryption; falls back to raw for legacy messages
+              let content: string;
+              try {
+                const decrypted = await decryptMessage(rawContent, senderId);
+                content = decrypted ?? rawContent;
+              } catch {
+                content = rawContent;
+              }
+
+              return {
+                id: doc.id,
+                content,
+                senderId,
+                senderName: data.senderName || 'Stranger',
+                createdAt: data.createdAt || '',
+              };
+            }),
+          );
 
           setMessages(prev => {
             // Merge: keep existing, add new ones
@@ -680,11 +703,25 @@ export default function AnonymousChatScreen() {
     await setMyTypingState(room.roomId, false);
 
     try {
+      // ── E2E Encryption for anonymous chat ──
+      const otherId = room.partnerId;
+      let storedContent: string;
+      try {
+        if (otherId) {
+          const encrypted = await encryptMessage(content, myUserId, otherId);
+          storedContent = encrypted ?? content;
+        } else {
+          storedContent = content;
+        }
+      } catch {
+        storedContent = content;
+      }
+
       await firestore().collection('anonMessages').add({
         roomId: room.roomId,
         senderId: myUserId,
         senderName: myName,
-        content,
+        content: storedContent,
         createdAt: nowISO(),
       });
 

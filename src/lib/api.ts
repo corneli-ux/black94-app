@@ -1,5 +1,12 @@
 import { auth, firestore, onAuthStateChanged, signInWithGoogleIdToken, signOut } from './firebase';
 import { createNotification } from '../services/notificationEngine';
+import {
+  initE2EE,
+  encryptMessage,
+  decryptMessage,
+  encryptedPreviewText,
+  isE2EEReady,
+} from './e2ee';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -187,6 +194,10 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       isVerified: existingData?.isVerified || false,
       createdAt,
     };
+
+    // ── Initialize E2EE: generate/publish identity key pair (non-blocking) ──
+    initE2EE(fbUser.uid).catch(e => console.warn('[E2EE] Background init failed:', e));
+
   } catch (error: any) {
     if (error?.code === '12501') return null;
     console.error('[Auth] Google sign-in error:', error);
@@ -680,17 +691,34 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
       .limit(limitCount)
       .get();
 
-    return snapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        chatId,
-        senderId: data.senderId || '',
-        receiverId: data.receiverId || '',
-        content: data.content || '',
-        createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-      };
-    });
+    // Decrypt all messages in parallel (async per message)
+    const messages = await Promise.all(
+      snapshot.docs.map(async (docSnap) => {
+        const data = docSnap.data();
+        const rawContent = data.content || '';
+        const senderId = data.senderId || '';
+
+        // Attempt E2E decryption; falls back to raw content for legacy messages
+        let content: string;
+        try {
+          const decrypted = await decryptMessage(rawContent, senderId);
+          content = decrypted ?? rawContent;
+        } catch {
+          content = rawContent;
+        }
+
+        return {
+          id: docSnap.id,
+          chatId,
+          senderId,
+          receiverId: data.receiverId || '',
+          content,
+          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+        };
+      }),
+    );
+
+    return messages;
   } catch (e) {
     console.error('[Messages] Failed:', e);
     return [];
@@ -715,18 +743,27 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     console.warn('[Messages] Block check failed, allowing message:', e);
   }
 
+  // ── E2E Encryption: encrypt content before storing ──
+  let storedContent: string;
+  try {
+    const encrypted = await encryptMessage(content, userId, receiverId);
+    storedContent = encrypted ?? content; // fallback to plaintext if E2EE not ready
+  } catch {
+    storedContent = content;
+  }
+
   await firestore().collection('chats').doc(chatId).collection('messages').add({
     chatId,
     senderId: userId,
     receiverId,
-    content,
+    content: storedContent,
     messageType: 'text',
     status: 'sent',
     createdAt: firestore.FieldValue.serverTimestamp(),
   });
 
   // Increment unread count for receiver, reset sender's unread to 0
-  // Store lastMessage as plain text for the chat list preview (not encrypted)
+  // lastMessage preview is now a privacy-safe placeholder (no plaintext leak)
   const chatDoc = await firestore().collection('chats').doc(chatId).get();
   const chatData = chatDoc.exists ? chatDoc.data() : null;
   const senderIsUser1 = chatData?.user1Id === userId;
@@ -734,7 +771,7 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   const receiverUnreadField = senderIsUser1 ? 'unreadUser2' : 'unreadUser1';
 
   await firestore().collection('chats').doc(chatId).update({
-    lastMessage: content,
+    lastMessage: storedContent.startsWith('E2EE:') ? encryptedPreviewText() : content,
     lastMessageTime: firestore.FieldValue.serverTimestamp(),
     [receiverUnreadField]: firestore.FieldValue.increment(1),
     [senderUnreadField]: 0,

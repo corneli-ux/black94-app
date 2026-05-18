@@ -4,6 +4,7 @@ import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, blockUser, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
+import { initE2EE, isE2EEReady } from '../lib/e2ee';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,10 +27,22 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [showMenu, setShowMenu] = useState(false);
   const [showNuclearConfirm, setShowNuclearConfirm] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  const [e2eeReady, setE2eeReady] = useState(false);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const insets = useSafeAreaInsets();
+
+  // ── Initialize E2EE & check encryption status ──
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    initE2EE(currentUser.uid).catch(() => {});
+  }, [currentUser?.uid]);
+
+  useEffect(() => {
+    if (!chat?.otherUser?.id || !currentUser?.uid) return;
+    isE2EEReady(chat.otherUser.id).then(setE2eeReady).catch(() => {});
+  }, [chat?.otherUser?.id, currentUser?.uid]);
 
   // If chatId was passed (e.g., from UserProfileScreen), fetch the chat doc
   useEffect(() => {
@@ -183,10 +196,18 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           <>
             <Avatar uri={chat.otherUser?.profileImage} name={chat.otherUser?.displayName} size={36} />
             <View style={{ marginLeft: 10, flex: 1 }}>
-              <Text style={styles.headerName} numberOfLines={1}>
-                {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.headerName} numberOfLines={1}>
+                  {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
+                </Text>
+                {e2eeReady && (
+                  <Ionicons name="lock-closed" size={14} color="#4ade80" style={{ marginLeft: 6 }} />
+                )}
+              </View>
+              <Text style={styles.headerHandle}>
+                @{chat.otherUser?.username}
+                {e2eeReady ? ' · End-to-end encrypted' : ''}
               </Text>
-              <Text style={styles.headerHandle}>@{chat.otherUser?.username}</Text>
             </View>
           </>
         ) : (

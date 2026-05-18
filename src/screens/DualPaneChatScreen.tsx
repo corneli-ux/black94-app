@@ -27,6 +27,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { firestore, auth } from '../lib/firebase';
 import { fetchUserProfile, blockUser } from '../lib/api';
+import { encryptMessage, decryptMessage, encryptedPreviewText } from '../lib/e2ee';
 import { colors } from '../theme/colors';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -212,20 +213,37 @@ export default function DualPaneChatScreen({ navigation }: any) {
           .limit(50)
           .get();
 
-        const msgs = snap.docs
-          .map((doc) => ({
-            id: doc.id,
-            chatId: doc.data().chatId ?? '',
-            senderId: doc.data().senderId ?? '',
-            receiverId: doc.data().receiverId ?? '',
-            content: doc.data().content ?? '',
-            messageType: doc.data().messageType ?? 'text',
-            mediaUrl: doc.data().mediaUrl ?? null,
-            status: doc.data().status ?? 'sent',
-            createdAt: tsToISO(doc.data().createdAt),
-          }))
-          .reverse();
+        // Decrypt all messages in parallel
+        const msgs = await Promise.all(
+          snap.docs.map(async (doc) => {
+            const data = doc.data();
+            const rawContent = data.content ?? '';
+            const senderId = data.senderId ?? '';
 
+            // Attempt E2E decryption; falls back to raw for legacy messages
+            let content: string;
+            try {
+              const decrypted = await decryptMessage(rawContent, senderId);
+              content = decrypted ?? rawContent;
+            } catch {
+              content = rawContent;
+            }
+
+            return {
+              id: doc.id,
+              chatId: data.chatId ?? '',
+              senderId,
+              receiverId: data.receiverId ?? '',
+              content,
+              messageType: data.messageType ?? 'text',
+              mediaUrl: data.mediaUrl ?? null,
+              status: data.status ?? 'sent',
+              createdAt: tsToISO(data.createdAt),
+            };
+          }),
+        );
+
+        msgs.reverse();
         setMessages(msgs);
       } catch (err) {
         console.warn('[DualPaneChatScreen] msg poll error:', err);
@@ -256,13 +274,24 @@ export default function DualPaneChatScreen({ navigation }: any) {
   }, [messages.length]);
 
   // ── Send message ───────────────────────────────────────────────────────
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     if (!messageText.trim() || !selectedChat || !currentUserId) return;
 
     const otherId =
       selectedChat.user1Id === currentUserId
         ? selectedChat.user2Id
         : selectedChat.user1Id;
+
+    const plainText = messageText.trim();
+
+    // ── E2E Encryption ──
+    let storedContent: string;
+    try {
+      const encrypted = await encryptMessage(plainText, currentUserId, otherId);
+      storedContent = encrypted ?? plainText;
+    } catch {
+      storedContent = plainText;
+    }
 
     firestore()
       .collection('chats')
@@ -272,20 +301,20 @@ export default function DualPaneChatScreen({ navigation }: any) {
         chatId: selectedChat.id,
         senderId: currentUserId,
         receiverId: otherId,
-        content: messageText.trim(),
+        content: storedContent,
         messageType: 'text',
         mediaUrl: null,
         status: 'sent',
         createdAt: firestore.FieldValue.serverTimestamp(),
       })
       .then(() => {
-        // Update lastMessage and lastMessageTime so chat sorts to top
+        // Update lastMessage — use encrypted preview if E2EE, else plaintext
         firestore()
           .collection('chats')
           .doc(selectedChat.id)
           .update({
             updatedAt: firestore.FieldValue.serverTimestamp(),
-            lastMessage: messageText.trim(),
+            lastMessage: storedContent.startsWith('E2EE:') ? encryptedPreviewText() : plainText,
             lastMessageTime: firestore.FieldValue.serverTimestamp(),
           })
           .catch(() => {});
