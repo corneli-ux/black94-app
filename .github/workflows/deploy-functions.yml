@@ -43,4 +43,4 @@ jobs:
           echo "${{ secrets.RAZORPAY_WEBHOOK_SECRET }}" | firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET --project black94 --force
 
       - name: Deploy Cloud Functions
-        run: firebase deploy --only functions --project black94
+        run: firebase deploy --only functions --project black94 --force
