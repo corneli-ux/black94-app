@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, VerifiedBadge } from './Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import { CommentData, fetchPostComments, addPostComment, toggleCommentLike } from '../lib/api';
+import { CommentData, fetchPostComments, addPostComment, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -171,7 +171,14 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                           <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
                         </View>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.commentActionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
+                      <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
+                        const wasReposted = repostMap[item.id] || false;
+                        setRepostMap(prev => ({ ...prev, [item.id]: !wasReposted }));
+                        // Persist to Firestore (fire-and-forget)
+                        toggleCommentRepost(item.id, wasReposted).catch(() => {
+                          setRepostMap(prev => ({ ...prev, [item.id]: wasReposted }));
+                        });
+                      }}>
                         <View style={styles.actionIconWrap}>
                           {repostMap[item.id] ? <RepostIcon size={18} color="#10b981" /> : <RepostIcon size={18} color="#94a3b8" />}
                         </View>
@@ -188,13 +195,26 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                           <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={18} color={likeMap[item.id] ? "#f43f5e" : "#94a3b8"} />
                         </View>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.commentActionBtn} disabled>
+                      {/* Share — opens native share sheet */}
+                      <TouchableOpacity style={styles.commentActionBtn} onPress={() => {
+                        try {
+                          const { Share } = require('react-native');
+                          Share.share({ message: item.content.slice(0, 200) });
+                        } catch {}
+                      }}>
                         <View style={styles.actionIconWrap}>
-                          <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+                          <Ionicons name="share-outline" size={18} color="#94a3b8" />
                         </View>
                       </TouchableOpacity>
                       <View style={styles.actionPair}>
-                        <TouchableOpacity style={styles.commentActionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [item.id]: !prev[item.id] }))}>
+                        <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
+                          const wasBookmarked = bookmarkMap[item.id] || false;
+                          setBookmarkMap(prev => ({ ...prev, [item.id]: !wasBookmarked }));
+                          // Persist to Firestore (fire-and-forget)
+                          toggleCommentBookmark(item.id, wasBookmarked).catch(() => {
+                            setBookmarkMap(prev => ({ ...prev, [item.id]: wasBookmarked }));
+                          });
+                        }}>
                           <View style={styles.actionIconWrap}>
                             <Ionicons name={bookmarkMap[item.id] ? "bookmark" : "bookmark-outline"} size={18} color={bookmarkMap[item.id] ? "#ffffff" : "#94a3b8"} />
                           </View>

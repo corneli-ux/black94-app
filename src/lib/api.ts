@@ -1163,6 +1163,110 @@ export async function toggleCommentLike(commentId: string, currentlyLiked: boole
   }
 }
 
+/**
+ * Toggles a repost on a comment. Uses a Firestore subcollection
+ * `post_comments/{commentId}/reposts/{userId}` as the source of truth.
+ *
+ * Suggested Firestore security rules:
+ *   match /post_comments/{commentId}/reposts/{userId} {
+ *     allow read: if request.auth != null;
+ *     allow create: if request.auth != null && request.auth.uid == userId;
+ *     allow delete: if request.auth != null && request.auth.uid == userId;
+ *   }
+ */
+export async function toggleCommentRepost(commentId: string, currentlyReposted: boolean): Promise<boolean> {
+  const userId = currentUser()?.uid;
+  if (!userId) return false;
+
+  const repostRef = firestore().collection('post_comments').doc(commentId).collection('reposts').doc(userId);
+
+  try {
+    if (currentlyReposted) {
+      await repostRef.delete();
+      await firestore().collection('post_comments').doc(commentId).update({
+        repostCount: firestore.FieldValue.increment(-1),
+      });
+      if (__DEV__) console.log(`[CommentRepost] Removed repost on comment ${commentId}`);
+      return false;
+    } else {
+      await repostRef.set({
+        userId,
+        repostedAt: firestore.FieldValue.serverTimestamp(),
+      });
+      await firestore().collection('post_comments').doc(commentId).update({
+        repostCount: firestore.FieldValue.increment(1),
+      });
+
+      // ── Notification: tell comment author someone reposted their comment ──
+      try {
+        const commentDoc = await firestore().collection('post_comments').doc(commentId).get();
+        const commentData = commentDoc.exists ? commentDoc.data() : null;
+        const commentAuthorId = commentData?.authorId;
+        if (commentAuthorId && commentAuthorId !== userId) {
+          const myDoc = await firestore().collection('users').doc(userId).get();
+          const myData = myDoc.exists ? myDoc.data() : null;
+          createNotification({
+            recipientId: commentAuthorId,
+            type: 'repost',
+            actorId: userId,
+            actorDisplayName: myData?.displayName || '',
+            actorUsername: myData?.username || '',
+            actorProfileImage: myData?.profileImage || null,
+            actorIsVerified: myData?.isVerified || false,
+            actorBadge: myData?.badge || '',
+            commentId,
+            commentContent: (commentData?.content || '').slice(0, 80),
+          });
+        }
+      } catch (e) {
+        console.warn('[CommentRepost] Notification fire-and-forget failed:', e);
+      }
+
+      if (__DEV__) console.log(`[CommentRepost] Added repost on comment ${commentId}`);
+      return true;
+    }
+  } catch (e) {
+    console.error('[CommentRepost] Failed to toggle repost:', e);
+    return currentlyReposted; // Return unchanged on error
+  }
+}
+
+/**
+ * Toggles a bookmark on a comment. Uses a Firestore subcollection
+ * `post_comments/{commentId}/bookmarks/{userId}` as the source of truth.
+ *
+ * Suggested Firestore security rules:
+ *   match /post_comments/{commentId}/bookmarks/{userId} {
+ *     allow read: if request.auth != null;
+ *     allow create: if request.auth != null && request.auth.uid == userId;
+ *     allow delete: if request.auth != null && request.auth.uid == userId;
+ *   }
+ */
+export async function toggleCommentBookmark(commentId: string, currentlyBookmarked: boolean): Promise<boolean> {
+  const userId = currentUser()?.uid;
+  if (!userId) return false;
+
+  const bookmarkRef = firestore().collection('post_comments').doc(commentId).collection('bookmarks').doc(userId);
+
+  try {
+    if (currentlyBookmarked) {
+      await bookmarkRef.delete();
+      if (__DEV__) console.log(`[CommentBookmark] Removed bookmark on comment ${commentId}`);
+      return false;
+    } else {
+      await bookmarkRef.set({
+        userId,
+        bookmarkedAt: firestore.FieldValue.serverTimestamp(),
+      });
+      if (__DEV__) console.log(`[CommentBookmark] Added bookmark on comment ${commentId}`);
+      return true;
+    }
+  } catch (e) {
+    console.error('[CommentBookmark] Failed to toggle bookmark:', e);
+    return currentlyBookmarked; // Return unchanged on error
+  }
+}
+
 /* ── Follow-up System ──────────────────────────────────────────────────── */
 
 /**
