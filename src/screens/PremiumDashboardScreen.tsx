@@ -338,10 +338,11 @@ export default function PremiumDashboardScreen() {
                       const uid = auth()?.currentUser?.uid;
                       if (!uid) return;
 
-                      // Update user subscription back to free
+                      // Update user subscription back to free and remove business role
                       await firestore().collection('users').doc(uid).update({
                         subscription: 'free',
-                        role: user.role === 'business' ? 'business' : user.role,
+                        badge: '',
+                        role: '',  // Clear role — custom firebase.ts doesn't support FieldValue.delete()
                         updatedAt: firestore.FieldValue.serverTimestamp(),
                       });
 
@@ -735,7 +736,7 @@ export default function PremiumDashboardScreen() {
             <Text style={styles.modalDesc}>
               {activatedPlan?.id === 'business'
                 ? 'Your Business plan is now active. You\'ve been upgraded with a Gold badge, Business role, and 2 free affiliate badges.'
-                : 'Your Premium plan is now active. You\'ve been upgraded with a Gold badge and access to all premium features.'}
+                : 'Your Premium plan is now active. You\'ve been upgraded with a Premium badge and access to all premium features.'}
             </Text>
             <TouchableOpacity
               style={styles.modalBtn}

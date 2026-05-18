@@ -9,6 +9,7 @@
  */
 
 import { Firestore } from 'firebase-admin/firestore';
+import * as admin from 'firebase-admin';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -267,19 +268,12 @@ export async function handleWebhookEvent(
     case 'payment.refunded':
       // Payment was refunded
       console.log(`[Webhook] Payment refunded: ${paymentId}`);
-      await updatePaymentRecord(db, paymentId, 'refunded', payment);
 
-      // If it was a subscription, revert the user's plan
-      if (payment.notes?.type === 'subscription') {
-        const userId = payment.notes?.userId;
-        if (userId) {
-          await db.collection('users').doc(userId).update({
-            subscription: 'free',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-          console.log(`[Webhook] Reverted subscription for user ${userId}`);
-        }
-      }
+      // If this was a subscription payment, revert the user's plan.
+      // Look up the subscription record to get the userId.
+      await revertSubscriptionIfNeeded(db, paymentId);
+
+      await updatePaymentRecord(db, paymentId, 'refunded', payment);
       break;
 
     case 'order.paid':
@@ -342,5 +336,34 @@ async function updatePaymentRecord(
   }
 }
 
-// Need admin import for FieldValue
-import * as admin from 'firebase-admin';
+/**
+ * If a refunded payment was for a subscription, revert the user's plan.
+ * Razorpay webhook payment entities don't include order notes, so we
+ * look up the subscription record by paymentId to find the userId.
+ */
+async function revertSubscriptionIfNeeded(
+  db: Firestore,
+  paymentId: string,
+): Promise<void> {
+  try {
+    const subRef = db.collection('subscriptions').doc(paymentId);
+    const subDoc = await subRef.get();
+
+    if (subDoc.exists) {
+      const subData = subDoc.data();
+      if (subData?.userId && subData?.status === 'active') {
+        await db.collection('users').doc(subData.userId).update({
+          subscription: 'free',
+          badge: '',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await subRef.update({ status: 'refunded' });
+        console.log(
+          `[Webhook] Reverted subscription for user ${subData.userId} (payment ${paymentId})`,
+        );
+      }
+    }
+  } catch (e) {
+    console.error('[Webhook] Failed to revert subscription:', e);
+  }
+}

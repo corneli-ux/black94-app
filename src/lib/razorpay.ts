@@ -237,7 +237,6 @@ function generateCheckoutHTML(
         currency: '${options.currency || 'INR'}',
         name: 'Black94',
         description: '${safeDescription}',
-        image: '',
         order_id: '${razorpayOrderId}',
         prefill: {
           name: ${safeName},

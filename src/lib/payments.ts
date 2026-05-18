@@ -127,7 +127,9 @@ export async function checkPlanLimit(
           .where('authorId', '==', userId);
         // For stories, only count non-expired ones (expired stories remain in Firestore)
         if (action === 'story') {
-          query = query.where('expiresAt', '>', firestore.Timestamp.now());
+          // Use ISO string comparison — our custom firebase.ts returns
+          // timestamps as ISO strings, not Firestore Timestamp objects.
+          query = query.where('expiresAt', '>', new Date().toISOString());
         }
         const snapshot = await query.get();
     
