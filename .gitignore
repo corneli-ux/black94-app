@@ -23,9 +23,9 @@ expo-env.d.ts
 *.keystore
 /android/app/release.keystore
 
-# Firebase config files are safe to commit (API keys are restricted by package name)
-# google-services.json - kept in repo for EAS builds
-# GoogleService-Info.plist - add if building for iOS
+# Firebase config — stored as GitHub Secret, decoded at build time
+/google-services.json
+/GoogleService-Info.plist
 
 # Metro
 .metro-health-check*
@@ -67,6 +67,9 @@ yarn-error.*
 *.apk
 *.aab
 *.zip
+
+# Secrets scripts (never commit these)
+_set_secret.py
 
 # Temp scripts
 SUBMIT_ME.sh

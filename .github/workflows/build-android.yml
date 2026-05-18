@@ -36,6 +36,19 @@ jobs:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: npm install
 
+      # Decode google-services.json from GitHub Secret before prebuild
+      - name: Decode google-services.json
+        env:
+          GOOGLE_SERVICES_B64: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_B64" ]; then
+            echo "$GOOGLE_SERVICES_B64" | base64 -d > google-services.json
+            echo "google-services.json decoded successfully"
+          else
+            echo "ERROR: GOOGLE_SERVICES_JSON secret is not set"
+            exit 1
+          fi
+
       - name: Expo prebuild
         env:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
