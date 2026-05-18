@@ -71,6 +71,14 @@ export interface VerifyPaymentResult {
 
 // ── Cloud Functions HTTP caller ─────────────────────────────────────────────
 
+/**
+ * Calls a Cloud Function via REST (onRequest/Express).
+ *
+ * The functions use onRequest (not onCall), so:
+ *  - Request body is sent directly (no { data: ... } wrapper)
+ *  - Response body is the result directly (no { result: ... } wrapper)
+ *  - Errors come as proper HTTP status codes with { error: { message } } body
+ */
 async function callCloudFunction(
   functionName: string,
   data: Record<string, any>,
@@ -92,7 +100,7 @@ async function callCloudFunction(
   let resp = await fetch(url, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ data }),
+    body: JSON.stringify(data), // Send data directly — no { data: ... } wrapper
   });
 
   // ── Retry once with a fresh token on auth errors ──
@@ -108,20 +116,21 @@ async function callCloudFunction(
     resp = await fetch(url, {
       method: 'POST',
       headers: { ...headers, Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ data }),
+      body: JSON.stringify(data),
     });
   }
 
   const result = await resp.json();
 
+  // onRequest returns errors as proper HTTP status codes
   if (!resp.ok) {
     const errorMessage =
       result.error?.message || result.message || `Cloud function error (${resp.status})`;
     throw new Error(errorMessage);
   }
 
-  // Firebase callable functions return { result: { ... } }
-  return result.result || result;
+  // onRequest returns the result directly — no { result: ... } wrapper
+  return result;
 }
 
 // ── Server-side Order Creation ──────────────────────────────────────────────

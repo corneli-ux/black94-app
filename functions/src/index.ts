@@ -2,9 +2,14 @@
  * index.ts — Firebase Cloud Functions entry point
  *
  * Exports:
- *  - createRazorpayOrder   — callable: creates a Razorpay order server-side
- *  - verifyRazorpayPayment — callable: verifies payment signature & activates subscription
+ *  - createRazorpayOrder   — HTTP: creates a Razorpay order server-side
+ *  - verifyRazorpayPayment — HTTP: verifies payment signature & activates subscription
  *  - razorpayWebhook       — HTTP: handles Razorpay webhook events
+ *
+ * All payment endpoints use onRequest (Express) instead of onCall because
+ * the client calls them via raw fetch(), not the Firebase Client SDK.
+ * onRequest gives direct access to req.headers.authorization which is
+ * critical for proper auth token verification.
  */
 
 import * as functions from 'firebase-functions';
@@ -24,57 +29,54 @@ import {
 admin.initializeApp();
 const db = admin.firestore();
 
-// ── Auth verification helper ───────────────────────────────────────────
+// ── Auth middleware for Express routes ─────────────────────────────────────
 
 /**
- * Extracts the authenticated user's UID from a callable request.
+ * Express middleware that extracts and verifies the Firebase ID token
+ * from the Authorization: Bearer <token> header.
  *
- * The Firebase Functions v2 SDK (firebase-functions@5.x) callable middleware
- * only populates `request.auth` when the call originates from the Firebase
- * Client SDK (which adds internal protocol headers). Direct REST calls via
- * fetch() — even with a valid `Authorization: Bearer <id_token>` header —
- * leave `request.auth` as `null`.
- *
- * This helper works in both cases:
- *  1. Firebase Client SDK call → uses `request.auth` directly.
- *  2. Direct REST call → falls back to `admin.auth().verifyIdToken()`
- *     using the Bearer token from the raw request headers.
+ * On success: sets req.uid and calls next().
+ * On failure: returns 401 JSON response.
  */
-async function getAuthenticatedUid(request: any): Promise<string> {
-  // Fast path: Firebase Client SDK populated request.auth
-  if (request.auth?.uid) {
-    return request.auth.uid;
+async function authenticateRequest(req: any, res: any, next: any) {
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    console.warn('[Auth] Missing or malformed Authorization header');
+    return res.status(401).json({
+      error: {
+        code: 401,
+        message: 'You must be signed in. No valid auth token found.',
+        status: 'UNAUTHENTICATED',
+      },
+    });
   }
 
-  // Fallback: manually verify the Bearer token from the raw request.
-  // Express normalises header names to lowercase.
-  const authHeader: string | undefined =
-    request.rawRequest?.headers?.authorization;
+  const idToken = authHeader.slice(7);
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'You must be signed in. No valid auth token found.',
-    );
-  }
-
-  const idToken = authHeader.slice(7); // strip "Bearer "
   try {
     const decoded = await admin.auth().verifyIdToken(idToken);
     if (!decoded.uid) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'Token is valid but has no UID.',
-      );
+      return res.status(401).json({
+        error: {
+          code: 401,
+          message: 'Token is valid but has no UID.',
+          status: 'UNAUTHENTICATED',
+        },
+      });
     }
-    console.log(`[Auth] Verified token for uid=${decoded.uid} (fallback path)`);
-    return decoded.uid;
+    req.uid = decoded.uid;
+    console.log(`[Auth] Verified token for uid=${decoded.uid}`);
+    next();
   } catch (error: any) {
-    if (error instanceof functions.https.HttpsError) throw error;
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication failed. Please sign in again.',
-    );
+    console.error('[Auth] Token verification failed:', error?.message || error);
+    return res.status(401).json({
+      error: {
+        code: 401,
+        message: 'Authentication failed. Please sign in again.',
+        status: 'UNAUTHENTICATED',
+      },
+    });
   }
 }
 
@@ -100,7 +102,7 @@ function getRazorpay(): Razorpay {
   return _razorpay;
 }
 
-// ── Callable: createRazorpayOrder ─────────────────────────────────────────
+// ── HTTP: createRazorpayOrder ─────────────────────────────────────────────
 
 /**
  * Creates a Razorpay order server-side.
@@ -108,222 +110,261 @@ function getRazorpay(): Razorpay {
  * Called from the client before opening the payment checkout.
  * The returned order_id is passed to the Razorpay checkout to prevent tampering.
  *
- * Input:
- *   { amount: number, currency: string, receipt: string, notes?: Record<string, string> }
+ * Request:
+ *   POST with Authorization: Bearer <token>
+ *   Body: { amount, currency, receipt, notes }
  *   - amount: in paise (e.g. 52000 for ₹520)
- *   - receipt: unique identifier (e.g. "sub_uid_123", "order_uid_456", "chat_uid_789")
- *   - notes: optional metadata (userId, planId, type, etc.)
+ *   - receipt: unique identifier (e.g. "sub_uid_123")
+ *   - notes: optional metadata
  *
- * Returns:
- *   { orderId: string, amount: number, currency: string }
+ * Response (200):
+ *   { orderId, amount, currency, receipt }
+ *
+ * Errors:
+ *   401 — not authenticated
+ *   400 — missing/invalid fields
+ *   500 — Razorpay API error
  */
-export const createRazorpayOrder = functions.https.onCall(
-  async (request: any) => {
-    // Verify the user is authenticated (works with both SDK and direct REST calls)
-    const uid = await getAuthenticatedUid(request);
+const orderApp = express();
+orderApp.use(cors({ origin: true }));
+orderApp.use(express.json());
+orderApp.post('/', authenticateRequest, async (req: any, res) => {
+  const uid = req.uid;
+  const { amount, currency = 'INR', receipt, notes = {} } = req.body;
 
-    const { amount, currency = 'INR', receipt, notes = {} } = request.data;
+  // Validate required fields
+  if (!amount || amount <= 0) {
+    return res.status(400).json({
+      error: {
+        code: 400,
+        message: 'A valid amount (in paise) is required.',
+        status: 'INVALID_ARGUMENT',
+      },
+    });
+  }
 
-    // Validate required fields
-    if (!amount || amount <= 0) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'A valid amount (in paise) is required.',
-      );
-    }
+  if (!receipt) {
+    return res.status(400).json({
+      error: {
+        code: 400,
+        message: 'A receipt identifier is required.',
+        status: 'INVALID_ARGUMENT',
+      },
+    });
+  }
 
-    if (!receipt) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'A receipt identifier is required.',
-      );
-    }
+  try {
+    const order = await getRazorpay().orders.create({
+      amount,
+      currency,
+      receipt,
+      notes: {
+        userId: uid,
+        ...notes,
+      },
+    });
 
-    try {
-      const order = await getRazorpay().orders.create({
-        amount,
-        currency,
-        receipt,
-        notes: {
-          userId: uid,
-          ...notes,
-        },
-      });
+    console.log(`[Razorpay] Order created: ${order.id} for ₹${amount / 100}`);
 
-      console.log(`[Razorpay] Order created: ${order.id} for ₹${amount / 100}`);
+    return res.status(200).json({
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      receipt: order.receipt,
+    });
+  } catch (error: any) {
+    console.error('[Razorpay] Order creation failed:', error);
+    return res.status(500).json({
+      error: {
+        code: 500,
+        message: 'Failed to create payment order. Please try again.',
+        status: 'INTERNAL',
+      },
+    });
+  }
+});
 
-      return {
-        orderId: order.id,
-        amount: order.amount,
-        currency: order.currency,
-        receipt: order.receipt,
-      };
-    } catch (error: any) {
-      console.error('[Razorpay] Order creation failed:', error);
-      throw new functions.https.HttpsError(
-        'internal',
-        'Failed to create payment order. Please try again.',
-      );
-    }
-  },
-);
+export const createRazorpayOrder = functions.https.onRequest(orderApp);
 
-// ── Callable: verifyRazorpayPayment ────────────────────────────────────────
+// ── HTTP: verifyRazorpayPayment ───────────────────────────────────────────
 
 /**
  * Verifies a Razorpay payment server-side using the payment signature.
  *
  * Called after the client completes the Razorpay checkout.
- * On successful verification, it dispatches to the appropriate handler
- * based on the payment type (subscription, order, paid_chat).
+ * On successful verification, it dispatches to the appropriate handler.
  *
- * Input:
- *   {
- *     razorpayOrderId: string,
- *     razorpayPaymentId: string,
- *     razorpaySignature: string,
- *     type: 'subscription' | 'order' | 'paid_chat',
- *     ...type-specific fields
- *   }
+ * Request:
+ *   POST with Authorization: Bearer <token>
+ *   Body: { razorpayOrderId, razorpayPaymentId, razorpaySignature, type, ... }
+ *   - type: 'subscription' | 'order' | 'paid_chat'
  *
- * Returns:
- *   { verified: boolean, type: string, details: any }
+ * Response (200):
+ *   { verified: true, type, details }
+ *
+ * Errors:
+ *   401 — not authenticated
+ *   400 — missing/invalid fields
+ *   403 — signature mismatch
+ *   500 — server error
  */
-export const verifyRazorpayPayment = functions.https.onCall(
-  async (request: any) => {
-    // Verify the user is authenticated (works with both SDK and direct REST calls)
-    const uid = await getAuthenticatedUid(request);
+const verifyApp = express();
+verifyApp.use(cors({ origin: true }));
+verifyApp.use(express.json());
+verifyApp.post('/', authenticateRequest, async (req: any, res) => {
+  const uid = req.uid;
+  const {
+    razorpayOrderId,
+    razorpayPaymentId,
+    razorpaySignature,
+    type,
+    ...payload
+  } = req.body;
 
-    const {
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature,
+  // Validate required fields
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    return res.status(400).json({
+      error: {
+        code: 400,
+        message: 'Razorpay order ID, payment ID, and signature are required.',
+        status: 'INVALID_ARGUMENT',
+      },
+    });
+  }
+
+  if (!['subscription', 'order', 'paid_chat'].includes(type)) {
+    return res.status(400).json({
+      error: {
+        code: 400,
+        message: `Invalid payment type: ${type}`,
+        status: 'INVALID_ARGUMENT',
+      },
+    });
+  }
+
+  // ── Step 1: Verify payment signature ──
+  try {
+    const crypto = require('crypto');
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '')
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest('hex');
+
+    if (expectedSignature !== razorpaySignature) {
+      console.error(
+        `[Razorpay] Signature mismatch for payment ${razorpayPaymentId}`,
+      );
+      return res.status(403).json({
+        error: {
+          code: 403,
+          message: 'Payment verification failed. The payment signature does not match.',
+          status: 'PERMISSION_DENIED',
+        },
+      });
+    }
+  } catch (error: any) {
+    console.error('[Razorpay] Signature verification error:', error);
+    return res.status(500).json({
+      error: {
+        code: 500,
+        message: 'Payment verification failed.',
+        status: 'INTERNAL',
+      },
+    });
+  }
+
+  // ── Step 2: Fetch payment details from Razorpay ──
+  let paymentDetails: any;
+  try {
+    paymentDetails = await getRazorpay().payments.fetch(razorpayPaymentId);
+    console.log(
+      `[Razorpay] Payment verified: ${razorpayPaymentId}, status: ${paymentDetails.status}`,
+    );
+  } catch (error: any) {
+    console.error('[Razorpay] Payment fetch failed:', error);
+    return res.status(500).json({
+      error: {
+        code: 500,
+        message: 'Could not verify payment with Razorpay. Please contact support.',
+        status: 'INTERNAL',
+      },
+    });
+  }
+
+  // Only process if payment is captured
+  if (paymentDetails.status !== 'captured') {
+    return res.status(400).json({
+      error: {
+        code: 400,
+        message: `Payment not captured (status: ${paymentDetails.status}).`,
+        status: 'FAILED_PRECONDITION',
+      },
+    });
+  }
+
+  // ── Step 3: Dispatch to type-specific handler ──
+  try {
+    let result: any;
+
+    switch (type) {
+      case 'subscription':
+        result = await handleSubscriptionPayment(
+          db,
+          uid,
+          razorpayPaymentId,
+          razorpayOrderId,
+          paymentDetails,
+          payload,
+        );
+        break;
+      case 'order':
+        result = await handleOrderPayment(
+          db,
+          uid,
+          razorpayPaymentId,
+          razorpayOrderId,
+          paymentDetails,
+          payload,
+        );
+        break;
+      case 'paid_chat':
+        result = await handlePaidChatPayment(
+          db,
+          uid,
+          razorpayPaymentId,
+          razorpayOrderId,
+          paymentDetails,
+          payload,
+        );
+        break;
+      default:
+        return res.status(400).json({
+          error: {
+            code: 400,
+            message: `Unknown payment type: ${type}`,
+            status: 'INVALID_ARGUMENT',
+          },
+        });
+    }
+
+    return res.status(200).json({
+      verified: true,
       type,
-      ...payload
-    } = request.data;
+      details: result,
+    });
+  } catch (error: any) {
+    console.error(`[Razorpay] Handler error (${type}):`, error);
+    return res.status(500).json({
+      error: {
+        code: 500,
+        message: error.message || 'Payment processing failed.',
+        status: 'INTERNAL',
+      },
+    });
+  }
+});
 
-    // Validate required fields
-    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'Razorpay order ID, payment ID, and signature are required.',
-      );
-    }
-
-    if (!['subscription', 'order', 'paid_chat'].includes(type)) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        `Invalid payment type: ${type}`,
-      );
-    }
-
-    // ── Step 1: Verify payment signature ──
-    try {
-      const crypto = require('crypto');
-      const expectedSignature = crypto
-        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '')
-        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-        .digest('hex');
-
-      if (expectedSignature !== razorpaySignature) {
-        console.error(
-          `[Razorpay] Signature mismatch for payment ${razorpayPaymentId}`,
-        );
-        throw new functions.https.HttpsError(
-          'permission-denied',
-          'Payment verification failed. The payment signature does not match.',
-        );
-      }
-    } catch (error: any) {
-      if (error instanceof functions.https.HttpsError) throw error;
-      console.error('[Razorpay] Signature verification error:', error);
-      throw new functions.https.HttpsError(
-        'internal',
-        'Payment verification failed.',
-      );
-    }
-
-    // ── Step 2: Fetch payment details from Razorpay ──
-    let paymentDetails: any;
-    try {
-      paymentDetails = await getRazorpay().payments.fetch(razorpayPaymentId);
-      console.log(
-        `[Razorpay] Payment verified: ${razorpayPaymentId}, status: ${paymentDetails.status}`,
-      );
-    } catch (error: any) {
-      console.error('[Razorpay] Payment fetch failed:', error);
-      throw new functions.https.HttpsError(
-        'internal',
-        'Could not verify payment with Razorpay. Please contact support.',
-      );
-    }
-
-    // Only process if payment is captured
-    if (paymentDetails.status !== 'captured') {
-      throw new functions.https.HttpsError(
-        'failed-precondition',
-        `Payment not captured (status: ${paymentDetails.status}).`,
-      );
-    }
-
-    // ── Step 3: Dispatch to type-specific handler ──
-    // uid already resolved above via getAuthenticatedUid(request)
-
-    try {
-      let result: any;
-
-      switch (type) {
-        case 'subscription':
-          result = await handleSubscriptionPayment(
-            db,
-            uid,
-            razorpayPaymentId,
-            razorpayOrderId,
-            paymentDetails,
-            payload,
-          );
-          break;
-        case 'order':
-          result = await handleOrderPayment(
-            db,
-            uid,
-            razorpayPaymentId,
-            razorpayOrderId,
-            paymentDetails,
-            payload,
-          );
-          break;
-        case 'paid_chat':
-          result = await handlePaidChatPayment(
-            db,
-            uid,
-            razorpayPaymentId,
-            razorpayOrderId,
-            paymentDetails,
-            payload,
-          );
-          break;
-        default:
-          throw new functions.https.HttpsError(
-            'invalid-argument',
-            `Unknown payment type: ${type}`,
-          );
-      }
-
-      return {
-        verified: true,
-        type,
-        details: result,
-      };
-    } catch (error: any) {
-      console.error(`[Razorpay] Handler error (${type}):`, error);
-      throw new functions.https.HttpsError(
-        'internal',
-        error.message || 'Payment processing failed.',
-      );
-    }
-  },
-);
+export const verifyRazorpayPayment = functions.https.onRequest(verifyApp);
 
 // ── HTTP: Razorpay Webhook ────────────────────────────────────────────────
 
@@ -340,9 +381,6 @@ export const verifyRazorpayPayment = functions.https.onCall(
  *  2. In Razorpay Dashboard → Settings → Webhooks, add the function URL + /webhook
  *  3. Set the webhook secret in Firebase: firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET
  */
-const webhookApp = express();
-webhookApp.use(cors({ origin: true }));
-webhookApp.use(express.json());
 
 // Raw body capture for signature verification (must be before json parser)
 const webhookRawApp = express();
