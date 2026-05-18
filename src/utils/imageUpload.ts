@@ -168,6 +168,52 @@ function isRetryableError(error: any): boolean {
 }
 
 /**
+ * Pure JavaScript base64 decoder — works in ALL React Native / Expo environments.
+ *
+ * WHY NOT atob()?
+ *  - atob() is a browser global that was added to React Native 0.72+
+ *  - With Expo's New Architecture (Fabric), atob() may NOT be available
+ *  - Using atob() in imageUpload.ts was causing silent upload failures
+ *
+ * This implementation uses Buffer.from() (available in React Native) as a
+ * fast path, with a pure JS polyfill as fallback.
+ */
+function safeBase64Decode(base64: string): Uint8Array {
+  // Fast path: Buffer is available in React Native
+  if (typeof Buffer !== 'undefined') {
+    return new Uint8Array(Buffer.from(base64, 'base64'));
+  }
+
+  // Pure JS polyfill — always works
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Map<string, number>();
+  for (let i = 0; i < chars.length; i++) {
+    lookup.set(chars[i], i);
+  }
+
+  // Remove whitespace and padding
+  const cleaned = base64.replace(/[\s=]/g, '');
+  const len = cleaned.length;
+  const result = new Uint8Array(Math.floor(len * 3 / 4));
+
+  let byteIndex = 0;
+  for (let i = 0; i < len; i += 4) {
+    const c0 = lookup.get(cleaned[i]) || 0;
+    const c1 = lookup.get(cleaned[i + 1] || '') || 0;
+    const c2 = lookup.get(cleaned[i + 2] || '') || 0;
+    const c3 = lookup.get(cleaned[i + 3] || '') || 0;
+
+    const triplet = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
+
+    result[byteIndex++] = (triplet >> 16) & 0xFF;
+    if (byteIndex < result.length) result[byteIndex++] = (triplet >> 8) & 0xFF;
+    if (byteIndex < result.length) result[byteIndex++] = triplet & 0xFF;
+  }
+
+  return result;
+}
+
+/**
  * Reads a local file as a base64 string using expo-file-system.
  * Required because React Native's XMLHttpRequest doesn't support
  * sending raw file URIs in all environments.
@@ -326,11 +372,9 @@ export async function uploadOptimizedImage(
       const base64Data = await readFileAsBase64(uri);
 
       // Decode base64 → binary ArrayBuffer
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
+      // Use safeBase64Decode instead of atob() — atob is NOT reliably available
+      // in all React Native / Expo environments (especially with New Architecture).
+      const bytes = safeBase64Decode(base64Data);
 
       const downloadUrl = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();

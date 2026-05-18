@@ -132,12 +132,27 @@ orderApp.post('/', authenticateRequest, async (req: any, res) => {
   const uid = req.uid;
   const { amount, currency = 'INR', receipt, notes = {} } = req.body;
 
+  // ── Critical: Check Razorpay credentials BEFORE attempting API call ──
+  const rzpKeyId = process.env.RAZORPAY_KEY_ID || '';
+  const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
+  if (!rzpKeyId || !rzpKeySecret) {
+    console.error('[Razorpay] CRITICAL: RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET not set. ' +
+      'Run: firebase functions:secrets:set RAZORPAY_KEY_ID && firebase functions:secrets:set RAZORPAY_KEY_SECRET');
+    return res.status(500).json({
+      error: {
+        code: 500,
+        message: 'Payment service is not configured. Please contact support.',
+        status: 'INTERNAL',
+      },
+    });
+  }
+
   // Validate required fields
   if (!amount || amount <= 0) {
     return res.status(400).json({
       error: {
         code: 400,
-        message: 'A valid amount (in paise) is required.',
+        message: `A valid amount (in paise) is required. Got: ${amount}`,
         status: 'INVALID_ARGUMENT',
       },
     });

@@ -178,7 +178,10 @@ export default function PremiumDashboardScreen() {
       }
 
       const plan = getPlanById(planType);
-      if (!plan) return;
+      if (!plan) {
+        Alert.alert('Error', `Unknown plan: ${planType}`);
+        return;
+      }
 
       Alert.alert(
         `Upgrade to ${plan.name}`,

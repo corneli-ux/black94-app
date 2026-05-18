@@ -154,10 +154,10 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           await load(true);
         } catch (retryErr: any) {
           console.error('[ChatRoom] Retry also failed:', retryErr?.message || retryErr);
-          Alert.alert('Send Failed', 'Could not send your message. Please check your connection and try again.');
+          Alert.alert('Send Failed', `${retryErr?.message || 'Unknown error'}. Please try again.`);
         }
       } else {
-        Alert.alert('Send Failed', 'Could not send your message. Please try again.');
+        Alert.alert('Send Failed', `${e?.message || 'Unknown error'}. Please try again.`);
       }
     } finally {
       setSending(false);

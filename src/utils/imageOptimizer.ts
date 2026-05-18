@@ -245,12 +245,18 @@ async function isLikelyGraphic(
     // If we can read the header, check for alpha channel
     // PNG header: byte 25 has color type (bit 6 = alpha)
     if (base64.length > 36) {
-      // Decode base64 to check raw bytes
-      const raw = atob(base64);
-      if (raw.length >= 26) {
-        const colorType = raw.charCodeAt(25);
-        // Color type 4 = grayscale+alpha, 6 = RGB+alpha
-        if (colorType === 4 || colorType === 6) return true;
+      // Decode base64 to check raw bytes — use Buffer for RN compatibility
+      try {
+        const decoded = typeof Buffer !== 'undefined'
+          ? Buffer.from(base64, 'base64')
+          : Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        if (decoded.length >= 26) {
+          const colorType = decoded[25];
+          // Color type 4 = grayscale+alpha, 6 = RGB+alpha
+          if (colorType === 4 || colorType === 6) return true;
+        }
+      } catch {
+        // Decoding failed — assume it's a photo (safe default)
       }
     }
   } catch {

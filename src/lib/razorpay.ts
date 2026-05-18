@@ -120,7 +120,20 @@ async function callCloudFunction(
     });
   }
 
-  const result = await resp.json();
+  // ── Parse response safely — handle non-JSON (e.g. function not deployed) ──
+  let result: any;
+  const respText = await resp.text();
+  try {
+    result = JSON.parse(respText);
+  } catch {
+    // Response is not JSON — function may not be deployed or returned HTML
+    console.error(`[CloudFunction] Non-JSON response (${resp.status}): ${respText.slice(0, 300)}`);
+    throw new Error(
+      resp.status === 404
+        ? `Cloud function "${functionName}" not found. It may not be deployed yet.`
+        : `Unexpected response (${resp.status}). The cloud function may need to be redeployed.`,
+    );
+  }
 
   // onRequest returns errors as proper HTTP status codes
   if (!resp.ok) {
