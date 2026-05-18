@@ -372,7 +372,9 @@ export default function StoriesScreen({ navigation }: any) {
       loadStories();
     } catch (e: any) {
       console.error('[StoriesScreen] Upload failed:', e);
-      Alert.alert('Upload', 'Could not post your story. Please check your connection and try again.');
+      const errMsg = e?.message || String(e);
+      const shortMsg = errMsg.length > 200 ? errMsg.slice(0, 200) + '...' : errMsg;
+      Alert.alert('Upload Failed', `Could not post your story.\n\n${shortMsg}`);
     } finally {
       setUploading(false);
     }
@@ -440,7 +442,9 @@ export default function StoriesScreen({ navigation }: any) {
       loadStories();
     } catch (e: any) {
       console.error('[StoriesScreen] Camera upload failed:', e);
-      Alert.alert('Upload', 'Could not post your story. Please check your connection and try again.');
+      const errMsg = e?.message || String(e);
+      const shortMsg = errMsg.length > 200 ? errMsg.slice(0, 200) + '...' : errMsg;
+      Alert.alert('Upload Failed', `Could not post your story.\n\n${shortMsg}`);
     } finally {
       setUploading(false);
 }

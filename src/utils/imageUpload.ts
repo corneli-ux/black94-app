@@ -375,7 +375,7 @@ export async function uploadOptimizedImage(
 
       if (!initiateResponse.ok) {
         const errorBody = await initiateResponse.text();
-        const error: any = new Error(`Failed to initiate upload: ${initiateResponse.status}`);
+        const error: any = new Error(`Upload failed (HTTP ${initiateResponse.status}): ${errorBody.slice(0, 200)}`);
         error.status = initiateResponse.status;
         error.body = errorBody;
         // 401 = auth token expired — invalidate and retry immediately
@@ -384,6 +384,15 @@ export async function uploadOptimizedImage(
           const retryDelay = getRetryDelay(attempt);
           await delay(retryDelay);
           continue; // Skip to next retry iteration
+        }
+        // 403 = permission denied (storage rules). Log clearly so it's not confused with network error.
+        if (initiateResponse.status === 403) {
+          console.error(
+            `[imageUpload] 403 PERMISSION DENIED uploading to ${path}. ` +
+            `This usually means Firebase Storage security rules are not deployed. ` +
+            `Fix: run 'firebase deploy --only storage:rules' or check the deploy-rules GitHub workflow. ` +
+            `Error: ${errorBody.slice(0, 300)}`
+          );
         }
         throw error;
       }

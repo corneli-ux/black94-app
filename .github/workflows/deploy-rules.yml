@@ -3,10 +3,6 @@ name: Deploy Firebase Security Rules
 on:
   push:
     branches: [main]
-    paths:
-      - 'firestore.rules'
-      - 'storage.rules'
-      - 'firebase.json'
   workflow_dispatch:
 
 jobs:
@@ -25,17 +21,44 @@ jobs:
       - name: Install Firebase CLI
         run: |
           for i in 1 2 3; do
-            if npm install -g firebase-tools; then
+            if npm install -g firebase-tools@latest; then
               break
             fi
             echo "Attempt $i failed, retrying in 10s..."
             sleep 10
           done
 
+      - name: Validate FIREBASE_SERVICE_ACCOUNT secret
+        run: |
+          if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+            echo "ERROR: FIREBASE_SERVICE_ACCOUNT secret is not set in GitHub repository settings."
+            echo ""
+            echo "To fix this:"
+            echo "  1. Go to Firebase Console → Project Settings → Service Accounts"
+            echo "  2. Click 'Generate New Private Key'"
+            echo "  3. Copy the ENTIRE JSON content"
+            echo "  4. Go to GitHub → repo → Settings → Secrets and Variables → Actions"
+            echo "  5. Add a new secret named FIREBASE_SERVICE_ACCOUNT"
+            echo "  6. Paste the JSON content as the value"
+            echo ""
+            echo "Without this secret, Firebase rules cannot be deployed, and ALL"
+            echo "storage uploads (photos, stories, avatars) will fail with 403."
+            exit 1
+          fi
+          echo "FIREBASE_SERVICE_ACCOUNT secret found (${#GOOGLE_APPLICATION_CREDENTIALS} chars)"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
       - name: Authenticate with Firebase
         run: |
           printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/fb_sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/fb_sa.json" >> $GITHUB_ENV
+          # Verify the service account file is valid JSON
+          python3 -c "import json; json.load(open('/tmp/fb_sa.json'))" || {
+            echo "ERROR: FIREBASE_SERVICE_ACCOUNT secret is not valid JSON."
+            exit 1
+          }
+          echo "Service account JSON validated successfully"
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 

@@ -309,10 +309,18 @@ const CreatePostScreen: React.FC = () => {
             next[i] = 'failed';
             return next;
           });
-          console.error(`[CreatePost] Image ${i + 1} upload failed:`, err?.message || err);
+          const errMsg = err?.message || String(err);
+          console.error(`[CreatePost] Image ${i + 1} upload failed:`, errMsg);
+          // Store the first error message so we can show it to the user
+          if (!handlePost._firstUploadError) {
+            handlePost._firstUploadError = errMsg;
+          }
           return null; // Signal failure but don't throw
         }
       });
+
+      // Reset stored error for this attempt
+      handlePost._firstUploadError = undefined;
 
       const results = await Promise.all(uploadPromises);
 
@@ -321,10 +329,13 @@ const CreatePostScreen: React.FC = () => {
       const successCount = results.length - failedCount;
 
       if (failedCount > 0 && successCount === 0) {
-        // All uploads failed — do NOT create the post
+        // All uploads failed — show the actual error message, not a generic "check connection"
+        const detail = handlePost._firstUploadError || 'Unknown error';
+        // Truncate very long error messages for the alert
+        const shortDetail = detail.length > 200 ? detail.slice(0, 200) + '...' : detail;
         Alert.alert(
           'Upload Failed',
-          `${failedCount} image${failedCount > 1 ? 's' : ''} could not be uploaded. Please check your connection and try again.`,
+          `Could not upload ${failedCount} image${failedCount > 1 ? 's' : ''}.\n\n${shortDetail}`,
         );
         return;
       }
