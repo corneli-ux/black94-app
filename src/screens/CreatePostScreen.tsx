@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import type { ImagePickerAsset, ImagePickerResult } from 'expo-image-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useAppStore } from '../stores/app';
@@ -42,38 +42,113 @@ const COLORS = {
 interface PollOption { id: string; text: string; }
 interface PollData { question: string; options: PollOption[]; duration: number; }
 
-// ── Image picker helper ─────────────────────────────────────────────────────
+// ── Per-image upload status ───────────────────────────────────────────────
 
-async function openImagePicker(limit: number): Promise<ImagePickerResult> {
+type ImageUploadStatus = 'idle' | 'uploading' | 'done' | 'failed';
+
+// ── Image picker helpers (proper permission handling) ─────────────────────
+
+/**
+ * Opens the device gallery with proper permission handling.
+ *
+ * On Android 13+ (API 33+), the photo picker doesn't require runtime
+ * permissions — the system picker handles it. On older Android and iOS,
+ * we request MEDIA_LIBRARY / PHOTO_LIBRARY permission explicitly.
+ *
+ * Returns null if the user denied permission or cancelled.
+ */
+async function openImagePicker(limit: number): Promise<ImagePicker.ImagePickerAsset[] | null> {
   try {
-    const { launchImageLibraryAsync } = require('expo-image-picker');
-    const result: ImagePickerResult = await launchImageLibraryAsync({
+    // Request permission explicitly (safe no-op on Android 13+ which uses system picker)
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (status === 'denied') {
+      // On iOS this means the user tapped "Don't Allow" in the system dialog.
+      // We can direct them to Settings to change it.
+      Alert.alert(
+        'Photos Access Denied',
+        'BLACK94 needs access to your photos to select images. Please enable it in Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => ImagePicker.grantMediaLibraryPermissionsAsync() },
+        ],
+      );
+      return null;
+    }
+
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow photo library access to select images.');
+      return null;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: limit,
       maxWidth: 1200,
     });
-    return result;
+
+    if (result.canceled || !result.assets || result.assets.length === 0) return null;
+    return result.assets.filter((a) => a.uri != null);
   } catch (err) {
-    console.error('[CreatePost] Image picker not available:', err);
-    return { canceled: true, assets: null } as any;
+    console.error('[CreatePost] Image picker error:', err);
+    Alert.alert('Error', 'Something went wrong while opening the gallery. Please try again.');
+    return null;
   }
 }
 
-async function openCamera(): Promise<ImagePickerResult> {
+/**
+ * Opens the device camera with proper permission handling.
+ *
+ * Camera permission must be explicitly requested before launching the camera.
+ * On Android, the permission dialog is shown once. If denied, the user must
+ * go to Settings to re-enable it.
+ *
+ * Returns null if the user denied permission, cancelled, or the device has no camera.
+ */
+async function openCamera(): Promise<ImagePicker.ImagePickerAsset | null> {
   try {
-    const { launchCameraAsync } = require('expo-image-picker');
-    const result: ImagePickerResult = await launchCameraAsync({
+    // Always request camera permission before launching
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+
+    if (status === 'denied') {
+      Alert.alert(
+        'Camera Access Denied',
+        'BLACK94 needs camera access to take photos. Please enable it in your device Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          ...(Platform.OS === 'ios'
+            ? [{ text: 'Open Settings', onPress: () => ImagePicker.grantCameraPermissionsAsync() }]
+            : []),
+        ],
+      );
+      return null;
+    }
+
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera permission is required to take photos.');
+      return null;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
       quality: 0.8,
       allowsMultipleSelection: false,
       maxWidth: 1200,
     });
-    return result;
-  } catch (err) {
-    console.error('[CreatePost] Camera not available:', err);
-    return { canceled: true, assets: null } as any;
+
+    if (result.canceled || !result.assets || result.assets.length === 0) return null;
+    return result.assets[0] || null;
+  } catch (err: any) {
+    // Some devices/emulators don't have a camera — give a clear message
+    if (err?.message?.includes('Camera is not available') || err?.message?.includes('No camera')) {
+      Alert.alert('Camera Unavailable', 'Your device does not have a camera or it is being used by another app.');
+    } else {
+      console.error('[CreatePost] Camera error:', err);
+      Alert.alert('Camera Error', 'Something went wrong while opening the camera. Please try again.');
+    }
+    return null;
   }
 }
 
@@ -100,11 +175,16 @@ const CreatePostScreen: React.FC = () => {
   const [selectedGifUrls, setSelectedGifUrls] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
+  const [imageStatuses, setImageStatuses] = useState<ImageUploadStatus[]>([]);
+  const [imageProgress, setImageProgress] = useState<number[]>([]);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollData, setPollData] = useState<PollData | null>(null);
   const [pollOptionText, setPollOptionText] = useState('');
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollDuration, setPollDuration] = useState(24);
+
+  // Abort controller to cancel uploads if user navigates away
+  const abortRef = useRef<AbortController | null>(null);
 
   const captionLength = caption.length;
   const canPost = (caption.trim().length > 0 || selectedImages.length > 0 || selectedGifUrls.length > 0 || pollData) && !posting;
@@ -112,48 +192,52 @@ const CreatePostScreen: React.FC = () => {
   // ── Image actions ─────────────────────────────────────────────────────
 
   const handleAddImages = useCallback(async () => {
+    if (posting) return;
     const remaining = MAX_IMAGES - selectedImages.length;
     if (remaining <= 0) {
       Alert.alert('Limit reached', `You can add up to ${MAX_IMAGES} images.`);
       return;
     }
-    const result = await openImagePicker(remaining);
-    if (result.canceled || !result.assets || result.assets.length === 0) return;
-    const uris = result.assets.filter((a) => a.uri).map((a) => a.uri!).slice(0, remaining);
+    const assets = await openImagePicker(remaining);
+    if (!assets || assets.length === 0) return;
+    const uris = assets.map((a) => a.uri!).slice(0, remaining);
     if (uris.length > 0) setSelectedImages((prev) => [...prev, ...uris]);
-  }, [selectedImages.length]);
+  }, [selectedImages.length, posting]);
 
   const handleCamera = useCallback(async () => {
+    if (posting) return;
     const remaining = MAX_IMAGES - selectedImages.length;
     if (remaining <= 0) {
       Alert.alert('Limit reached', `You can add up to ${MAX_IMAGES} images.`);
       return;
     }
-    const result = await openCamera();
-    if (result.canceled || !result.assets?.length) return;
-    const uri = result.assets[0].uri;
-    if (uri) setSelectedImages((prev) => [...prev, uri]);
-  }, [selectedImages.length]);
+    const asset = await openCamera();
+    if (!asset?.uri) return;
+    setSelectedImages((prev) => [...prev, asset.uri!]);
+  }, [selectedImages.length, posting]);
 
   const handleRemoveImage = useCallback((index: number) => {
+    if (posting) return;
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
-  }, []);
+  }, [posting]);
 
   // ── GIF ───────────────────────────────────────────────────────────────
 
   const handleOpenGifPicker = useCallback(() => {
+    if (posting) return;
     navigation.navigate('GifPicker', {
       onSelect: (gifUrl: string) => {
         setSelectedGifUrls((prev) => [...prev, gifUrl]);
       },
     });
-  }, [navigation]);
+  }, [navigation, posting]);
 
   const handleRemoveGif = useCallback((index: number) => {
+    if (posting) return;
     setSelectedGifUrls((prev) => prev.filter((_, i) => i !== index));
-  }, []);
+  }, [posting]);
 
-  // ── Post submission ───────────────────────────────────────────────────
+  // ── Post submission (parallel uploads + proper error handling) ────────
 
   const handlePost = useCallback(async () => {
     if (!canPost || !user) return;
@@ -171,36 +255,103 @@ const CreatePostScreen: React.FC = () => {
     }
 
     setPosting(true);
-    setUploadProgress('');
-    try {
-      const uploadedUrls: string[] = [];
+    setUploadProgress('Preparing upload...');
 
-      // Upload images
-      if (selectedImages.length > 0) {
-        for (let i = 0; i < selectedImages.length; i++) {
-          try {
-            setUploadProgress(`Uploading image ${i + 1}/${selectedImages.length}...`);
-            const storagePath = `posts/${currentUser?.uid}/${Date.now()}_${i}.jpg`;
-            const result = await uploadOptimizedImage(selectedImages[i], storagePath, {
-              mimeType: 'image/jpeg',
-              onProgress: (loaded, total) => {
-                const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
-                setUploadProgress(`Uploading image ${i + 1}/${selectedImages.length}... ${pct}%`);
-              },
-            });
-            uploadedUrls.push(result.downloadUrl);
-          } catch (err) {
-            console.error('[CreatePost] Image upload failed:', err);
-            Alert.alert('Upload Error', `Failed to upload image ${i + 1}. Your post will be created without it.`);
+    // Initialize per-image status tracking
+    const statuses: ImageUploadStatus[] = selectedImages.map(() => 'uploading');
+    const progresses: number[] = selectedImages.map(() => 0);
+    setImageStatuses(statuses);
+    setImageProgress(progresses);
+
+    // Create abort controller for this upload session
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+
+    try {
+      // Upload all images in parallel (not sequential)
+      const uploadPromises = selectedImages.map(async (uri, i) => {
+        const storagePath = `posts/${currentUser.uid}/${Date.now()}_${i}.jpg`;
+        try {
+          const result = await uploadOptimizedImage(uri, storagePath, {
+            mimeType: 'image/jpeg',
+            abortSignal: abortController.signal,
+            onProgress: (loaded, total) => {
+              const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+              setImageProgress((prev) => {
+                const next = [...prev];
+                next[i] = pct;
+                return next;
+              });
+            },
+          });
+
+          // Mark this image as done
+          setImageStatuses((prev) => {
+            const next = [...prev];
+            next[i] = 'done';
+            return next;
+          });
+
+          return result.downloadUrl;
+        } catch (err: any) {
+          if (abortController.signal.aborted) {
+            throw new Error('Upload cancelled');
           }
+          // Mark this image as failed
+          setImageStatuses((prev) => {
+            const next = [...prev];
+            next[i] = 'failed';
+            return next;
+          });
+          console.error(`[CreatePost] Image ${i + 1} upload failed:`, err);
+          return null; // Signal failure but don't throw
         }
+      });
+
+      const results = await Promise.all(uploadPromises);
+
+      // Check if ALL images failed
+      const failedCount = results.filter((r) => r === null).length;
+      const successCount = results.length - failedCount;
+
+      if (failedCount > 0 && successCount === 0) {
+        // All uploads failed — do NOT create the post
+        Alert.alert(
+          'Upload Failed',
+          `${failedCount} image${failedCount > 1 ? 's' : ''} could not be uploaded. Please check your connection and try again.`,
+        );
+        return;
       }
 
+      if (failedCount > 0) {
+        // Some uploads failed — ask the user what to do
+        const shouldContinue = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Partial Upload Failure',
+            `${failedCount} of ${results.length} image${failedCount > 1 ? 's' : ''} failed to upload. Your post will be created with ${successCount} image${successCount > 1 ? 's' : ''}.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Post Anyway', onPress: () => resolve(true) },
+            ],
+          );
+        });
+
+        if (!shouldContinue) return;
+      }
+
+      // Build final URL list: only successfully uploaded images + GIF URLs
+      const uploadedUrls = results.filter((r): r is string => r !== null);
+      const allMediaUrls = [...uploadedUrls, ...selectedGifUrls];
+
       setUploadProgress('Posting...');
-      await createPost(caption.trim(), [...uploadedUrls, ...selectedGifUrls], pollData || undefined);
+      await createPost(caption.trim(), allMediaUrls, pollData || undefined);
       triggerFeedRefresh();
       navigation.goBack();
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.message === 'Upload cancelled') {
+        console.log('[CreatePost] Upload cancelled by user.');
+        return;
+      }
       console.error('[CreatePost] Failed to create post:', err);
       Alert.alert(
         'Post failed',
@@ -209,6 +360,9 @@ const CreatePostScreen: React.FC = () => {
     } finally {
       setPosting(false);
       setUploadProgress('');
+      setImageStatuses([]);
+      setImageProgress([]);
+      abortRef.current = null;
     }
   }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh, pollData]);
 
@@ -240,7 +394,17 @@ const CreatePostScreen: React.FC = () => {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              // If uploading, confirm before leaving
+              if (posting && abortRef.current) {
+                Alert.alert('Cancel Upload?', 'Your post is being uploaded. Are you sure you want to cancel?', [
+                  { text: 'Keep Uploading', style: 'cancel' },
+                  { text: 'Cancel', style: 'destructive', onPress: () => { abortRef.current?.abort(); navigation.goBack(); } },
+                ]);
+                return;
+              }
+              navigation.goBack();
+            }}
             style={styles.headerBtn}
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -293,6 +457,7 @@ const CreatePostScreen: React.FC = () => {
             autoFocus
             textAlignVertical="top"
             scrollEnabled={false}
+            editable={!posting}
           />
 
           {/* Character count */}
@@ -303,34 +468,62 @@ const CreatePostScreen: React.FC = () => {
           {/* Media preview grid */}
           {mediaCount > 0 && (
             <View style={styles.mediaGrid}>
-              {selectedImages.map((uri, i) => (
-                <View key={`img-${i}`} style={styles.mediaCard}>
-                  <Image source={{ uri }} style={styles.mediaThumb} resizeMode="cover" />
-                  <TouchableOpacity
-                    style={styles.mediaRemove}
-                    onPress={() => handleRemoveImage(i)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close" size={14} color={COLORS.white} />
-                  </TouchableOpacity>
-                </View>
-              ))}
+              {selectedImages.map((uri, i) => {
+                const status = imageStatuses[i] || 'idle';
+                const progress = imageProgress[i] || 0;
+                return (
+                  <View key={`img-${i}`} style={styles.mediaCard}>
+                    <Image source={{ uri }} style={styles.mediaThumb} resizeMode="cover" />
+
+                    {/* Upload overlay — shows during upload, success, or failure */}
+                    {status !== 'idle' && (
+                      <View style={[styles.uploadOverlay, status === 'failed' && styles.uploadOverlayFailed]}>
+                        {status === 'uploading' && (
+                          <>
+                            <ActivityIndicator size="small" color={COLORS.white} />
+                            <Text style={styles.uploadOverlayText}>{progress}%</Text>
+                          </>
+                        )}
+                        {status === 'done' && (
+                          <Ionicons name="checkmark-circle" size={24} color={COLORS.green} />
+                        )}
+                        {status === 'failed' && (
+                          <Ionicons name="alert-circle" size={24} color={COLORS.red} />
+                        )}
+                      </View>
+                    )}
+
+                    {/* Remove button — only show when not uploading */}
+                    {!posting && (
+                      <TouchableOpacity
+                        style={styles.mediaRemove}
+                        onPress={() => handleRemoveImage(i)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="close" size={14} color={COLORS.white} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
               {selectedGifUrls.map((uri, i) => (
                 <View key={`gif-${i}`} style={styles.mediaCard}>
                   <Image source={{ uri }} style={styles.mediaThumb} resizeMode="cover" />
                   <View style={styles.gifBadge}>
                     <Text style={styles.gifBadgeText}>GIF</Text>
                   </View>
-                  <TouchableOpacity
-                    style={styles.mediaRemove}
-                    onPress={() => handleRemoveGif(i)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close" size={14} color={COLORS.white} />
-                  </TouchableOpacity>
+                  {!posting && (
+                    <TouchableOpacity
+                      style={styles.mediaRemove}
+                      onPress={() => handleRemoveGif(i)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close" size={14} color={COLORS.white} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
-              {mediaCount < MAX_IMAGES && (
+              {!posting && mediaCount < MAX_IMAGES && (
                 <TouchableOpacity style={styles.addMediaCard} onPress={handleAddImages} activeOpacity={0.7}>
                   <Ionicons name="add" size={28} color={COLORS.white50} />
                 </TouchableOpacity>
@@ -338,7 +531,7 @@ const CreatePostScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Upload progress */}
+          {/* Upload progress summary */}
           {uploadProgress ? (
             <View style={styles.progressRow}>
               <ActivityIndicator size="small" color={COLORS.gold} />
@@ -405,17 +598,37 @@ const CreatePostScreen: React.FC = () => {
         {/* Bottom toolbar */}
         <View style={[styles.toolbar, { paddingBottom: Math.max(8, insets.bottom) }]}>
           <View style={styles.toolbarActions}>
-            <TouchableOpacity style={styles.toolBtn} onPress={handleAddImages} activeOpacity={0.7}>
-              <MaterialCommunityIcons name="image-multiple-outline" size={22} color={COLORS.gold} />
+            <TouchableOpacity
+              style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
+              onPress={handleAddImages}
+              activeOpacity={0.7}
+              disabled={posting}
+            >
+              <MaterialCommunityIcons name="image-multiple-outline" size={22} color={posting ? COLORS.textMuted : COLORS.gold} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.toolBtn} onPress={handleCamera} activeOpacity={0.7}>
-              <Ionicons name="camera-outline" size={22} color={COLORS.green} />
+            <TouchableOpacity
+              style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
+              onPress={handleCamera}
+              activeOpacity={0.7}
+              disabled={posting}
+            >
+              <Ionicons name="camera-outline" size={22} color={posting ? COLORS.textMuted : COLORS.green} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.toolBtn} onPress={handleOpenGifPicker} activeOpacity={0.7}>
-              <MaterialCommunityIcons name="gif" size={22} color={COLORS.amber} />
+            <TouchableOpacity
+              style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
+              onPress={handleOpenGifPicker}
+              activeOpacity={0.7}
+              disabled={posting}
+            >
+              <MaterialCommunityIcons name="gif" size={22} color={posting ? COLORS.textMuted : COLORS.amber} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.toolBtn} onPress={() => setShowPollCreator(!showPollCreator)} activeOpacity={0.7}>
-              <Ionicons name="poll-outline" size={22} color={pollData ? COLORS.gold : '#94a3b8'} />
+            <TouchableOpacity
+              style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
+              onPress={() => !posting && setShowPollCreator(!showPollCreator)}
+              activeOpacity={0.7}
+              disabled={posting}
+            >
+              <Ionicons name="poll-outline" size={22} color={posting ? COLORS.textMuted : (pollData ? COLORS.gold : '#94a3b8')} />
             </TouchableOpacity>
           </View>
         </View>
@@ -577,6 +790,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // Upload status overlay on individual images
+  uploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  uploadOverlayFailed: {
+    backgroundColor: 'rgba(244,33,46,0.25)',
+  },
+  uploadOverlayText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -644,6 +873,9 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  toolBtnDisabled: {
+    opacity: 0.4,
   },
 });
 
