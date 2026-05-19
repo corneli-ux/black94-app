@@ -10,6 +10,9 @@ import Constants from 'expo-constants';
 // Firebase Security Rules + per-request auth tokens (Bearer headers).
 // For production builds, this can be injected via EAS secrets as process.env.FIREBASE_API_KEY.
 const API_KEY = Constants.expoConfig?.extra?.firebaseApiKey as string || '';
+if (!API_KEY && __DEV__) {
+  console.error('[Firebase] FATAL: firebaseApiKey not configured in app.json extra field');
+}
 const PROJECT_ID = 'black94';
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
@@ -29,6 +32,7 @@ interface AuthUser {
 let _authUser: AuthUser | null = null;
 let _idToken: string | null = null;
 let _refreshToken: string | null = null;
+let _tokenRefreshPromise: Promise<string> | null = null; // Dedup concurrent refreshes
 const _authListeners = new Set<(user: any) => void>();
 
 /* ── Persistent Auth Storage ────────────────────────────────────────── */
@@ -109,10 +113,13 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
       }),
     },
   );
-  const data = await resp.json();
+  // Safely parse response — may not be JSON on errors (e.g., CloudFlare block, HTML)
+  const respText = await resp.text();
+  let data: any;
+  try { data = JSON.parse(respText); } catch { data = {}; }
 
   if (!resp.ok) {
-    const msg = data.error?.message || `Auth HTTP ${resp.status}`;
+    const msg = data.error?.message || `Auth HTTP ${resp.status}: ${respText.slice(0, 200)}`;
     if (__DEV__) console.error('[Firebase] Auth REST error:', msg);
     throw new Error(msg);
   }
@@ -134,7 +141,7 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
 
   if (__DEV__) console.log('[Firebase] Sign-in successful (REST):', _authUser.uid);
   _notifyAuthListeners();
-  _persistAuth(); // Persist tokens so user stays logged in
+  await _persistAuth(); // Persist tokens so user stays logged in
 
   return { user: _authUser };
 }
@@ -147,7 +154,7 @@ async function signOut(_authRef?: any) {
   _refreshToken = null;
   if (__DEV__) console.log('[Firebase] Signed out (REST)');
   _notifyAuthListeners();
-  _clearAuthStorage(); // Clear persisted tokens on sign out
+  await _clearAuthStorage(); // Clear persisted tokens on sign out
 }
 
 /* ── Token refresh ────────────────────────────────────────────────────────── */
@@ -179,9 +186,24 @@ async function _getValidToken(): Promise<string> {
 
   if (!_refreshToken) throw new Error('Not authenticated');
 
+  // Dedup: if a refresh is already in-flight, reuse the same promise.
+  // Without this, concurrent calls (e.g., feed + notifications on app startup)
+  // all send refresh requests, and Firebase rotates refresh tokens — the second
+  // request fails because the old refresh token is now invalid.
+  if (_tokenRefreshPromise) return _tokenRefreshPromise;
+
   // Invalidate cached token before attempting refresh
   _idToken = null;
 
+  _tokenRefreshPromise = _doTokenRefresh();
+  try {
+    return await _tokenRefreshPromise;
+  } finally {
+    _tokenRefreshPromise = null;
+  }
+}
+
+async function _doTokenRefresh(): Promise<string> {
   try {
     const resp = await fetch(
       `https://securetoken.googleapis.com/v1/token?key=${API_KEY}`,
@@ -198,14 +220,19 @@ async function _getValidToken(): Promise<string> {
     if (!data.id_token) throw new Error('Token refresh failed');
     _idToken = data.id_token;
     _refreshToken = data.refresh_token || _refreshToken;
-    _persistAuth(); // Persist refreshed tokens
+    await _persistAuth(); // Persist refreshed tokens
     return _idToken as string;
   } catch (e: any) {
     // Keep _refreshToken on transient errors — only clear on auth failures
     _idToken = null;
     // Don't clear refresh token — it may be a transient network error.
     // The next call to _getValidToken will retry with the same refresh token.
-    throw new Error('Session expired — please sign in again');
+    // Re-throw the original error so callers can distinguish network errors
+    // from actual session expiration.
+    if (e?.message?.includes('Session expired') || e?.message?.includes('Token refresh failed') || e?.message?.includes('TOKEN_EXPIRED') || e?.message?.includes('USER_DISABLED')) {
+      throw new Error('Session expired — please sign in again');
+    }
+    throw e;
   }
 }
 
@@ -286,6 +313,10 @@ async function _firestoreFetch(
       const emptyResult: any = [];
       emptyResult._missingIndex = true;
       return emptyResult;
+    }
+    // Other FAILED_PRECONDITION errors (not index-related) should propagate
+    if (data.error?.status === 'FAILED_PRECONDITION') {
+      throw err;
     }
     throw err;
   }
@@ -377,6 +408,9 @@ function _parseFields(data: Record<string, any>): {
           ? { integerValue: String(n) }
           : { doubleValue: n };
         transforms.push({ fieldPath: key, increment: fsVal });
+      } else {
+        // Unknown sentinel — fall through to normal field encoding
+        if (__DEV__) console.warn(`[Firestore] Unknown sentinel type: ${sentinel.__sentinel} for field ${key}`);
       }
     } else {
       const fsVal = _toFsValue(value);
@@ -763,6 +797,9 @@ class CompatDocRef {
         for (const t of transforms) {
           if (t.setToServerValue) {
             fields[t.fieldPath] = { timestampValue: new Date().toISOString() };
+          } else if (t.increment) {
+            if (__DEV__) console.warn(`[Firestore] increment in set() (non-merge) — storing raw value. Use update() for increments.`);
+            fields[t.fieldPath] = t.increment;
           }
         }
       }
@@ -781,11 +818,7 @@ class CompatDocRef {
   }
 
   async delete() {
-    try {
-      await _firestoreFetch(this._path, 'DELETE');
-    } catch (e: any) {
-      if (__DEV__) console.warn('[Firestore] delete error:', e?.message);
-    }
+    await _firestoreFetch(this._path, 'DELETE');
   }
 }
 
@@ -794,15 +827,15 @@ class CompatDocRef {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 class CompatWriteBatch {
-  private _operations: Array<{ ref: CompatDocRef; data: any; mode: 'set' | 'update' | 'delete' }> = [];
+  private _operations: Array<{ ref: CompatDocRef; data: any; mode: 'set' | 'update' | 'delete'; options?: any }> = [];
 
   delete(ref: CompatDocRef): CompatWriteBatch {
     this._operations.push({ ref, data: null, mode: 'delete' });
     return this;
   }
 
-  set(ref: CompatDocRef, data: any): CompatWriteBatch {
-    this._operations.push({ ref, data, mode: 'set' });
+  set(ref: CompatDocRef, data: any, options?: any): CompatWriteBatch {
+    this._operations.push({ ref, data, mode: 'set', options });
     return this;
   }
 
@@ -812,22 +845,25 @@ class CompatWriteBatch {
   }
 
   async commit(): Promise<void> {
-    // Firestore REST API supports batch writes via a single commit endpoint.
-    // We fire all operations — deletes are independent, sets/updates are PATCH/PUT.
-    const promises = this._operations.map(async (op) => {
-      try {
+    // Use Promise.allSettled so we can detect partial failures.
+    // The old Promise.all + try/catch swallowed ALL errors silently.
+    const results = await Promise.allSettled(
+      this._operations.map(async (op) => {
         if (op.mode === 'delete') {
           await op.ref.delete();
         } else if (op.mode === 'set') {
-          await op.ref.set(op.data);
+          await op.ref.set(op.data, op.options);
         } else if (op.mode === 'update') {
           await op.ref.update(op.data);
         }
-      } catch (e: any) {
-        if (__DEV__) console.warn('[Batch] Operation failed:', e?.message);
-      }
-    });
-    await Promise.all(promises);
+      }),
+    );
+    const failures = results.filter(r => r.status === 'rejected');
+    if (failures.length > 0) {
+      const errorMessages = failures.map(f => (f as PromiseRejectedResult).reason?.message || 'unknown').join('; ');
+      if (__DEV__) console.error(`[Batch] ${failures.length} operation(s) failed:`, errorMessages);
+      throw new Error(`${failures.length} batch operation(s) failed: ${errorMessages}`);
+    }
   }
 }
 
@@ -863,7 +899,11 @@ function _mapOp(op: string): string {
     'array-contains-any': 'ARRAY_CONTAINS_ANY',
     'not-in': 'NOT_IN',
   };
-  return map[op] || 'EQUAL';
+  const mapped = map[op];
+  if (!mapped) {
+    if (__DEV__) console.warn(`[Firestore] Unknown query operator: ${op}, defaulting to EQUAL`);
+  }
+  return mapped || 'EQUAL';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -885,6 +925,16 @@ export {
 export { _getValidToken as getValidToken };
 export { _restoreAuth as restoreAuth };
 export { _persistAuth as persistAuth };
+
+/** Update the in-memory auth user profile (e.g., after profile edit, username change). */
+export function updateAuthUser(updates: Partial<AuthUser>): void {
+  if (_authUser) {
+    _authUser = { ..._authUser, ...updates };
+    // Persist updated profile so cold restart picks up changes
+    _persistAuth();
+    _notifyAuthListeners();
+  }
+}
 
 /** Force-invalidate the cached ID token so the next getValidToken() call does a fresh refresh. */
 export function _invalidateTokenCache(): void {

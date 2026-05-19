@@ -87,7 +87,7 @@ export interface Message {
 
 export function parseMediaUrls(raw: any): string[] {
   if (!raw) return [];
-  if (Array.isArray(raw)) return raw.filter(Boolean);
+  if (Array.isArray(raw)) return raw.filter((v: any) => typeof v === 'string' && v.trim());
   if (typeof raw === 'string') {
     if (raw.startsWith('data:')) return [raw];
     return raw.split(',').map(u => u.trim()).filter(Boolean);
@@ -99,6 +99,54 @@ export { tsToMillis } from '../utils/datetime';
 
 function currentUser(): any {
   return auth()?.currentUser;
+}
+
+/**
+ * Shared helper to get actor data for notifications with Zustand fallback.
+ * If the user's Firestore doc is corrupted (empty username/displayName from
+ * the old write.update bug), falls back to the Zustand store which has the
+ * user's last known correct profile data. Also repairs the corrupted doc.
+ */
+async function getActorData(userId: string): Promise<{
+  actorDisplayName: string;
+  actorUsername: string;
+  actorProfileImage: string | null;
+  actorIsVerified: boolean;
+  actorBadge: string;
+}> {
+  let myData: any = null;
+  try {
+    const myDoc = await firestore().collection('users').doc(userId).get();
+    myData = myDoc.exists ? myDoc.data() : null;
+  } catch {}
+
+  // Zustand fallback for corrupted docs
+  const corrupted = !myData?.username || !myData?.displayName;
+  if (corrupted) {
+    try {
+      const { useAppStore } = await import('../stores/app');
+      const storeUser = useAppStore.getState().user;
+      if (storeUser) {
+        myData = { ...myData, ...storeUser };
+        // Fire-and-forget repair
+        firestore().collection('users').doc(userId).update({
+          username: storeUser.username || '',
+          usernameLower: (storeUser.username || '').toLowerCase(),
+          displayName: storeUser.displayName || 'User',
+          profileImage: storeUser.profileImage || null,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        }).catch(() => {});
+      }
+    } catch {}
+  }
+
+  return {
+    actorDisplayName: myData?.displayName || '',
+    actorUsername: myData?.username || '',
+    actorProfileImage: myData?.profileImage || null,
+    actorIsVerified: myData?.isVerified || false,
+    actorBadge: myData?.badge || '',
+  };
 }
 
 /* ── Auth ─────────────────────────────────────────────────────────────────── */
@@ -615,17 +663,12 @@ export async function toggleLike(postId: string, currentlyLiked: boolean): Promi
       const postData = postDoc.exists ? postDoc.data() : null;
       const postAuthorId = postData?.authorId;
       if (postAuthorId && postAuthorId !== userId) {
-        const myDoc = await firestore().collection('users').doc(userId).get();
-        const myData = myDoc.exists ? myDoc.data() : null;
+        const actor = await getActorData(userId);
         createNotification({
           recipientId: postAuthorId,
           type: 'like',
           actorId: userId,
-          actorDisplayName: myData?.displayName || '',
-          actorUsername: myData?.username || '',
-          actorProfileImage: myData?.profileImage || null,
-          actorIsVerified: myData?.isVerified || false,
-          actorBadge: myData?.badge || '',
+          ...actor,
           postId,
           postCaption: postData?.caption || '',
         });
@@ -674,17 +717,12 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
       const postData = postDoc.exists ? postDoc.data() : null;
       const postAuthorId = postData?.authorId;
       if (postAuthorId && postAuthorId !== userId) {
-        const myDoc = await firestore().collection('users').doc(userId).get();
-        const myData = myDoc.exists ? myDoc.data() : null;
+        const actor = await getActorData(userId);
         createNotification({
           recipientId: postAuthorId,
           type: 'repost',
           actorId: userId,
-          actorDisplayName: myData?.displayName || '',
-          actorUsername: myData?.username || '',
-          actorProfileImage: myData?.profileImage || null,
-          actorIsVerified: myData?.isVerified || false,
-          actorBadge: myData?.badge || '',
+          ...actor,
           postId,
           postCaption: postData?.caption || '',
         });
@@ -898,7 +936,8 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
       return { sent: false, reason: 'blocked' };
     }
   } catch (e) {
-    console.warn('[Messages] Block check failed, allowing message:', e);
+    console.warn('[Messages] Block check failed, BLOCKING message to be safe:', e);
+    return { sent: false, reason: 'block_check_failed' };
   }
 
   // ── E2E Encryption: encrypt content before storing ──
@@ -935,7 +974,26 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   // lastMessage: ALWAYS use privacy-safe placeholder — NEVER plaintext
   const chatDoc = await firestore().collection('chats').doc(chatId).get();
   const chatData = chatDoc.exists ? chatDoc.data() : null;
-  const senderIsUser1 = chatData?.user1Id === userId;
+
+  // Guard against null/malformed chat doc — skip unread update if structure unknown
+  if (!chatData?.user1Id || !chatData?.user2Id) {
+    console.warn('[Messages] Chat doc missing user IDs, skipping unread update');
+    // ── Notification: tell receiver they got a new DM ──
+    try {
+      const actor = await getActorData(userId);
+      createNotification({
+        recipientId: receiverId,
+        type: 'chat',
+        actorId: userId,
+        ...actor,
+      });
+    } catch (e) {
+      console.warn('[Messages] Notification fire-and-forget failed:', e);
+    }
+    return { sent: true };
+  }
+
+  const senderIsUser1 = chatData.user1Id === userId;
   const senderUnreadField = senderIsUser1 ? 'unreadUser1' : 'unreadUser2';
   const receiverUnreadField = senderIsUser1 ? 'unreadUser2' : 'unreadUser1';
 
@@ -948,17 +1006,12 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
 
   // ── Notification: tell receiver they got a new DM ──
   try {
-    const myDoc = await firestore().collection('users').doc(userId).get();
-    const myData = myDoc.exists ? myDoc.data() : null;
+    const actor = await getActorData(userId);
     createNotification({
       recipientId: receiverId,
       type: 'chat',
       actorId: userId,
-      actorDisplayName: myData?.displayName || '',
-      actorUsername: myData?.username || '',
-      actorProfileImage: myData?.profileImage || null,
-      actorIsVerified: myData?.isVerified || false,
-      actorBadge: myData?.badge || '',
+      ...actor,
     });
   } catch (e) {
     console.warn('[Messages] Notification fire-and-forget failed:', e);
@@ -989,6 +1042,9 @@ export async function blockUser(targetUserId: string): Promise<boolean> {
         blockedId: targetUserId,
         createdAt: firestore.FieldValue.serverTimestamp(),
       }),
+      // Remove bidirectional follow relationships
+      firestore().collection('follows').doc(blockDocId).delete().catch(() => {}),
+      firestore().collection('follows').doc(blockedByDocId).delete().catch(() => {}),
     ]);
 
     // Delete all messages in chats between these two users
@@ -1314,17 +1370,12 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
 
     // ── Notification: tell target user they got a new follower ──
     try {
-      const myDoc = await firestore().collection('users').doc(userId).get();
-      const myData = myDoc.exists ? myDoc.data() : null;
+      const actor = await getActorData(userId);
       createNotification({
         recipientId: targetUserId,
         type: 'follow',
         actorId: userId,
-        actorDisplayName: myData?.displayName || '',
-        actorUsername: myData?.username || '',
-        actorProfileImage: myData?.profileImage || null,
-        actorIsVerified: myData?.isVerified || false,
-        actorBadge: myData?.badge || '',
+        ...actor,
       });
     } catch (e) {
       console.warn('[Follow] Notification fire-and-forget failed:', e);
@@ -1618,17 +1669,12 @@ export async function toggleCommentRepost(commentId: string, currentlyReposted: 
         const commentData = commentDoc.exists ? commentDoc.data() : null;
         const commentAuthorId = commentData?.authorId;
         if (commentAuthorId && commentAuthorId !== userId) {
-          const myDoc = await firestore().collection('users').doc(userId).get();
-          const myData = myDoc.exists ? myDoc.data() : null;
+          const actor = await getActorData(userId);
           createNotification({
             recipientId: commentAuthorId,
             type: 'repost',
             actorId: userId,
-            actorDisplayName: myData?.displayName || '',
-            actorUsername: myData?.username || '',
-            actorProfileImage: myData?.profileImage || null,
-            actorIsVerified: myData?.isVerified || false,
-            actorBadge: myData?.badge || '',
+            ...actor,
             commentId,
             commentContent: (commentData?.content || '').slice(0, 80),
           });
@@ -2080,6 +2126,8 @@ export async function fetchCart(userId: string): Promise<CartItem[]> {
 }
 
 export async function updateCartItemQuantity(userId: string, productId: string, quantity: number): Promise<void> {
+  const currentUid = currentUser()?.uid;
+  if (!currentUid || currentUid !== userId) throw new Error('Not authenticated');
   if (quantity <= 0) {
     await removeFromCart(userId, productId);
     return;
@@ -2097,6 +2145,8 @@ export async function updateCartItemQuantity(userId: string, productId: string, 
 }
 
 export async function removeFromCart(userId: string, productId: string): Promise<void> {
+  const currentUid = currentUser()?.uid;
+  if (!currentUid || currentUid !== userId) throw new Error('Not authenticated');
   try {
     await firestore()
       .collection('users')
@@ -2110,6 +2160,8 @@ export async function removeFromCart(userId: string, productId: string): Promise
 }
 
 export async function clearCart(userId: string): Promise<void> {
+  const currentUid = currentUser()?.uid;
+  if (!currentUid || currentUid !== userId) throw new Error('Not authenticated');
   const batchSize = 20;
   let hasMore = true;
   while (hasMore) {
