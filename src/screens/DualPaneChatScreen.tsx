@@ -276,8 +276,9 @@ export default function DualPaneChatScreen({ navigation }: any) {
   }, [messages.length]);
 
   // ── Send message ───────────────────────────────────────────────────────
+  const [sending, setSending] = useState(false);
   const handleSend = useCallback(async () => {
-    if (!messageText.trim() || !selectedChat || !currentUserId) return;
+    if (!messageText.trim() || !selectedChat || !currentUserId || sending) return;
 
     const otherId =
       selectedChat.user1Id === currentUserId
@@ -329,8 +330,9 @@ export default function DualPaneChatScreen({ navigation }: any) {
           .catch(() => {});
         setMessageText('');
       })
-      .catch((err: any) => console.error('[DualPaneChatScreen] send error:', err));
-  }, [messageText, selectedChat, currentUserId]);
+      .catch((err: any) => console.error('[DualPaneChatScreen] send error:', err))
+      .finally(() => setSending(false));
+  }, [messageText, selectedChat, currentUserId, sending]);
 
   const openChat = useCallback(
     (chatId: string) => {
@@ -520,7 +522,7 @@ export default function DualPaneChatScreen({ navigation }: any) {
           <TouchableOpacity
             style={[
               styles.sendBtn,
-              !messageText.trim() && styles.sendBtnDisabled,
+              (!messageText.trim() || sending) && styles.sendBtnDisabled,
             ]}
             onPress={handleSend}
             disabled={!messageText.trim()}>

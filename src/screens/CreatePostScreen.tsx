@@ -605,7 +605,7 @@ const CreatePostScreen: React.FC = () => {
               </View>
               <TouchableOpacity style={styles.pollCreateBtn} onPress={() => {
                 if (!pollData?.options.length) return;
-                setPollData(prev => prev ? { ...prev, question: pollQuestion.trim() || 'Untitled poll' } : prev);
+                setPollData(prev => prev ? { ...prev, question: pollQuestion.trim() || 'Untitled poll', duration: pollDuration } : prev);
                 setShowPollCreator(false);
               }}><Text style={styles.pollCreateBtnText}>Done</Text></TouchableOpacity>
             </View>

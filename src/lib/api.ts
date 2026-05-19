@@ -1,5 +1,6 @@
 import { auth, firestore, onAuthStateChanged, signInWithGoogleIdToken, signOut } from './firebase';
 import { createNotification } from '../services/notificationEngine';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   initE2EE,
   encryptMessage,
@@ -160,6 +161,11 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       // fields not in the update payload (e.g., username, displayName,
       // profileImage stripped when only subscription/badge were written).
       // Detect this by checking for missing essential fields and restore them.
+      //
+      // REPAIR PRIORITY: AsyncStorage cached profile (has the user's LAST KNOWN
+      // correct custom values) > Google auth data > hardcoded defaults.
+      // This prevents the bug where self-heal replaces a custom username or
+      // uploaded profile image with Google-generated defaults.
       try {
         const existingPhoto = existingData?.profileImage;
         const needsPhotoRecovery = !existingPhoto && googlePhoto;
@@ -167,27 +173,46 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
         // Detect corrupted doc: essential fields missing after write.update bug
         const isCorrupted = !existingData?.username || !existingData?.displayName;
 
+        // Load cached profile as repair source — has the user's last known
+        // correct custom values (custom username, uploaded avatar, etc.)
+        let cachedProfile: any = null;
+        try {
+          const raw = await AsyncStorage.getItem('@black94/user_cache');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.id === fbUser.uid) {
+              cachedProfile = parsed;
+            }
+          }
+        } catch {}
+
         const updateFields: Record<string, any> = {
           updatedAt: firestore.FieldValue.serverTimestamp(),
         };
 
         if (isCorrupted) {
-          // Restore all essential fields from available sources
-          console.warn('[Auth] User doc corrupted (missing username/displayName) — self-healing');
-          updateFields.username = existingData?.username || username;
-          updateFields.usernameLower = existingData?.usernameLower || username.toLowerCase();
-          updateFields.displayName = existingData?.displayName || fbUser.displayName || 'User';
-          updateFields.email = existingData?.email || fbUser.email || '';
-          updateFields.profileImage = existingData?.profileImage || googlePhoto;
-          updateFields.role = existingData?.role || 'personal';
-          updateFields.badge = existingData?.badge || '';
-          updateFields.subscription = existingData?.subscription || 'free';
-          updateFields.isVerified = existingData?.isVerified || false;
+          console.warn('[Auth] User doc corrupted (missing username/displayName) — self-healing from', cachedProfile ? 'cached profile' : 'Google defaults');
+          // Use cached profile values as primary source — these are the user's
+          // ACTUAL custom values (not Google-generated fallbacks).
+          updateFields.username = existingData?.username || cachedProfile?.username || username;
+          updateFields.usernameLower = existingData?.usernameLower || cachedProfile?.username?.toLowerCase() || username.toLowerCase();
+          updateFields.displayName = existingData?.displayName || cachedProfile?.displayName || fbUser.displayName || 'User';
+          updateFields.email = existingData?.email || cachedProfile?.email || fbUser.email || '';
+          updateFields.profileImage = existingData?.profileImage || cachedProfile?.profileImage || googlePhoto;
+          updateFields.role = existingData?.role || cachedProfile?.role || 'personal';
+          updateFields.badge = existingData?.badge || cachedProfile?.badge || '';
+          updateFields.subscription = existingData?.subscription || cachedProfile?.subscription || 'free';
+          updateFields.isVerified = existingData?.isVerified ?? cachedProfile?.isVerified ?? false;
           if (!existingData?.createdAt) {
-            updateFields.createdAt = firestore.FieldValue.serverTimestamp();
+            updateFields.createdAt = cachedProfile?.createdAt
+              ? { timestampValue: new Date(cachedProfile.createdAt).toISOString() }
+              : firestore.FieldValue.serverTimestamp();
           }
+          // Also restore optional fields that may have been deleted
+          if (cachedProfile?.bio) updateFields.bio = cachedProfile.bio;
+          if (cachedProfile?.coverImage) updateFields.coverImage = cachedProfile.coverImage;
         } else if (needsPhotoRecovery) {
-          updateFields.profileImage = googlePhoto;
+          updateFields.profileImage = cachedProfile?.profileImage || googlePhoto;
         }
 
         await userDocRef.update(updateFields);
@@ -332,10 +357,21 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
     }
   }
 
-  // Enrich posts with fresh author data from user profiles
+  // Enrich posts with fresh author data from user profiles.
+  // GUARD: If the user doc is corrupted (empty username + displayName, likely from
+  // the old _firestoreCommitUpdate write.update bug), skip enrichment entirely.
+  // The post's stamped author data is more reliable than a corrupted user doc.
   for (const post of posts) {
     const fresh = authorProfileMap[post.authorId];
     if (fresh) {
+      // Skip enrichment if the "fresh" profile looks corrupted — empty
+      // username AND displayName means the doc was likely wiped by write.update.
+      // The post's stamped data (from createPost) is more reliable.
+      const profileLooksCorrupted = !fresh.username && !fresh.displayName;
+      if (profileLooksCorrupted) {
+        if (__DEV__) console.warn(`[Feed] Skipping enrichment for ${post.authorId} — profile appears corrupted (empty username/displayName)`);
+        continue;
+      }
       post.authorDisplayName = fresh.displayName || post.authorDisplayName;
       post.authorUsername = fresh.username || post.authorUsername;
       post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
@@ -442,13 +478,27 @@ export async function createPost(
   const userDocSnap = await firestore().collection('users').doc(userId).get();
   const userData = userDocSnap.data();
 
+  // GUARD: If the user doc is corrupted (empty username/displayName from the old
+  // _firestoreCommitUpdate write.update bug), fall back to the Zustand store
+  // which has the user's last known correct profile data.
+  let storeUser: any = null;
+  try {
+    const { useAppStore } = await import('../stores/app');
+    storeUser = useAppStore.getState().user;
+  } catch {}
+
+  const userDocCorrupted = !userData?.username || !userData?.displayName;
+  if (userDocCorrupted && storeUser) {
+    if (__DEV__) console.warn('[Post] User doc appears corrupted — using Zustand store as fallback for author metadata');
+  }
+
   const docData: Record<string, any> = {
     authorId: userId,
-    authorUsername: userData?.username || '',
-    authorDisplayName: userData?.displayName || '',
-    authorProfileImage: userData?.profileImage || null,
-    authorBadge: userData?.badge || '',
-    authorIsVerified: userData?.isVerified || false,
+    authorUsername: userData?.username || storeUser?.username || '',
+    authorDisplayName: userData?.displayName || storeUser?.displayName || 'User',
+    authorProfileImage: userData?.profileImage || storeUser?.profileImage || null,
+    authorBadge: userData?.badge || storeUser?.badge || '',
+    authorIsVerified: userData?.isVerified ?? storeUser?.isVerified ?? false,
     caption,
     mediaUrls,
     likeCount: 0,
@@ -1079,6 +1129,37 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
     }
     const data = docSnap.data();
     if (__DEV__) console.log('[User] Got profile:', data?.displayName, '@' + data?.username, 'badge:', data?.badge, 'verified:', data?.isVerified);
+
+    // GUARD: If the user doc is corrupted (empty username + displayName from the old
+    // _firestoreCommitUpdate write.update bug), try to recover from AsyncStorage cache.
+    // This prevents returning a corrupted profile to the Zustand store and UI.
+    if (!data?.username && !data?.displayName) {
+      if (__DEV__) console.warn('[User] User doc appears corrupted (empty username/displayName) — attempting cache recovery');
+      try {
+        const raw = await AsyncStorage.getItem('@black94/user_cache');
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (cached && cached.id === userId) {
+            if (__DEV__) console.log('[User] Recovered profile from cache:', cached.displayName, '@' + cached.username);
+            return {
+              id: userId,
+              email: cached.email || data?.email || '',
+              username: cached.username || '',
+              displayName: cached.displayName || 'User',
+              bio: cached.bio || '',
+              profileImage: cached.profileImage || null,
+              coverImage: cached.coverImage || null,
+              role: cached.role || 'personal',
+              badge: cached.badge || '',
+              subscription: cached.subscription || 'free',
+              isVerified: cached.isVerified || false,
+              createdAt: cached.createdAt || Date.now(),
+            };
+          }
+        }
+      } catch {}
+    }
+
     // CRITICAL: Fallback displayName → username → 'User' so the Avatar component
     // never renders the "?" placeholder (empty string is falsy → shows "?").
     const displayName = data?.displayName || data?.username || 'User';
@@ -1267,16 +1348,23 @@ export async function addPostComment(postId: string, content: string, replyToId?
   if (!userId || !content.trim()) return null;
   
   const userDocSnap = await firestore().collection('users').doc(userId).get();
-  const userData = userDocSnap.data();
+  const userData = userDocSnap.exists ? userDocSnap.data() : null;
+
+  // Guard: use Zustand store as fallback if user doc is corrupted
+  let storeUser: any = null;
+  try {
+    const { useAppStore } = await import('../stores/app');
+    storeUser = useAppStore.getState().user;
+  } catch {}
 
   const docRef = await firestore().collection('post_comments').add({
     postId,
     authorId: userId,
-    authorUsername: userData?.username || '',
-    authorDisplayName: userData?.displayName || '',
-    authorProfileImage: userData?.profileImage || '',
-    authorIsVerified: userData?.isVerified || false,
-    authorBadge: userData?.badge || '',
+    authorUsername: userData?.username || storeUser?.username || '',
+    authorDisplayName: userData?.displayName || storeUser?.displayName || 'User',
+    authorProfileImage: userData?.profileImage || storeUser?.profileImage || '',
+    authorIsVerified: userData?.isVerified ?? storeUser?.isVerified ?? false,
+    authorBadge: userData?.badge || storeUser?.badge || '',
     content: content.trim(),
     replyToId: replyToId || null,
     replyToUsername: replyToUsername || null,

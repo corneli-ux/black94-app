@@ -543,6 +543,10 @@ export default function FeedScreen({ navigation }: any) {
       for (const post of newPosts) {
         const fresh = authorProfileMap[post.authorId];
         if (fresh) {
+          // GUARD: Skip enrichment if profile looks corrupted (empty username + displayName).
+          // The post's stamped data is more reliable than a corrupted user doc.
+          const profileLooksCorrupted = !fresh.username && !fresh.displayName;
+          if (profileLooksCorrupted) continue;
           post.authorDisplayName = fresh.displayName || post.authorDisplayName;
           post.authorUsername = fresh.username || post.authorUsername;
           post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
@@ -693,12 +697,20 @@ export default function FeedScreen({ navigation }: any) {
     })();
   }, []);
 
-  useEffect(() => { loadFeed(); }, [loadFeed]);
+  // Load feed on mount — use a ref to prevent useFocusEffect from double-loading
+  const hasMountedRef = useRef(false);
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      loadFeed();
+    }
+  }, [loadFeed]);
 
   // Reload feed when screen regains focus (e.g. returning from CreatePost)
+  // Skip the first focus event since useEffect already loaded above.
   useFocusEffect(
     useCallback(() => {
-      if (!loading) {
+      if (hasMountedRef.current && !loading) {
         lastDocRef.current = null;
         setAllLoaded(false);
         loadFeed(false);
@@ -722,19 +734,31 @@ export default function FeedScreen({ navigation }: any) {
     setPosts(prev => prev.map(p => p.id === postId
       ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
       : p));
-    try { await toggleLike(postId, liked); } catch {}
+    try { await toggleLike(postId, liked); } catch (e) {
+      // Revert optimistic update on failure — prevents ghost likes
+      setPosts(prev => prev.map(p => p.id === postId
+        ? { ...p, liked, likeCount: p.likeCount }
+        : p));
+    }
   };
 
   const handleBookmark = async (postId: string, bookmarked: boolean) => {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, bookmarked: !bookmarked } : p));
-    try { await toggleBookmark(postId, bookmarked); } catch {}
+    try { await toggleBookmark(postId, bookmarked); } catch (e) {
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, bookmarked } : p));
+    }
   };
 
   const handleRepost = async (postId: string, reposted: boolean) => {
     setPosts(prev => prev.map(p => p.id === postId
       ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
       : p));
-    try { await toggleRepost(postId, reposted); } catch {}
+    try { await toggleRepost(postId, reposted); } catch (e) {
+      // Revert optimistic update on failure
+      setPosts(prev => prev.map(p => p.id === postId
+        ? { ...p, reposted, repostCount: p.repostCount }
+        : p));
+    }
   };
 
   const handleDelete = async (postId: string) => {
