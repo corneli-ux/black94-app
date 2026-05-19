@@ -574,28 +574,27 @@ export default function FeedScreen({ navigation }: any) {
         const fresh = authorProfileMap[post.authorId];
         if (!fresh) continue;
 
-          // GUARD: Skip enrichment if profile looks corrupted (empty username + displayName).
-          const profileLooksCorrupted = !fresh.username && !fresh.displayName;
-          if (profileLooksCorrupted) continue;
+        // GUARD: Skip enrichment if profile looks corrupted (empty username + displayName).
+        const profileLooksCorrupted = !fresh.username && !fresh.displayName;
+        if (profileLooksCorrupted) continue;
 
-          // BUG FIX: Detect silent username corruption — if the fetched username
-          // looks like a Google auto-generated one AND differs from stamped data,
-          // the user doc is likely corrupted. Keep the stamped data.
-          const googleAutoName = fresh.displayName?.replace(/\s/g, '').toLowerCase() || '';
-          const isUsernameCorrupted = !!googleAutoName
-            && fresh.username === googleAutoName
-            && post.authorUsername
-            && post.authorUsername !== googleAutoName;
+        // BUG FIX: Detect silent username corruption — if the fetched username
+        // looks like a Google auto-generated one AND differs from stamped data,
+        // the user doc is likely corrupted. Keep the stamped data.
+        const googleAutoName = fresh.displayName?.replace(/\s/g, '').toLowerCase() || '';
+        const isUsernameCorrupted = !!googleAutoName
+          && fresh.username === googleAutoName
+          && post.authorUsername
+          && post.authorUsername !== googleAutoName;
 
-          if (fresh.displayName) post.authorDisplayName = fresh.displayName;
-          if (fresh.username && !isUsernameCorrupted) post.authorUsername = fresh.username;
-          if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
-          if (fresh.badge) post.authorBadge = fresh.badge;
-          // BUG FIX: Use fresh isVerified directly (boolean, not || fallback).
-          // Old code used `fresh.isVerified || post.authorIsVerified` which meant
-          // if user was UN-verified (false), the old stamped true value persisted.
-          post.authorIsVerified = fresh.isVerified;
-        }
+        if (fresh.displayName) post.authorDisplayName = fresh.displayName;
+        if (fresh.username && !isUsernameCorrupted) post.authorUsername = fresh.username;
+        if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
+        if (fresh.badge) post.authorBadge = fresh.badge;
+        // BUG FIX: Use fresh isVerified directly (boolean, not || fallback).
+        // Old code used `fresh.isVerified || post.authorIsVerified` which meant
+        // if user was UN-verified (false), the old stamped true value persisted.
+        post.authorIsVerified = fresh.isVerified;
       }
 
       // Batch fetch interactions (CHUNK_SIZE = 10 for Firestore IN limit)
