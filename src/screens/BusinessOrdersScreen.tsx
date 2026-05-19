@@ -6,7 +6,7 @@
  * tracking-number modal, pull-to-refresh, empty state.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,

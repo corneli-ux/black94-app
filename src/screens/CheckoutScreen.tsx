@@ -1,13 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Modal, } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { colors } from '../theme/colors';
-import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis, parseMediaUrls } from '../lib/api';
-import { User, Post } from '../lib/api';
 import {
   createRazorpayOrder,
   verifyRazorpayPayment,

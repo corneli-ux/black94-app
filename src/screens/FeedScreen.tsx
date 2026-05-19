@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { scale, verticalScale as vs, moderateScale as ms, fontScale as fs } from '../theme/responsive';
+import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive';
 import { toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';

@@ -5,7 +5,7 @@
  * On phone: tabs to switch. On tablet: side by side.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -23,11 +23,11 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { firestore, auth } from '../lib/firebase';
 import { fetchUserProfile, blockUser, sendMessage } from '../lib/api';
-import { encryptMessage, decryptMessage, encryptedPreviewText } from '../lib/e2ee';
+import { decryptMessage } from '../lib/e2ee';
 import { colors } from '../theme/colors';
 
 // ── Types ──────────────────────────────────────────────────────────────────

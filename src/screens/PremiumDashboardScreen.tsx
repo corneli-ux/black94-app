@@ -6,7 +6,7 @@
  * and manage subscription controls.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
-import { scale, fontScale as fs } from '../theme/responsive';
+import { scale } from '../theme/responsive';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import {

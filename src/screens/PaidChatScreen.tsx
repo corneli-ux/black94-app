@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -27,9 +27,8 @@ import {
   handleRazorpayMessage,
   isRazorpayConfigured,
 } from '../lib/razorpay';
-import type { RazorpayResult } from '../lib/razorpay';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { scale, fontScale as fs } from '../theme/responsive';
+import { scale } from '../theme/responsive';
 
 // ── Payment flow states ──
 type PaymentPhase = 'idle' | 'opening_gateway' | 'processing' | 'success' | 'error';

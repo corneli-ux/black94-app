@@ -1,12 +1,11 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal } from 'react-native';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, blockUser, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { initE2EE, isE2EEReady } from '../lib/e2ee';
 import { Avatar } from '../components/Avatar';
-import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
 
 function formatTime(timestamp?: number | string): string {

@@ -1,12 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView, ActivityIndicator, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis } from '../lib/api';
-import { User } from '../lib/api';
 
 const INTEREST_OPTIONS = [
   'Technology', 'Fashion', 'Sports', 'Food', 'Travel',

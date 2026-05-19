@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Share, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ExpoClipboard from 'expo-clipboard';

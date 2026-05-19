@@ -8,7 +8,7 @@
  * Current flow: Calling (3s timer) → Connected (timer) → End Call → navigate back.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,6 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 
 type CallStatus = 'calling' | 'connected' | 'ended';

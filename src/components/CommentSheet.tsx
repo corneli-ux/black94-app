@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Modal, FlatList, KeyboardAvoidingView, Platform,
@@ -9,8 +9,6 @@ import { Avatar, VerifiedBadge } from './Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { CommentData, fetchPostComments, addPostComment, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark } from '../lib/api';
 import { useAppStore } from '../stores/app';
-import { colors } from '../theme/colors';
-import { scale, fontScale as fs } from '../theme/responsive';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Polyline } from 'react-native-svg';
 

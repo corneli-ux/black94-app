@@ -5,7 +5,7 @@
  * Shows trending GIFs by default. Tap to select and return URL via callback.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,

@@ -23,7 +23,7 @@
  * (which exposes project IDs, developer emails, etc.).
  */
 
-import React, { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 import { sha256 } from '../utils/crypto';

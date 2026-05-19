@@ -8,7 +8,7 @@
  *  - Recent orders: last 5 orders for this seller, newest first
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,

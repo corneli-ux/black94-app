@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -9,7 +9,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { CommentData, fetchPostComments, addPostComment, fetchActiveAdCampaigns, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark } from '../lib/api';
 import FactCheckBottomSheet from './FactCheckBottomSheet';
 import { useAppStore } from '../stores/app';
-import { auth, firestore } from '../lib/firebase';
+import { auth } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Polyline } from 'react-native-svg';

@@ -5,7 +5,7 @@
  * Shows vertical stepper, items list, shipping info.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,

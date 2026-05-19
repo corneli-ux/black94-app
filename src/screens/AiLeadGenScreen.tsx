@@ -5,7 +5,7 @@
  * follow-up message generation, lead import/export, and scoring.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { auth, firestore } from '../lib/firebase';
+import { auth } from '../lib/firebase';
 import * as CRM from '../lib/crm';
 import {
   CrmLead,
