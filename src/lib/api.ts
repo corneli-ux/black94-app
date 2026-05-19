@@ -1,4 +1,4 @@
-import { auth, firestore, onAuthStateChanged, signInWithGoogleIdToken, signOut } from './firebase';
+import { auth, firestore, signInWithGoogleIdToken, signOut } from './firebase';
 import { createNotification } from '../services/notificationEngine';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -6,7 +6,6 @@ import {
   encryptMessage,
   decryptMessage,
   encryptedPreviewText,
-  isE2EEReady,
   destroyLocalKeys,
 } from './e2ee';
 
@@ -209,7 +208,13 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
         // Use merge: true so if the doc was created by another client between
         // the get() and set() (race condition), we don't overwrite existing fields.
         await userDocRef.set(userData, { merge: true });
-        await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: fbUser.uid });
+        // USERNAME FIX: Check if the username is already taken before claiming it.
+        // Without this check, two users with the same displayName could overwrite
+        // each other's username mapping, causing username hijacking.
+        const usernameDoc = await firestore().collection('usernames').doc(username.toLowerCase()).get();
+        if (!usernameDoc.exists) {
+          await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: fbUser.uid });
+        }
       } catch (e) {
         console.warn('[Auth] Failed to create user doc:', e);
       }

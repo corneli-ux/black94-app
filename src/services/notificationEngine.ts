@@ -115,7 +115,7 @@ export async function createNotification(
 
   // BUG FIX: Input validation — prevent junk notifications
   if (!params.recipientId?.trim() || !params.actorId?.trim()) return;
-  const validTypes = ['follow', 'like', 'comment', 'repost', 'mention', 'chat', 'story_view', 'milestone', 'suggestion'];
+  const validTypes = ['follow', 'like', 'comment', 'repost', 'mention', 'chat', 'story_view', 'milestone', 'suggestion', 'follow_up_reminder'];
   if (!validTypes.includes(params.type)) return;
 
   // BUG FIX: Don't notify if recipient has blocked the actor

@@ -38,22 +38,6 @@ interface Reply {
   createdAt: number;
 }
 
-/* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
-function HighlightedCaption({ text, style }: { text: string; style: any }) {
-  const parts = text.split(/(#\w+|@\w+)/g);
-  return (
-    <Text style={style}>
-      {parts.map((part, i) =>
-        /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
-          <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
-        ) : (
-          <Text key={i}>{part}</Text>
-        )
-      )}
-    </Text>
-  );
-}
-
 function formatCount(n: number | undefined): string {
   if (!n) return '';
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -79,19 +63,6 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const [captionTruncated, setCaptionTruncated] = useState(false);
-  // BUG FIX: Track media load errors — without this, FlatList recycling
-  // causes a previously failed image to show its error overlay on a
-  // valid new post's image (same fix as FeedScreen.PostCard).
-  const [hasMediaError, setHasMediaError] = useState(false);
-  const prevMediaUrlRef = React.useRef(post.mediaUrls?.[0] || '');
-  React.useEffect(() => {
-    const currentUrl = post.mediaUrls?.[0] || '';
-    if (prevMediaUrlRef.current !== currentUrl) {
-      setHasMediaError(false);
-      prevMediaUrlRef.current = currentUrl;
-    }
-  }, [post.id, post.mediaUrls]);
-
   React.useEffect(() => {
     setIsReposted(post.reposted);
     setLocalRepostCount(post.repostCount);
@@ -320,39 +291,7 @@ const profileCardStyles = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center', zIndex: 10,
   },
-  replyingTo: {
-    color: '#71767b',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  replyingToName: {
-    color: colors.accent,
-  },
-  replyContextCaption: {
-    color: '#94a3b8',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  /* Parent post media shown in reply cards */
-  replyMediaContainer: {
-    marginTop: 10,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  replyMedia: {
-    width: '100%',
-    height: Math.min(SCREEN_W * 0.65, 380),
-    backgroundColor: '#000000',
-  },
+
 });
 
 function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, onComment }: {
@@ -368,20 +307,9 @@ function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, o
       <Text style={{ color: '#94a3b8', fontSize: 15 }}>No posts yet</Text>
     </View>
   );
-  return (
-    <View>
-      {posts.map(post => (
-        <ProfilePostCard key={post.id} post={post} onLike={onLike} onBookmark={onBookmark} onDelete={onDelete} onRepost={onRepost} onComment={onComment} navigation={navigation} />
-      ))}
-    </View>
-  );
 }
 
-function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: any }) {
-  const [likeMap, setLikeMap] = useState<Record<string, boolean>>({});
-  const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
-  const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
-
+function RepliesList({ replies }: { replies: Reply[]; navigation?: any }) {
   // Filter out self-replies (user replying to their own post)
   const filteredReplies = replies.filter(r =>
     r.authorUsername.toLowerCase() !== r.postAuthorUsername.toLowerCase()
@@ -395,9 +323,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
   );
   return (
     <View>
-      {filteredReplies.map(reply => {
-        const isSelfReply = reply.authorUsername.toLowerCase() === reply.postAuthorUsername.toLowerCase();
-        return (
+      {filteredReplies.map(reply => (
         <View key={reply.id} style={profileCardStyles.postCard}>
           <View style={profileCardStyles.contentRow}>
             <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={40} />
@@ -411,59 +337,11 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
                 <Text style={profileCardStyles.dot}>·</Text>
                 <Text style={profileCardStyles.time}>{timeAgo(reply.createdAt)}</Text>
               </View>
-              {!isSelfReply && (
-                <Text style={profileCardStyles.replyingTo}>
-                  Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
-                </Text>
-              )}
               <Text style={profileCardStyles.caption}>{reply.content}</Text>
-              {/* Show parent post media if available */}
-              {reply.postMediaUrls?.length > 0 && (
-                <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
-                  <View style={profileCardStyles.replyMediaContainer}>
-                    <Image source={{ uri: reply.postMediaUrls[0] }} style={profileCardStyles.replyMedia} resizeMode="cover" />
-                  </View>
-                </TouchableOpacity>
-              )}
-              <View style={profileCardStyles.actions}>
-                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
-                  <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
-                  <View style={profileCardStyles.actionIconWrap}>
-                    <RepostIcon size={18} color={repostMap[reply.id] ? '#00ba7c' : '#94a3b8'} />
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
-                  <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name={likeMap[reply.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[reply.id] ? '#f43f5e' : '#94a3b8'} />
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity style={profileCardStyles.actionBtn}>
-                  <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
-                  </View>
-                </TouchableOpacity>
-                <View style={profileCardStyles.actionPair}>
-                  <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
-                    <View style={profileCardStyles.actionIconWrap}>
-                      <Ionicons name={bookmarkMap[reply.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[reply.id] ? colors.bookmark : '#94a3b8'} />
-                    </View>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={profileCardStyles.actionBtn}>
-                    <View style={profileCardStyles.actionIconWrap}>
-                      <Ionicons name="share-outline" size={18} color="#94a3b8" />
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              </View>
             </View>
           </View>
         </View>
-      );
-    })}
+      ))}
     </View>
   );
 }
@@ -504,7 +382,6 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [tabLoading, setTabLoading] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [interactionsChecked, setInteractionsChecked] = useState(false);
   const [profileAd, setProfileAd] = useState<any>(null);
 
   const isBusinessAccount = user?.role === 'business';
@@ -582,7 +459,6 @@ export default function ProfileScreen({ route, navigation }: any) {
           post.reposted = repostedIds.has(post.id);
         }
         setPosts([...ps]); // trigger re-render
-        setInteractionsChecked(true);
       }
     } catch (e: any) {
       console.error('[ProfileScreen] Load error:', e?.message);

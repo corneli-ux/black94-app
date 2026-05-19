@@ -130,6 +130,8 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
   // The old filter was too aggressive and caused profile images to disappear.
   let photoURL: string | null = data.photoUrl || null;
 
+  if (!data.localId) throw new Error('Sign-in response missing localId — cannot create auth state');
+
   _authUser = {
     uid: data.localId,
     email: data.email || null,
@@ -216,8 +218,14 @@ async function _doTokenRefresh(): Promise<string> {
         }),
       },
     );
-    const data = await resp.json();
-    if (!data.id_token) throw new Error('Token refresh failed');
+    const respText = await resp.text();
+    let data: any;
+    try {
+      data = JSON.parse(respText);
+    } catch {
+      throw new Error(`Token refresh returned non-JSON response (HTTP ${resp.status})`);
+    }
+    if (!data.id_token) throw new Error('Token refresh failed: ' + (data.error?.message || respText.slice(0, 200)));
     _idToken = data.id_token;
     _refreshToken = data.refresh_token || _refreshToken;
     await _persistAuth(); // Persist refreshed tokens
@@ -306,10 +314,11 @@ async function _firestoreFetch(
     if (__DEV__) console.error(`[Firestore] Full error response: ${respText.slice(0, 500)}`);
     // If it's a composite index error, include helpful info
     if (data.error?.message?.includes('FAILED_PRECONDITION') || errMsg.includes('index')) {
-      if (__DEV__) console.error(`[Firestore] COMPOSITE INDEX NEEDED for query on path: ${path}`);
-      if (__DEV__) console.error(`[Firestore] Create index at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
-      // Return empty result with a special flag so callers can detect this
-      if (__DEV__) console.warn(`[Firestore] Returning empty result due to missing index`);
+      console.error(`[Firestore] COMPOSITE INDEX NEEDED for query on path: ${path}`);
+      console.error(`[Firestore] Create index at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
+      // Return empty result with a special flag so callers can detect this.
+      // This is intentionally allowed in production too — callers (FeedScreen, etc.)
+      // check the _missingIndex flag and fall back to individual reads.
       const emptyResult: any = [];
       emptyResult._missingIndex = true;
       return emptyResult;
@@ -996,21 +1005,15 @@ function _mapOp(op: string): string {
    EXPORTS — keep same surface area as before so api.ts needs zero changes
    ═══════════════════════════════════════════════════════════════════════════ */
 
-// Stub GoogleAuthProvider (not used directly but kept for backward compat)
-const GoogleAuthProvider = { credential: (_token: string) => ({}) };
-
 export {
   auth,
   firestore,
   onAuthStateChanged,
   signInWithGoogleIdToken,
   signOut,
-  GoogleAuthProvider,
 };
 
 export { _getValidToken as getValidToken };
-export { _restoreAuth as restoreAuth };
-export { _persistAuth as persistAuth };
 
 /** Update the in-memory auth user profile (e.g., after profile edit, username change). */
 export async function updateAuthUser(updates: Partial<AuthUser>): Promise<void> {

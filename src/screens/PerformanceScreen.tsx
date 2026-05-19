@@ -2,11 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, RefreshControl, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { timeAgo } from '../utils/timeAgo';
+import { Avatar } from '../components/Avatar';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis } from '../lib/api';
-import { User } from '../lib/api';
 
 interface CampaignPerformance {
   id: string;
