@@ -335,6 +335,12 @@ async function validateFileSize(uri: string): Promise<void> {
  */
 async function cleanupTemp(uri: string): Promise<void> {
   if (!uri || !uri.startsWith((FileSystem as any).cacheDirectory || '')) return;
+  // BUG FIX: Never delete files from ImagePicker's cache directory — those are
+  // managed by expo-image-picker and the OS. Only delete files from our own
+  // temp directories (img_*, B94_picked_*, etc.). Deleting ImagePicker's files
+  // caused the "FileNotFoundException" when the upload pipeline tried to read
+  // a file that was already cleaned up by cleanupTemp after resize.
+  if (uri.includes('/ImagePicker/')) return;
   try {
     await FileSystem.deleteAsync(uri, { idempotent: true });
   } catch {

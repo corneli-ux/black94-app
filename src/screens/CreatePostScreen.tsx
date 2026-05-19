@@ -204,8 +204,30 @@ const CreatePostScreen: React.FC = () => {
     }
     const assets = await openImagePicker(remaining);
     if (!assets || assets.length === 0) return;
-    const uris = assets.map((a) => a.uri!).slice(0, remaining);
-    if (uris.length > 0) setSelectedImages((prev) => [...prev, ...uris]);
+    const rawUris = assets.map((a) => a.uri!).slice(0, remaining);
+    // BUG FIX: Copy each picked image to a permanent cache location IMMEDIATELY.
+    // ImagePicker's temp files in /cache/ImagePicker/ can be cleaned up by
+    // Android OS at any time, causing FileNotFoundException on upload.
+    try {
+      const { copyToSafeCache } = require('../utils/imageUpload');
+      const safeUris: string[] = [];
+      for (const rawUri of rawUris) {
+        try {
+          const safeUri = await copyToSafeCache(rawUri);
+          safeUris.push(safeUri);
+        } catch (copyErr: any) {
+          console.warn('[CreatePost] Failed to cache image:', copyErr?.message);
+          // Skip this image — it's gone from the picker's cache
+        }
+      }
+      if (safeUris.length > 0) setSelectedImages((prev) => [...prev, ...safeUris]);
+      else if (rawUris.length > 0) {
+        Alert.alert('Image Error', 'Selected images are no longer available. Please try again.');
+      }
+    } catch {
+      // copyToSafeCache import failed — fall back to original URIs
+      if (rawUris.length > 0) setSelectedImages((prev) => [...prev, ...rawUris]);
+    }
   }, [selectedImages.length, posting]);
 
   const handleCamera = useCallback(async () => {
@@ -217,7 +239,14 @@ const CreatePostScreen: React.FC = () => {
     }
     const asset = await openCamera();
     if (!asset?.uri) return;
-    setSelectedImages((prev) => [...prev, asset.uri!]);
+    // Camera images can also be in volatile cache — copy to safe location
+    try {
+      const { copyToSafeCache } = require('../utils/imageUpload');
+      const safeUri = await copyToSafeCache(asset.uri);
+      setSelectedImages((prev) => [...prev, safeUri]);
+    } catch {
+      setSelectedImages((prev) => [...prev, asset.uri]);
+    }
   }, [selectedImages.length, posting]);
 
   const handleRemoveImage = useCallback((index: number) => {

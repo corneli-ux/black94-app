@@ -127,7 +127,17 @@ export default function StoryCreatorScreen({ navigation }: any) {
       const result = await openImageLibrary();
       if (!result) return;
       if (result.assets && result.assets.length > 0) {
-        setImageUri(result.assets[0].uri ?? '');
+        let uri = result.assets[0].uri ?? '';
+        // BUG FIX: Copy to permanent cache immediately
+        if (uri && !uri.startsWith('http')) {
+          try {
+            const { copyToSafeCache } = require('../utils/imageUpload');
+            uri = await copyToSafeCache(uri);
+          } catch (copyErr: any) {
+            console.warn('[StoryCreatorScreen] copyToSafeCache failed:', copyErr?.message);
+          }
+        }
+        setImageUri(uri);
       }
     } catch (e) {
       console.warn('[StoryCreatorScreen] image picker error:', e);

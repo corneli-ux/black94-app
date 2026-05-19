@@ -214,16 +214,94 @@ function safeBase64Decode(base64: string): Uint8Array {
 }
 
 /**
- * Reads a local file as a base64 string using expo-file-system.
- * Required because React Native's XMLHttpRequest doesn't support
- * sending raw file URIs in all environments.
+ * Copies a file from ImagePicker's temporary cache to a permanent cache location.
+ *
+ * PROBLEM: ImagePicker returns URIs to temp files in /cache/ImagePicker/.
+ * On Android, the OS may clean these up at any time — especially after a
+ * delay (user spends time composing a caption). When the upload pipeline
+ * later tries to read, it gets FileNotFoundException.
+ *
+ * FIX: Immediately after picking, copy to /cache/B94_picked/ which is
+ * under our control and won't be cleaned by the OS/picker.
  */
+export async function copyToSafeCache(uri: string): Promise<string> {
+  // Don't copy remote URLs or data URIs
+  if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('data:')) {
+    return uri;
+  }
+
+  try {
+    const fsModule = await import('expo-file-system/legacy');
+    const FileSystem = (fsModule as any).default || fsModule;
+    const cacheDir = (FileSystem as any).cacheDirectory || '';
+
+    // Already in our safe cache
+    const safePrefix = `${cacheDir}B94_picked/`;
+    const normalizedUri = uri.startsWith('file://') ? uri : `file://${uri}`;
+    if (normalizedUri.startsWith(safePrefix) || uri.startsWith(safePrefix)) {
+      return uri;
+    }
+
+    // Verify source file exists before copying
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists) {
+      console.warn('[copyToSafeCache] Source file does not exist:', uri);
+      throw new Error(`Source image file no longer exists. Please try selecting the image again.`);
+    }
+
+    // Ensure the safe cache directory exists
+    const safeDir = `${cacheDir}B94_picked`;
+    try {
+      const dirInfo = await FileSystem.getInfoAsync(safeDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(safeDir, { intermediates: true });
+      }
+    } catch (mkdirErr) {
+      console.warn('[copyToSafeCache] Failed to create safe directory, will copy to root cache:', mkdirErr);
+    }
+
+    // Generate unique destination filename preserving extension
+    const ext = uri.split('?')[0].split('.').pop() || 'jpg';
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).slice(2, 8);
+    const destPath = `${cacheDir}B94_picked/img_${timestamp}_${random}.${ext}`;
+
+    await FileSystem.copyAsync({ from: uri, to: destPath });
+    console.log('[copyToSafeCache] Copied', uri.slice(-40), '→', destPath.slice(-40));
+    return destPath;
+  } catch (err: any) {
+    if (err?.message?.includes('no longer exists')) {
+      throw err; // Re-throw our friendly message
+    }
+    console.warn('[copyToSafeCache] Copy failed, returning original URI:', err?.message);
+    return uri; // Best-effort: return original and hope it survives
+  }
+}
+
 async function readFileAsBase64(uri: string): Promise<string> {
   // expo-file-system v19 (Expo SDK 54) moved legacy functions to a separate
   // entry point. Importing from 'expo-file-system' throws at runtime.
   // The /legacy subpath exports the same API that always worked.
   const fsModule = await import('expo-file-system/legacy');
   const FileSystem = (fsModule as any).default || fsModule;
+
+  // BUG FIX: Check file existence BEFORE reading to give a clear error message
+  // instead of a cryptic FileNotFoundException.
+  try {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists) {
+      throw new Error(
+        `Image file not found at: ${uri.slice(-60)}. ` +
+        'The temporary image cache may have been cleared. Please try selecting the image again.'
+      );
+    }
+  } catch (checkErr: any) {
+    // If the existence check itself fails, we'll try reading anyway
+    // (some URIs like content:// may not support getInfoAsync)
+    if (checkErr?.message?.includes('not found') || checkErr?.message?.includes('no longer exists')) {
+      throw checkErr;
+    }
+  }
 
   // Strategy:
   //   1. Try reading the URI directly (works for file://, content://, asset://)

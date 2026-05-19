@@ -169,7 +169,17 @@ export default function EditProfileScreen({ navigation }: any) {
         const result = await openImageLibrary();
         if (!result) return;
         if (result.assets && result.assets.length > 0) {
-          const uri = result.assets[0].uri ?? '';
+          let uri = result.assets[0].uri ?? '';
+          // BUG FIX: Copy to permanent cache immediately — ImagePicker temp
+          // files can be cleaned by Android OS before the user taps Save.
+          if (uri && !uri.startsWith('http')) {
+            try {
+              const { copyToSafeCache } = require('../utils/imageUpload');
+              uri = await copyToSafeCache(uri);
+            } catch (copyErr: any) {
+              console.warn('[EditProfileScreen] copyToSafeCache failed:', copyErr?.message);
+            }
+          }
           if (type === 'profile') {
             setProfileImage(uri);
           } else {

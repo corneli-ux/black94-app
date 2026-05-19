@@ -328,6 +328,17 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
+
+      // BUG FIX: Copy to permanent cache immediately — ImagePicker's temp files
+      // can be cleaned by Android OS before optimization/upload starts.
+      let assetUri = asset.uri;
+      try {
+        const { copyToSafeCache } = require('../utils/imageUpload');
+        assetUri = await copyToSafeCache(asset.uri);
+      } catch (copyErr: any) {
+        console.warn('[StoriesScreen] copyToSafeCache failed, using original:', copyErr?.message);
+      }
+
       setUploading(true);
 
       // BUG FIX: Check plan limit BEFORE uploading image to avoid
@@ -352,11 +363,11 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
         try {
           // BUG FIX: Optimize before upload — ensures correct Content-Type.
           // BLACK PHOTO FIX: Fall back to original if optimization produces 0-byte file.
-          let uploadUri = asset.uri;
-          const uriExt = asset.uri.split('?')[0].split('.').pop()?.toLowerCase();
+          let uploadUri = assetUri;
+          const uriExt = assetUri.split('?')[0].split('.').pop()?.toLowerCase();
           let uploadMime = uriExt === 'png' ? 'image/png' : 'image/jpeg';
           try {
-            const optimized = await optimizeImage(asset.uri, {
+            const optimized = await optimizeImage(assetUri, {
               maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
             });
             if (optimized.size > 0) {
@@ -433,6 +444,16 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
+
+      // BUG FIX: Copy camera image to permanent cache immediately
+      let assetUri = asset.uri;
+      try {
+        const { copyToSafeCache } = require('../utils/imageUpload');
+        assetUri = await copyToSafeCache(asset.uri);
+      } catch (copyErr: any) {
+        console.warn('[StoriesScreen] copyToSafeCache failed (camera), using original:', copyErr?.message);
+      }
+
       setUploading(true);
 
       // BUG FIX: Check plan limit BEFORE uploading image to avoid
@@ -456,11 +477,11 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
         try {
           // BUG FIX: Optimize before upload — ensures correct Content-Type.
           // BLACK PHOTO FIX: Fall back to original if optimization produces 0-byte file.
-          let uploadUri = asset.uri;
-          const uriExt = asset.uri.split('?')[0].split('.').pop()?.toLowerCase();
+          let uploadUri = assetUri;
+          const uriExt = assetUri.split('?')[0].split('.').pop()?.toLowerCase();
           let uploadMime = uriExt === 'png' ? 'image/png' : 'image/jpeg';
           try {
-            const optimized = await optimizeImage(asset.uri, {
+            const optimized = await optimizeImage(assetUri, {
               maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
             });
             if (optimized.size > 0) {

@@ -216,9 +216,23 @@ export default function AddProductScreen({ route, navigation }: any) {
     }
     const assets = await openImagePicker(remaining);
     if (!assets || assets.length === 0) return;
-    const uris = assets.map((a) => a.uri!).slice(0, remaining);
-    if (uris.length > 0) {
-      setForm(prev => ({ ...prev, images: [...prev.images, ...uris] }));
+    const rawUris = assets.map((a) => a.uri!).slice(0, remaining);
+    // BUG FIX: Copy picked images to permanent cache to prevent FileNotFoundException
+    try {
+      const { copyToSafeCache } = require('../utils/imageUpload');
+      const safeUris: string[] = [];
+      for (const rawUri of rawUris) {
+        try {
+          const safeUri = await copyToSafeCache(rawUri);
+          safeUris.push(safeUri);
+        } catch (copyErr: any) {
+          console.warn('[AddProduct] Failed to cache image:', copyErr?.message);
+        }
+      }
+      if (safeUris.length > 0) setForm(prev => ({ ...prev, images: [...prev.images, ...safeUris] }));
+      else if (rawUris.length > 0) Alert.alert('Image Error', 'Selected images are no longer available. Please try again.');
+    } catch {
+      if (rawUris.length > 0) setForm(prev => ({ ...prev, images: [...prev.images, ...rawUris] }));
     }
   }, [form.images.length, saving]);
 
@@ -231,7 +245,14 @@ export default function AddProductScreen({ route, navigation }: any) {
     }
     const asset = await openCamera();
     if (!asset?.uri) return;
-    setForm(prev => ({ ...prev, images: [...prev.images, asset.uri!] }));
+    // Camera images can also be in volatile cache — copy to safe location
+    try {
+      const { copyToSafeCache } = require('../utils/imageUpload');
+      const safeUri = await copyToSafeCache(asset.uri);
+      setForm(prev => ({ ...prev, images: [...prev.images, safeUri] }));
+    } catch {
+      setForm(prev => ({ ...prev, images: [...prev.images, asset.uri!] }));
+    }
   }, [form.images.length, saving]);
 
   const handleRemoveImage = useCallback((index: number) => {
