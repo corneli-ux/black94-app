@@ -49,11 +49,13 @@ jobs:
             exit 1
           fi
 
+      # Pipe `yes` to auto-accept the "Install updated dependencies?" prompt
+      # that appears when Expo detects a version mismatch (e.g. expo vs react-native)
       - name: Expo prebuild
         env:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-        run: npx expo prebuild --platform android --clean
+        run: yes | npx expo prebuild --platform android --clean
 
       - name: Fix splashscreen_logo drawable
         run: |
