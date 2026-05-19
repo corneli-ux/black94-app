@@ -146,35 +146,6 @@ function getRazorpay(): Razorpay {
   return _razorpay;
 }
 
-// ── HTTP: healthCheck (temporary debug — remove after fixing) ────────────
-
-export const healthCheck = functions.https.onRequest(async (req, res) => {
-  const errors: string[] = [];
-  const _origConsoleError = console.error;
-  const _origConsoleWarn = console.warn;
-  console.error = (...args: any[]) => { errors.push(args.join(' ')); _origConsoleError(...args); };
-  console.warn = (...args: any[]) => { errors.push(args.join(' ')); _origConsoleWarn(...args); };
-
-  await _ensureSecrets();
-
-  console.error = _origConsoleError;
-  console.warn = _origConsoleWarn;
-
-  const rzpKeyId = process.env.RAZORPAY_KEY_ID || '';
-  const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
-  res.json({
-    status: 'ok',
-    secrets: {
-      RAZORPAY_KEY_ID: rzpKeyId ? `set (len=${rzpKeyId.length}, prefix=${rzpKeyId.slice(0, 8)}...)` : 'EMPTY',
-      RAZORPAY_KEY_SECRET: rzpKeySecret ? `set (len=${rzpKeySecret.length})` : 'EMPTY',
-      RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET ? 'set' : 'EMPTY',
-    },
-    debugErrors: errors,
-    env: Object.keys(process.env).filter(k => k.startsWith('RAZORPAY') || k.startsWith('GCLOUD')),
-    timestamp: new Date().toISOString(),
-  });
-});
-
 // ── HTTP: createRazorpayOrder ─────────────────────────────────────────────
 
 /**
@@ -208,7 +179,7 @@ orderApp.post('/', authenticateRequest, async (req: any, res) => {
   // ── Critical: Check Razorpay credentials BEFORE attempting API call ──
   const rzpKeyId = process.env.RAZORPAY_KEY_ID || '';
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
-  console.log(`[Razorpay] DEBUG: KEY_ID present=${!!rzpKeyId} len=${rzpKeyId.length}, KEY_SECRET present=${!!rzpKeySecret} len=${rzpKeySecret.length}`);
+  console.log(`[Razorpay] Creating order: amount=${amount}, currency=${currency}`);
   if (!rzpKeyId || !rzpKeySecret) {
     console.error('[Razorpay] CRITICAL: RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET not set. ' +
       'Run: firebase functions:secrets:set RAZORPAY_KEY_ID && firebase functions:secrets:set RAZORPAY_KEY_SECRET');
