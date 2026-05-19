@@ -81,16 +81,33 @@ async function authenticateRequest(req: any, res: any, next: any) {
   }
 }
 
-// ── Secret injection for 1st Gen functions ──────────────────────────────
-// 1st Gen Cloud Functions (firebase-functions v5) don't auto-inject
-// secrets from Secret Manager into process.env via defineSecret (that's
-// 2nd Gen only). Instead, we read them directly from Secret Manager at
-// startup and inject into process.env so the rest of the code works unchanged.
+// ── Secret loading ──────────────────────────────────────────────────────
+// Firebase 1st Gen functions (v5) don't reliably inject secrets set via
+// `firebase functions:secrets:set` into process.env. The default App Engine
+// service account also lacks Secret Manager access by default.
+//
+// Workaround: read secrets directly from Secret Manager on first request.
+// The App Engine service account (PROJECT_ID@appspot.gserviceaccount.com)
+// needs the "Secret Manager Secret Accessor" role — grant it via:
+//   gcloud secrets add-iam-policy-binding RAZORPAY_KEY_ID \
+//     --member="serviceAccount:black94@appspot.gserviceaccount.com" \
+//     --role="roles/secretmanager.secretAccessor" --project=black94
+//
+// Until IAM is fixed, the _loadFromSecretManager() call will silently fail
+// and the function falls back to process.env (which may also be empty).
 const _projectId = process.env.GCLOUD_PROJECT || 'black94';
 let _secretsLoaded = false;
 
 async function _ensureSecrets(): Promise<void> {
   if (_secretsLoaded) return;
+  _secretsLoaded = true; // Prevent retries
+
+  // If process.env already has the values (2nd gen or future fix), skip.
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    console.log('[Secrets] Already available via process.env');
+    return;
+  }
+
   try {
     const { SecretManagerServiceClient } = await import('@google-cloud/secret-manager');
     const client = new SecretManagerServiceClient();
@@ -104,15 +121,16 @@ async function _ensureSecrets(): Promise<void> {
         const payload = version.payload?.data?.toString() || '';
         if (payload) {
           process.env[name] = payload;
+          console.log(`[Secrets] Loaded ${name} from Secret Manager (len=${payload.length})`);
+        } else {
+          console.warn(`[Secrets] ${name} exists but is empty`);
         }
       } catch (e: any) {
-        console.warn(`[Secrets] Failed to load ${name}:`, e?.message || e);
+        console.error(`[Secrets] Failed to load ${name}:`, e?.message || e);
       }
     }
-    console.log('[Secrets] Loaded secrets from Secret Manager');
-    _secretsLoaded = true;
   } catch (e: any) {
-    console.error('[Secrets] Failed to init Secret Manager client:', e?.message || e);
+    console.error('[Secrets] Secret Manager client init failed:', e?.message || e);
   }
 }
 
@@ -141,7 +159,17 @@ function getRazorpay(): Razorpay {
 // ── HTTP: healthCheck (temporary debug — remove after fixing) ────────────
 
 export const healthCheck = functions.https.onRequest(async (req, res) => {
+  const errors: string[] = [];
+  const _origConsoleError = console.error;
+  const _origConsoleWarn = console.warn;
+  console.error = (...args: any[]) => { errors.push(args.join(' ')); _origConsoleError(...args); };
+  console.warn = (...args: any[]) => { errors.push(args.join(' ')); _origConsoleWarn(...args); };
+
   await _ensureSecrets();
+
+  console.error = _origConsoleError;
+  console.warn = _origConsoleWarn;
+
   const rzpKeyId = process.env.RAZORPAY_KEY_ID || '';
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
   res.json({
@@ -151,7 +179,8 @@ export const healthCheck = functions.https.onRequest(async (req, res) => {
       RAZORPAY_KEY_SECRET: rzpKeySecret ? `set (len=${rzpKeySecret.length})` : 'EMPTY',
       RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET ? 'set' : 'EMPTY',
     },
-    env: Object.keys(process.env).filter(k => k.startsWith('RAZORPAY')),
+    debugErrors: errors,
+    env: Object.keys(process.env).filter(k => k.startsWith('RAZORPAY') || k.startsWith('GCLOUD')),
     timestamp: new Date().toISOString(),
   });
 });
