@@ -89,7 +89,14 @@ export function parseMediaUrls(raw: any): string[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.filter((v: any) => typeof v === 'string' && v.trim());
   if (typeof raw === 'string') {
+    // BUG FIX: If the string is a URL (starts with http:// or https://),
+    // return it as-is instead of splitting on commas. Firebase Storage
+    // URLs don't contain commas in the path, but if downloadTokens
+    // (comma-separated) was accidentally stored as the URL, splitting
+    // would produce broken fragments.
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return [raw];
     if (raw.startsWith('data:')) return [raw];
+    // Legacy format: comma-separated list of URLs
     return raw.split(',').map(u => u.trim()).filter(Boolean);
   }
   return [];

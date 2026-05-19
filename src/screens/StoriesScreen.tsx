@@ -25,6 +25,7 @@ import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { tsToMillis } from '../lib/api';
 import { uploadOptimizedImage } from '../utils/imageUpload';
+import { optimizeImage } from '../utils/imageOptimizer';
 import { useAppStore } from '../stores/app';
 import { checkPlanLimit } from '../lib/payments';
 
@@ -321,7 +322,8 @@ export default function StoriesScreen({ navigation }: any) {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
-        quality: 0.8,
+        // BUG FIX: Removed quality — picker JPEG conversion was turning
+        // PNG transparency into black pixels.
       });
       if (result.canceled || !result.assets?.[0]) return;
 
@@ -348,9 +350,14 @@ export default function StoriesScreen({ navigation }: any) {
       let uploadSuccess = false;
       for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
         try {
-          const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
-          uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
-            mimeType: 'image/jpeg',
+          // BUG FIX: Optimize before upload — ensures correct Content-Type.
+          const optimized = await optimizeImage(asset.uri, {
+            maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
+          });
+          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+          const storagePath = `stories/${currentUser.uid}/${Date.now()}.${ext}`;
+          uploadResult = await uploadOptimizedImage(optimized.optimizedUri, storagePath, {
+            mimeType: optimized.mimeType,
           });
           uploadSuccess = true;
           break;
@@ -406,7 +413,8 @@ export default function StoriesScreen({ navigation }: any) {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
-        quality: 0.8,
+        // BUG FIX: Removed quality — picker JPEG conversion was turning
+        // PNG transparency into black pixels.
       });
       if (result.canceled || !result.assets?.[0]) return;
 
@@ -432,9 +440,14 @@ export default function StoriesScreen({ navigation }: any) {
       let uploadSuccess = false;
       for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
         try {
-          const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
-          uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
-            mimeType: 'image/jpeg',
+          // BUG FIX: Optimize before upload — ensures correct Content-Type.
+          const optimized = await optimizeImage(asset.uri, {
+            maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
+          });
+          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+          const storagePath = `stories/${currentUser.uid}/${Date.now()}.${ext}`;
+          uploadResult = await uploadOptimizedImage(optimized.optimizedUri, storagePath, {
+            mimeType: optimized.mimeType,
           });
           uploadSuccess = true;
           break;

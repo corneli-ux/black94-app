@@ -191,6 +191,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   const currentUser = auth()?.currentUser;
   const [showHeart, setShowHeart] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [hasMediaError, setHasMediaError] = useState(false);
   const lastTapRef = useRef(0);
 
   const CAPTION_LIMIT = 150;
@@ -205,6 +206,18 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     setIsReposted(post.reposted);
     setLocalRepostCount(post.repostCount);
   }, [post.reposted, post.repostCount]);
+
+  // BUG FIX: Reset hasMediaError when post changes (FlatList recycling).
+  // Without this, a recycled PostCard that previously had a media error
+  // shows the error overlay on a perfectly valid new post's image.
+  const prevMediaUrlRef = React.useRef(post.mediaUrls?.[0] || '');
+  React.useEffect(() => {
+    const currentUrl = post.mediaUrls?.[0] || '';
+    if (prevMediaUrlRef.current !== currentUrl) {
+      setHasMediaError(false);
+      prevMediaUrlRef.current = currentUrl;
+    }
+  }, [post.id, post.mediaUrls]);
 
   const handleDoubleTap = () => {
     const now = Date.now();
@@ -326,7 +339,17 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                   source={{ uri: post.mediaUrls[0] }}
                   style={styles.media}
                   resizeMode="cover"
+                  // BUG FIX: Show placeholder when image fails to load
+                  // (expired token, broken URL) instead of a black rectangle.
+                  onLoad={() => setHasMediaError(false)}
+                  onError={() => setHasMediaError(true)}
                 />
+                {hasMediaError && (
+                  <View style={[StyleSheet.absoluteFill, styles.mediaErrorOverlay]}>
+                    <Ionicons name="image-outline" size={24} color="#71767b" />
+                    <Text style={styles.mediaErrorText}>Image failed to load</Text>
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
           )}
@@ -1077,7 +1100,19 @@ const styles = StyleSheet.create({
   media: {
     width: '100%',
     height: Math.min(SCREEN_W * 0.85, vs(510)),
-    backgroundColor: '#000000',
+    backgroundColor: '#1a1a1a',
+  },
+  mediaErrorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  mediaErrorText: {
+    color: '#71767b',
+    fontSize: 13,
+    fontWeight: '500',
   },
 
   /* ── Action bar — X/Twitter exact spacing ── */

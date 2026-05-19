@@ -20,6 +20,7 @@ import { fetchUserProfile, User } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { uploadOptimizedImage } from '../utils/imageUpload';
+import { optimizeImage } from '../utils/imageOptimizer';
 
 type Role = 'personal' | 'creator' | 'professional' | 'business';
 
@@ -41,9 +42,8 @@ async function openImageLibrary() {
     const { launchImageLibrary } = require('expo-image-picker');
     const result = await launchImageLibrary({
       mediaType: 'photo',
-      quality: 0.8,
-      maxWidth: 1080,
-      maxHeight: 1080,
+      // BUG FIX: Removed quality, maxWidth, maxHeight — picker-side JPEG
+      // conversion was turning PNG transparency into black pixels.
     });
     return result;
   } catch (err) {
@@ -202,19 +202,35 @@ export default function EditProfileScreen({ navigation }: any) {
         let finalCoverImage = coverImage;
 
         // Upload images if they are local URIs
+        // BUG FIX: Optimize before upload and use the correct MIME type
+        // matching the optimized output. Previously, hardcoded mimeType
+        // 'image/jpeg' was sent even when the file was PNG → Content-Type
+        // mismatch → black/corrupted avatars on some devices.
         if (profileImage && !profileImage.startsWith('http')) {
+          const optimized = await optimizeImage(profileImage, {
+            maxWidth: 800,
+            jpegQuality: 0.85,
+            generateThumbnail: false,
+          });
+          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
           const result = await uploadOptimizedImage(
-            profileImage,
-            `users/${currentUid}/profile/${Date.now()}.jpg`,
-            { mimeType: 'image/jpeg' },
+            optimized.optimizedUri,
+            `users/${currentUid}/profile/${Date.now()}.${ext}`,
+            { mimeType: optimized.mimeType },
           );
           finalProfileImage = result.downloadUrl;
         }
         if (coverImage && !coverImage.startsWith('http')) {
+          const optimized = await optimizeImage(coverImage, {
+            maxWidth: 1600,
+            jpegQuality: 0.85,
+            generateThumbnail: false,
+          });
+          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
           const result = await uploadOptimizedImage(
-            coverImage,
-            `users/${currentUid}/cover/${Date.now()}.jpg`,
-            { mimeType: 'image/jpeg' },
+            optimized.optimizedUri,
+            `users/${currentUid}/cover/${Date.now()}.${ext}`,
+            { mimeType: optimized.mimeType },
           );
           finalCoverImage = result.downloadUrl;
         }

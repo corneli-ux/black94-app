@@ -12,6 +12,7 @@ import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
 import { checkPlanLimit } from '../lib/payments';
 import { uploadOptimizedImage } from '../utils/imageUpload';
+import { optimizeImage } from '../utils/imageOptimizer';
 import { auth } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 
@@ -83,10 +84,13 @@ async function openImagePicker(limit: number): Promise<ImagePicker.ImagePickerAs
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.8,
+      // BUG FIX: Removed quality: 0.8 and maxWidth: 1200.
+      // These picker-side options forced JPEG conversion of ALL images,
+      // turning PNG transparency into BLACK pixels. The upload pipeline
+      // (imageOptimizer + uploadOptimizedImage) handles compression
+      // and resizing properly, preserving format when needed.
       allowsMultipleSelection: true,
       selectionLimit: limit,
-      maxWidth: 1200,
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) return null;
@@ -133,9 +137,9 @@ async function openCamera(): Promise<ImagePicker.ImagePickerAsset | null> {
 
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
-      quality: 0.8,
+      // BUG FIX: Removed quality and maxWidth — picker-side JPEG conversion
+      // was turning PNG transparency into black pixels.
       allowsMultipleSelection: false,
-      maxWidth: 1200,
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) return null;
@@ -276,10 +280,25 @@ const CreatePostScreen: React.FC = () => {
     try {
       // Upload all images in parallel (not sequential)
       const uploadPromises = selectedImages.map(async (uri, i) => {
-        const storagePath = `posts/${currentUser.uid}/${Date.now()}_${i}.jpg`;
         try {
-          const result = await uploadOptimizedImage(uri, storagePath, {
-            mimeType: 'image/jpeg',
+          // BUG FIX: Optimize image BEFORE uploading. Previously, raw picker
+          // output was uploaded directly with hardcoded mimeType: 'image/jpeg'.
+          // If the user picked a PNG (screenshot, graphic), the binary was PNG
+          // but Content-Type said JPEG → React Native decoded PNG bytes as JPEG
+          // → black/corrupted photos. optimizeImage produces a consistent JPEG
+          // output with correct MIME type.
+          setUploadProgress(`Optimizing image ${i + 1}...`);
+          const optimized = await optimizeImage(uri, {
+            maxWidth: 2048,
+            jpegQuality: 0.88,
+            generateThumbnail: false,
+          });
+
+          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+          const storagePath = `posts/${currentUser.uid}/${Date.now()}_${i}.${ext}`;
+
+          const result = await uploadOptimizedImage(optimized.optimizedUri, storagePath, {
+            mimeType: optimized.mimeType,
             abortSignal: abortController.signal,
             onProgress: (loaded, total) => {
               const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;

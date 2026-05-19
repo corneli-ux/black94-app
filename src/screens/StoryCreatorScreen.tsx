@@ -17,6 +17,7 @@ import { auth, firestore } from '../lib/firebase';
 import { fetchUserProfile } from '../lib/api';
 import { checkPlanLimit } from '../lib/payments';
 import { uploadOptimizedImage } from '../utils/imageUpload';
+import { optimizeImage } from '../utils/imageOptimizer';
 import { colors } from '../theme/colors';
 
 type StoryFormat = 'text' | 'image' | 'poll';
@@ -39,11 +40,28 @@ const FONT_SIZES = [
   { value: 56, label: 'Extra Large' },
 ];
 
+// BUG FIX: Removed hardcoded mimeType: 'image/jpeg'. Previously, raw picker
+// output was uploaded directly with a wrong Content-Type. If the user picked
+// a PNG (screenshot), binary was PNG but header said JPEG → black/corrupted
+// photos in the feed. Now we optimize first, producing a consistent format
+// with a matching Content-Type.
 async function uploadImage(uri: string, storagePath: string): Promise<string> {
-  const result = await uploadOptimizedImage(uri, storagePath, {
-    mimeType: 'image/jpeg',
-  });
-  return result.downloadUrl;
+  setPosting(true);
+  try {
+    const optimized = await optimizeImage(uri, {
+      maxWidth: 2048,
+      jpegQuality: 0.88,
+      generateThumbnail: false,
+    });
+    const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+    const finalPath = storagePath.replace(/\.\w+$/, `.${ext}`);
+    const result = await uploadOptimizedImage(optimized.optimizedUri, finalPath, {
+      mimeType: optimized.mimeType,
+    });
+    return result.downloadUrl;
+  } finally {
+    setPosting(false);
+  }
 }
 
 // Lazy image picker
@@ -52,8 +70,8 @@ async function openImageLibrary() {
     const { launchImageLibrary } = require('expo-image-picker');
     const result = await launchImageLibrary({
       mediaType: 'photo',
-      quality: 0.8,
-      maxWidth: 1080,
+      // BUG FIX: Removed quality and maxWidth — picker-side JPEG conversion
+      // was turning PNG transparency into black pixels.
     });
     return result;
   } catch (err) {

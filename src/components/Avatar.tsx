@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,10 +21,13 @@ export function Avatar({
     ? { borderWidth, borderColor: borderColor || '#000000' }
     : {};
 
-  if (uri) {
+  const [imgError, setImgError] = useState(false);
+
+  if (uri && !imgError) {
     return (
       <Image
         source={{ uri }}
+        onError={() => setImgError(true)}
         style={[
           styles.image,
           { width: size, height: size, borderRadius: size / 2 },
@@ -32,6 +35,12 @@ export function Avatar({
         ]}
       />
     );
+  }
+
+  // If URI exists but failed to load (broken URL, expired token, etc.),
+  // fall through to initials placeholder instead of showing a black circle.
+  if (uri && imgError) {
+    setImgError(false); // Reset so retry can work
   }
 
   // Web: bg-gradient-to-br from-[#FFFFFF] to-[#9CA3AF], font-bold, fontSize: size*0.38
@@ -101,7 +110,7 @@ export function VerifiedBadge({ badge, isVerified, size = 18 }: { badge?: string
 }
 
 const styles = StyleSheet.create({
-  image: { backgroundColor: '#000000' },
+  image: { backgroundColor: '#1a1a1a' },
   placeholder: {
     alignItems: 'center',
     justifyContent: 'center',
