@@ -94,10 +94,10 @@ let _secretsLoaded = false;
 
 async function _ensureSecrets(): Promise<void> {
   if (_secretsLoaded) return;
-  // _secretsLoaded guard removed — always retry until loaded;
 
   // Fast path: env vars already injected by the runtime
   if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    _secretsLoaded = true;
     return;
   }
 
@@ -122,6 +122,10 @@ async function _ensureSecrets(): Promise<void> {
   } catch (e: any) {
     console.error('[Secrets] Secret Manager client failed:', e?.message || e);
   }
+
+  // Reset cached Razorpay instance so it picks up the new env values
+  _resetRazorpayInstance();
+  _secretsLoaded = true;
 }
 
 // ── Razorpay Instance (lazy init) ──────────────────────────────────────────
@@ -144,6 +148,11 @@ function getRazorpay(): Razorpay {
     });
   }
   return _razorpay;
+}
+
+/** Reset cached Razorpay instance after secrets are loaded. */
+function _resetRazorpayInstance(): void {
+  _razorpay = null;
 }
 
 // ── HTTP: createRazorpayOrder ─────────────────────────────────────────────
@@ -233,11 +242,11 @@ orderApp.post('/', authenticateRequest, async (req: any, res) => {
       receipt: order.receipt,
     });
   } catch (error: any) {
-    console.error('[Razorpay] Order creation failed:', error);
+    console.error('[Razorpay] Order creation failed:', error?.message || error, error?.statusCode, error?.code);
     return res.status(500).json({
       error: {
         code: 500,
-        message: 'Failed to create payment order. Please try again.',
+        message: error?.message || 'Failed to create payment order. Please try again.',
         status: 'INTERNAL',
       },
     });
