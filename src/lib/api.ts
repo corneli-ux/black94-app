@@ -1513,11 +1513,11 @@ export async function addPostComment(postId: string, content: string, replyToId?
     id: docRef.id,
     postId,
     authorId: userId,
-    authorUsername: userData?.username || '',
-    authorDisplayName: userData?.displayName || '',
-    authorProfileImage: userData?.profileImage || '',
-    authorIsVerified: userData?.isVerified || false,
-    authorBadge: userData?.badge || '',
+    authorUsername: userData?.username || storeUser?.username || '',
+    authorDisplayName: userData?.displayName || storeUser?.displayName || 'User',
+    authorProfileImage: userData?.profileImage || storeUser?.profileImage || '',
+    authorIsVerified: userData?.isVerified ?? storeUser?.isVerified ?? false,
+    authorBadge: userData?.badge || storeUser?.badge || '',
     content: content.trim(),
     replyToId: replyToId || null,
     replyToUsername: replyToUsername || null,
@@ -2004,6 +2004,8 @@ export interface CartItem {
 }
 
 export async function addToCart(userId: string, productId: string, quantity: number = 1): Promise<void> {
+  const currentUid = currentUser()?.uid;
+  if (!currentUid || currentUid !== userId) throw new Error('Not authenticated');
   const cartRef = firestore().collection('users').doc(userId).collection('cart').doc(productId);
   const cartDoc = await cartRef.get();
   const existingQty = cartDoc.exists ? (cartDoc.data()?.quantity || 0) : 0;
@@ -2082,32 +2084,34 @@ export async function updateCartItemQuantity(userId: string, productId: string, 
     await removeFromCart(userId, productId);
     return;
   }
-  await firestore()
-    .collection('users')
-    .doc(userId)
-    .collection('cart')
-    .doc(productId)
-    .update({ quantity });
+  try {
+    await firestore()
+      .collection('users')
+      .doc(userId)
+      .collection('cart')
+      .doc(productId)
+      .update({ quantity });
+  } catch (e) {
+    console.warn('[Cart] Failed to update cart item quantity:', e);
+  }
 }
 
 export async function removeFromCart(userId: string, productId: string): Promise<void> {
-  await firestore()
-    .collection('users')
-    .doc(userId)
-    .collection('cart')
-    .doc(productId)
-    .delete();
+  try {
+    await firestore()
+      .collection('users')
+      .doc(userId)
+      .collection('cart')
+      .doc(productId)
+      .delete();
+  } catch (e) {
+    console.warn('[Cart] Failed to remove cart item:', e);
+  }
 }
 
 export async function clearCart(userId: string): Promise<void> {
-  const snapshot = await firestore()
-    .collection('users')
-    .doc(userId)
-    .collection('cart')
-    .get();
-
   const batchSize = 20;
-  let hasMore = !snapshot.empty;
+  let hasMore = true;
   while (hasMore) {
     const snap = await firestore()
       .collection('users')
@@ -2161,6 +2165,7 @@ export async function submitFactCheck(
 
   const snap = await firestore().collection('factChecks').doc(docRef.id).get();
   const data = snap.data();
+  if (!data) throw new Error('Fact check document not found after creation');
 
   return {
     id: docRef.id,

@@ -46,7 +46,10 @@ export async function searchWeb(query: string, numResults: number = 10): Promise
         url: item.url || '',
         name: item.name || item.title || '',
         snippet: item.snippet || item.description || '',
-        hostName: item.host_name || new URL(item.url || 'https://example.com').hostname,
+        hostName: item.host_name || (() => {
+          try { return new URL(item.url || 'https://example.com').hostname; }
+          catch { return ''; }
+        })(),
       }));
     }
 

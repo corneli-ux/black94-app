@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 interface Notification {
   id: string;
-  type: 'like' | 'comment' | 'follow' | 'repost' | 'mention' | 'chat';
+  type: 'like' | 'comment' | 'follow' | 'repost' | 'mention' | 'chat' | 'story_view' | 'milestone' | 'suggestion';
   actorId: string;
   actorDisplayName: string;
   actorUsername: string;
@@ -140,8 +140,13 @@ export default function NotificationsScreen({ navigation }: any) {
     <TouchableOpacity
       style={[styles.row, !item.read && styles.rowUnread]}
       onPress={() => {
-        // Navigate to the actor's profile
-        navigation.navigate('UserProfile', { userId: item.actorId });
+        if (item.type === 'follow') {
+          navigation.navigate('UserProfile', { userId: item.actorId });
+        } else if (item.postId) {
+          navigation.navigate('PostComments', { postId: item.postId });
+        } else {
+          navigation.navigate('UserProfile', { userId: item.actorId });
+        }
       }}
     >
       <View style={styles.iconWrap}>
@@ -162,6 +167,9 @@ export default function NotificationsScreen({ navigation }: any) {
             {item.type === 'repost' && ' reposted your post'}
             {item.type === 'mention' && ' mentioned you'}
             {item.type === 'chat' && ' sent you a message'}
+            {item.type === 'story_view' && ' viewed your story'}
+            {item.type === 'milestone' && ''}
+            {item.type === 'suggestion' && ''}
           </Text>
         </Text>
         {item.postCaption ? (

@@ -154,17 +154,23 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
         for (const d of snap.docs) await d.ref.delete();
         await firestore().collection('posts').doc(post.id).update({ likeCount: firestore.FieldValue.increment(-1) });
       }
-    } catch {}
+    } catch (e) {
+      // Revert optimistic state on failure
+      setLiked(!next);
+      setLikeCount(c => c + (next ? -1 : 1));
+    }
   };
 
   const handleBookmark = async () => {
-    setBookmarked(false);
     try {
       const uid = auth()?.currentUser?.uid; if (!uid) return;
       const snap = await firestore().collection('post_bookmarks').where('postId', '==', post.id).where('userId', '==', uid).get();
       for (const d of snap.docs) await d.ref.delete();
-    } catch {}
-    onUnbookmark();
+      setBookmarked(false);
+      onUnbookmark();
+    } catch (e) {
+      console.warn('[Bookmarks] Unbookmark failed:', e);
+    }
   };
 
   const handleComment = () => { onComment(post.id); };
@@ -183,7 +189,11 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
         for (const d of snap.docs) await d.ref.delete();
         await firestore().collection('posts').doc(post.id).update({ repostCount: firestore.FieldValue.increment(-1) });
       }
-    } catch {}
+    } catch (e) {
+      // Revert optimistic state on failure
+      setReposted(!next);
+      setRepostCount(c => c + (next ? -1 : 1));
+    }
   };
 
   return (

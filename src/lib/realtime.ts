@@ -52,8 +52,8 @@ function pauseAll() {
 function resumeAll() {
   for (const [key, entry] of listeners) {
     if (entry.timerId === null) {
-      entry.tick(); // fire immediately on resume
-      entry.timerId = setInterval(entry.tick, entry.intervalMs);
+      entry.tick().catch(() => {}); // fire immediately on resume
+      entry.timerId = setInterval(() => entry.tick().catch(() => {}), entry.intervalMs);
     }
   }
 }
@@ -86,9 +86,9 @@ function register(
 
   // Start immediately if app is in foreground
   if (currentAppState === 'active') {
-    tick();
+    tick().catch(() => {});
     const entry = listeners.get(id)!;
-    entry.timerId = setInterval(tick, intervalMs);
+    entry.timerId = setInterval(() => tick().catch(() => {}), intervalMs);
   }
 
   // Return unsubscribe

@@ -975,14 +975,14 @@ export default function StoriesScreen({ navigation }: any) {
               onTouchEnd={handleStoryTouchEnd}
               onTouchMove={handleStoryTouchMove}
             >
-              {viewingStory.mediaUrl ? (
+              {viewingStory.mediaUrl && viewingStory.mediaUrl.startsWith('http') ? (
                 <Image
                   source={{ uri: viewingStory.mediaUrl }}
                   style={styles.viewerImage}
                   resizeMode="contain"
                 />
               ) : (
-                <View style={styles.viewerTextContent}>
+                <View style={[styles.viewerTextContent, viewingStory.mediaUrl && !viewingStory.mediaUrl.startsWith('http') ? { backgroundColor: (() => { const g: Record<string, string> = { purple: '#667eea', sunset: '#f093fb', ocean: '#4facfe', forest: '#43e97b', fire: '#fa709a', night: '#a18cd1', blue: '#2193b0', dark: '#232526' }; return g[viewingStory.mediaUrl] || '#667eea'; })() } : undefined]}>
                   <Text style={[styles.viewerStoryText, viewingStory.fontSize ? { fontSize: viewingStory.fontSize } : undefined]}>{viewingStory.content}</Text>
                 </View>
               )}

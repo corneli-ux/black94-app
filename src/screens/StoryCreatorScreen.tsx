@@ -150,7 +150,17 @@ export default function StoryCreatorScreen({ navigation }: any) {
 
       let authorUsername = '';
       let authorDisplayName = '';
-      let authorProfileImage = '';\n      let authorIsVerified = false;\n      try {\n        const userData = await fetchUserProfile(currentUid);\n        if (userData) {\n          authorUsername = userData.username;\n          authorDisplayName = userData.displayName;\n          authorProfileImage = userData.profileImage || '';\n          authorIsVerified = userData.isVerified || false;\n        }\n      } catch {}
+      let authorProfileImage = '';
+      let authorIsVerified = false;
+      try {
+        const userData = await fetchUserProfile(currentUid);
+        if (userData) {
+          authorUsername = userData.username;
+          authorDisplayName = userData.displayName;
+          authorProfileImage = userData.profileImage || '';
+          authorIsVerified = userData.isVerified || false;
+        }
+      } catch {}
 
       if (format === 'text') {
         mediaUrl = selectedGradient;

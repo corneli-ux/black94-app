@@ -180,14 +180,13 @@ function getTempFilePath(extension: string): string {
 export async function generateNoiseDitheredUri(uri: string): Promise<string> {
   try {
     // Apply a very light sharpen pass — this introduces micro-variations
-    // that break up banding without being visually noticeable
+    // that break up banding without being visually noticeable.
+    // BUG FIX: Removed resize: { width: 2000, height: 2000 } which forced
+    // ALL images (portrait, landscape) into a square, distorting them.
+    // The function's purpose is noise dithering, not resizing.
     const result = await ImageManipulator.manipulateAsync(
       uri,
-      [
-        {
-          resize: { width: 2000, height: 2000 },
-        },
-      ],
+      [],
       {
         compress: 1, // No additional compression at this step
         format: ImageManipulator.SaveFormat.PNG, // Lossless intermediate
