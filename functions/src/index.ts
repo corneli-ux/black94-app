@@ -39,6 +39,7 @@ const db = admin.firestore();
  * On failure: returns 401 JSON response.
  */
 async function authenticateRequest(req: any, res: any, next: any) {
+  await _ensureSecrets();
   const authHeader = req.headers.authorization || req.headers.Authorization;
 
   if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
@@ -80,12 +81,40 @@ async function authenticateRequest(req: any, res: any, next: any) {
   }
 }
 
-// ── Declare secrets (required for 1st Gen to inject env vars) ─────────
-const razorpaySecrets = [
-  functions.defineSecret('RAZORPAY_KEY_ID'),
-  functions.defineSecret('RAZORPAY_KEY_SECRET'),
-  functions.defineSecret('RAZORPAY_WEBHOOK_SECRET'),
-];
+// ── Secret injection for 1st Gen functions ──────────────────────────────
+// 1st Gen Cloud Functions (firebase-functions v5) don't auto-inject
+// secrets from Secret Manager into process.env via defineSecret (that's
+// 2nd Gen only). Instead, we read them directly from Secret Manager at
+// startup and inject into process.env so the rest of the code works unchanged.
+const _projectId = process.env.GCLOUD_PROJECT || 'black94';
+let _secretsLoaded = false;
+
+async function _ensureSecrets(): Promise<void> {
+  if (_secretsLoaded) return;
+  try {
+    const { SecretManagerServiceClient } = await import('@google-cloud/secret-manager');
+    const client = new SecretManagerServiceClient();
+    const secretNames = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'];
+
+    for (const name of secretNames) {
+      try {
+        const [version] = await client.accessSecretVersion({
+          name: `projects/${_projectId}/secrets/${name}/versions/latest`,
+        });
+        const payload = version.payload?.data?.toString() || '';
+        if (payload) {
+          process.env[name] = payload;
+        }
+      } catch (e: any) {
+        console.warn(`[Secrets] Failed to load ${name}:`, e?.message || e);
+      }
+    }
+    console.log('[Secrets] Loaded secrets from Secret Manager');
+    _secretsLoaded = true;
+  } catch (e: any) {
+    console.error('[Secrets] Failed to init Secret Manager client:', e?.message || e);
+  }
+}
 
 // ── Razorpay Instance (lazy init) ──────────────────────────────────────────
 
@@ -111,7 +140,8 @@ function getRazorpay(): Razorpay {
 
 // ── HTTP: healthCheck (temporary debug — remove after fixing) ────────────
 
-export const healthCheck = functions.runWith({ secrets: razorpaySecrets }).https.onRequest(async (req, res) => {
+export const healthCheck = functions.https.onRequest(async (req, res) => {
+  await _ensureSecrets();
   const rzpKeyId = process.env.RAZORPAY_KEY_ID || '';
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
   res.json({
@@ -224,7 +254,7 @@ orderApp.post('/', authenticateRequest, async (req: any, res) => {
   }
 });
 
-export const createRazorpayOrder = functions.runWith({ secrets: razorpaySecrets }).https.onRequest(orderApp);
+export const createRazorpayOrder = functions.https.onRequest(orderApp);
 
 // ── HTTP: verifyRazorpayPayment ───────────────────────────────────────────
 
@@ -404,7 +434,7 @@ verifyApp.post('/', authenticateRequest, async (req: any, res) => {
   }
 });
 
-export const verifyRazorpayPayment = functions.runWith({ secrets: razorpaySecrets }).https.onRequest(verifyApp);
+export const verifyRazorpayPayment = functions.https.onRequest(verifyApp);
 
 // ── HTTP: Razorpay Webhook ────────────────────────────────────────────────
 
@@ -467,4 +497,4 @@ webhookRawApp.post('/webhook', async (req: any, res) => {
   }
 });
 
-export const razorpayWebhook = functions.runWith({ secrets: razorpaySecrets }).https.onRequest(webhookRawApp);
+export const razorpayWebhook = functions.https.onRequest(webhookRawApp);
