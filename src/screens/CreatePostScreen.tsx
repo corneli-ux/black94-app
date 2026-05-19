@@ -307,7 +307,7 @@ const CreatePostScreen: React.FC = () => {
             // small or zero-byte. expo-image-manipulator can silently produce corrupted
             // output (black/empty images) on certain Android devices/GPU drivers.
             // If the optimized file looks broken, fall back to the original URI.
-            if (optimized.size > 0) {
+            if (optimized.size > 100) {
               uploadUri = optimized.optimizedUri;
               uploadMime = optimized.mimeType;
             } else {

@@ -385,8 +385,11 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       username: existingData?.username || username,
       displayName: existingData?.displayName || userData.displayName,
       bio: existingData?.bio || '',
-      profileImage: existingData?.profileImage || recoveredPhoto || userData.profileImage,
-      coverImage: existingData?.coverImage || null,
+      // BUG FIX: Type-check profileImage — corrupted Firestore docs may store
+      // an object instead of a string (from write.update without updateMask).
+      // Passing a non-string to React Native Image crashes the app.
+      profileImage: (typeof existingData?.profileImage === 'string' ? existingData.profileImage : null) || recoveredPhoto || userData.profileImage,
+      coverImage: typeof existingData?.coverImage === 'string' ? existingData.coverImage : null,
       role: existingData?.role || 'personal',
       badge: existingData?.badge || '',
       subscription: existingData?.subscription || 'free',
@@ -1015,8 +1018,8 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
               username: cached.username || '',
               displayName: cached.displayName || 'User',
               bio: cached.bio || '',
-              profileImage: cached.profileImage || null,
-              coverImage: cached.coverImage || null,
+              profileImage: typeof cached.profileImage === 'string' ? cached.profileImage : null,
+              coverImage: typeof cached.coverImage === 'string' ? cached.coverImage : null,
               role: cached.role || 'personal',
               badge: cached.badge || '',
               subscription: cached.subscription || 'free',
@@ -1038,14 +1041,24 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
       // If tsToMillis fails for any reason, fall back to Date.now()
       createdAt = data?.createdAt ? new Date(data.createdAt).getTime() || Date.now() : Date.now();
     }
+    // BUG FIX: profileImage and coverImage must be strings or null.
+    // Firestore _fromFsValue can return objects if the field was stored as
+    // mapValue (e.g., from a corrupted write.update without updateMask).
+    // Passing an object to React Native's Image source.uri crashes the app.
+    const profileImage = typeof data?.profileImage === 'string' && data.profileImage.trim()
+      ? data.profileImage
+      : null;
+    const coverImage = typeof data?.coverImage === 'string' && data.coverImage.trim()
+      ? data.coverImage
+      : null;
     const profileResult: User = {
       id: userId,
       email: data?.email || '',
       username: data?.username || '',
       displayName,
       bio: data?.bio || '',
-      profileImage: data?.profileImage || null,
-      coverImage: data?.coverImage || null,
+      profileImage,
+      coverImage,
       role: data?.role || 'personal',
       badge: data?.badge || '',
       subscription: data?.subscription || 'free',

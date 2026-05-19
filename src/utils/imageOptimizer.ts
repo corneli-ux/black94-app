@@ -29,6 +29,30 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 
+/** Pure JS base64 decoder — same as imageUpload.ts safeBase64Decode. */
+function safeBase64Decode(base64: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(base64, 'base64'));
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Map<string, number>();
+  for (let i = 0; i < chars.length; i++) lookup.set(chars[i], i);
+  const cleaned = base64.replace(/\s/g, '');
+  const padCount = (cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0);
+  const outLen = Math.floor((cleaned.length * 3) / 4) - padCount;
+  const result = new Uint8Array(outLen);
+  let byteIndex = 0;
+  for (let i = 0; i < cleaned.length; i += 4) {
+    const c0 = lookup.get(cleaned[i]) || 0;
+    const c1 = lookup.get(cleaned[i + 1] || '') || 0;
+    const c2 = cleaned[i + 2] === '=' ? 0 : (lookup.get(cleaned[i + 2] || '') || 0);
+    const c3 = cleaned[i + 3] === '=' ? 0 : (lookup.get(cleaned[i + 3] || '') || 0);
+    const triplet = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
+    result[byteIndex++] = (triplet >> 16) & 0xFF;
+    if (byteIndex < outLen) result[byteIndex++] = (triplet >> 8) & 0xFF;
+    if (byteIndex < outLen) result[byteIndex++] = triplet & 0xFF;
+  }
+  return result;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -445,13 +469,10 @@ export async function optimizeImage(
     optimizedUri = uri;
   }
 
-  // Step 7: Apply noise dithering (only for JPG output where banding is visible)
-  // Skip for PNG since it's lossless and banding isn't an issue
-  if (outputFormat === ImageManipulator.SaveFormat.JPEG) {
-    optimizedUri = await generateNoiseDitheredUri(optimizedUri);
-  }
-
-  // Step 8: Final compression to target format
+  // Step 7: Final compression to target format
+  // NOTE: Noise dithering step REMOVED — expo-image-manipulator's manipulateAsync
+  // with empty actions was silently producing black/corrupt images on certain
+  // Android devices. The minimal banding reduction wasn't worth the risk.
   let finalResult: ImageManipulator.ImageResult;
   if (outputFormat === ImageManipulator.SaveFormat.JPEG) {
     finalResult = await ImageManipulator.manipulateAsync(optimizedUri, [], {
@@ -480,6 +501,54 @@ export async function optimizeImage(
   }
 
   const optimizedSize = await getFileSize(finalResult.uri);
+
+  // Step 8: Validate output with magic bytes — catches corrupt expo-image-manipulator output
+  // AND format mismatches (e.g., expo saved PNG bytes when JPEG was requested).
+  // A valid JPEG starts with FF D8 FF, PNG with 89 50 4E 47.
+  // If the output is corrupt (all-black or garbage), fall back to the original URI.
+  let actualMime: OptimizedMimeType = outputMime;
+  try {
+    const headerBase64 = await FileSystem.readAsStringAsync(finalResult.uri.slice(7), {
+      encoding: 'base64',
+      length: 16,
+    });
+    const headerBytes = safeBase64Decode(headerBase64);
+    const isJpeg = headerBytes.length >= 3 && headerBytes[0] === 0xFF && headerBytes[1] === 0xD8 && headerBytes[2] === 0xFF;
+    const isPng = headerBytes.length >= 4 && headerBytes[0] === 0x89 && headerBytes[1] === 0x50 && headerBytes[2] === 0x4E && headerBytes[3] === 0x47;
+    const isGif = headerBytes.length >= 3 && headerBytes[0] === 0x47 && headerBytes[1] === 0x49 && headerBytes[2] === 0x46;
+
+    // BUG FIX: Detect format mismatch — expo-image-manipulator sometimes outputs
+    // PNG bytes even when SaveFormat.JPEG is requested (especially on certain
+    // Android GPU drivers). If the actual bytes don't match the requested format,
+    // use the ACTUAL format's MIME type. This prevents uploading PNG bytes with
+    // Content-Type: image/jpeg, which causes React Native's Image component to
+    // fail loading (it tries to decode as JPEG but bytes are PNG).
+    if (isPng && outputMime === 'image/jpeg') {
+      console.warn('[imageOptimizer] Format mismatch: requested JPEG but got PNG bytes. Using actual format.');
+      actualMime = 'image/png';
+    } else if (isJpeg && outputMime === 'image/png') {
+      console.warn('[imageOptimizer] Format mismatch: requested PNG but got JPEG bytes. Using actual format.');
+      actualMime = 'image/jpeg';
+    }
+
+    const outputValid = isJpeg || isPng || isGif;
+    if (!outputValid) {
+      console.warn('[imageOptimizer] Output FAILED magic byte validation — corrupt file. Size:', optimizedSize, 'bytes');
+      if (__DEV__) console.warn('[imageOptimizer] Falling back to original URI:', uri);
+      const origSize = await getFileSize(uri);
+      return {
+        optimizedUri: uri,
+        thumbnailUri: uri,
+        width: originalWidth,
+        height: originalHeight,
+        mimeType: sourceType,
+        size: origSize,
+      };
+    }
+    if (__DEV__) console.log('[imageOptimizer] Output passed magic byte validation:', isJpeg ? 'JPEG' : isPng ? 'PNG' : 'GIF', '(requested:', outputMime, ')');
+  } catch (validationErr) {
+    console.warn('[imageOptimizer] Magic byte validation failed (non-critical):', validationErr);
+  }
 
   // Step 9: Generate thumbnail
   let thumbnailUri = finalResult.uri;
@@ -515,7 +584,7 @@ export async function optimizeImage(
     thumbnailUri,
     width: finalResult.width,
     height: finalResult.height,
-    mimeType: outputMime,
+    mimeType: actualMime,
     size: optimizedSize,
   };
 }

@@ -63,6 +63,18 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const [captionTruncated, setCaptionTruncated] = useState(false);
+  const [hasMediaError, setHasMediaError] = useState(false);
+
+  // BUG FIX: Reset hasMediaError when post changes (FlatList recycling).
+  const prevMediaUrlRef = React.useRef(post.mediaUrls?.[0] || '');
+  React.useEffect(() => {
+    const currentUrl = post.mediaUrls?.[0] || '';
+    if (prevMediaUrlRef.current !== currentUrl) {
+      setHasMediaError(false);
+      prevMediaUrlRef.current = currentUrl;
+    }
+  }, [post.id, post.mediaUrls]);
+
   React.useEffect(() => {
     setIsReposted(post.reposted);
     setLocalRepostCount(post.repostCount);
@@ -170,7 +182,13 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
           {(post.mediaUrls?.length > 0) && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={profileCardStyles.mediaContainer}>
-                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" />
+                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" onLoad={() => setHasMediaError(false)} onError={() => setHasMediaError(true)} />
+                {hasMediaError && (
+                  <View style={[StyleSheet.absoluteFill, profileCardStyles.mediaErrorOverlay]}>
+                    <Ionicons name="image-outline" size={24} color="#71767b" />
+                    <Text style={profileCardStyles.mediaErrorText}>Image failed to load</Text>
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
           )}
@@ -290,6 +308,17 @@ const profileCardStyles = StyleSheet.create({
   heartOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center', zIndex: 10,
+  },
+  mediaErrorOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: '#1a1a1a',
+    alignItems: 'center', justifyContent: 'center',
+    gap: 8,
+  },
+  mediaErrorText: {
+    color: '#71767b',
+    fontSize: 12,
   },
 
 });

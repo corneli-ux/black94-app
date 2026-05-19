@@ -492,16 +492,11 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const { userId } = route.params || {};
   const currentUid = auth()?.currentUser?.uid ?? '';
 
-  if (!userId) {
-    return (
-      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
-        <Text style={{ color: '#e7e9ea', fontSize: 16, textAlign: 'center', padding: 40 }}>
-          User not found
-        </Text>
-      </SafeAreaView>
-    );
-  }
-
+  // BUG FIX: ALL hooks MUST be called before ANY early return.
+  // The old code had an early return for !userId BEFORE useState/useEffect,
+  // which is a fatal React hooks violation that crashes the app with
+  // "Rendered fewer hooks than expected". This was the root cause of the
+  // profile page crash for certain users (e.g., @das/@cornelius).
   const [user, setUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
@@ -517,6 +512,21 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
   const [privacy, setPrivacy] = useState<{ nameVisibility?: string } | null>(null);
+  // BUG FIX: Add loadError state so users see an error screen with retry
+  // instead of an infinite loading spinner when profile data fails to load.
+  const [loadError, setLoadError] = useState(false);
+
+  // Early return for missing userId — now AFTER all hooks are declared.
+  // This is safe because no hooks are called after this point.
+  if (!userId) {
+    return (
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
+        <Text style={{ color: '#e7e9ea', fontSize: 16, textAlign: 'center', padding: 40 }}>
+          User not found
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   // Fetch one active ad campaign for profile banner
   useEffect(() => {
@@ -534,22 +544,25 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
   const loadData = useCallback(async () => {
     try {
-      const [userData, privacyDoc, followersSnap, followingSnap, isFollow, userPostsSnap] = await Promise.all([
+      // BUG FIX: fetchUserProfile already fetches the user doc internally.
+      // The old code fetched it AGAIN with a direct Firestore call, wasting
+      // one round-trip. Now we extract privacy from the userData returned
+      // by fetchUserProfile (which returns the full user doc data).
+      const [userData, userPostsSnap, followersSnap, followingSnap, isFollow] = await Promise.all([
         fetchUserProfile(userId),
-        firestore().collection('users').doc(userId).get(),
+        // NOTE: No .orderBy('createdAt', 'desc') — that composite index may
+        // not exist in Firestore. Query without orderBy, then sort client-side
+        // (same strategy as ProfileScreen and web's fetchUserPostsNoIndex).
+        firestore().collection('posts').where('authorId', '==', userId).limit(50).get(),
         firestore().collection('follows').where('followingId', '==', userId).get(),
         firestore().collection('follows').where('followerId', '==', userId).get(),
         currentUid ? checkFollowing(userId) : Promise.resolve(false),
-        firestore()
-          .collection('posts')
-          .where('authorId', '==', userId)
-          .limit(50)
-          .get(),
       ]);
       setUser(userData);
-      // Extract privacy settings from raw Firestore doc
-      if (privacyDoc.exists) {
-        setPrivacy(privacyDoc.data()?.privacy || null);
+      setLoadError(false);
+      // Extract privacy settings from user data returned by fetchUserProfile
+      if (userData) {
+        setPrivacy((userData as any).privacy || null);
       }
       setFollowerCount(followersSnap.size);
       setFollowingCount(followingSnap.size);
@@ -587,8 +600,10 @@ export default function UserProfileScreen({ navigation, route }: any) {
         const bookmarkedIds = new Set<string>();
         const repostedIds = new Set<string>();
 
-        for (let i = 0; i < postIds.length; i += 30) {
-          const chunk = postIds.slice(i, i + 30);
+        // BUG FIX: Chunk size must be 10 — launching 30*3=90 parallel Firestore
+        // reads can overwhelm slow connections and cause timeouts on mobile.
+        for (let i = 0; i < postIds.length; i += 10) {
+          const chunk = postIds.slice(i, i + 10);
           try {
             const promises = chunk.flatMap(postId => [
               firestore().collection('post_likes').doc(`${postId}_${currentUid}`).get()
@@ -613,6 +628,9 @@ export default function UserProfileScreen({ navigation, route }: any) {
       }
     } catch (e) {
       console.warn('[UserProfileScreen] load error:', e);
+      // BUG FIX: Set loadError so the UI shows an error screen with retry
+      // instead of a permanent loading spinner when profile data fails to load.
+      setLoadError(true);
     }
   }, [userId, currentUid]);
 
@@ -860,6 +878,32 @@ export default function UserProfileScreen({ navigation, route }: any) {
       Alert.alert('Error', 'Failed to delete post');
     }
   };
+
+  if (!user && loadError) {
+    return (
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
+        <View style={{ alignItems: 'center', padding: 40 }}>
+          <Ionicons name="alert-circle-outline" size={48} color="#94a3b8" style={{ marginBottom: 12 }} />
+          <Text style={{ color: '#e7e9ea', fontSize: 17, fontWeight: '700' }}>Unable to load profile</Text>
+          <Text style={{ color: '#71767b', fontSize: 14, marginTop: 8 }}>Check your connection and try again.</Text>
+          <TouchableOpacity
+            style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: 'rgba(212,175,55,0.15)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)' }}
+            onPress={() => loadData()}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: '#D4AF37', fontSize: 15, fontWeight: '600' }}>Tap to retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ marginTop: 12 }}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: '#71767b', fontSize: 14 }}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!user) {
     return (

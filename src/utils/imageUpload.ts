@@ -392,7 +392,7 @@ export async function uploadOptimizedImage(
     maxRetries = MAX_RETRIES,
   } = options;
 
-  const mimeType = detectMimeType(uri, mimeTypeOverride);
+  let mimeType = detectMimeType(uri, mimeTypeOverride);
   const startTime = Date.now();
 
   // Read the file as base64, then decode to binary ArrayBuffer.
@@ -416,6 +416,33 @@ export async function uploadOptimizedImage(
   }
 
   console.log(`[imageUpload] File read successfully: ${fileSize} bytes`);
+
+  // BLACK PHOTO FIX #2: Validate image magic bytes before uploading.
+  // If the binary data is corrupt (wrong MIME type, zeroed out, etc.),
+  // uploading it wastes bandwidth and stores garbage in Firebase Storage.
+  // A valid JPEG starts with FF D8 FF, PNG with 89 50 4E 47, GIF with 47 49 46.
+  // Also detect MIME type mismatch — e.g., PNG bytes with Content-Type: image/jpeg.
+  if (fileSize >= 4) {
+    const isJpeg = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
+    const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+    const isGif = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
+    if (!isJpeg && !isPng && !isGif) {
+      console.error(`[imageUpload] File has invalid magic bytes: ${bytes[0].toString(16).padStart(2, '0')} ${bytes[1].toString(16).padStart(2, '0')} ${bytes[2].toString(16).padStart(2, '0')} ${bytes[3].toString(16).padStart(2, '0')}. Expected JPEG (FF D8 FF), PNG (89 50 4E 47), or GIF (47 49 46)`);
+      throw new Error(`File is not a valid image (invalid magic bytes). It may have been corrupted during optimization. Try again with a different image.`);
+    }
+    // BUG FIX: Auto-correct MIME type if the actual bytes don't match.
+    // This handles expo-image-manipulator format mismatches (e.g., outputs PNG
+    // bytes when JPEG was requested). Without this, Firebase Storage stores
+    // the file with the wrong Content-Type, causing React Native's Image to fail.
+    if (isPng && mimeType === 'image/jpeg') {
+      console.warn('[imageUpload] MIME mismatch: PNG bytes but Content-Type is image/jpeg. Auto-correcting to image/png.');
+      mimeType = 'image/png';
+    } else if (isJpeg && mimeType === 'image/png') {
+      console.warn('[imageUpload] MIME mismatch: JPEG bytes but Content-Type is image/png. Auto-correcting to image/jpeg.');
+      mimeType = 'image/jpeg';
+    }
+    console.log(`[imageUpload] Magic byte check passed: ${isJpeg ? 'JPEG' : isPng ? 'PNG' : 'GIF'}`);
+  }
 
   // Ensure clean ArrayBuffer copy (avoid SharedArrayBuffer views)
   const binaryBody: ArrayBuffer = bytes.buffer.byteLength === bytes.byteLength
