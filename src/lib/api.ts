@@ -261,18 +261,46 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
         };
 
         if (isCorrupted || isSilentlyCorrupted) {
-          console.warn('[Auth] User doc corrupted (missing username/displayName) — self-healing from', cachedProfile ? 'cached profile' : 'Google defaults');
-          // Use cached profile values as primary source — these are the user's
-          // ACTUAL custom values (not Google-generated fallbacks).
-          updateFields.username = existingData?.username || cachedProfile?.username || username;
-          updateFields.usernameLower = existingData?.usernameLower || cachedProfile?.username?.toLowerCase() || username.toLowerCase();
-          updateFields.displayName = existingData?.displayName || cachedProfile?.displayName || fbUser.displayName || 'User';
-          updateFields.email = existingData?.email || cachedProfile?.email || fbUser.email || '';
-          updateFields.profileImage = existingData?.profileImage || cachedProfile?.profileImage || googlePhoto;
-          updateFields.role = existingData?.role || cachedProfile?.role || 'personal';
-          updateFields.badge = existingData?.badge || cachedProfile?.badge || '';
-          updateFields.subscription = existingData?.subscription || cachedProfile?.subscription || 'free';
-          updateFields.isVerified = existingData?.isVerified ?? cachedProfile?.isVerified ?? false;
+          // BUG FIX: When silently corrupted, cached profile is MORE reliable than
+          // existingData (which has Google defaults, not the user's custom values).
+          // For isCorrupted (fields missing), existingData may be null/empty so
+          // the cache fallback still works — but for isSilentlyCorrupted,
+          // existingData has WRONG truthy values (e.g., Google auto username)
+          // that would shadow the correct cached values via || operator.
+          // Fix: prefer cache over existingData when isSilentlyCorrupted.
+          const preferCache = isSilentlyCorrupted && cachedProfile;
+
+          if (__DEV__) {
+            console.warn('[Auth] User doc corrupted — self-healing from', preferCache ? 'cached profile (preferred)' : cachedProfile ? 'cached profile' : 'Google defaults');
+          }
+
+          updateFields.username = preferCache
+            ? (cachedProfile.username || existingData?.username || username)
+            : (existingData?.username || cachedProfile?.username || username);
+          updateFields.usernameLower = preferCache
+            ? ((cachedProfile.username || existingData?.username || username).toLowerCase())
+            : (existingData?.usernameLower || cachedProfile?.username?.toLowerCase() || username.toLowerCase());
+          updateFields.displayName = preferCache
+            ? (cachedProfile.displayName || existingData?.displayName || fbUser.displayName || 'User')
+            : (existingData?.displayName || cachedProfile?.displayName || fbUser.displayName || 'User');
+          updateFields.email = preferCache
+            ? (cachedProfile.email || existingData?.email || fbUser.email || '')
+            : (existingData?.email || cachedProfile?.email || fbUser.email || '');
+          updateFields.profileImage = preferCache
+            ? (cachedProfile.profileImage || existingData?.profileImage || googlePhoto)
+            : (existingData?.profileImage || cachedProfile?.profileImage || googlePhoto);
+          updateFields.role = preferCache
+            ? (cachedProfile.role || existingData?.role || 'personal')
+            : (existingData?.role || cachedProfile?.role || 'personal');
+          updateFields.badge = preferCache
+            ? (cachedProfile.badge || existingData?.badge || '')
+            : (existingData?.badge || cachedProfile?.badge || '');
+          updateFields.subscription = preferCache
+            ? (cachedProfile.subscription || existingData?.subscription || 'free')
+            : (existingData?.subscription || cachedProfile?.subscription || 'free');
+          updateFields.isVerified = preferCache
+            ? (cachedProfile.isVerified ?? existingData?.isVerified ?? false)
+            : (existingData?.isVerified ?? cachedProfile?.isVerified ?? false);
           if (!existingData?.createdAt) {
             updateFields.createdAt = cachedProfile?.createdAt
               ? { timestampValue: new Date(cachedProfile.createdAt).toISOString() }
@@ -483,17 +511,36 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
     const fresh = authorProfileMap[post.authorId];
     if (!fresh) continue;
 
-    // Completely skip if profile looks corrupted (both username AND displayName empty)
+    // BUG FIX: Detect partial corruption — a profile can have a valid displayName
+    // but corrupted username (Google auto-generated), or valid username but
+    // corrupted displayName. Old check only caught BOTH empty.
     const profileLooksCorrupted = !fresh.username && !fresh.displayName;
+
+    // BUG FIX: Detect silent corruption for OTHER users — if the fetched username
+    // looks like a Google auto-generated one (matches displayName with spaces
+    // removed, lowercased), AND the stamped post data has a DIFFERENT username,
+    // then the user doc is likely corrupted and we should keep stamped data.
+    // This prevents overwriting correct stamped data with Google defaults.
+    const googleAutoName = fresh.displayName?.replace(/\s/g, '').toLowerCase() || '';
+    const isUsernameCorrupted = !!googleAutoName
+      && fresh.username === googleAutoName
+      && post.authorUsername
+      && post.authorUsername !== googleAutoName;
+
     if (profileLooksCorrupted) {
       if (__DEV__) console.warn(`[Feed] Skipping enrichment for ${post.authorId} — profile appears corrupted (empty username/displayName)`);
       continue;
     }
 
+    if (isUsernameCorrupted && __DEV__) {
+      console.warn(`[Feed] Detected corrupted username for ${post.authorId}: fetched "${fresh.username}" matches Google auto-name, keeping stamped "${post.authorUsername}"`);
+    }
+
     // Per-field: only overwrite stamped data when fresh value is non-empty/non-null.
     // This prevents a corrupted user doc from wiping correct stamped data.
     if (fresh.displayName) post.authorDisplayName = fresh.displayName;
-    if (fresh.username) post.authorUsername = fresh.username;
+    // BUG FIX: Don't overwrite stamped username if it's silently corrupted
+    if (fresh.username && !isUsernameCorrupted) post.authorUsername = fresh.username;
     // profileImage: only overwrite if fresh has a non-null, non-empty value.
     // Null fresh value means corrupted/missing — keep stamped image.
     if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
