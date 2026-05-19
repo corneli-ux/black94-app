@@ -28,30 +28,7 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
-
-/** Pure JS base64 decoder — same as imageUpload.ts safeBase64Decode. */
-function safeBase64Decode(base64: string): Uint8Array {
-  if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(base64, 'base64'));
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  const lookup = new Map<string, number>();
-  for (let i = 0; i < chars.length; i++) lookup.set(chars[i], i);
-  const cleaned = base64.replace(/\s/g, '');
-  const padCount = (cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0);
-  const outLen = Math.floor((cleaned.length * 3) / 4) - padCount;
-  const result = new Uint8Array(outLen);
-  let byteIndex = 0;
-  for (let i = 0; i < cleaned.length; i += 4) {
-    const c0 = lookup.get(cleaned[i]) || 0;
-    const c1 = lookup.get(cleaned[i + 1] || '') || 0;
-    const c2 = cleaned[i + 2] === '=' ? 0 : (lookup.get(cleaned[i + 2] || '') || 0);
-    const c3 = cleaned[i + 3] === '=' ? 0 : (lookup.get(cleaned[i + 3] || '') || 0);
-    const triplet = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
-    result[byteIndex++] = (triplet >> 16) & 0xFF;
-    if (byteIndex < outLen) result[byteIndex++] = (triplet >> 8) & 0xFF;
-    if (byteIndex < outLen) result[byteIndex++] = triplet & 0xFF;
-  }
-  return result;
-}
+import { safeBase64Decode } from './base64';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -131,7 +108,7 @@ const DEFAULT_JPEG_QUALITY = 0.88;
  * Detects the MIME type from a URI's file extension.
  * Falls back to 'image/jpeg' if the extension is unrecognized.
  */
-export function detectImageType(uri: string): OptimizedMimeType {
+function detectImageType(uri: string): OptimizedMimeType {
   const cleanUri = uri.split('?')[0].toLowerCase();
   if (cleanUri.endsWith('.png')) return 'image/png';
   if (cleanUri.endsWith('.gif')) return 'image/gif';
@@ -143,7 +120,7 @@ export function detectImageType(uri: string): OptimizedMimeType {
  * Gets the file size in bytes for a local URI.
  * Returns 0 if the file doesn't exist or can't be read.
  */
-export async function getFileSize(uri: string): Promise<number> {
+async function getFileSize(uri: string): Promise<number> {
   try {
     const info = await FileSystem.getInfoAsync(uri);
     if (info.exists && 'size' in info) {
@@ -161,7 +138,7 @@ export async function getFileSize(uri: string): Promise<number> {
  * Uses ImageManipulator's `manipulateAsync` with no actions — this triggers
  * a lightweight decode that returns dimensions.
  */
-export async function getImageDimensions(
+async function getImageDimensions(
   uri: string,
 ): Promise<{ width: number; height: number }> {
   try {
@@ -201,7 +178,7 @@ function getTempFilePath(extension: string): string {
  * For true pixel-level dithering you'd need a native module or Canvas API;
  * this is the best we can do with Expo's built-in tools.
  */
-export async function generateNoiseDitheredUri(uri: string): Promise<string> {
+async function generateNoiseDitheredUri(uri: string): Promise<string> {
   try {
     // Apply a very light sharpen pass — this introduces micro-variations
     // that break up banding without being visually noticeable.
@@ -268,33 +245,9 @@ async function isLikelyGraphic(
     // If we can read the header, check for alpha channel
     // PNG header: byte 25 has color type (bit 6 = alpha)
     if (base64.length > 36) {
-      // BUG FIX: Use safe base64 decode — atob() may not be available in
-      // React Native's New Architecture (Fabric). Uses Buffer fast-path with
-      // pure JS fallback (same approach as imageUpload.ts safeBase64Decode).
+      // Use safeBase64Decode from shared utility (same approach as imageUpload.ts)
       try {
-        const decoded = typeof Buffer !== 'undefined'
-          ? new Uint8Array(Buffer.from(base64, 'base64'))
-          : (() => {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-            const lookup = new Map<string, number>();
-            for (let ci = 0; ci < chars.length; ci++) lookup.set(chars[ci], ci);
-            const cleaned = base64.replace(/\s/g, '');
-            const padCount = (cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0);
-            const outLen = Math.floor((cleaned.length * 3) / 4) - padCount;
-            const result = new Uint8Array(outLen);
-            let byteIdx = 0;
-            for (let ci = 0; ci < cleaned.length; ci += 4) {
-              const c0 = lookup.get(cleaned[ci]) || 0;
-              const c1 = lookup.get(cleaned[ci + 1] || '') || 0;
-              const c2 = cleaned[ci + 2] === '=' ? 0 : (lookup.get(cleaned[ci + 2] || '') || 0);
-              const c3 = cleaned[ci + 3] === '=' ? 0 : (lookup.get(cleaned[ci + 3] || '') || 0);
-              const triplet = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
-              result[byteIdx++] = (triplet >> 16) & 0xFF;
-              if (byteIdx < outLen) result[byteIdx++] = (triplet >> 8) & 0xFF;
-              if (byteIdx < outLen) result[byteIdx++] = triplet & 0xFF;
-            }
-            return result;
-          })();
+        const decoded = safeBase64Decode(base64);
         if (decoded.length >= 26) {
           const colorType = decoded[25];
           // Color type 4 = grayscale+alpha, 6 = RGB+alpha
@@ -678,7 +631,7 @@ export async function pickAndOptimizeImage(
  * @param networkType - 'wifi' | 'cellular' | 'unknown'
  * @returns The recommended ImageVariant to load
  */
-export function getDeviceAppropriateVariant(
+function getDeviceAppropriateVariant(
   viewWidth: number,
   networkType: string = 'unknown',
 ): ImageVariant {
