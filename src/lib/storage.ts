@@ -59,21 +59,14 @@ export function getFilePath(folder: string, filename: string, uid: string): stri
  * @returns Base64-encoded string (raw, no data-URI prefix)
  */
 async function readFileAsBase64(uri: string, mimeType: string): Promise<string> {
-  // expo-file-system v18+ moved the old API (readAsStringAsync, etc.) to
-  // expo-file-system/legacy.  Import from there to avoid the deprecation
-  // warning that crashes or blocks the upload.
+  // expo-file-system v19 (Expo SDK 54) moved legacy functions to
+  // 'expo-file-system/legacy'. Importing from 'expo-file-system' throws.
   const fsModule = await import('expo-file-system/legacy');
   const FileSystem = (fsModule as any).default || fsModule;
 
-  // expo-file-system v16+ (Expo SDK 54+) accepts full URIs directly
-  // including file://, content://, asset://, and expo-file-system:// URIs.
-  // Stripping the scheme (old approach) breaks content:// URIs on Android
-  // and asset:// URIs on both platforms.
-  //
   // Strategy:
-  //   1. Try reading the URI directly (works for most cases in SDK 54+)
-  //   2. If that fails with a "not found" error AND the URI starts with file://,
-  //      fall back to stripping file:// (legacy behavior for older SDK versions)
+  //   1. Try reading the URI directly (works for file://, content://, asset://)
+  //   2. If that fails AND the URI starts with file://, strip the scheme
   try {
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: 'base64' as const,
