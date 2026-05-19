@@ -212,8 +212,10 @@ function generateCheckoutHTML(
   const safeName = JSON.stringify(options.userName || '');
   const safeEmail = JSON.stringify(options.userEmail || '');
   const safePhone = JSON.stringify(options.userPhone || '');
+  // BUG FIX: Escape HTML tags to prevent XSS injection via planName.
+  // Old code only escaped single quotes, allowing <script>/<img onerror> injection.
   const safeDescription = options.planName
-    ? options.planName.replace(/'/g, "\\'")
+    ? options.planName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;')
     : 'Payment';
 
   return `<!DOCTYPE html>

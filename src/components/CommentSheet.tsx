@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Modal, FlatList, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Animated, Dimensions, Image,
+  ActivityIndicator, Animated, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, VerifiedBadge } from './Avatar';

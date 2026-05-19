@@ -37,12 +37,6 @@ export function Avatar({
     );
   }
 
-  // If URI exists but failed to load (broken URL, expired token, etc.),
-  // fall through to initials placeholder instead of showing a black circle.
-  if (uri && imgError) {
-    setImgError(false); // Reset so retry can work
-  }
-
   // Web: bg-gradient-to-br from-[#FFFFFF] to-[#9CA3AF], font-bold, fontSize: size*0.38
   const initials = name
     ? (() => {

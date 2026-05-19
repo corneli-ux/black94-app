@@ -45,8 +45,16 @@ const FONT_SIZES = [
 // a PNG (screenshot), binary was PNG but header said JPEG → black/corrupted
 // photos in the feed. Now we optimize first, producing a consistent format
 // with a matching Content-Type.
-async function uploadImage(uri: string, storagePath: string): Promise<string> {
-  setPosting(true);
+//
+// NOTE: This function must be called from INSIDE the component (or passed
+// a setPosting callback) because it previously referenced setPosting from
+// component scope, causing a crash at runtime.
+async function uploadImage(
+  uri: string,
+  storagePath: string,
+  onStatusChange: (uploading: boolean) => void,
+): Promise<string> {
+  onStatusChange(true);
   try {
     const optimized = await optimizeImage(uri, {
       maxWidth: 2048,
@@ -60,7 +68,7 @@ async function uploadImage(uri: string, storagePath: string): Promise<string> {
     });
     return result.downloadUrl;
   } finally {
-    setPosting(false);
+    onStatusChange(false);
   }
 }
 
@@ -185,20 +193,17 @@ export default function StoryCreatorScreen({ navigation }: any) {
         content = storyText.trim();
       } else if (format === 'image') {
         if (imageUri && !imageUri.startsWith('http')) {
-          setUploading(true);
           try {
             mediaUrl = await uploadImage(
               imageUri,
               `stories/${currentUid}/${Date.now()}.jpg`,
+              setUploading,
             );
           } catch (uploadErr: any) {
             console.error('[StoryCreatorScreen] Image upload failed:', uploadErr);
             Alert.alert('Upload Error', 'Failed to upload image. Please try again.');
             setPosting(false);
-            setUploading(false);
             return;
-          } finally {
-            setUploading(false);
           }
         } else {
           mediaUrl = imageUri;

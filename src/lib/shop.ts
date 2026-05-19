@@ -198,7 +198,6 @@ export async function createProduct(
 
 export async function fetchProducts(
   limitCount: number,
-  _lastDoc?: any,
   category?: string,
 ): Promise<{ products: ShopProduct[]; lastDoc: any }> {
   let query: any;
@@ -233,7 +232,6 @@ export async function fetchProductById(id: string): Promise<ShopProduct | null> 
 export async function fetchBusinessProducts(
   businessId: string,
   limitCount: number,
-  _lastDoc?: any,
 ): Promise<{ products: ShopProduct[]; lastDoc: any }> {
   const query = firestore()
     .collection('products')

@@ -32,13 +32,11 @@ import { checkPlanLimit } from '../lib/payments';
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
    ═══════════════════════════════════════════════════════════════════════════ */
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const { width: SCREEN_W } = Dimensions.get('window');
 const HIGHLIGHT_SIZE = 48;
 const HIGHLIGHT_RING_PADDING = 3;
 const STORY_DURATION = 5000;
 const DOUBLE_TAP_DELAY = 300;
-const HEART_ANIM_DURATION = 900;
-
 const STORY_CATEGORIES = [
   { id: 'all', label: 'All', icon: 'sparkles' },
   { id: 'voice', label: 'Voice', icon: 'mic' },

@@ -6,8 +6,6 @@ import { firestore } from '../lib/firebase';
 import { auth } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { colors } from '../theme/colors';
-import { useAppStore } from '../stores/app';
-
 interface FollowerUser {
   id: string;
   username: string;
@@ -26,7 +24,6 @@ export default function FollowersScreen({ route, navigation }: any) {
   const [users, setUsers] = useState<FollowerUser[]>([]);
   const [loading, setLoading] = useState(true);
   const currentUser = auth()?.currentUser;
-  const { user: loggedInUser } = useAppStore();
 
   const loadUsers = useCallback(async () => {
     if (!targetUserId) return;

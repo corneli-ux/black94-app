@@ -40,18 +40,6 @@ export interface PaymentResult {
   error?: string;
 }
 
-export interface SubscriptionRecord {
-  userId: string;
-  planId: string;
-  planName: string;
-  amount: number;
-  currency: string;
-  paymentId: string;
-  status: 'active' | 'cancelled' | 'expired';
-  activatedAt: number;
-  duration: 'monthly' | 'yearly';
-}
-
 // ── Plan definitions ───────────────────────────────────────────────────────
 
 export const PLANS: PaymentPlan[] = [

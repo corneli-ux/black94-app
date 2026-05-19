@@ -831,10 +831,11 @@ export async function getSalaryReport(
   // Month-over-month growth
   let momGrowth: number | null = null;
   const [year, month] = period.split('-').map(Number);
-  const prevMonthStr = `${year}-${String(month - 1 || 12).padStart(2, '0')}`;
+  // BUG FIX: String.replace() returns a new string — must reassign.
+  // Without this, January always compares against itself instead of December.
+  let prevMonthStr = `${year}-${String(month - 1 || 12).padStart(2, '0')}`;
   if (month === 1) {
-    // Previous December of previous year
-    prevMonthStr.replace(`${year}-01`, `${year - 1}-12`);
+    prevMonthStr = `${year - 1}-12`;
   }
   try {
     const prevPayrollSnap = await firestore()

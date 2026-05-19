@@ -328,5 +328,4 @@ const styles = StyleSheet.create({
     paddingVertical: 16, gap: 12,
   },
   legalText: { color: colors.textMuted, fontSize: 12 },
-  legalDot: { color: colors.textMuted, fontSize: 12 },
 });

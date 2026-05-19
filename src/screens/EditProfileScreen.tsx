@@ -34,8 +34,6 @@ const ROLE_OPTIONS: { key: Role; label: string; description: string }[] = [
 const BIO_MAX_LENGTH = 160;
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
-const GOLD = '#D4AF37';
-
 // Lazy image picker (avoid crash if library not linked)
 async function openImageLibrary() {
   try {

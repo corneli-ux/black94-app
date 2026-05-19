@@ -389,11 +389,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   topicContent: {},
-  /* Category: fontSize: 13, color: #94a3b8 */
-  topicCategory: {
-    color: '#94a3b8',
-    fontSize: 13,
-  },
   /* Tag: fontSize: 15, fontWeight: 700, color: #e7e9ea */
   topicTag: {
     color: '#e7e9ea',

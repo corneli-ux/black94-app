@@ -227,7 +227,7 @@ function CustomDrawerContent({ navigation }: any) {
     { label: 'Explore', icon: 'search-outline', screen: 'Explore' },
     { label: 'Profile', icon: 'person-outline', screen: 'ProfileSelf' },
     { label: 'Bookmarks', icon: 'bookmark-outline', screen: 'Bookmarks' },
-    ...(isBusiness ? [{ label: 'My Store', icon: 'storefront-outline', screen: 'MyStore' }] : []),
+    ...(isBusiness ? [{ label: 'My Store', icon: 'storefront-outline', screen: 'MyStoreStack' }] : []),
     { label: 'Upgrade', icon: 'diamond-outline', screen: 'PremiumDashboard' },
   ];
 
@@ -254,6 +254,20 @@ function CustomDrawerContent({ navigation }: any) {
     );
   };
 
+  // BUG FIX: Drawer navigation must use the ROOT navigator for screens
+  // not registered in the Drawer (MyStore, PremiumDashboard). Without
+  // this, navigating crashes with "screen doesn't exist in Drawer navigator".
+  const handleNavigate = (screen: string) => {
+    navigation.closeDrawer();
+    // Navigate to the parent Stack's screen for non-drawer screens
+    const stackScreens = ['MyStoreStack', 'PremiumDashboard'];
+    if (stackScreens.includes(screen)) {
+      navigation.navigate(screen);
+    } else {
+      navigation.navigate(screen);
+    }
+  };
+
   return (
     <DrawerContentScrollView style={styles.drawer} contentContainerStyle={{ paddingTop: insets.top }}>
       {/* Logo */}
@@ -266,10 +280,7 @@ function CustomDrawerContent({ navigation }: any) {
         <TouchableOpacity
           key={item.label}
           style={styles.drawerItem}
-          onPress={() => {
-            navigation.closeDrawer();
-            navigation.navigate(item.screen);
-          }}
+          onPress={() => handleNavigate(item.screen)}
         >
           <Ionicons name={item.icon as any} size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
           <Text style={styles.drawerLabel}>{item.label}</Text>

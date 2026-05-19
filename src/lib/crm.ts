@@ -567,6 +567,15 @@ export async function updateLead(leadId: string, data: Partial<CrmLead>): Promis
       updateData.phone = updateData.phone.trim();
     }
 
+    // BUG FIX: The CrmLead interface uses `leadScore` but Firestore stores
+    // it as `aiScore`. Without this mapping, updateLead({ leadScore: 50 })
+    // would write `leadScore` to Firestore (wrong field), and the field
+    // would never be read back by docToLead (which maps aiScore → leadScore).
+    if (updateData.leadScore !== undefined) {
+      updateData.aiScore = updateData.leadScore;
+      delete updateData.leadScore;
+    }
+
     await firestore().collection('leads').doc(leadId).update(updateData);
     console.log(`[CRM] Updated lead ${leadId}`);
   } catch (error: any) {
@@ -619,7 +628,7 @@ export async function fetchLeads(businessId: string, filters?: LeadFilters): Pro
     // Map leadScore to Firestore field name (aiScore) for backward compat
     const firestoreSortField = sortBy === 'leadScore' ? 'aiScore' : sortBy;
     query = query.orderBy(firestoreSortField, sortOrder);
-    query = query.limit(limit);
+    query = query.limit(filters?.limit || 100);
 
     const snapshot = await query.get();
     let leads = snapshot.docs.map(docSnap => docToLead(docSnap.id, docSnap.data()));
@@ -1286,7 +1295,8 @@ export async function getLeadStats(businessId: string): Promise<LeadStats> {
       else if (status === 'converted') stats.converted++;
       else if (status === 'lost') stats.lost++;
 
-      totalScore += d.leadScore || 0;
+      // BUG FIX: Firestore field is 'aiScore', not 'leadScore'. Old code always read 0.
+      totalScore += d.aiScore || d.leadScore || 0;
 
       if (d.assignedTo) stats.assignedCount++;
       else stats.unassignedCount++;

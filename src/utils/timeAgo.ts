@@ -1,5 +1,5 @@
 export function timeAgo(ms: number): string {
-  if (!ms) return '';
+  if (ms == null) return '';
   const diff = Date.now() - ms;
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'now';
