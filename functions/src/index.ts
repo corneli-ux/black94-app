@@ -1,5 +1,5 @@
 /**
- * index.ts — Firebase Cloud Functions entry point
+ * index.ts — Firebase Cloud Functions entry point — v2
  *
  * Exports:
  *  - createRazorpayOrder   — HTTP: creates a Razorpay order server-side
