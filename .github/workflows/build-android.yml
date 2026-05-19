@@ -49,20 +49,21 @@ jobs:
             exit 1
           fi
 
-      # Auto-fix dependency version mismatches so expo prebuild doesn't prompt
-      # (Expo SDK 55 recommends react-native@0.83.6 but project uses 0.81.5)
-      # --fix exits 1 due to peer dep warnings, but packages are correctly updated
-      - name: Fix Expo dependency mismatches
-        env:
-          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
-          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-        run: npx expo install --fix || true
-
+      # Prebuild generates the native android/ dir but exits 1 because it
+      # can't prompt "Install the updated dependencies?" in CI.
+      # The native dir and updated package.json are already written — we
+      # just need to run npm install afterwards to pick up the changes.
       - name: Expo prebuild
         env:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-        run: npx expo prebuild --platform android --clean
+        run: npx expo prebuild --platform android --clean || true
+
+      - name: Install updated dependencies
+        env:
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: npm install
 
       - name: Fix splashscreen_logo drawable
         run: |
