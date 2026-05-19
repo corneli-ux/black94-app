@@ -407,6 +407,14 @@ export async function uploadOptimizedImage(
     throw new Error(`File is empty or could not be read: ${uri}`);
   }
 
+  // BLACK PHOTO FIX: Sanity check — a valid image should be at least 100 bytes.
+  // Anything smaller is almost certainly corrupted data (e.g., empty PNG header,
+  // truncated JPEG). This catches expo-image-manipulator bugs that produce
+  // near-empty files on certain Android devices.
+  if (fileSize < 100) {
+    throw new Error(`File too small to be a valid image (${fileSize} bytes): ${uri}`);
+  }
+
   console.log(`[imageUpload] File read successfully: ${fileSize} bytes`);
 
   // Ensure clean ArrayBuffer copy (avoid SharedArrayBuffer views)

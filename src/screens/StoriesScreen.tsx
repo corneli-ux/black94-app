@@ -351,13 +351,26 @@ export default function StoriesScreen({ navigation }: any) {
       for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
         try {
           // BUG FIX: Optimize before upload — ensures correct Content-Type.
-          const optimized = await optimizeImage(asset.uri, {
-            maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
-          });
-          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+          // BLACK PHOTO FIX: Fall back to original if optimization produces 0-byte file.
+          let uploadUri = asset.uri;
+          let uploadMime = 'image/jpeg';
+          try {
+            const optimized = await optimizeImage(asset.uri, {
+              maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
+            });
+            if (optimized.size > 0) {
+              uploadUri = optimized.optimizedUri;
+              uploadMime = optimized.mimeType;
+            } else {
+              console.warn('[StoriesScreen] Optimized story image is 0 bytes, using original');
+            }
+          } catch (optErr: any) {
+            console.warn('[StoriesScreen] Optimization failed, using original:', optErr?.message);
+          }
+          const ext = uploadMime === 'image/png' ? 'png' : 'jpg';
           const storagePath = `stories/${currentUser.uid}/${Date.now()}.${ext}`;
-          uploadResult = await uploadOptimizedImage(optimized.optimizedUri, storagePath, {
-            mimeType: optimized.mimeType,
+          uploadResult = await uploadOptimizedImage(uploadUri, storagePath, {
+            mimeType: uploadMime,
           });
           uploadSuccess = true;
           break;
@@ -441,13 +454,26 @@ export default function StoriesScreen({ navigation }: any) {
       for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
         try {
           // BUG FIX: Optimize before upload — ensures correct Content-Type.
-          const optimized = await optimizeImage(asset.uri, {
-            maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
-          });
-          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+          // BLACK PHOTO FIX: Fall back to original if optimization produces 0-byte file.
+          let uploadUri = asset.uri;
+          let uploadMime = 'image/jpeg';
+          try {
+            const optimized = await optimizeImage(asset.uri, {
+              maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
+            });
+            if (optimized.size > 0) {
+              uploadUri = optimized.optimizedUri;
+              uploadMime = optimized.mimeType;
+            } else {
+              console.warn('[StoriesScreen] Optimized camera image is 0 bytes, using original');
+            }
+          } catch (optErr: any) {
+            console.warn('[StoriesScreen] Optimization failed, using original:', optErr?.message);
+          }
+          const ext = uploadMime === 'image/png' ? 'png' : 'jpg';
           const storagePath = `stories/${currentUser.uid}/${Date.now()}.${ext}`;
-          uploadResult = await uploadOptimizedImage(optimized.optimizedUri, storagePath, {
-            mimeType: optimized.mimeType,
+          uploadResult = await uploadOptimizedImage(uploadUri, storagePath, {
+            mimeType: uploadMime,
           });
           uploadSuccess = true;
           break;

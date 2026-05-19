@@ -288,17 +288,36 @@ const CreatePostScreen: React.FC = () => {
           // → black/corrupted photos. optimizeImage produces a consistent JPEG
           // output with correct MIME type.
           setUploadProgress(`Optimizing image ${i + 1}...`);
-          const optimized = await optimizeImage(uri, {
-            maxWidth: 2048,
-            jpegQuality: 0.88,
-            generateThumbnail: false,
-          });
+          let uploadUri = uri;
+          let uploadMime = 'image/jpeg';
 
-          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+          try {
+            const optimized = await optimizeImage(uri, {
+              maxWidth: 2048,
+              jpegQuality: 0.88,
+              generateThumbnail: false,
+            });
+
+            // BLACK PHOTO FIX: Validate that the optimized image is not suspiciously
+            // small or zero-byte. expo-image-manipulator can silently produce corrupted
+            // output (black/empty images) on certain Android devices/GPU drivers.
+            // If the optimized file looks broken, fall back to the original URI.
+            if (optimized.size > 0) {
+              uploadUri = optimized.optimizedUri;
+              uploadMime = optimized.mimeType;
+            } else {
+              console.warn(`[CreatePost] Optimized image ${i + 1} is 0 bytes, using original`);
+            }
+          } catch (optErr: any) {
+            // If optimization fails entirely, fall back to uploading the original
+            console.warn(`[CreatePost] Image optimization failed for ${i + 1}, using original:`, optErr?.message);
+          }
+
+          const ext = uploadMime === 'image/png' ? 'png' : 'jpg';
           const storagePath = `posts/${currentUser.uid}/${Date.now()}_${i}.${ext}`;
 
-          const result = await uploadOptimizedImage(optimized.optimizedUri, storagePath, {
-            mimeType: optimized.mimeType,
+          const result = await uploadOptimizedImage(uploadUri, storagePath, {
+            mimeType: uploadMime,
             abortSignal: abortController.signal,
             onProgress: (loaded, total) => {
               const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
