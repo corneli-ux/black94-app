@@ -133,21 +133,24 @@ export default function StoryCreatorScreen({ navigation }: any) {
 
     setPosting(true);
     try {
+      // BUG FIX: Check plan limit BEFORE uploading any images.
+      // Previously, images were uploaded first (lines 158-162), and if
+      // the limit was reached after upload, the image was orphaned in
+      // Firebase Storage forever.
+      const storyCheck = await checkPlanLimit(currentUid, 'story');
+      if (!storyCheck.allowed) {
+        Alert.alert('Limit Reached', storyCheck.reason || 'Upgrade your plan to create more stories.');
+        setPosting(false);
+        return;
+      }
+
       let mediaUrl = '';
       let content = '';
       let pollOptionsData: Array<{ id: string; text: string; votes: number; percentage: number }> | undefined;
 
       let authorUsername = '';
       let authorDisplayName = '';
-      let authorProfileImage = '';
-      try {
-        const userData = await fetchUserProfile(currentUid);
-        if (userData) {
-          authorUsername = userData.username;
-          authorDisplayName = userData.displayName;
-          authorProfileImage = userData.profileImage || '';
-        }
-      } catch {}
+      let authorProfileImage = '';\n      let authorIsVerified = false;\n      try {\n        const userData = await fetchUserProfile(currentUid);\n        if (userData) {\n          authorUsername = userData.username;\n          authorDisplayName = userData.displayName;\n          authorProfileImage = userData.profileImage || '';\n          authorIsVerified = userData.isVerified || false;\n        }\n      } catch {}
 
       if (format === 'text') {
         mediaUrl = selectedGradient;
@@ -186,20 +189,13 @@ export default function StoryCreatorScreen({ navigation }: any) {
           }));
       }
 
-      // Check plan limits for free users
-      const storyCheck = await checkPlanLimit(currentUid, 'story');
-      if (!storyCheck.allowed) {
-        Alert.alert('Limit Reached', storyCheck.reason || 'Upgrade your plan to create more stories.');
-        setPosting(false);
-        return;
-      }
-
+      // Plan limit already checked above — no need to check again here
       await firestore().collection('stories').add({
         authorId: currentUid,
         authorUsername,
         authorDisplayName,
         authorProfileImage,
-        authorIsVerified: false,
+        authorIsVerified: authorIsVerified,
         type: format,
         format,
         content,

@@ -26,6 +26,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { tsToMillis } from '../lib/api';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { useAppStore } from '../stores/app';
+import { checkPlanLimit } from '../lib/payments';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
@@ -327,6 +328,20 @@ export default function StoriesScreen({ navigation }: any) {
       const asset = result.assets[0];
       setUploading(true);
 
+      // BUG FIX: Check plan limit BEFORE uploading image to avoid
+      // orphaned storage blobs when limit is reached.
+      try {
+        const planCheck = await checkPlanLimit(currentUser.uid, 'story');
+        if (!planCheck.allowed) {
+          Alert.alert('Limit Reached', planCheck.reason || 'Upgrade your plan to create more stories.');
+          setUploading(false);
+          return;
+        }
+      } catch (e) {
+        // If plan check fails (network), allow the story to continue
+        console.warn('[StoriesScreen] Plan limit check failed, allowing story:', e);
+      }
+
       // Upload image to Firebase Storage first (Firestore has 1MB doc limit — no inline base64)
       // Retry up to 2 times on failure (handles transient auth/network issues)
       let uploadResult: any = null;
@@ -397,6 +412,19 @@ export default function StoriesScreen({ navigation }: any) {
 
       const asset = result.assets[0];
       setUploading(true);
+
+      // BUG FIX: Check plan limit BEFORE uploading image to avoid
+      // orphaned storage blobs when limit is reached.
+      try {
+        const planCheck = await checkPlanLimit(currentUser.uid, 'story');
+        if (!planCheck.allowed) {
+          Alert.alert('Limit Reached', planCheck.reason || 'Upgrade your plan to create more stories.');
+          setUploading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('[StoriesScreen] Plan limit check failed, allowing story:', e);
+      }
 
       // Upload image to Firebase Storage first
       // Retry up to 2 times on failure (handles transient auth/network issues)

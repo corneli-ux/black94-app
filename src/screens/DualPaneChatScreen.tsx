@@ -26,7 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { firestore, auth } from '../lib/firebase';
-import { fetchUserProfile, blockUser } from '../lib/api';
+import { fetchUserProfile, blockUser, sendMessage } from '../lib/api';
 import { encryptMessage, decryptMessage, encryptedPreviewText } from '../lib/e2ee';
 import { colors } from '../theme/colors';
 
@@ -285,53 +285,22 @@ export default function DualPaneChatScreen({ navigation }: any) {
         ? selectedChat.user2Id
         : selectedChat.user1Id;
 
-    const plainText = messageText.trim();
-
-    // ── E2E Encryption: NEVER store plaintext ──
-    let storedContent: string;
-    let encryptionFailed = false;
+    setSending(true);
     try {
-      const encrypted = await encryptMessage(plainText, currentUserId, otherId);
-      if (encrypted) {
-        storedContent = encrypted;
-      } else {
-        encryptionFailed = true;
-        storedContent = '[Encryption setup in progress — message not delivered]';
+      // BUG FIX: Use sendMessage from api.ts instead of inline Firestore writes.
+      // The inline code bypassed block checks and DM notifications, and
+      // didn't increment unread counts for the receiver.
+      await sendMessage(selectedChat.id, messageText.trim(), otherId);
+      setMessageText('');
+      // Reload messages after send to show the new message
+      if (messagesEndRef.current) {
+        setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 200);
       }
-    } catch {
-      encryptionFailed = true;
-      storedContent = '[Encryption setup in progress — message not delivered]';
+    } catch (err: any) {
+      console.error('[DualPaneChatScreen] send error:', err?.message || err);
+    } finally {
+      setSending(false);
     }
-
-    firestore()
-      .collection('chats')
-      .doc(selectedChat.id)
-      .collection('messages')
-      .add({
-        chatId: selectedChat.id,
-        senderId: currentUserId,
-        receiverId: otherId,
-        content: storedContent,
-        messageType: encryptionFailed ? 'system' : 'text',
-        mediaUrl: null,
-        status: encryptionFailed ? 'failed' : 'sent',
-        createdAt: firestore.FieldValue.serverTimestamp(),
-      })
-      .then(() => {
-        // lastMessage: ALWAYS privacy-safe — NEVER plaintext
-        firestore()
-          .collection('chats')
-          .doc(selectedChat.id)
-          .update({
-            updatedAt: firestore.FieldValue.serverTimestamp(),
-            lastMessage: encryptedPreviewText(),
-            lastMessageTime: firestore.FieldValue.serverTimestamp(),
-          })
-          .catch(() => {});
-        setMessageText('');
-      })
-      .catch((err: any) => console.error('[DualPaneChatScreen] send error:', err))
-      .finally(() => setSending(false));
   }, [messageText, selectedChat, currentUserId, sending]);
 
   const openChat = useCallback(

@@ -39,6 +39,10 @@ export function startNotificationPolling(
 
   pollTimer = setInterval(async () => {
     try {
+      // BUG FIX: Skip first tick if initial poll hasn't resolved yet.
+      // Without this guard, lastKnownCount is still -1 and any result
+      // (even 0) triggers a spurious onNewNotification callback.
+      if (lastKnownCount === -1) return;
       const count = await pollUnread(userId);
       if (count !== lastKnownCount) {
         lastKnownCount = count;
@@ -96,20 +100,45 @@ export interface CreateNotificationParams {
  * Create a notification document for a recipient.
  * Uses a deterministic doc ID to avoid duplicates for the same event.
  * Format: `{type}_{actorId}_{postId}` (or `{type}_{actorId}` for follows).
+ *
+ * BUG FIX: Added block check — blocked users should NOT generate notifications.
+ * BUG FIX: For comment type, use unique doc ID (with timestamp) to prevent
+ * overwriting previous comment notifications from the same user on same post.
+ * BUG FIX: Added input validation — empty recipientId/actorId or invalid type
+ * should be silently rejected to prevent junk data in Firestore.
  */
 export async function createNotification(
   params: CreateNotificationParams,
 ): Promise<void> {
-  // Don't notify yourself
   const me = auth()?.currentUser?.uid;
   if (me && params.actorId === params.recipientId) return;
 
+  // BUG FIX: Input validation — prevent junk notifications
+  if (!params.recipientId?.trim() || !params.actorId?.trim()) return;
+  const validTypes = ['follow', 'like', 'comment', 'repost', 'mention', 'chat', 'story_view', 'milestone', 'suggestion'];
+  if (!validTypes.includes(params.type)) return;
+
+  // BUG FIX: Don't notify if recipient has blocked the actor
+  try {
+    const blockDoc = await firestore().collection('blocks').doc(`${params.actorId}_${params.recipientId}`).get();
+    if (blockDoc.exists) return;
+  } catch {
+    // If block check fails, allow notification (don't silently drop on network error)
+  }
+
   const { recipientId, type, actorId, postId } = params;
 
-  // Deterministic doc ID prevents duplicate notifications
-  const docId = postId
-    ? `${type}_${actorId}_${postId}`
-    : `${type}_${actorId}`;
+  // Deterministic doc ID prevents duplicate notifications.
+  // BUG FIX: For comments, use timestamp to allow multiple comments from
+  // same user on same post (without it, second comment overwrites first).
+  let docId: string;
+  if (type === 'comment' && postId) {
+    docId = `${type}_${actorId}_${postId}_${Date.now()}`;
+  } else if (postId) {
+    docId = `${type}_${actorId}_${postId}`;
+  } else {
+    docId = `${type}_${actorId}`;
+  }
 
   try {
     await firestore()
@@ -179,22 +208,32 @@ export async function createEngagementNotification(
 
 /**
  * Mark all unread notifications as read for a given user.
+ *
+ * BUG FIX: Use batched loop to handle >100 unread notifications.
+ * The old code capped at limit(100), leaving excess unread forever.
  */
 export async function markAllNotificationsRead(userId: string): Promise<void> {
   try {
-    const snapshot = await firestore()
-      .collection('notifications')
-      .where('recipientId', '==', userId)
-      .where('read', '==', false)
-      .limit(100)
-      .get();
+    let totalMarked = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const snapshot = await firestore()
+        .collection('notifications')
+        .where('recipientId', '==', userId)
+        .where('read', '==', false)
+        .limit(100)
+        .get();
 
-    const updates: Promise<any>[] = [];
-    for (const doc of snapshot.docs) {
-      updates.push(doc.ref.update({ read: true }));
+      hasMore = snapshot.docs.length === 100;
+      const updates: Promise<any>[] = [];
+      for (const doc of snapshot.docs) {
+        updates.push(doc.ref.update({ read: true }));
+      }
+      await Promise.all(updates);
+      totalMarked += snapshot.docs.length;
+      if (snapshot.docs.length === 0) break;
     }
-    await Promise.all(updates);
-    console.log(`[NotificationEngine] Marked ${snapshot.docs.length} notifications as read`);
+    console.log(`[NotificationEngine] Marked ${totalMarked} notifications as read`);
   } catch (e) {
     console.warn('[NotificationEngine] Failed to mark notifications read:', e);
   }

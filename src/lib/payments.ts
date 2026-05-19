@@ -141,9 +141,15 @@ export async function checkPlanLimit(
         try {
           const data = doc.data ? doc.data() : (doc.data || {});
           const createdAt = data.createdAt;
-          // Handle both ISO string timestamps and numeric timestamps
+          // Handle numeric timestamps, ISO strings, AND Firestore Timestamp objects
           if (typeof createdAt === 'number') return createdAt > twentyFourHoursAgo;
           if (typeof createdAt === 'string') return new Date(createdAt).getTime() > twentyFourHoursAgo;
+          // BUG FIX: Handle Firestore Timestamp objects ({ _seconds, _nanoseconds })
+          // These have a toDate() method or can be accessed via _seconds
+          if (createdAt && typeof createdAt === 'object') {
+            if (typeof createdAt.toDate === 'function') return createdAt.toDate().getTime() > twentyFourHoursAgo;
+            if (createdAt._seconds) return createdAt._seconds * 1000 > twentyFourHoursAgo;
+          }
           return false;
         } catch {
           return false;
@@ -220,6 +226,14 @@ export async function verifyAndActivateSubscription(
   const currentUid = auth()?.currentUser?.uid;
   if (!currentUid) throw new Error('Not authenticated');
 
+  // BUG FIX (SECURITY): Validate planId before activating.
+  // Without this, any caller could pass planId='free' and get isVerified:true
+  // for free, or pass arbitrary strings to corrupt the subscription field.
+  const validPlanIds = PLANS.map((p) => p.id);
+  if (!validPlanIds.includes(planId)) {
+    throw new Error(`Invalid plan ID: ${planId}. Must be one of: ${validPlanIds.join(', ')}`);
+  }
+
   // ── Determine badge and role based on plan ──
   const badge = planId === 'business' ? 'gold' : planId === 'premium' ? 'blue' : '';
   const role = planId === 'business' ? 'business' : undefined;
@@ -254,7 +268,7 @@ export async function verifyAndActivateSubscription(
     currency: plan?.currency || 'INR',
     paymentId,
     status: 'active',
-    activatedAt: new Date().toISOString(),
+    activatedAt: firestore.FieldValue.serverTimestamp(),
     duration: plan?.duration || 'monthly',
   };
 

@@ -65,6 +65,7 @@ interface CachedPublicKey {
 
 /* ── In-memory caches ──────────────────────────────────────────────────────── */
 let _localKeyPair: KeyPair | null = null;
+let _keyPairPromise: Promise<KeyPair> | null = null; // Deduplication gate
 const _publicKeyCache: Record<string, CachedPublicKey> = {};
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -75,12 +76,40 @@ const _publicKeyCache: Record<string, CachedPublicKey> = {};
  * Get or create the current user's X25519 identity key pair.
  * Private key is persisted in the OS keystore via expo-secure-store.
  * Public key is kept in memory (and also published to Firestore).
+ *
+ * BUG FIX: Added promise-gate deduplication to prevent race conditions.
+ * Two concurrent calls (e.g., initE2EE on mount in AnonymousChatScreen +
+ * ChatRoomScreen) could generate DIFFERENT key pairs, leading to
+ * permanent crypto desync (Firestore has key B, SecureStore has key A).
+ *
+ * BUG FIX: Persist to SecureStore BEFORE caching in memory. Previously,
+ * _localKeyPair was set before await SecureStore.setItemAsync, so if
+ * persistence failed, an ephemeral key was cached and all messages
+ * encrypted with it became permanently undecryptable after restart.
  */
 export async function getMyKeyPair(): Promise<KeyPair> {
   if (_localKeyPair) return _localKeyPair;
 
+  // Deduplication gate — if a key generation is already in progress,
+  // return the same promise instead of starting a second one.
+  if (_keyPairPromise) return _keyPairPromise;
+
+  _keyPairPromise = _createOrLoadKeyPair();
+  try {
+    return await _keyPairPromise;
+  } finally {
+    _keyPairPromise = null;
+  }
+}
+
+async function _createOrLoadKeyPair(): Promise<KeyPair> {
   // Try to load existing private key from secure storage
-  const storedSk = await SecureStore.getItemAsync(SK_KEY);
+  let storedSk: string | null = null;
+  try {
+    storedSk = await SecureStore.getItemAsync(SK_KEY);
+  } catch (e) {
+    if (__DEV__) console.warn('[E2EE] SecureStore unavailable, generating new key pair:', e);
+  }
 
   if (storedSk) {
     try {
@@ -96,10 +125,11 @@ export async function getMyKeyPair(): Promise<KeyPair> {
 
   // Generate new key pair
   const keyPair = nacl.box.keyPair();
-  _localKeyPair = keyPair;
 
-  // Persist private key to secure storage (NEVER to Firestore)
+  // BUG FIX: Persist FIRST, then cache. If persistence fails, don't cache
+  // the ephemeral key — let the next call try again.
   await SecureStore.setItemAsync(SK_KEY, bytesToBase64Url(keyPair.secretKey));
+  _localKeyPair = keyPair;
 
   return keyPair;
 }
@@ -294,7 +324,7 @@ export async function decryptMessage(
 
     if (!decrypted) {
       if (__DEV__) console.error('[E2EE] nacl.box.open returned null — decryption failed (tampered?)');
-      return null; // Message was tampered with
+      return '[Unable to decrypt this message]'; // Consistent with other error paths
     }
 
     return new TextDecoder().decode(decrypted);
