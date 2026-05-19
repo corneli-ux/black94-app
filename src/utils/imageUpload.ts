@@ -825,3 +825,41 @@ export async function getImageDownloadUrl(
     return null;
   }
 }
+
+/**
+ * refreshFirebaseUrl — Refreshes a Firebase Storage download URL's token.
+ *
+ * When a Firebase Storage download URL contains a token that's no longer
+ * valid (e.g., after security rules changes or token rotation), the image
+ * fails to load in React Native's <Image> component. This function extracts
+ * the storage path from the URL, fetches a fresh token, and returns a new URL.
+ *
+ * Also handles URLs that were stored without a token by appending ?alt=media.
+ *
+ * @param url - The original Firebase Storage download URL
+ * @returns A refreshed URL, or null if the file no longer exists
+ */
+export async function refreshFirebaseUrl(url: string): Promise<string | null> {
+  if (!url || (!url.startsWith('https://firebasestorage.googleapis.com') && !url.startsWith('https://storage.googleapis.com'))) {
+    return null; // Not a Firebase Storage URL
+  }
+
+  try {
+    // Extract storage path from URL format:
+    // https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encoded_path}?alt=media&token=...
+    const match = url.match(/\/o\/([^?]+)/);
+    if (!match) return null;
+
+    const encodedPath = match[1];
+    // Decode the path segments
+    const storagePath = encodedPath
+      .split('/')
+      .map(seg => decodeURIComponent(seg))
+      .join('/');
+
+    return await getImageDownloadUrl(storagePath);
+  } catch (err: any) {
+    console.warn('[imageUpload] refreshFirebaseUrl error:', err.message);
+    return null;
+  }
+}

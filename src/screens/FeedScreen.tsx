@@ -192,6 +192,8 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   const [showHeart, setShowHeart] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [hasMediaError, setHasMediaError] = useState(false);
+  const [refreshedUrl, setRefreshedUrl] = useState<string | null>(null);
+  const refreshAttemptedRef = React.useRef(false);
   const lastTapRef = useRef(0);
 
   const CAPTION_LIMIT = 150;
@@ -215,9 +217,33 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     const currentUrl = post.mediaUrls?.[0] || '';
     if (prevMediaUrlRef.current !== currentUrl) {
       setHasMediaError(false);
+      setRefreshedUrl(null);
+      refreshAttemptedRef.current = false;
       prevMediaUrlRef.current = currentUrl;
     }
   }, [post.id, post.mediaUrls]);
+
+  // BUG FIX: When image fails to load, try refreshing the Firebase Storage
+  // download URL (token may have expired) before showing the error overlay.
+  const handleMediaError = React.useCallback(async (originalUrl: string) => {
+    console.warn('[Feed] Image failed:', originalUrl?.slice(0, 80));
+    if (!refreshAttemptedRef.current && originalUrl) {
+      refreshAttemptedRef.current = true;
+      try {
+        const { refreshFirebaseUrl } = require('../utils/imageUpload');
+        const newUrl = await refreshFirebaseUrl(originalUrl);
+        if (newUrl && newUrl !== originalUrl) {
+          console.log('[Feed] Refreshed URL, retrying:', newUrl.slice(0, 80));
+          setRefreshedUrl(newUrl);
+          setHasMediaError(false); // Give it another chance
+          return;
+        }
+      } catch (refreshErr: any) {
+        console.warn('[Feed] URL refresh failed:', refreshErr?.message);
+      }
+    }
+    setHasMediaError(true);
+  }, []);
 
   const handleDoubleTap = () => {
     const now = Date.now();
@@ -336,13 +362,14 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={styles.mediaContainer}>
                 <Image
-                  source={{ uri: post.mediaUrls[0] }}
+                  source={{ uri: refreshedUrl || post.mediaUrls[0] }}
                   style={styles.media}
                   resizeMode="cover"
                   // BUG FIX: Show placeholder when image fails to load
                   // (expired token, broken URL) instead of a black rectangle.
+                  // On first failure, tries refreshing the Firebase URL.
                   onLoad={() => setHasMediaError(false)}
-                  onError={(e) => { console.warn('[Feed] Image failed:', post.mediaUrls[0]?.slice(0, 80), e.nativeEvent?.error); setHasMediaError(true); }}
+                  onError={() => handleMediaError(post.mediaUrls[0])}
                 />
                 {hasMediaError && (
                   <View style={[StyleSheet.absoluteFill, styles.mediaErrorOverlay]}>

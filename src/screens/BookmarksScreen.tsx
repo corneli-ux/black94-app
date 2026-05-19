@@ -141,6 +141,38 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   const [commentCount, setCommentCount] = useState(post.commentCount);
   const [repostCount, setRepostCount] = useState(post.repostCount);
   const [reposted, setReposted] = useState(post.reposted);
+  const [hasMediaError, setHasMediaError] = useState(false);
+  const [refreshedUrl, setRefreshedUrl] = useState<string | null>(null);
+  const refreshAttemptedRef = React.useRef(false);
+
+  // Reset when post changes
+  const prevUrlRef = React.useRef(post.mediaUrls?.[0] || '');
+  React.useEffect(() => {
+    const currentUrl = post.mediaUrls?.[0] || '';
+    if (prevUrlRef.current !== currentUrl) {
+      setHasMediaError(false);
+      setRefreshedUrl(null);
+      refreshAttemptedRef.current = false;
+      prevUrlRef.current = currentUrl;
+    }
+  }, [post.id, post.mediaUrls]);
+
+  const handleMediaError = React.useCallback(async (originalUrl: string) => {
+    console.warn('[Bookmarks] Image failed:', originalUrl?.slice(0, 80));
+    if (!refreshAttemptedRef.current && originalUrl) {
+      refreshAttemptedRef.current = true;
+      try {
+        const { refreshFirebaseUrl } = require('../utils/imageUpload');
+        const newUrl = await refreshFirebaseUrl(originalUrl);
+        if (newUrl && newUrl !== originalUrl) {
+          setRefreshedUrl(newUrl);
+          setHasMediaError(false);
+          return;
+        }
+      } catch {}
+    }
+    setHasMediaError(true);
+  }, []);
 
   const handleLike = async () => {
     const next = !liked; setLiked(next); setLikeCount(c => c + (next ? 1 : -1));
@@ -215,7 +247,19 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
           {post.caption ? <Text style={styles.caption} numberOfLines={4}>{post.caption}</Text> : null}
           {post.mediaUrls?.length > 0 && (
             <View style={styles.mediaContainer}>
-              <Image source={{ uri: post.mediaUrls[0] }} style={styles.media} resizeMode="cover" />
+              <Image
+                source={{ uri: refreshedUrl || post.mediaUrls[0] }}
+                style={styles.media}
+                resizeMode="cover"
+                onLoad={() => setHasMediaError(false)}
+                onError={() => handleMediaError(post.mediaUrls[0])}
+              />
+              {hasMediaError && (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="image-outline" size={24} color="#71767b" />
+                  <Text style={{ color: '#71767b', fontSize: 12, marginTop: 4 }}>Image failed to load</Text>
+                </View>
+              )}
             </View>
           )}
           <View style={styles.actions}>
