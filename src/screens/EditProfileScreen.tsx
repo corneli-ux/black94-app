@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { auth, firestore } from '../lib/firebase';
+import { auth, firestore, updateAuthUser } from '../lib/firebase';
 import { fetchUserProfile, User } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
@@ -272,6 +272,15 @@ export default function EditProfileScreen({ navigation }: any) {
           { text: 'OK', onPress: () => {
             // Update Zustand store so sidebar/drawer shows the new profile info immediately
             setGlobalUser(updatedProfile);
+            // BUG FIX: Sync Firebase auth user object with new profile data.
+            // Without this, auth().currentUser stays stale (old name/avatar)
+            // and any code reading from auth (e.g., getActorData) uses wrong data.
+            try {
+              updateAuthUser({
+                displayName: displayName.trim(),
+                photoURL: finalProfileImage || undefined,
+              }).catch(() => {});
+            } catch {}
             navigation.navigate('ProfileSelf');
           }},
         ]);

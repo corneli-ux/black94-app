@@ -446,16 +446,85 @@ function _parseFields(data: Record<string, any>): {
  * Trade-off: not atomic (two API calls), but correctness is more important
  * than atomicity here.
  */
+/**
+ * Build a nested Firestore mapValue structure from dot-notation keys.
+ * E.g., { 'privacy.paidChatPrice': { integerValue: '100' } }
+ *   → { privacy: { mapValue: { fields: { paidChatPrice: { integerValue: '100' } } } } }
+ *
+ * BUG FIX: The Firestore REST PATCH endpoint treats field names literally —
+ * 'privacy.paidChatPrice' creates a TOP-LEVEL field with a dot in the name,
+ * NOT a nested update. To update nested subfields, we must build proper
+ * mapValue structures AND use updateMask.fieldPaths to avoid overwriting
+ * sibling fields (e.g., dmPermission, nameVisibility under 'privacy').
+ */
+function _dotNotationToNestedMap(dotFields: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [dotPath, fsValue] of Object.entries(dotFields)) {
+    const parts = dotPath.split('.');
+    let current = result;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part]) {
+        current[part] = { mapValue: { fields: {} } };
+      }
+      current = current[part].mapValue.fields;
+    }
+    current[parts[parts.length - 1]] = fsValue;
+  }
+  return result;
+}
+
 async function _firestoreCommitUpdate(
   docPath: string,
   fields: Record<string, any>,
   transforms: Array<{ fieldPath: string; setToServerValue?: string; increment?: any }>,
 ): Promise<void> {
-  // Step 1: Write field updates via PATCH — guaranteed merge semantics,
-  // works for both new documents (creates) and existing documents (merges).
-  if (Object.keys(fields).length > 0) {
-    if (__DEV__) console.log(`[Firestore] commit step 1: PATCH fields to ${docPath}`);
-    await _firestoreFetch(docPath, 'PATCH', { fields });
+  // Separate dot-notation fields from regular top-level fields.
+  // Dot-notation fields require special handling (updateMask) to avoid
+  // corrupting sibling subfields in the parent map.
+  const regularFields: Record<string, any> = {};
+  const dotFields: Record<string, any> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (key.includes('.')) {
+      dotFields[key] = value;
+    } else {
+      regularFields[key] = value;
+    }
+  }
+
+  // Step 1a: Write regular (non-dot-notation) field updates via PATCH.
+  if (Object.keys(regularFields).length > 0) {
+    if (__DEV__) console.log(`[Firestore] commit step 1a: PATCH regular fields to ${docPath}`);
+    await _firestoreFetch(docPath, 'PATCH', { fields: regularFields });
+  }
+
+  // Step 1b: Write dot-notation field updates via PATCH with updateMask.
+  // The updateMask ensures only the specified subfield paths are updated,
+  // preserving sibling fields in the same parent map.
+  if (Object.keys(dotFields).length > 0) {
+    const dotPaths = Object.keys(dotFields);
+    const nestedFields = _dotNotationToNestedMap(dotFields);
+    if (__DEV__) console.log(`[Firestore] commit step 1b: PATCH dot-notation fields to ${docPath}: ${dotPaths.join(', ')}`);
+
+    const token = await _getValidToken();
+    const url = `${FIRESTORE_BASE}/${docPath}?key=${API_KEY}&updateMask.fieldPaths=${dotPaths.map(encodeURIComponent).join(',')}`;
+    const resp = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ fields: nestedFields }),
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      const errMsg = data.error?.message || `Firestore dot-notation PATCH failed (${resp.status})`;
+      if (__DEV__) console.error(`[Firestore] dot-notation PATCH FAILED: ${resp.status} - ${errMsg}`);
+      const err: any = new Error(errMsg);
+      err.status = resp.status;
+      err.code = data.error?.status;
+      throw err;
+    }
   }
 
   // Step 2: Apply transforms via commit endpoint — write.transform ONLY
@@ -927,11 +996,13 @@ export { _restoreAuth as restoreAuth };
 export { _persistAuth as persistAuth };
 
 /** Update the in-memory auth user profile (e.g., after profile edit, username change). */
-export function updateAuthUser(updates: Partial<AuthUser>): void {
+export async function updateAuthUser(updates: Partial<AuthUser>): Promise<void> {
   if (_authUser) {
     _authUser = { ..._authUser, ...updates };
-    // Persist updated profile so cold restart picks up changes
-    _persistAuth();
+    // Persist updated profile so cold restart picks up changes.
+    // BUG FIX: Must await _persistAuth() — fire-and-forget could lose data if
+    // the app suspends/closes immediately after profile edit.
+    await _persistAuth();
     _notifyAuthListeners();
   }
 }

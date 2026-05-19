@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { signOutUser } from '../lib/api';
-import { firestore } from '../lib/firebase';
+import { firestore, updateAuthUser } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { PLANS, formatAmount } from '../lib/payments';
 
@@ -40,6 +40,12 @@ export default function SettingsScreen() {
       });
       const updatedUser = { ...user, displayName: displayName.trim(), bio: bio.trim() };
       setUser(updatedUser);
+      // BUG FIX: Sync Firebase auth user object with new displayName.
+      // Without this, auth().currentUser.displayName stays stale after
+      // editing in Settings (only EditProfile had this fix before).
+      try {
+        updateAuthUser({ displayName: displayName.trim() }).catch(() => {});
+      } catch {}
       // BUG FIX: Persist updated profile to cache for self-heal recovery
       try {
         await AsyncStorage.setItem('@black94/user_cache', JSON.stringify(updatedUser));

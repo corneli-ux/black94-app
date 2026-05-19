@@ -180,6 +180,9 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       username: username,
       usernameLower: username.toLowerCase(),
       displayName: fbUser.displayName || 'User',
+      // BUG FIX: Add displayNameLower on sign-up so new users are searchable
+      // by display name immediately (not only after editing their profile).
+      displayNameLower: (fbUser.displayName || 'User').toLowerCase(),
       profileImage: googlePhoto,
       role: 'personal',
       badge: '',
@@ -236,11 +239,28 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
           }
         } catch {}
 
+        // BUG FIX: Detect SILENT corruption — the old _firestoreCommitUpdate
+        // bug could replace custom username/avatar with Google defaults without
+        // actually DELETING the fields (so isCorrupted=false). Detect this by
+        // checking if the Firestore doc's user-facing values match Google auth
+        // data AND differ from the cached profile. The cache has the user's
+        // LAST KNOWN correct values, so it's more reliable than Google defaults.
+        const googleAutoUsername = fbUser.displayName?.replace(/\s/g, '').toLowerCase() || '';
+        const isSilentlyCorrupted = !!cachedProfile && (
+          (existingData?.username === googleAutoUsername && cachedProfile.username && cachedProfile.username !== googleAutoUsername) ||
+          (existingData?.displayName === fbUser.displayName && cachedProfile.displayName && cachedProfile.displayName !== fbUser.displayName) ||
+          (existingData?.profileImage === googlePhoto && cachedProfile.profileImage && cachedProfile.profileImage !== googlePhoto && !!googlePhoto)
+        );
+
+        if (isSilentlyCorrupted && __DEV__) {
+          console.warn('[Auth] User doc silently corrupted (matches Google defaults, not cached profile) — restoring from cache');
+        }
+
         const updateFields: Record<string, any> = {
           updatedAt: firestore.FieldValue.serverTimestamp(),
         };
 
-        if (isCorrupted) {
+        if (isCorrupted || isSilentlyCorrupted) {
           console.warn('[Auth] User doc corrupted (missing username/displayName) — self-healing from', cachedProfile ? 'cached profile' : 'Google defaults');
           // Use cached profile values as primary source — these are the user's
           // ACTUAL custom values (not Google-generated fallbacks).
@@ -268,7 +288,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
         // BUG FIX: After self-heal, re-read the doc so we return healed data.
         // The old code returned `existingData` which was read BEFORE the heal,
         // so Zustand store got corrupted values even after successful repair.
-        if (isCorrupted || needsPhotoRecovery) {
+        if (isCorrupted || isSilentlyCorrupted || needsPhotoRecovery) {
           await userDocRef.update(updateFields);
           // Re-read to get the healed document
           try {
@@ -451,26 +471,35 @@ export async function fetchFeed(limitCount = 20): Promise<Post[]> {
   }
 
   // Enrich posts with fresh author data from user profiles.
-  // GUARD: If the user doc is corrupted (empty username + displayName, likely from
-  // the old _firestoreCommitUpdate write.update bug), skip enrichment entirely.
-  // The post's stamped author data is more reliable than a corrupted user doc.
+  // BUG FIX: Per-field enrichment — only overwrite when the fresh value is
+  // truthy/non-null. The old `||` approach (e.g., fresh.profileImage || stamped)
+  // is correct for empty-string guards, but for profileImage specifically,
+  // `null || stamped` would fall through to stamped — which is actually right.
+  // HOWEVER, the old code used `fresh.isVerified || post.authorIsVerified`
+  // which means if a user is NOT verified (false), it would keep the old
+  // stamped value (possibly true from a previous state). Fixed to use fresh
+  // directly for boolean fields.
   for (const post of posts) {
     const fresh = authorProfileMap[post.authorId];
-    if (fresh) {
-      // Skip enrichment if the "fresh" profile looks corrupted — empty
-      // username AND displayName means the doc was likely wiped by write.update.
-      // The post's stamped data (from createPost) is more reliable.
-      const profileLooksCorrupted = !fresh.username && !fresh.displayName;
-      if (profileLooksCorrupted) {
-        if (__DEV__) console.warn(`[Feed] Skipping enrichment for ${post.authorId} — profile appears corrupted (empty username/displayName)`);
-        continue;
-      }
-      post.authorDisplayName = fresh.displayName || post.authorDisplayName;
-      post.authorUsername = fresh.username || post.authorUsername;
-      post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
-      post.authorBadge = fresh.badge || post.authorBadge;
-      post.authorIsVerified = fresh.isVerified || post.authorIsVerified;
+    if (!fresh) continue;
+
+    // Completely skip if profile looks corrupted (both username AND displayName empty)
+    const profileLooksCorrupted = !fresh.username && !fresh.displayName;
+    if (profileLooksCorrupted) {
+      if (__DEV__) console.warn(`[Feed] Skipping enrichment for ${post.authorId} — profile appears corrupted (empty username/displayName)`);
+      continue;
     }
+
+    // Per-field: only overwrite stamped data when fresh value is non-empty/non-null.
+    // This prevents a corrupted user doc from wiping correct stamped data.
+    if (fresh.displayName) post.authorDisplayName = fresh.displayName;
+    if (fresh.username) post.authorUsername = fresh.username;
+    // profileImage: only overwrite if fresh has a non-null, non-empty value.
+    // Null fresh value means corrupted/missing — keep stamped image.
+    if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
+    if (fresh.badge) post.authorBadge = fresh.badge;
+    // isVerified: use fresh value directly (boolean, not guarded by ||)
+    post.authorIsVerified = fresh.isVerified;
   }
 
   if (!userId) return posts;
@@ -1903,7 +1932,14 @@ export async function getUserDmPermission(targetUserId: string): Promise<string>
     if (!docSnap.exists) return 'all';
     const privacy = docSnap.data()?.privacy;
     if (!privacy) return 'all';
-    return privacy.dmPermission || 'all';
+    // BUG FIX: Normalize return values to match what callers expect.
+    // The privacy.dmPermission field in Firestore uses 'paid', 'followers',
+    // 'followers_only', 'everyone', 'no one', etc. Callers check for these
+    // exact strings ('paid', 'followers'). Normalize variants for consistency.
+    const perm = privacy.dmPermission || 'all';
+    if (perm === 'everyone') return 'all';
+    if (perm === 'followers_only') return 'followers';
+    return perm;
   } catch (e) {
     console.warn('[PaidChat] Failed to fetch DM permission:', e);
     return 'all';
@@ -1912,16 +1948,34 @@ export async function getUserDmPermission(targetUserId: string): Promise<string>
 
 /* ── Privacy Settings ───────────────────────────────────────────────────── */
 
+/**
+ * Normalize DM permission values from Firestore to the canonical values
+ * used in the app ('all', 'followers', 'paid', 'no one').
+ * Firestore may contain variant values like 'everyone', 'followers_only'
+ * from direct edits or older versions.
+ */
+function _normalizeDmPermission(perm: string | undefined | null): 'all' | 'followers' | 'paid' {
+  if (!perm) return 'all';
+  if (perm === 'everyone') return 'all';
+  if (perm === 'followers_only') return 'followers';
+  // Accept the canonical values directly
+  if (perm === 'all' || perm === 'followers' || perm === 'paid' || perm === 'no one') {
+    return perm;
+  }
+  // Unknown value — default to 'all' (most permissive, least surprising)
+  return 'all';
+}
+
 export interface UserPrivacySettings {
   nameVisibility: 'public' | 'private' | 'selected';
-  dmPermission: 'everyone' | 'followers_only' | 'paid' | 'no one';
+  dmPermission: 'all' | 'followers' | 'paid' | 'no one';
   searchVisible: boolean;
   accountLocked: boolean;
 }
 
 const DEFAULT_PRIVACY_SETTINGS: UserPrivacySettings = {
   nameVisibility: 'public',
-  dmPermission: 'everyone',
+  dmPermission: 'all',
   searchVisible: true,
   accountLocked: false,
 };
@@ -1935,7 +1989,9 @@ export async function fetchUserPrivacySettings(userId: string): Promise<UserPriv
       if (stored) {
         return {
           nameVisibility: stored.nameVisibility || DEFAULT_PRIVACY_SETTINGS.nameVisibility,
-          dmPermission: stored.dmPermission || DEFAULT_PRIVACY_SETTINGS.dmPermission,
+          // BUG FIX: Normalize dmPermission values so callers get consistent values.
+          // Firestore might have 'everyone' or 'followers_only' from direct edits.
+          dmPermission: _normalizeDmPermission(stored.dmPermission),
           searchVisible: stored.searchVisible !== false,
           accountLocked: stored.accountLocked || false,
         };
