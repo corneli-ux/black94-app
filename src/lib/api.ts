@@ -141,7 +141,9 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     };
 
     // Extract existing Firestore data ONCE, before the if/else branches use it.
-    const existingData = userDocSnap.exists ? userDocSnap.data() : null;
+    // BUG FIX: Use `let` because self-heal may re-read and reassign this variable
+    // with healed data after updating the corrupted user doc.
+    let existingData = userDocSnap.exists ? userDocSnap.data() : null;
 
     if (!userDocSnap.exists) {
       userData.createdAt = firestore.FieldValue.serverTimestamp();
@@ -215,7 +217,33 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
           updateFields.profileImage = cachedProfile?.profileImage || googlePhoto;
         }
 
-        await userDocRef.update(updateFields);
+        // BUG FIX: After self-heal, re-read the doc so we return healed data.
+        // The old code returned `existingData` which was read BEFORE the heal,
+        // so Zustand store got corrupted values even after successful repair.
+        if (isCorrupted || needsPhotoRecovery) {
+          await userDocRef.update(updateFields);
+          // Re-read to get the healed document
+          try {
+            const healedSnap = await userDocRef.get();
+            if (healedSnap.exists) {
+              const healed = healedSnap.data();
+              // Update existingData with healed values for the return statement below
+              if (healed) {
+                existingData = { ...existingData, ...healed };
+              }
+            }
+          } catch (reReadErr) {
+            console.warn('[Auth] Failed to re-read user doc after heal, using updateFields as fallback:', reReadErr);
+            // Fallback: manually apply healed fields to existingData
+            for (const [key, val] of Object.entries(updateFields)) {
+              if (val !== undefined && !(val && typeof val === 'object' && '__sentinel' in val)) {
+                (existingData as any)[key] = val;
+              }
+            }
+          }
+        } else {
+          await userDocRef.update(updateFields);
+        }
       } catch (e) {
         console.warn('[Auth] Failed to update user doc:', e);
       }
@@ -243,9 +271,9 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       if (__DEV__) console.warn('[E2EE] Init on sign-in failed (will retry on first message):', e);
     }
 
-    return {
+    const returnUser: User = {
       id: fbUser.uid,
-      email: fbUser.email || '',
+      email: existingData?.email || fbUser.email || '',
       username: existingData?.username || username,
       displayName: existingData?.displayName || userData.displayName,
       bio: existingData?.bio || '',
@@ -257,6 +285,19 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       isVerified: existingData?.isVerified || false,
       createdAt,
     };
+
+    // BUG FIX: Persist user profile to AsyncStorage cache so self-heal recovery
+    // works on next sign-in if the user doc gets corrupted. The cache was read
+    // in two places but NEVER written — making recovery always fall back to
+    // Google defaults (losing custom username, uploaded avatar, etc.).
+    try {
+      await AsyncStorage.setItem('@black94/user_cache', JSON.stringify(returnUser));
+      if (__DEV__) console.log('[Auth] User profile cached to AsyncStorage for self-heal recovery');
+    } catch (e) {
+      if (__DEV__) console.warn('[Auth] Failed to cache user profile:', e);
+    }
+
+    return returnUser;
 
   } catch (error: any) {
     if (error?.code === '12501') return null;
@@ -277,6 +318,10 @@ export async function signOutUser(): Promise<void> {
   // ── Destroy E2EE keys on logout ──
   try {
     await destroyLocalKeys();
+  } catch {}
+  // Clear user profile cache — no longer valid after logout
+  try {
+    await AsyncStorage.removeItem('@black94/user_cache');
   } catch {}
 }
 
@@ -490,6 +535,27 @@ export async function createPost(
   const userDocCorrupted = !userData?.username || !userData?.displayName;
   if (userDocCorrupted && storeUser) {
     if (__DEV__) console.warn('[Post] User doc appears corrupted — using Zustand store as fallback for author metadata');
+    // BUG FIX: Proactively repair the corrupted user doc in the background.
+    // Without this, the doc stays corrupted and every future operation (feed
+    // enrichment, profile view, etc.) uses wrong data. The Zustand store
+    // has the correct values from sign-in or profile edit.
+    try {
+      const repairFields: Record<string, any> = {
+        username: storeUser.username || '',
+        usernameLower: (storeUser.username || '').toLowerCase(),
+        displayName: storeUser.displayName || 'User',
+        profileImage: storeUser.profileImage || null,
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      };
+      await firestore().collection('users').doc(userId).update(repairFields);
+      if (__DEV__) console.log('[Post] User doc repaired with Zustand store data');
+      // Also update the cache so self-heal on next sign-in has fresh data
+      try {
+        await AsyncStorage.setItem('@black94/user_cache', JSON.stringify(storeUser));
+      } catch {}
+    } catch (repairErr) {
+      if (__DEV__) console.warn('[Post] Failed to repair user doc:', repairErr);
+    }
   }
 
   const docData: Record<string, any> = {
@@ -1170,7 +1236,7 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
       // If tsToMillis fails for any reason, fall back to Date.now()
       createdAt = data?.createdAt ? new Date(data.createdAt).getTime() || Date.now() : Date.now();
     }
-    return {
+    const profileResult: User = {
       id: userId,
       email: data?.email || '',
       username: data?.username || '',
@@ -1184,6 +1250,19 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
       isVerified: data?.isVerified || false,
       createdAt,
     };
+
+    // BUG FIX: Persist fetched profile to AsyncStorage cache for self-heal recovery.
+    // Only cache valid (non-corrupted) profiles — corrupted ones are handled above.
+    // Also only cache the CURRENT user's profile (not other users' profiles).
+    const currentUid = currentUser()?.uid;
+    if (currentUid === userId && data?.username && data?.displayName) {
+      try {
+        await AsyncStorage.setItem('@black94/user_cache', JSON.stringify(profileResult));
+        if (__DEV__) console.log('[User] Profile cached to AsyncStorage for self-heal recovery');
+      } catch {}
+    }
+
+    return profileResult;
   } catch (e: any) {
     console.error('[User] fetchUserProfile error:', e?.message);
     // Return null instead of throwing — callers can handle missing profile gracefully
@@ -1357,6 +1436,27 @@ export async function addPostComment(postId: string, content: string, replyToId?
     storeUser = useAppStore.getState().user;
   } catch {}
 
+  // BUG FIX: Proactively repair corrupted user doc (same as createPost).
+  // Without this, comments are stamped with empty author metadata and
+  // the doc stays broken for all future operations.
+  const userDocCorrupted = !userData?.username || !userData?.displayName;
+  if (userDocCorrupted && storeUser) {
+    if (__DEV__) console.warn('[Comment] User doc appears corrupted — repairing with Zustand store data');
+    try {
+      await firestore().collection('users').doc(userId).update({
+        username: storeUser.username || '',
+        usernameLower: (storeUser.username || '').toLowerCase(),
+        displayName: storeUser.displayName || 'User',
+        profileImage: storeUser.profileImage || null,
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      });
+      if (__DEV__) console.log('[Comment] User doc repaired');
+      try { await AsyncStorage.setItem('@black94/user_cache', JSON.stringify(storeUser)); } catch {}
+    } catch (repairErr) {
+      if (__DEV__) console.warn('[Comment] Failed to repair user doc:', repairErr);
+    }
+  }
+
   const docRef = await firestore().collection('post_comments').add({
     postId,
     authorId: userId,
@@ -1386,14 +1486,19 @@ export async function addPostComment(postId: string, content: string, replyToId?
     const postData = postDoc.exists ? postDoc.data() : null;
     const postAuthorId = postData?.authorId;
     if (postAuthorId && postAuthorId !== userId) {
+      // Use Zustand fallback for actor data if user doc was corrupted
+      const actorName = userData?.displayName || storeUser?.displayName || 'User';
+      const actorUsername = userData?.username || storeUser?.username || '';
+      const actorPhoto = userData?.profileImage || storeUser?.profileImage || null;
+      const actorVerified = userData?.isVerified ?? storeUser?.isVerified ?? false;
       createNotification({
         recipientId: postAuthorId,
         type: 'comment',
         actorId: userId,
-        actorDisplayName: userData?.displayName || '',
-        actorUsername: userData?.username || '',
-        actorProfileImage: userData?.profileImage || null,
-        actorIsVerified: userData?.isVerified || false,
+        actorDisplayName: actorName,
+        actorUsername: actorUsername,
+        actorProfileImage: actorPhoto,
+        actorIsVerified: actorVerified,
         actorBadge: userData?.badge || '',
         postId,
         postCaption: postData?.caption || '',

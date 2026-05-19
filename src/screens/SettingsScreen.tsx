@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet, StatusBar,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { signOutUser } from '../lib/api';
@@ -33,10 +34,16 @@ export default function SettingsScreen() {
     try {
       await firestore().collection('users').doc(user.id).update({
         displayName: displayName.trim(),
+        displayNameLower: displayName.trim().toLowerCase(),
         bio: bio.trim(),
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
-      setUser({ ...user, displayName: displayName.trim(), bio: bio.trim() });
+      const updatedUser = { ...user, displayName: displayName.trim(), bio: bio.trim() };
+      setUser(updatedUser);
+      // BUG FIX: Persist updated profile to cache for self-heal recovery
+      try {
+        await AsyncStorage.setItem('@black94/user_cache', JSON.stringify(updatedUser));
+      } catch {}
       Alert.alert('Saved', 'Profile updated successfully');
     } catch (err) {
       Alert.alert('Error', 'Failed to update profile');

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -242,23 +243,35 @@ export default function EditProfileScreen({ navigation }: any) {
           updatedAt: firestore.FieldValue.serverTimestamp(),
         });
 
+        // BUG FIX: Persist profile to AsyncStorage cache for self-heal recovery.
+        // Without this, if the user doc gets corrupted by a future bug, the
+        // sign-in self-heal falls back to Google defaults (losing custom
+        // username, uploaded avatar). The cache was read but never written.
+        const updatedProfile = {
+          id: currentUid,
+          email: user?.email || '',
+          username: username,
+          displayName: displayName.trim(),
+          bio: bio.trim(),
+          profileImage: finalProfileImage,
+          coverImage: finalCoverImage,
+          role,
+          badge: user?.badge || '',
+          subscription: user?.subscription || 'free',
+          isVerified: user?.isVerified || false,
+          createdAt: user?.createdAt || Date.now(),
+        };
+        try {
+          await AsyncStorage.setItem('@black94/user_cache', JSON.stringify(updatedProfile));
+          if (__DEV__) console.log('[EditProfile] Profile cached to AsyncStorage for self-heal recovery');
+        } catch (cacheErr) {
+          if (__DEV__) console.warn('[EditProfile] Failed to cache profile:', cacheErr);
+        }
+
         Alert.alert('Success', 'Profile updated successfully', [
           { text: 'OK', onPress: () => {
             // Update Zustand store so sidebar/drawer shows the new profile info immediately
-            setGlobalUser({
-              id: currentUid,
-              email: user?.email || '',
-              username: username,
-              displayName: displayName.trim(),
-              bio: bio.trim(),
-              profileImage: finalProfileImage,
-              coverImage: finalCoverImage,
-              role,
-              badge: user?.badge || '',
-              subscription: user?.subscription || 'free',
-              isVerified: user?.isVerified || false,
-              createdAt: user?.createdAt || Date.now(),
-            });
+            setGlobalUser(updatedProfile);
             navigation.navigate('ProfileSelf');
           }},
         ]);

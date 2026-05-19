@@ -344,6 +344,7 @@ export default function PremiumDashboardScreen() {
                         subscription: 'free',
                         badge: '',
                         role: '',  // Clear role — custom firebase.ts doesn't support FieldValue.delete()
+                        isVerified: false,  // Clear verified status on cancellation
                         updatedAt: firestore.FieldValue.serverTimestamp(),
                       });
 
@@ -360,10 +361,13 @@ export default function PremiumDashboardScreen() {
                       });
                       if (subs.docs.length > 0) await batch.commit();
 
-                      // Refresh the app store user data
-                      const updatedUser = await firestore().collection('users').doc(uid).get();
-                      if (updatedUser.exists) {
-                        useAppStore.getState().setUser({ id: uid, ...updatedUser.data() });
+                      // Refresh the app store user data — use fetchUserProfile which
+                      // has corruption detection, createdAt conversion, and cache update.
+                      // BUG FIX: Previously used raw Firestore data which could contain
+                      // corrupted fields and missed updating user_cache.
+                      const refreshedUser = await fetchUserProfile(uid);
+                      if (refreshedUser) {
+                        useAppStore.getState().setUser(refreshedUser);
                       }
 
                       Alert.alert('Subscription Cancelled', 'Your subscription has been cancelled. You can continue using premium features until the end of your billing period.');
