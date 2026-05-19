@@ -63,7 +63,7 @@ jobs:
         env:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-        run: npm install
+        run: npm install && npm install hermes-compiler
 
       - name: Fix splashscreen_logo drawable
         run: |
