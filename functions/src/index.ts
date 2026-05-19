@@ -242,11 +242,12 @@ orderApp.post('/', authenticateRequest, async (req: any, res) => {
       receipt: order.receipt,
     });
   } catch (error: any) {
-    console.error('[Razorpay] Order creation failed:', error?.message || error, error?.statusCode, error?.code);
+    const detail = error?.error?.description || error?.description || error?.message || JSON.stringify(error);
+    console.error('[Razorpay] Order creation failed:', error?.statusCode, error?.code, detail);
     return res.status(500).json({
       error: {
         code: 500,
-        message: error?.message || 'Failed to create payment order. Please try again.',
+        message: `Payment error: ${detail}`,
         status: 'INTERNAL',
       },
     });
