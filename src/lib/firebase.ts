@@ -392,12 +392,17 @@ function _parseFields(data: Record<string, any>): {
  *
  * The documents.patch endpoint does NOT accept fieldTransforms in the request body
  * (returns "Unknown name fieldTransforms").  To apply server-side transforms
- * (serverTimestamp, increment) atomically with field updates, we must use the
- * documents:commit endpoint which supports:
- *   - write.update { name, fields } for regular field updates (PATCH semantics)
- *   - write.updateTransforms [ { fieldPath, setToServerValue, increment, ... } ]
+ * (serverTimestamp, increment) atomically with field updates, we use the
+ * documents:commit endpoint.
  *
- * Both are sent in a single commit so the update and transforms are atomic.
+ * Two cases:
+ *  1. Fields + transforms → write.update { Document } + write.updateTransforms
+ *     This is a MERGE (PATCH) — only specified fields are updated, others untouched.
+ *  2. Transforms only (no fields) → write.transform { document, fieldTransforms }
+ *     This ONLY applies transforms — zero risk of corrupting other fields.
+ *     IMPORTANT: Do NOT use write.update with no fields!  The API docs say
+ *     "the document will exist with the given field values" — with an empty
+ *     fields map this can clear ALL existing fields, corrupting the document.
  */
 async function _commitWrite(
   docPath: string,
@@ -407,23 +412,27 @@ async function _commitWrite(
   const token = await _getValidToken();
   const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:commit?key=${API_KEY}`;
 
-  const write: any = {};
+  const fullName = `projects/${PROJECT_ID}/databases/(default)/documents/${docPath}`;
+  let write: any;
 
-  // Include field updates if there are any
   if (Object.keys(fields).length > 0) {
-    write.update = {
-      name: `projects/${PROJECT_ID}/databases/(default)/documents/${docPath}`,
-      fields,
+    // Case 1: Field updates + transforms → use write.update (merge semantics)
+    write = {
+      update: {
+        name: fullName,
+        fields,
+      },
+      updateTransforms: transforms,
     };
   } else {
-    // Pure transform (no field updates) — still need a document reference
-    write.update = {
-      name: `projects/${PROJECT_ID}/databases/(default)/documents/${docPath}`,
+    // Case 2: Transforms only → use write.transform (safe, no field changes)
+    write = {
+      transform: {
+        document: fullName,
+        fieldTransforms: transforms,
+      },
     };
   }
-
-  // Include server-side transforms
-  write.updateTransforms = transforms;
 
   const body = { writes: [write] };
 
