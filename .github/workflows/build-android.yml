@@ -49,13 +49,19 @@ jobs:
             exit 1
           fi
 
-      # Pipe `yes` to auto-accept the "Install updated dependencies?" prompt
-      # that appears when Expo detects a version mismatch (e.g. expo vs react-native)
+      # Pre-resolve dependency mismatches so expo prebuild doesn't prompt
+      - name: Fix Expo dependency mismatches
+        env:
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: npx expo install --fix || true
+
+      # Use `script` to simulate TTY so the prompt is reachable via stdin
       - name: Expo prebuild
         env:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-        run: yes | npx expo prebuild --platform android --clean
+        run: yes | script -qc "npx expo prebuild --platform android --clean" /dev/null
 
       - name: Fix splashscreen_logo drawable
         run: |
