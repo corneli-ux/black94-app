@@ -43,6 +43,7 @@ jobs:
           echo "${{ secrets.RAZORPAY_WEBHOOK_SECRET }}" | firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET --project black94 --force
 
       - name: Grant Secret Manager access to function service account
+                continue-on-error: true
         run: |
           PROJECT_NUMBER=$(gcloud projects describe black94 --format='value(projectNumber)')
           SA="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
