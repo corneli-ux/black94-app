@@ -27,6 +27,7 @@ jobs:
         run: |
           printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/fb_sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/fb_sa.json" >> $GITHUB_ENV
+          gcloud auth activate-service-account --key-file=/tmp/fb_sa.json 2>/dev/null || true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
@@ -44,24 +45,15 @@ jobs:
 
       - name: Grant Secret Manager access to function service account
         run: |
-                  gcloud auth activate-service-account --key-file=/tmp/fb_sa.json 2>/dev/null || true
-          PROJECT_NUMBER=$(gcloud projects describe black94 --format='value(projectNumber)')
+          PROJECT_NUMBER=$(gcloud projects describe black94 --format='value(projectNumber)' 2>/dev/null || echo '210565807767')
           SA="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
           for secret in RAZORPAY_KEY_ID RAZORPAY_KEY_SECRET RAZORPAY_WEBHOOK_SECRET; do
             echo "Granting access to $secret for $SA"
             gcloud secrets add-iam-policy-binding "$secret" \
               --member="$SA" \
               --role="roles/secretmanager.secretAccessor" \
-              --project=black94 2>/dev/null || echo "Secret $secret not found, skipping"
+              --project=black94 2>/dev/null || echo "Skipped $secret"
           done
 
-      - name: Delete old callable functions (type mismatch with new HTTPS)
-        run: |
-          # Functions were previously deployed as onCall (callable) but code now
-          # uses onRequest (HTTPS). Firebase doesn't allow changing the type
-          # without deleting first.
-          firebase functions:delete createRazorpayOrder verifyRazorpayPayment razorpayWebhook \
-            --project black94 --force || true
-
       - name: Deploy Cloud Functions
-        run: firebase deploy --only functions --project black94 --force
+        run: firebase deploy --only functions --project black94
