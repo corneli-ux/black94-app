@@ -334,6 +334,8 @@ const CreatePostScreen: React.FC = () => {
             },
           });
 
+          console.log(`[CreatePost] Image ${i + 1} uploaded successfully: ${result.downloadUrl.slice(0, 100)}...`);
+
           // Mark this image as done
           setImageStatuses((prev) => {
             const next = [...prev];

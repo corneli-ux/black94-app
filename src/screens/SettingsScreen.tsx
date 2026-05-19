@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet, StatusBar, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -10,8 +10,6 @@ import { signOutUser } from '../lib/api';
 import { firestore, updateAuthUser } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { PLANS, formatAmount } from '../lib/payments';
-
-const GOLD = '#D4AF37';
 
 export default function SettingsScreen() {
   const navigation = useNavigation() as any;

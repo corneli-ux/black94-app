@@ -204,7 +204,7 @@ function HeartOverlay({
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN SCREEN
    ═══════════════════════════════════════════════════════════════════════════ */
-export default function StoriesScreen({ navigation }: any) {
+export default function StoriesScreen({ navigation: _navigation }: any) {
   /* ── State ──────────────────────────────────────────────────────────────── */
   const [stories, setStories] = useState<Story[]>([]);
   const [filtered, setFiltered] = useState<Story[]>([]);
@@ -537,6 +537,11 @@ export default function StoriesScreen({ navigation }: any) {
   /* ── Like a story (double-tap — only if not already liked) ────────────── */
   const doLike = useCallback(async () => {
     if (!viewingStory || !currentUser || liked) return;
+    // BUG FIX: Add pending guard to prevent double-increment race condition.
+    // Without this, rapid double-taps could fire two Firestore increments
+    // before the first setLiked(true) re-render filters out the second call.
+    if (likePendingRef.current) return;
+    likePendingRef.current = true;
     setLiked(true);
     try {
       await firestore()
@@ -545,6 +550,8 @@ export default function StoriesScreen({ navigation }: any) {
         .update({ likeCount: firestore.FieldValue.increment(1) });
     } catch (e) {
       console.warn('[StoriesScreen] Failed to like story:', e);
+    } finally {
+      likePendingRef.current = false;
     }
   }, [viewingStory, currentUser, liked]);
 
@@ -1283,87 +1290,6 @@ const styles = StyleSheet.create({
   storyCountText: {
     color: colors.textMuted,
     fontSize: 13,
-  },
-
-  /* ── Trending Music ──────────────────────────────────────────────────── */
-  musicScroll: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  musicCard: {
-    width: 110,
-    alignItems: 'center',
-  },
-  musicCardCoverWrap: {
-    position: 'relative',
-    marginBottom: 8,
-  },
-  musicCardCover: {
-    width: 100,
-    height: 100,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  musicPlayBtn: {
-    position: 'absolute',
-    right: 6,
-    bottom: 6,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  musicTitle: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-    maxWidth: 100,
-  },
-  musicArtist: {
-    color: colors.textMuted,
-    fontSize: 11,
-    textAlign: 'center',
-    maxWidth: 100,
-    marginTop: 1,
-  },
-
-  /* ── Filters (circular, Instagram-style) ─────────────────────────────── */
-  filtersScroll: {
-    paddingHorizontal: 16,
-    gap: 16,
-    alignItems: 'center',
-  },
-  filterItem: {
-    alignItems: 'center',
-    width: 70,
-  },
-  filterCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterCircleInner: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.bg,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  filterLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 6,
-    textAlign: 'center',
   },
 
   /* ── Recent Stories Grid ─────────────────────────────────────────────── */

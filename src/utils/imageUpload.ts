@@ -271,6 +271,47 @@ async function getFileSize(uri: string): Promise<number> {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
+ * Fallback upload using fetch() — used when XMLHttpRequest fails with a network error.
+ *
+ * Some Android XMLHttpRequest implementations silently corrupt binary data,
+ * resulting in a 200 response but an empty or invalid file on the server.
+ * fetch() uses a different HTTP stack (OkHttp directly on Android) which
+ * may handle binary uploads more reliably on those devices.
+ *
+ * Trade-off: no upload progress events (fetch doesn't support them), but
+ * the upload itself succeeds where XHR would produce corrupted files.
+ */
+function doUploadFetch(
+  uploadUrl: string,
+  binaryBody: ArrayBuffer,
+  mimeType: string,
+  token: string,
+  encodedPath: string,
+): Promise<string> {
+  return fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': mimeType,
+    },
+    body: binaryBody,
+  }).then(async (resp) => {
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      const error: any = new Error(`Upload failed: HTTP ${resp.status} — ${text.slice(0, 300)}`);
+      error.status = resp.status;
+      throw error;
+    }
+    const data = await resp.json();
+    const downloadToken = data.downloadTokens?.split(',')[0];
+    if (downloadToken) {
+      return `${STORAGE_BASE}/${encodedPath}?alt=media&token=${downloadToken}`;
+    }
+    return `${STORAGE_BASE}/${encodedPath}?alt=media`;
+  });
+}
+
+/**
  * Perform a single upload attempt using XMLHttpRequest with progress tracking.
  *
  * Uses Firebase Storage's simple (one-shot) upload endpoint:
@@ -470,15 +511,50 @@ export async function uploadOptimizedImage(
 
       console.log(`[imageUpload] Upload attempt ${attempt + 1}/${maxRetries + 1} to ${path}`);
 
-      const downloadUrl = await doUpload(
-        uploadUrl,
-        binaryBody,
-        mimeType,
-        token,
-        encodedPath,
-        onProgress,
-        abortSignal,
-      );
+      let downloadUrl: string;
+      try {
+        downloadUrl = await doUpload(
+          uploadUrl,
+          binaryBody,
+          mimeType,
+          token,
+          encodedPath,
+          onProgress,
+          abortSignal,
+        );
+      } catch (xhrErr: any) {
+        // Fallback: if XHR fails with a network error (no HTTP status),
+        // try fetch() which uses a different HTTP stack on Android.
+        if (!xhrErr.status) {
+          console.warn(`[imageUpload] XHR upload failed with network error, falling back to fetch(): ${xhrErr.message}`);
+          downloadUrl = await doUploadFetch(
+            uploadUrl,
+            binaryBody,
+            mimeType,
+            token,
+            encodedPath,
+          );
+        } else {
+          throw xhrErr;
+        }
+      }
+
+      // Post-upload verification: fetch the first bytes to confirm the file is valid.
+      // Some Android XMLHttpRequest implementations silently corrupt binary data,
+      // resulting in a 200 response but an empty or invalid file on the server.
+      try {
+        const verifyResp = await fetch(downloadUrl, { method: 'HEAD' });
+        if (!verifyResp.ok) {
+          console.warn(`[imageUpload] Post-upload verification FAILED: HTTP ${verifyResp.status} for ${downloadUrl.slice(0, 80)}...`);
+        } else {
+          const contentLength = verifyResp.headers.get('content-length');
+          if (contentLength && parseInt(contentLength) < 100) {
+            console.warn(`[imageUpload] Post-upload file is suspiciously small: ${contentLength} bytes`);
+          }
+        }
+      } catch (verifyErr) {
+        console.warn('[imageUpload] Post-upload verification error:', verifyErr);
+      }
 
       // Final progress callback at 100%
       if (onProgress) {

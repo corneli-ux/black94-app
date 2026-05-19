@@ -652,14 +652,37 @@ export async function votePostPoll(
   const postRef = firestore().collection('posts').doc(postId);
   const voteRef = postRef.collection('poll_votes').doc(userId);
 
-  // BUG FIX: Use a single set (not check-then-set) to prevent TOCTOU race.
-  // The old code did voteRef.get() → check exists → voteRef.set(), which
-  // allowed double-votes when the user tapped rapidly (two requests both
-  // pass the existence check before either writes). Now we always write
-  // the vote document. If it already exists (user already voted), the
-  // overwrite is idempotent — same optionId and userId. The Firestore
-  // write succeeds with the same data, and we return current poll data.
-  // This eliminates the race condition without needing transactions.
+  // BUG FIX: Check for existing vote BEFORE setting. Previously this always
+  // incremented both the option vote count and totalVotes, even when a user
+  // changed their vote from one option to another (causing totalVotes to
+  // exceed actual voter count) or re-tapped the same option (double increment).
+  const existingVoteSnap = await voteRef.get();
+  const isNewVote = !existingVoteSnap.exists;
+  const existingOptionId = existingVoteSnap.exists ? existingVoteSnap.data()?.optionId : null;
+
+  // If user already voted for the SAME option, skip entirely (idempotent).
+  if (existingVoteSnap.exists && existingOptionId === optionId) {
+    // Return current poll data without modifying anything
+    const currentDoc = await postRef.get();
+    return currentDoc.data()?.pollData || null;
+  }
+
+  // If changing vote from one option to another, decrement the old option.
+  // Do NOT decrement totalVotes — the user already counted as one voter.
+  if (existingVoteSnap.exists && existingOptionId && existingOptionId !== optionId) {
+    const freshDoc = await postRef.get();
+    const currentPoll = freshDoc.data()?.pollData;
+    if (currentPoll) {
+      const oldOptionIndex = (currentPoll.options || []).findIndex((opt: any) => opt.id === existingOptionId);
+      if (oldOptionIndex >= 0) {
+        await postRef.update({
+          [`pollData.options.${oldOptionIndex}.votes`]: firestore.FieldValue.increment(-1),
+        });
+      }
+    }
+  }
+
+  // Write/update the vote document
   await voteRef.set({
     optionId,
     userId,
@@ -667,8 +690,6 @@ export async function votePostPoll(
   });
 
   // Read the post to find which option index to increment.
-  // postDoc was already fetched above (line 574) and is a snapshot { id, exists, data() }.
-  // We need to re-fetch here to get the freshest data (avoid stale read).
   const freshPostDoc = await postRef.get();
   if (!freshPostDoc.exists) return null;
   const currentPoll = freshPostDoc.data()?.pollData;
@@ -678,11 +699,14 @@ export async function votePostPoll(
   const optionIndex = (currentPoll.options || []).findIndex((opt: any) => opt.id === optionId);
   if (optionIndex < 0) return null;
 
-  // Atomically increment vote counts using FieldValue.increment
-  await postRef.update({
+  // Build update payload — only increment totalVotes for brand-new votes.
+  const updatePayload: Record<string, any> = {
     [`pollData.options.${optionIndex}.votes`]: firestore.FieldValue.increment(1),
-    'pollData.totalVotes': firestore.FieldValue.increment(1),
-  });
+  };
+  if (isNewVote) {
+    updatePayload['pollData.totalVotes'] = firestore.FieldValue.increment(1);
+  }
+  await postRef.update(updatePayload);
 
   // Return updated poll for UI
   const updatedDoc = await postRef.get();

@@ -63,13 +63,26 @@ function formatINR(amount: number): string {
 }
 
 export default function ProductDetailScreen({ route, navigation }: any) {
-  const { productId } = route.params;
+  const { productId } = route.params || {};
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
+
+  // BUG FIX: Early return AFTER all hooks to avoid "Rendered fewer hooks
+  // than expected" crash. Guard against missing productId (navigation bug).
+  if (!productId) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: colors.textMuted, fontSize: 15 }}>Product not found</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 12 }}>
+          <Text style={{ color: colors.accent, fontSize: 14 }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const load = useCallback(async () => {
     try {
@@ -359,8 +372,9 @@ export default function ProductDetailScreen({ route, navigation }: any) {
               </TouchableOpacity>
               <Text style={styles.qtyValue}>{quantity}</Text>
               <TouchableOpacity
-                style={styles.qtyBtn}
+                style={[styles.qtyBtn, quantity >= (product?.stock || 999) && { opacity: 0.3 }]}
                 onPress={() => setQuantity(q => q + 1)}
+                disabled={quantity >= (product?.stock || 999)}
               >
                 <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>

@@ -100,8 +100,7 @@ export default function EditProfileScreen({ navigation }: any) {
   // (with old displayName, username, bio values) because useLayoutEffect
   // doesn't re-run when those values change. The ref ensures the header
   // button always calls the most recent version of handleSave.
-  const handleSaveRef = useRef(handleSave);
-  handleSaveRef.current = handleSave;
+  const handleSaveRef = useRef<typeof handleSave>();
 
   useEffect(() => {
     const loadUser = async () => {
@@ -328,6 +327,11 @@ export default function EditProfileScreen({ navigation }: any) {
 
     doSave();
   }, [currentUid, displayName, username, bio, profileImage, coverImage, role, user, usernameAvailable, setGlobalUser, navigation]);
+
+  // BUG FIX: Assign ref AFTER handleSave is defined to avoid TDZ (Temporal
+  // Dead Zone) error. Previously this was placed before the useCallback,
+  // causing `handleSave` to be undefined at initialization time.
+  handleSaveRef.current = handleSave;
 
   return (
     <KeyboardAvoidingView

@@ -197,7 +197,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
           {(post.mediaUrls?.length > 0) && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={profileCardStyles.mediaContainer}>
-                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" onLoad={() => setHasMediaError(false)} onError={() => setHasMediaError(true)} />
+                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" onLoad={() => setHasMediaError(false)} onError={(e) => { console.warn('[UserProfile] Image failed:', post.mediaUrls[0]?.slice(0, 80), e.nativeEvent?.error); setHasMediaError(true); }} />
                 {hasMediaError && (
                   <View style={[StyleSheet.absoluteFill, profileCardStyles.mediaErrorOverlay]}>
                     <Ionicons name="image-outline" size={24} color="#71767b" />

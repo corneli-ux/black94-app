@@ -342,7 +342,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                   // BUG FIX: Show placeholder when image fails to load
                   // (expired token, broken URL) instead of a black rectangle.
                   onLoad={() => setHasMediaError(false)}
-                  onError={() => setHasMediaError(true)}
+                  onError={(e) => { console.warn('[Feed] Image failed:', post.mediaUrls[0]?.slice(0, 80), e.nativeEvent?.error); setHasMediaError(true); }}
                 />
                 {hasMediaError && (
                   <View style={[StyleSheet.absoluteFill, styles.mediaErrorOverlay]}>
@@ -536,6 +536,16 @@ export default function FeedScreen({ navigation }: any) {
       if (newPosts.length === 0) {
         setAllLoaded(true);
         if (append) { setLoadingMore(false); return; }
+      }
+
+      // DIAGNOSTIC: Log mediaUrls for posts with images — helps debug image loading failures.
+      // If images fail to load, check these URLs: they should be valid Firebase Storage URLs.
+      if (__DEV__) {
+        for (const p of newPosts) {
+          if (p.mediaUrls.length > 0) {
+            console.log(`[Feed] Post ${p.id} has ${p.mediaUrls.length} media URL(s): ${p.mediaUrls[0]?.slice(0, 120)}`);
+          }
+        }
       }
 
       // Batch fetch author profiles
