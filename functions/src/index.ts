@@ -80,6 +80,13 @@ async function authenticateRequest(req: any, res: any, next: any) {
   }
 }
 
+// ── Declare secrets (required for 1st Gen to inject env vars) ─────────
+const razorpaySecrets = [
+  functions.defineSecret('RAZORPAY_KEY_ID'),
+  functions.defineSecret('RAZORPAY_KEY_SECRET'),
+  functions.defineSecret('RAZORPAY_WEBHOOK_SECRET'),
+];
+
 // ── Razorpay Instance (lazy init) ──────────────────────────────────────────
 
 /**
@@ -104,7 +111,7 @@ function getRazorpay(): Razorpay {
 
 // ── HTTP: healthCheck (temporary debug — remove after fixing) ────────────
 
-export const healthCheck = functions.https.onRequest(async (req, res) => {
+export const healthCheck = functions.runWith({ secrets: razorpaySecrets }).https.onRequest(async (req, res) => {
   const rzpKeyId = process.env.RAZORPAY_KEY_ID || '';
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
   res.json({
@@ -217,7 +224,7 @@ orderApp.post('/', authenticateRequest, async (req: any, res) => {
   }
 });
 
-export const createRazorpayOrder = functions.https.onRequest(orderApp);
+export const createRazorpayOrder = functions.runWith({ secrets: razorpaySecrets }).https.onRequest(orderApp);
 
 // ── HTTP: verifyRazorpayPayment ───────────────────────────────────────────
 
@@ -397,7 +404,7 @@ verifyApp.post('/', authenticateRequest, async (req: any, res) => {
   }
 });
 
-export const verifyRazorpayPayment = functions.https.onRequest(verifyApp);
+export const verifyRazorpayPayment = functions.runWith({ secrets: razorpaySecrets }).https.onRequest(verifyApp);
 
 // ── HTTP: Razorpay Webhook ────────────────────────────────────────────────
 
@@ -460,4 +467,4 @@ webhookRawApp.post('/webhook', async (req: any, res) => {
   }
 });
 
-export const razorpayWebhook = functions.https.onRequest(webhookRawApp);
+export const razorpayWebhook = functions.runWith({ secrets: razorpaySecrets }).https.onRequest(webhookRawApp);
