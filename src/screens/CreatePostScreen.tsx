@@ -289,7 +289,12 @@ const CreatePostScreen: React.FC = () => {
           // output with correct MIME type.
           setUploadProgress(`Optimizing image ${i + 1}...`);
           let uploadUri = uri;
-          let uploadMime = 'image/jpeg';
+          // BUG FIX: Detect MIME type from original URI extension.
+          // Previously hardcoded to 'image/jpeg'. When optimization fails and
+          // the original was PNG, uploading PNG bytes with Content-Type: image/jpeg
+          // caused images to fail loading in React Native.
+          const uriExt = uri.split('?')[0].split('.').pop()?.toLowerCase();
+          let uploadMime = uriExt === 'png' ? 'image/png' : 'image/jpeg';
 
           try {
             const optimized = await optimizeImage(uri, {

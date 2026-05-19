@@ -36,10 +36,10 @@ service firebase.storage {
       allow write: if isAuthenticated();
     }
 
-    // Shop/product images
+    // Shop/product images — user can only write to their own product folder
     match /products/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAuthenticated() && userId == request.auth.uid;
     }
 
     // General uploads (fallback)

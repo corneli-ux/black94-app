@@ -307,6 +307,13 @@ function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, o
       <Text style={{ color: '#94a3b8', fontSize: 15 }}>No posts yet</Text>
     </View>
   );
+  return (
+    <View>
+      {posts.map(post => (
+        <ProfilePostCard key={post.id} post={post} onLike={onLike} onBookmark={onBookmark} onDelete={onDelete} onRepost={onRepost} onComment={onComment} navigation={navigation} />
+      ))}
+    </View>
+  );
 }
 
 function RepliesList({ replies }: { replies: Reply[]; navigation?: any }) {

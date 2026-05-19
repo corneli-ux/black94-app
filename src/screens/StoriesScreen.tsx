@@ -353,7 +353,8 @@ export default function StoriesScreen({ navigation }: any) {
           // BUG FIX: Optimize before upload — ensures correct Content-Type.
           // BLACK PHOTO FIX: Fall back to original if optimization produces 0-byte file.
           let uploadUri = asset.uri;
-          let uploadMime = 'image/jpeg';
+          const uriExt = asset.uri.split('?')[0].split('.').pop()?.toLowerCase();
+          let uploadMime = uriExt === 'png' ? 'image/png' : 'image/jpeg';
           try {
             const optimized = await optimizeImage(asset.uri, {
               maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
@@ -456,7 +457,8 @@ export default function StoriesScreen({ navigation }: any) {
           // BUG FIX: Optimize before upload — ensures correct Content-Type.
           // BLACK PHOTO FIX: Fall back to original if optimization produces 0-byte file.
           let uploadUri = asset.uri;
-          let uploadMime = 'image/jpeg';
+          const uriExt = asset.uri.split('?')[0].split('.').pop()?.toLowerCase();
+          let uploadMime = uriExt === 'png' ? 'image/png' : 'image/jpeg';
           try {
             const optimized = await optimizeImage(asset.uri, {
               maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,

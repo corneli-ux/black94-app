@@ -7,7 +7,7 @@ import {
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { scale, verticalScale as vs, moderateScale as ms, fontScale as fs } from '../theme/responsive';
-import { fetchFeed, toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
+import { toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -847,7 +847,7 @@ export default function FeedScreen({ navigation }: any) {
               </Text>
             </TouchableOpacity>
           ))}
-          <View style={[styles.tabIndicator, { left: SCREEN_W / 2 - 80, right: SCREEN_W / 2 - 80 }]} />
+          <View style={[styles.tabUnderline, { left: SCREEN_W / 2 - 80, right: SCREEN_W / 2 - 80 }]} />
         </View>
 
         <SkeletonFeed />
@@ -1026,13 +1026,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 24,
     right: 24,
-    height: 1,
-    backgroundColor: '#ffffff',
-  },
-  /* Only used in skeleton loading indicator */
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 0,
     height: 1,
     backgroundColor: '#ffffff',
   },

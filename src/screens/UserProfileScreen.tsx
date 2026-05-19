@@ -104,6 +104,17 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   const [isReposted, setIsReposted] = useState(post.reposted);
   const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
   const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
+  const [hasMediaError, setHasMediaError] = useState(false);
+
+  // Reset media error when post changes (FlatList recycling)
+  const prevMediaUrlRef = useRef(post.mediaUrls?.[0] || '');
+  React.useEffect(() => {
+    const currentUrl = post.mediaUrls?.[0] || '';
+    if (prevMediaUrlRef.current !== currentUrl) {
+      setHasMediaError(false);
+      prevMediaUrlRef.current = currentUrl;
+    }
+  }, [post.id, post.mediaUrls]);
 
   React.useEffect(() => {
     setIsReposted(post.reposted);
@@ -186,7 +197,13 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
           {(post.mediaUrls?.length > 0) && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={profileCardStyles.mediaContainer}>
-                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" />
+                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="cover" onLoad={() => setHasMediaError(false)} onError={() => setHasMediaError(true)} />
+                {hasMediaError && (
+                  <View style={[StyleSheet.absoluteFill, profileCardStyles.mediaErrorOverlay]}>
+                    <Ionicons name="image-outline" size={24} color="#71767b" />
+                    <Text style={profileCardStyles.mediaErrorText}>Image failed to load</Text>
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
           )}
@@ -290,7 +307,7 @@ const profileCardStyles = StyleSheet.create({
     marginTop: 12, borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
-  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#000000' },
+  media: { width: '100%', height: Math.min(SCREEN_WIDTH * 0.85, 510), backgroundColor: '#000000' },
   actions: {
     flexDirection: 'row', alignItems: 'center',
     marginTop: 8, marginLeft: -4, maxWidth: 440,
@@ -304,15 +321,29 @@ const profileCardStyles = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center', zIndex: 10,
   },
+
+  mediaErrorOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: '#1a1a1a',
+    alignItems: 'center', justifyContent: 'center',
+    gap: 8,
+  },
+  mediaErrorText: {
+    color: '#71767b',
+    fontSize: 12,
+  },
   replyingTo: {
     color: '#71767b',
     fontSize: 13,
-    marginTop: 2,
+    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: 2,
   },
   replyingToName: {
-    color: colors.accent,
+    color: '#94a3b8',
+    fontWeight: '600',
   },
-  // DEAD CODE REMOVED: `replyContextCaption` style was defined but never referenced in any component.
   /* Parent post media shown in reply cards */
   replyMediaContainer: {
     marginTop: 10,
@@ -323,7 +354,7 @@ const profileCardStyles = StyleSheet.create({
   },
   replyMedia: {
     width: '100%',
-    height: Math.min(SCREEN_W * 0.65, 380),
+    height: Math.min(SCREEN_WIDTH * 0.65, 380),
     backgroundColor: '#000000',
   },
 });
@@ -369,7 +400,6 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
   return (
     <View>
       {filteredReplies.map(reply => {
-        const isSelfReply = reply.authorUsername.toLowerCase() === reply.postAuthorUsername.toLowerCase();
         return (
         <View key={reply.id} style={profileCardStyles.postCard}>
           <View style={profileCardStyles.contentRow}>
@@ -384,11 +414,9 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
                 <Text style={profileCardStyles.dot}>·</Text>
                 <Text style={profileCardStyles.time}>{timeAgo(reply.createdAt)}</Text>
               </View>
-              {!isSelfReply && (
-                <Text style={profileCardStyles.replyingTo}>
-                  Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
-                </Text>
-              )}
+              <Text style={profileCardStyles.replyingTo}>
+                Replying to <Text style={profileCardStyles.replyingToName}>@{reply.postAuthorUsername}</Text>
+              </Text>
               <Text style={profileCardStyles.caption}>{reply.content}</Text>
               {/* Show parent post media if available */}
               {reply.postMediaUrls?.length > 0 && (
@@ -463,6 +491,16 @@ type ProfileTab = 'posts' | 'replies' | 'likes';
 export default function UserProfileScreen({ navigation, route }: any) {
   const { userId } = route.params || {};
   const currentUid = auth()?.currentUser?.uid ?? '';
+
+  if (!userId) {
+    return (
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
+        <Text style={{ color: '#e7e9ea', fontSize: 16, textAlign: 'center', padding: 40 }}>
+          User not found
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   const [user, setUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -754,6 +792,12 @@ export default function UserProfileScreen({ navigation, route }: any) {
           setMessageLoading(false);
           return;
         }
+      }
+
+      if (dmPermission === 'no one' || dmPermission === 'nobody' || dmPermission === 'disabled') {
+        Alert.alert('Messages Disabled', 'This user does not accept messages.');
+        setMessageLoading(false);
+        return;
       }
 
       const snap1 = await firestore().collection('chats').where('user1Id', '==', currentUid).get();

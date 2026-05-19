@@ -435,213 +435,6 @@ export async function signOutUser(): Promise<void> {
 
 /* ── Posts ────────────────────────────────────────────────────────────────── */
 
-export async function fetchFeed(limitCount = 20): Promise<Post[]> {
-  if (__DEV__) console.log('[Feed] Fetching feed...');
-  const snapshot = await firestore()
-    .collection('posts')
-    .orderBy('createdAt', 'desc')
-    .limit(limitCount)
-    .get();
-
-  if (__DEV__) console.log(`[Feed] Got ${snapshot.docs.length} posts from Firestore`);
-
-  const userId = currentUser()?.uid;
-  const posts: Post[] = snapshot.docs.map(docSnap => {
-    const data = docSnap.data();
-    return {
-      id: docSnap.id,
-      authorId: data.authorId || '',
-      authorUsername: data.authorUsername || '',
-      authorDisplayName: data.authorDisplayName || '',
-      authorProfileImage: data.authorProfileImage || null,
-      authorBadge: data.authorBadge || '',
-      authorIsVerified: data.authorIsVerified || false,
-      caption: data.caption || '',
-      mediaUrls: parseMediaUrls(data.mediaUrls),
-      pollData: data.pollData || undefined,
-      likeCount: data.likeCount || 0,
-      commentCount: data.commentCount || 0,
-      repostCount: data.repostCount || 0,
-      liked: false,
-      bookmarked: false,
-      reposted: false,
-      createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-      factCheckVerified: data.factCheckVerified || 0,
-      factCheckDebunked: data.factCheckDebunked || 0,
-    };
-  });
-
-  if (posts.length === 0) return posts;
-
-  // ── ROBUST: Fetch fresh user profiles for ALL unique authors ──
-  // This ensures displayName, username, profileImage, badge, isVerified
-  // are always up-to-date, even if the user changed their profile after posting.
-  // This matches the webapp's behavior where the Zustand store provides live data.
-  const uniqueAuthorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean))];
-  const authorProfileMap: Record<string, {
-    displayName: string;
-    username: string;
-    profileImage: string | null;
-    badge: string;
-    isVerified: boolean;
-  }> = {};
-
-  const CHUNK_SIZE = 10; // Firestore IN operator max is 10
-  for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
-    const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
-    try {
-      const userDocs = await Promise.all(
-        chunk.map(uid => firestore().collection('users').doc(uid).get().catch(() => null))
-      );
-      for (const docSnap of userDocs) {
-        if (docSnap && docSnap.exists) {
-          const d = docSnap.data()!;
-          authorProfileMap[docSnap.id] = {
-            displayName: d.displayName || d.username || '',
-            username: d.username || '',
-            profileImage: d.profileImage || null,
-            badge: d.badge || '',
-            isVerified: d.isVerified || false,
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('[Feed] Batch author profile fetch failed for chunk:', e);
-    }
-  }
-
-  // Enrich posts with fresh author data from user profiles.
-  // BUG FIX: Per-field enrichment — only overwrite when the fresh value is
-  // truthy/non-null. The old `||` approach (e.g., fresh.profileImage || stamped)
-  // is correct for empty-string guards, but for profileImage specifically,
-  // `null || stamped` would fall through to stamped — which is actually right.
-  // HOWEVER, the old code used `fresh.isVerified || post.authorIsVerified`
-  // which means if a user is NOT verified (false), it would keep the old
-  // stamped value (possibly true from a previous state). Fixed to use fresh
-  // directly for boolean fields.
-  for (const post of posts) {
-    const fresh = authorProfileMap[post.authorId];
-    if (!fresh) continue;
-
-    // BUG FIX: Detect partial corruption — a profile can have a valid displayName
-    // but corrupted username (Google auto-generated), or valid username but
-    // corrupted displayName. Old check only caught BOTH empty.
-    const profileLooksCorrupted = !fresh.username && !fresh.displayName;
-
-    // BUG FIX: Detect silent corruption for OTHER users — if the fetched username
-    // looks like a Google auto-generated one (matches displayName with spaces
-    // removed, lowercased), AND the stamped post data has a DIFFERENT username,
-    // then the user doc is likely corrupted and we should keep stamped data.
-    // This prevents overwriting correct stamped data with Google defaults.
-    const googleAutoName = fresh.displayName?.replace(/\s/g, '').toLowerCase() || '';
-    const isUsernameCorrupted = !!googleAutoName
-      && fresh.username === googleAutoName
-      && post.authorUsername
-      && post.authorUsername !== googleAutoName;
-
-    if (profileLooksCorrupted) {
-      if (__DEV__) console.warn(`[Feed] Skipping enrichment for ${post.authorId} — profile appears corrupted (empty username/displayName)`);
-      continue;
-    }
-
-    if (isUsernameCorrupted && __DEV__) {
-      console.warn(`[Feed] Detected corrupted username for ${post.authorId}: fetched "${fresh.username}" matches Google auto-name, keeping stamped "${post.authorUsername}"`);
-    }
-
-    // Per-field: only overwrite stamped data when fresh value is non-empty/non-null.
-    // This prevents a corrupted user doc from wiping correct stamped data.
-    if (fresh.displayName) post.authorDisplayName = fresh.displayName;
-    // BUG FIX: Don't overwrite stamped username if it's silently corrupted
-    if (fresh.username && !isUsernameCorrupted) post.authorUsername = fresh.username;
-    // profileImage: only overwrite if fresh has a non-null, non-empty value.
-    // Null fresh value means corrupted/missing — keep stamped image.
-    if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
-    if (fresh.badge) post.authorBadge = fresh.badge;
-    // isVerified: use fresh value directly (boolean, not guarded by ||)
-    post.authorIsVerified = fresh.isVerified;
-  }
-
-  if (!userId) return posts;
-
-  // Batch fetch all interaction data using IN filter (chunks of 30)
-  const postIds = posts.map(p => p.id);
-  const likedIds = new Set<string>();
-  const bookmarkedIds = new Set<string>();
-  const repostedIds = new Set<string>();
-
-  for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
-    const chunk = postIds.slice(i, i + CHUNK_SIZE);
-
-    try {
-      // Try batch query (needs composite index). Fall back to individual reads if it fails.
-      let batchSucceeded = true;
-      try {
-        const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
-          firestore().collection('post_likes')
-            .where('postId', 'in', chunk)
-            .where('userId', '==', userId)
-            .get(),
-          firestore().collection('post_bookmarks')
-            .where('postId', 'in', chunk)
-            .where('userId', '==', userId)
-            .get(),
-          firestore().collection('post_reposts')
-            .where('postId', 'in', chunk)
-            .where('userId', '==', userId)
-            .get(),
-        ]);
-
-        for (const doc of likesSnap.docs) {
-          const d = doc.data();
-          if (d.postId) likedIds.add(d.postId);
-        }
-        for (const doc of bookmarksSnap.docs) {
-          const d = doc.data();
-          if (d.postId) bookmarkedIds.add(d.postId);
-        }
-        for (const doc of repostsSnap.docs) {
-          const d = doc.data();
-          if (d.postId) repostedIds.add(d.postId);
-        }
-
-        if ((likesSnap as any)._missingIndex || (bookmarksSnap as any)._missingIndex || (repostsSnap as any)._missingIndex) {
-          batchSucceeded = false;
-        }
-      } catch (batchErr) {
-        console.warn('[Feed] Batch interaction query failed, falling back to individual reads:', batchErr);
-        batchSucceeded = false;
-      }
-
-      if (!batchSucceeded) {
-        if (__DEV__) console.log('[Feed] Using individual interaction reads fallback');
-        const individualPromises = chunk.flatMap(postId => [
-          firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => {
-            if (snap.exists) likedIds.add(postId);
-          }).catch(() => {}),
-          firestore().collection('post_bookmarks').doc(`${postId}_${userId}`).get().then(snap => {
-            if (snap.exists) bookmarkedIds.add(postId);
-          }).catch(() => {}),
-          firestore().collection('post_reposts').doc(`${postId}_${userId}`).get().then(snap => {
-            if (snap.exists) repostedIds.add(postId);
-          }).catch(() => {}),
-        ]);
-        await Promise.all(individualPromises);
-      }
-    } catch (e) {
-      console.warn('[Feed] Batch interaction fetch failed for chunk:', e);
-    }
-  }
-
-  // Merge interaction results back into posts
-  for (const post of posts) {
-    post.liked = likedIds.has(post.id);
-    post.bookmarked = bookmarkedIds.has(post.id);
-    post.reposted = repostedIds.has(post.id);
-  }
-
-  return posts;
-}
-
 export interface PollData {
   question: string;
   options: Array<{ id: string; text: string }>;
@@ -737,35 +530,40 @@ export async function toggleLike(postId: string, currentlyLiked: boolean): Promi
   const likeRef = firestore().collection('post_likes').doc(`${postId}_${userId}`);
   const postRef = firestore().collection('posts').doc(postId);
 
-  if (currentlyLiked) {
-    await likeRef.delete();
-    await postRef.update({ likeCount: firestore.FieldValue.increment(-1) });
-    return false;
-  } else {
-    await likeRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
-    await postRef.update({ likeCount: firestore.FieldValue.increment(1) });
+  try {
+    if (currentlyLiked) {
+      await likeRef.delete();
+      try { await postRef.update({ likeCount: firestore.FieldValue.increment(-1) }); } catch {}
+      return false;
+    } else {
+      await likeRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
+      try { await postRef.update({ likeCount: firestore.FieldValue.increment(1) }); } catch {}
 
-    // ── Notification: tell post author someone liked their post ──
-    try {
-      const postDoc = await postRef.get();
-      const postData = postDoc.exists ? postDoc.data() : null;
-      const postAuthorId = postData?.authorId;
-      if (postAuthorId && postAuthorId !== userId) {
-        const actor = await getActorData(userId);
-        createNotification({
-          recipientId: postAuthorId,
-          type: 'like',
-          actorId: userId,
-          ...actor,
-          postId,
-          postCaption: postData?.caption || '',
-        });
+      // ── Notification: tell post author someone liked their post ──
+      try {
+        const postDoc = await postRef.get();
+        const postData = postDoc.exists ? postDoc.data() : null;
+        const postAuthorId = postData?.authorId;
+        if (postAuthorId && postAuthorId !== userId) {
+          const actor = await getActorData(userId);
+          createNotification({
+            recipientId: postAuthorId,
+            type: 'like',
+            actorId: userId,
+            ...actor,
+            postId,
+            postCaption: postData?.caption || '',
+          });
+        }
+      } catch (e) {
+        console.warn('[Like] Notification fire-and-forget failed:', e);
       }
-    } catch (e) {
-      console.warn('[Like] Notification fire-and-forget failed:', e);
-    }
 
-    return true;
+      return true;
+    }
+  } catch (e) {
+    console.warn('[Like] toggleLike error:', e);
+    return currentlyLiked;
   }
 }
 
@@ -775,12 +573,17 @@ export async function toggleBookmark(postId: string, currentlyBookmarked: boolea
 
   const bookmarkRef = firestore().collection('post_bookmarks').doc(`${postId}_${userId}`);
 
-  if (currentlyBookmarked) {
-    await bookmarkRef.delete();
-    return false;
-  } else {
-    await bookmarkRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
-    return true;
+  try {
+    if (currentlyBookmarked) {
+      await bookmarkRef.delete();
+      return false;
+    } else {
+      await bookmarkRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
+      return true;
+    }
+  } catch (e) {
+    console.warn('[Bookmark] toggleBookmark error:', e);
+    return currentlyBookmarked;
   }
 }
 
@@ -791,35 +594,40 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
   const repostRef = firestore().collection('post_reposts').doc(`${postId}_${userId}`);
   const postRef = firestore().collection('posts').doc(postId);
 
-  if (currentlyReposted) {
-    await repostRef.delete();
-    await postRef.update({ repostCount: firestore.FieldValue.increment(-1) });
-    return false;
-  } else {
-    await repostRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
-    await postRef.update({ repostCount: firestore.FieldValue.increment(1) });
+  try {
+    if (currentlyReposted) {
+      await repostRef.delete();
+      try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
+      return false;
+    } else {
+      await repostRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
+      try { await postRef.update({ repostCount: firestore.FieldValue.increment(1) }); } catch {}
 
-    // ── Notification: tell post author someone reposted their post ──
-    try {
-      const postDoc = await postRef.get();
-      const postData = postDoc.exists ? postDoc.data() : null;
-      const postAuthorId = postData?.authorId;
-      if (postAuthorId && postAuthorId !== userId) {
-        const actor = await getActorData(userId);
-        createNotification({
-          recipientId: postAuthorId,
-          type: 'repost',
-          actorId: userId,
-          ...actor,
-          postId,
-          postCaption: postData?.caption || '',
-        });
+      // ── Notification: tell post author someone reposted their post ──
+      try {
+        const postDoc = await postRef.get();
+        const postData = postDoc.exists ? postDoc.data() : null;
+        const postAuthorId = postData?.authorId;
+        if (postAuthorId && postAuthorId !== userId) {
+          const actor = await getActorData(userId);
+          createNotification({
+            recipientId: postAuthorId,
+            type: 'repost',
+            actorId: userId,
+            ...actor,
+            postId,
+            postCaption: postData?.caption || '',
+          });
+        }
+      } catch (e) {
+        console.warn('[Repost] Notification fire-and-forget failed:', e);
       }
-    } catch (e) {
-      console.warn('[Repost] Notification fire-and-forget failed:', e);
-    }
 
-    return true;
+      return true;
+    }
+  } catch (e) {
+    console.warn('[Repost] toggleRepost error:', e);
+    return currentlyReposted;
   }
 }
 
@@ -1177,156 +985,6 @@ export async function blockUser(targetUserId: string): Promise<boolean> {
   }
 }
 
-export async function unblockUser(targetUserId: string): Promise<boolean> {
-  const userId = currentUser()?.uid;
-  if (!userId) return false;
-
-  try {
-    await Promise.all([
-      firestore().collection('blocks').doc(`${userId}_${targetUserId}`).delete(),
-      firestore().collection('blockedBy').doc(`${targetUserId}_${userId}`).delete(),
-    ]);
-    if (__DEV__) console.log(`[Block] User ${targetUserId} unblocked successfully`);
-    return true;
-  } catch (e) {
-    console.error('[Block] Failed to unblock user:', e);
-    return false;
-  }
-}
-
-export async function isBlockedByMe(targetUserId: string): Promise<boolean> {
-  const userId = currentUser()?.uid;
-  if (!userId) return false;
-
-  try {
-    const docSnap = await firestore().collection('blocks').doc(`${userId}_${targetUserId}`).get();
-    return docSnap.exists;
-  } catch (e) {
-    console.warn('[Block] Failed to check block status:', e);
-    return false;
-  }
-}
-
-export async function fetchBlockedUsers(): Promise<string[]> {
-  const userId = currentUser()?.uid;
-  if (!userId) return [];
-
-  try {
-    const snapshot = await firestore()
-      .collection('blocks')
-      .where('blockerId', '==', userId)
-      .get();
-
-    return snapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return data.blockedId || '';
-    }).filter(Boolean);
-  } catch (e) {
-    console.warn('[Block] Failed to fetch blocked users:', e);
-    return [];
-  }
-}
-
-/* ── Hybrid Search ────────────────────────────────────────────────────────── */
-
-export interface SearchResult {
-  users: User[];
-  posts: Post[];
-  webResults: any[];
-}
-
-export async function hybridSearch(query: string): Promise<SearchResult> {
-  const result: SearchResult = { users: [], posts: [], webResults: [] };
-  if (!query.trim()) return result;
-
-  const q = query.trim();
-  const qLower = q.toLowerCase();
-
-  try {
-    // ── 1. Local Firestore: search users by username/displayName prefix ──
-    // Firestore 'startsWith' requires >= 2 chars; prefix range query workaround
-    let userSnapshots: any;
-    if (qLower.length >= 2) {
-      const endStr = qLower.slice(0, -1) + String.fromCharCode(qLower.charCodeAt(qLower.length - 1) + 1);
-      userSnapshots = await Promise.all([
-        firestore().collection('users').where('usernameLower', '>=', qLower).where('usernameLower', '<', endStr).limit(10).get(),
-        firestore().collection('users').where('displayNameLower', '>=', qLower).where('displayNameLower', '<', endStr).limit(10).get(),
-      ]);
-    } else {
-      // Too short for prefix range — skip user search
-      userSnapshots = [{ docs: [] }, { docs: [] }];
-    }
-
-    const seenUserIds = new Set<string>();
-    for (const snap of userSnapshots) {
-      for (const docSnap of snap.docs) {
-        if (seenUserIds.has(docSnap.id)) continue;
-        seenUserIds.add(docSnap.id);
-        const data = docSnap.data();
-        result.users.push({
-          id: docSnap.id,
-          email: data.email || '',
-          username: data.username || '',
-          displayName: data.displayName || '',
-          bio: data.bio || '',
-          profileImage: data.profileImage || null,
-          coverImage: data.coverImage || null,
-          role: data.role || 'personal',
-          badge: data.badge || '',
-          subscription: data.subscription || 'free',
-          isVerified: data.isVerified || false,
-          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-        });
-      }
-    }
-
-    // ── 2. Local Firestore: search posts by caption prefix ──
-    let postSnap: any;
-    if (qLower.length >= 2) {
-      const endStr = qLower.slice(0, -1) + String.fromCharCode(qLower.charCodeAt(qLower.length - 1) + 1);
-      postSnap = await firestore().collection('posts').where('captionLower', '>=', qLower).where('captionLower', '<', endStr).limit(20).get();
-    } else {
-      postSnap = { docs: [] };
-    }
-
-    result.posts = postSnap.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        authorId: data.authorId || '',
-        authorUsername: data.authorUsername || '',
-        authorDisplayName: data.authorDisplayName || '',
-        authorProfileImage: data.authorProfileImage || null,
-        authorBadge: data.authorBadge || '',
-        authorIsVerified: data.authorIsVerified || false,
-        caption: data.caption || '',
-        mediaUrls: parseMediaUrls(data.mediaUrls),
-        pollData: data.pollData || undefined,
-        likeCount: data.likeCount || 0,
-        commentCount: data.commentCount || 0,
-        repostCount: data.repostCount || 0,
-        liked: false,
-        bookmarked: false,
-        reposted: false,
-        createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-      };
-    });
-
-    // ── 3. Firestore: cached web results ──
-    const webSnap = await firestore()
-      .collection('web_results')
-      .where('query', '==', qLower)
-      .limit(5)
-      .get();
-
-    result.webResults = webSnap.docs.map(docSnap => docSnap.data());
-  } catch (e) {
-    console.warn('[Search] Hybrid search error:', e);
-  }
-
-  return result;
-}
-
 /* ── User ─────────────────────────────────────────────────────────────────── */
 
 export async function fetchUserProfile(userId: string): Promise<User | null> {
@@ -1420,23 +1078,24 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
 
   const followRef = firestore().collection('follows').doc(`${userId}_${targetUserId}`);
 
-  if (currentlyFollowing) {
-    await followRef.delete();
-    // Update follower/following counts (fire-and-forget)
-    try {
-      await Promise.all([
-        firestore().collection('users').doc(targetUserId).update({
-          followerCount: firestore.FieldValue.increment(-1),
-        }),
-        firestore().collection('users').doc(userId).update({
-          followingCount: firestore.FieldValue.increment(-1),
-        }),
-      ]);
-    } catch (e) {
-      console.warn('[Follow] Count update failed:', e);
-    }
-    return false;
-  } else {
+  try {
+    if (currentlyFollowing) {
+      await followRef.delete();
+      // Update follower/following counts (fire-and-forget)
+      try {
+        await Promise.all([
+          firestore().collection('users').doc(targetUserId).update({
+            followerCount: firestore.FieldValue.increment(-1),
+          }),
+          firestore().collection('users').doc(userId).update({
+            followingCount: firestore.FieldValue.increment(-1),
+          }),
+        ]);
+      } catch (e) {
+        console.warn('[Follow] Count update failed:', e);
+      }
+      return false;
+    } else {
     await followRef.set({
       followerId: userId,
       followingId: targetUserId,
@@ -1470,14 +1129,23 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
     }
 
     return true;
+    }
+  } catch (e) {
+    console.warn('[Follow] toggleFollow error:', e);
+    return currentlyFollowing;
   }
 }
 
 export async function checkFollowing(targetUserId: string): Promise<boolean> {
   const userId = currentUser()?.uid;
   if (!userId) return false;
-  const docSnap = await firestore().collection('follows').doc(`${userId}_${targetUserId}`).get();
-  return docSnap.exists;
+  try {
+    const docSnap = await firestore().collection('follows').doc(`${userId}_${targetUserId}`).get();
+    return docSnap.exists;
+  } catch (e) {
+    console.warn('[API] checkFollowing error:', e);
+    return false;
+  }
 }
 
 /* ── Comments ─────────────────────────────────────────────────────────────── */
@@ -1816,86 +1484,6 @@ export async function toggleCommentBookmark(commentId: string, currentlyBookmark
   }
 }
 
-/* ── Follow-up System ──────────────────────────────────────────────────── */
-
-/**
- * Checks for leads assigned to a user that haven't been followed up on in >24h.
- * For each stale lead, writes an auto-follow-up notification and updates the
- * lead's lastFollowUpAt timestamp.
- */
-export async function checkAndSendFollowUps(userId: string): Promise<void> {
-  try {
-    const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-
-    // Firestore doesn't support != on arrays, so query each status separately
-    const [newSnap, contactedSnap] = await Promise.all([
-      firestore()
-        .collection('leads')
-        .where('assignedTo', '==', userId)
-        .where('status', '==', 'new')
-        .get(),
-      firestore()
-        .collection('leads')
-        .where('assignedTo', '==', userId)
-        .where('status', '==', 'contacted')
-        .get(),
-    ]);
-
-    const allLeads = [...newSnap.docs, ...contactedSnap.docs];
-
-    for (const docSnap of allLeads) {
-      const leadData = docSnap.data();
-      const leadId = docSnap.id;
-      let lastFollowUpAt = 0;
-      try { lastFollowUpAt = leadData.lastFollowUpAt ? tsToMillis(leadData.lastFollowUpAt) : 0; } catch {}
-
-      // Only process leads whose last follow-up is older than 24 hours (or never)
-      if (lastFollowUpAt > twentyFourHoursAgo) continue;
-
-      const leadName = leadData.name || leadData.companyName || 'Lead';
-      const statusLabel = leadData.status === 'new' ? 'new' : 'contacted';
-
-      if (__DEV__) console.log(`[Follow-up] Sending auto follow-up for lead ${leadId} (${leadName}, status: ${statusLabel})`);
-
-      // Write a follow-up notification
-      const notificationId = `${leadId}_followup`;
-      try {
-        await firestore()
-          .collection('notifications')
-          .doc(notificationId)
-          .set({
-            type: 'follow_up_reminder',
-            leadId,
-            leadName,
-            assignedTo: userId,
-            message: `Follow-up reminder: ${leadName} (${statusLabel}) hasn't been contacted in over 24 hours.`,
-            status: leadData.status,
-            createdAt: firestore.FieldValue.serverTimestamp(),
-            read: false,
-          });
-      } catch (notifErr) {
-        console.warn(`[Follow-up] Failed to write notification for lead ${leadId}:`, notifErr);
-      }
-
-      // Update the lead's lastFollowUpAt to now
-      try {
-        await firestore()
-          .collection('leads')
-          .doc(leadId)
-          .update({
-            lastFollowUpAt: firestore.FieldValue.serverTimestamp(),
-          });
-      } catch (updateErr) {
-        console.warn(`[Follow-up] Failed to update lastFollowUpAt for lead ${leadId}:`, updateErr);
-      }
-    }
-
-    if (__DEV__) console.log(`[Follow-up] Processed ${allLeads.length} leads for user ${userId}`);
-  } catch (e) {
-    console.error('[Follow-up] checkAndSendFollowUps error:', e);
-  }
-}
-
 /* ── Paid Chat System ─────────────────────────────────────────────────────── */
 
 /**
@@ -2164,19 +1752,6 @@ export interface CartItem {
   ownerName: string;
 }
 
-export async function addToCart(userId: string, productId: string, quantity: number = 1): Promise<void> {
-  const currentUid = currentUser()?.uid;
-  if (!currentUid || currentUid !== userId) throw new Error('Not authenticated');
-  const cartRef = firestore().collection('users').doc(userId).collection('cart').doc(productId);
-  const cartDoc = await cartRef.get();
-  const existingQty = cartDoc.exists ? (cartDoc.data()?.quantity || 0) : 0;
-
-  await cartRef.set({
-    productId,
-    quantity: existingQty + quantity,
-    addedAt: firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
-}
 
 export async function fetchCart(userId: string): Promise<CartItem[]> {
   try {
@@ -2271,25 +1846,6 @@ export async function removeFromCart(userId: string, productId: string): Promise
       .delete();
   } catch (e) {
     console.warn('[Cart] Failed to remove cart item:', e);
-  }
-}
-
-export async function clearCart(userId: string): Promise<void> {
-  const currentUid = currentUser()?.uid;
-  if (!currentUid || currentUid !== userId) throw new Error('Not authenticated');
-  const batchSize = 20;
-  let hasMore = true;
-  while (hasMore) {
-    const snap = await firestore()
-      .collection('users')
-      .doc(userId)
-      .collection('cart')
-      .limit(batchSize)
-      .get();
-
-    const promises = snap.docs.map(doc => doc.ref.delete());
-    await Promise.all(promises);
-    hasMore = snap.size >= batchSize;
   }
 }
 
@@ -2448,41 +2004,4 @@ export async function fetchPostFactChecks(postId: string): Promise<FactCheckClai
     console.error('[FactCheck] Failed to fetch:', e);
     return [];
   }
-}
-
-/**
- * Submits a verification for a fact-check claim (admin/verified users).
- */
-export async function verifyFactCheck(
-  claimId: string,
-  verdict: 'verified' | 'debunked' | 'misleading',
-  confidenceScore: number,
-  tags?: string[],
-): Promise<void> {
-  const userId = currentUser()?.uid;
-  if (!userId) throw new Error('Not authenticated');
-
-  await firestore().collection('factChecks').doc(claimId).update({
-    verdict,
-    confidenceScore: Math.max(0, Math.min(100, confidenceScore)),
-    verifiedBy: userId,
-    verifiedAt: firestore.FieldValue.serverTimestamp(),
-    tags: tags || [],
-  });
-}
-
-/**
- * Adds a fact-check badge/count to a post.
- * Called after a claim is verified to show the badge on the post.
- */
-export async function updatePostFactCheckStatus(
-  postId: string,
-  verifiedCount: number,
-  debunkedCount: number,
-): Promise<void> {
-  await firestore().collection('posts').doc(postId).update({
-    factCheckVerified: verifiedCount,
-    factCheckDebunked: debunkedCount,
-    updatedAt: firestore.FieldValue.serverTimestamp(),
-  });
 }
