@@ -84,7 +84,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       };
       fetchChat();
     }
-  }, [routeChatId, routeChat]);
+  }, [routeChatId, routeChat, currentUser?.uid]);
 
   const load = useCallback(async (silent = false) => {
     if (!chat) return;
@@ -369,8 +369,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           </View>
         </View>
       </Modal>
-
-      {/* Nuclear Block Confirmation Modal */}
     </KeyboardAvoidingView>
   );
 }

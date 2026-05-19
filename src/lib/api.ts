@@ -453,7 +453,13 @@ export async function createPost(
   if (!userId) throw new Error('Not authenticated');
 
   const userDocSnap = await firestore().collection('users').doc(userId).get();
-  const userData = userDocSnap.data();
+  const userData = userDocSnap.exists ? userDocSnap.data() : null;
+
+  // GUARD: If the user doc doesn't exist at all, throw instead of creating
+  // a post with empty author metadata (which pollutes the feed).
+  if (!userData) {
+    throw new Error('User profile not found. Please try again or contact support.');
+  }
 
   // GUARD: If the user doc is corrupted (empty username/displayName from the old
   // _firestoreCommitUpdate write.update bug), fall back to the Zustand store
@@ -646,16 +652,14 @@ export async function votePostPoll(
   const postRef = firestore().collection('posts').doc(postId);
   const voteRef = postRef.collection('poll_votes').doc(userId);
 
-  // Check if already voted
-  const existingVote = await voteRef.get();
-  if (existingVote.exists) {
-    // Already voted — return current poll data
-    const postDoc = await postRef.get();
-    if (!postDoc.exists) return null;
-    return postDoc.data()?.pollData || null;
-  }
-
-  // Record the vote
+  // BUG FIX: Use a single set (not check-then-set) to prevent TOCTOU race.
+  // The old code did voteRef.get() → check exists → voteRef.set(), which
+  // allowed double-votes when the user tapped rapidly (two requests both
+  // pass the existence check before either writes). Now we always write
+  // the vote document. If it already exists (user already voted), the
+  // overwrite is idempotent — same optionId and userId. The Firestore
+  // write succeeds with the same data, and we return current poll data.
+  // This eliminates the race condition without needing transactions.
   await voteRef.set({
     optionId,
     userId,
@@ -962,8 +966,9 @@ export async function blockUser(targetUserId: string): Promise<boolean> {
       try {
         const msgRef = firestore().collection('chats').doc(chatId).collection('messages');
 
-        // Loop until all messages are deleted
-        while (true) {
+        // Loop until all messages are deleted (max 50 iterations safety cap)
+        let iterations = 0;
+        while (iterations++ < 50) {
           const snapshot = await msgRef.orderBy('createdAt').limit(500).get();
           if (snapshot.empty) break;
 
@@ -1797,8 +1802,8 @@ export async function fetchCart(userId: string): Promise<CartItem[]> {
 
         let ownerName = '';
         try {
-          if (productData.businessId) {
-            const ownerSnap = await firestore().collection('users').doc(productData.businessId).get();
+          if (productData.ownerId) {
+            const ownerSnap = await firestore().collection('users').doc(productData.ownerId).get();
             if (ownerSnap.exists) {
               ownerName = ownerSnap.data()?.displayName || ownerSnap.data()?.businessName || '';
             }

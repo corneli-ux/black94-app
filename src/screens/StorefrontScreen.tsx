@@ -50,8 +50,23 @@ function formatINR(amount: number): string {
 }
 
 export default function StorefrontScreen({ route, navigation }: any) {
-  const { userId } = route.params;
+  const { userId } = route.params || {};
+
+  // BUG FIX: Guard against missing userId (navigation bug or deep link).
+  // Without this, firestore().doc(undefined) throws a cryptic error.
   const [owner, setOwner] = useState<User | null>(null);
+
+  if (!userId) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+        <Text style={{ color: '#94a3b8', fontSize: 15 }}>Store not found</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 12 }}>
+          <Text style={{ color: '#D4AF37', fontSize: 14 }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [storeRating, setStoreRating] = useState(0);

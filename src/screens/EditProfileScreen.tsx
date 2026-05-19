@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
@@ -74,7 +74,7 @@ export default function EditProfileScreen({ navigation }: any) {
       headerTitleStyle: { color: colors.text, fontWeight: '700' },
       headerRight: () => (
         <TouchableOpacity
-          onPress={handleSave}
+          onPress={() => handleSaveRef.current?.()}
           disabled={saving || loading}
           style={styles.saveButton}
           activeOpacity={0.7}
@@ -94,6 +94,14 @@ export default function EditProfileScreen({ navigation }: any) {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation, saving, loading]);
+
+  // BUG FIX: Use a ref to always call the latest handleSave from the header button.
+  // Without this, the header button captures a stale closure of handleSave
+  // (with old displayName, username, bio values) because useLayoutEffect
+  // doesn't re-run when those values change. The ref ensures the header
+  // button always calls the most recent version of handleSave.
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
 
   useEffect(() => {
     const loadUser = async () => {

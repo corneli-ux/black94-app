@@ -259,13 +259,7 @@ function CustomDrawerContent({ navigation }: any) {
   // this, navigating crashes with "screen doesn't exist in Drawer navigator".
   const handleNavigate = (screen: string) => {
     navigation.closeDrawer();
-    // Navigate to the parent Stack's screen for non-drawer screens
-    const stackScreens = ['MyStoreStack', 'PremiumDashboard'];
-    if (stackScreens.includes(screen)) {
-      navigation.navigate(screen);
-    } else {
-      navigation.navigate(screen);
-    }
+    navigation.navigate(screen);
   };
 
   return (
