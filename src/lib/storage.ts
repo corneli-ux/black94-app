@@ -59,7 +59,12 @@ export function getFilePath(folder: string, filename: string, uid: string): stri
  * @returns Base64-encoded string (raw, no data-URI prefix)
  */
 async function readFileAsBase64(uri: string, mimeType: string): Promise<string> {
-  const { default: FileSystem } = await import('expo-file-system');
+  // Dynamic import — must handle both ESM (default) and CJS (module.exports) shapes.
+  // Metro's interop may not expose a `default` property, so we fall back to the
+  // namespace object itself.  This prevents the crash:
+  //   TypeError: Cannot read property 'readAsStringAsync' of undefined
+  const fsModule = await import('expo-file-system');
+  const FileSystem = (fsModule as any).default || fsModule;
 
   // expo-file-system v16+ (Expo SDK 54+) accepts full URIs directly
   // including file://, content://, asset://, and expo-file-system:// URIs.

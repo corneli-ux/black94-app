@@ -231,6 +231,7 @@ export default function StoriesScreen({ navigation }: any) {
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressingRef = useRef(false);
   const viewedStoriesRef = useRef<Set<string>>(new Set());
+  const likePendingRef = useRef(false);
   const currentUser = auth()?.currentUser;
 
   // ── Get user profile from Zustand store (Firestore data, not just auth) ──
@@ -480,6 +481,8 @@ export default function StoriesScreen({ navigation }: any) {
 
   const toggleLike = useCallback(async () => {
     if (!viewingStory || !currentUser) return;
+    if (likePendingRef.current) return; // Guard against rapid double-tap
+    likePendingRef.current = true;
     const newLiked = !liked;
     setLiked(newLiked);
     try {
@@ -488,7 +491,11 @@ export default function StoriesScreen({ navigation }: any) {
         .doc(viewingStory.id)
         .update({ likeCount: firestore.FieldValue.increment(newLiked ? 1 : -1) });
     } catch (e) {
+      // Revert optimistic state on failure
+      setLiked(liked);
       console.warn('[StoriesScreen] Failed to like story:', e);
+    } finally {
+      likePendingRef.current = false;
     }
   }, [viewingStory, currentUser, liked]);
 

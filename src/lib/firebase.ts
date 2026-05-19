@@ -554,8 +554,17 @@ class CompatCollectionRef {
     );
 
     // runQuery returns array of { document: ... } or { done: true }
+    // Deduplicate by document name to handle edge cases where startAt
+    // (inclusive cursor) returns the same doc as the previous page.
+    const seen = new Set<string>();
     const docs = (results || [])
       .filter((r: any) => r.document)
+      .filter((r: any) => {
+        const name = r.document.name;
+        if (seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      })
       .map((r: any) => {
         const docId = r.document.name.split('/').pop();
         return {

@@ -20,7 +20,13 @@ import { getValidToken } from './firebase';
 const PROJECT_ID = 'black94';
 const REGION = 'us-central1'; // Must match the Cloud Functions deployment region
 
-const RAZORPAY_KEY_ID = (Constants.expoConfig?.extra?.razorpayKeyId as string) || '';
+// Razorpay Key ID — loaded from app.config.js extra.razorpayKeyId.
+// Constants.expoConfig may be null in某些 Expo environments (e.g. bare workflow
+// without expo-updates, or certain test harnesses).  Fall back to the same
+// publishable key that is hardcoded in app.config.js so the checkout never
+// fails with "key not configured".
+const _cfgKey = Constants.expoConfig?.extra?.razorpayKeyId as string | undefined;
+const RAZORPAY_KEY_ID = _cfgKey || 'rzp_live_Sqrg8zp3p7LGhX';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
