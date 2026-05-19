@@ -198,7 +198,7 @@ export default function AiLeadGenScreen() {
       if (result.canceled || !result.assets?.length) return;
 
       const fileUri = result.assets[0].uri;
-      const FileSystem = require('expo-file-system').default;
+      const FileSystem = require('expo-file-system/legacy').default || require('expo-file-system/legacy');
       const csvText = await FileSystem.readAsStringAsync(fileUri);
 
       // Use CRM module's built-in CSV parser

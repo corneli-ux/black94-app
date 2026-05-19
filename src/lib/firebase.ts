@@ -387,6 +387,88 @@ function _parseFields(data: Record<string, any>): {
   return { fields, transforms };
 }
 
+/**
+ * _commitWrite — Performs an atomic write+transform via Firestore REST commit endpoint.
+ *
+ * The documents.patch endpoint does NOT accept fieldTransforms in the request body
+ * (returns "Unknown name fieldTransforms").  To apply server-side transforms
+ * (serverTimestamp, increment) atomically with field updates, we must use the
+ * documents:commit endpoint which supports:
+ *   - write.update { name, fields } for regular field updates (PATCH semantics)
+ *   - write.updateTransforms [ { fieldPath, setToServerValue, increment, ... } ]
+ *
+ * Both are sent in a single commit so the update and transforms are atomic.
+ */
+async function _commitWrite(
+  docPath: string,
+  fields: Record<string, any>,
+  transforms: any[],
+): Promise<void> {
+  const token = await _getValidToken();
+  const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:commit?key=${API_KEY}`;
+
+  const write: any = {};
+
+  // Include field updates if there are any
+  if (Object.keys(fields).length > 0) {
+    write.update = {
+      name: `projects/${PROJECT_ID}/databases/(default)/documents/${docPath}`,
+      fields,
+    };
+  } else {
+    // Pure transform (no field updates) — still need a document reference
+    write.update = {
+      name: `projects/${PROJECT_ID}/databases/(default)/documents/${docPath}`,
+    };
+  }
+
+  // Include server-side transforms
+  write.updateTransforms = transforms;
+
+  const body = { writes: [write] };
+
+  if (__DEV__) console.log(`[Firestore] commit write to ${docPath}`);
+
+  let resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  // Auto-refresh on 401
+  if (resp.status === 401) {
+    _idToken = null;
+    try {
+      token = await _getValidToken();
+    } catch {
+      throw new Error('Session expired');
+    }
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    const errMsg = data.error?.message || `Firestore commit failed (${resp.status})`;
+    if (__DEV__) console.error(`[Firestore] commit FAILED: ${resp.status} - ${errMsg}`);
+    const err: any = new Error(errMsg);
+    err.status = resp.status;
+    err.code = data.error?.status;
+    throw err;
+  }
+
+  if (__DEV__) console.log(`[Firestore] commit succeeded for ${docPath}`);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    COMPAT — Collection Reference
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -649,15 +731,17 @@ class CompatDocRef {
 
   async set(data: any, options?: any) {
     const { fields, transforms } = _parseFields(data);
-    const body: any = { fields };
 
     if (options?.merge) {
-      // PATCH — supports fieldTransforms natively
-      if (transforms.length > 0) body.fieldTransforms = transforms;
-      await _firestoreFetch(this._path, 'PATCH', body);
+      // PATCH merge with transforms — use the commit endpoint because
+      // documents.patch does NOT accept fieldTransforms in the body.
+      if (transforms.length > 0) {
+        await _commitWrite(this._path, fields, transforms);
+      } else {
+        await _firestoreFetch(this._path, 'PATCH', { fields });
+      }
     } else {
-      // PUT (replace) — doesn't reliably support transforms;
-      // fall back to client-side timestamps for sentinels.
+      // PUT (replace) — resolve sentinels client-side
       if (transforms.length > 0) {
         for (const t of transforms) {
           if (t.setToServerValue) {
@@ -665,15 +749,20 @@ class CompatDocRef {
           }
         }
       }
-      await _firestoreFetch(this._path, 'PUT', body);
+      await _firestoreFetch(this._path, 'PUT', { fields });
     }
   }
 
   async update(data: any) {
     const { fields, transforms } = _parseFields(data);
-    const body: any = { fields };
-    if (transforms.length > 0) body.fieldTransforms = transforms;
-    await _firestoreFetch(this._path, 'PATCH', body);
+    // Use the commit endpoint when transforms are present because
+    // documents.patch does NOT accept fieldTransforms in the body.
+    // The REST API returns "Unknown name fieldTransforms" otherwise.
+    if (transforms.length > 0) {
+      await _commitWrite(this._path, fields, transforms);
+    } else {
+      await _firestoreFetch(this._path, 'PATCH', { fields });
+    }
   }
 
   async delete() {

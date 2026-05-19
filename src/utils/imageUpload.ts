@@ -219,11 +219,10 @@ function safeBase64Decode(base64: string): Uint8Array {
  * sending raw file URIs in all environments.
  */
 async function readFileAsBase64(uri: string): Promise<string> {
-  // Dynamic import — must handle both ESM (default) and CJS (module.exports) shapes.
-  // Metro's interop may not expose a `default` property, so we fall back to the
-  // namespace object itself.  This prevents the crash:
-  //   TypeError: Cannot read property 'readAsStringAsync' of undefined
-  const fsModule = await import('expo-file-system');
+  // expo-file-system v18+ moved the old API (readAsStringAsync, etc.) to
+  // expo-file-system/legacy.  Import from there to avoid the deprecation
+  // warning that surfaces to users as a visible error in the upload alert.
+  const fsModule = await import('expo-file-system/legacy');
   const FileSystem = (fsModule as any).default || fsModule;
 
   // expo-file-system v16+ (Expo SDK 54+) accepts full URIs directly
@@ -261,7 +260,7 @@ async function readFileAsBase64(uri: string): Promise<string> {
  */
 async function getFileSize(uri: string): Promise<number> {
   try {
-    const fsModule = await import('expo-file-system');
+    const fsModule = await import('expo-file-system/legacy');
     const FileSystem = (fsModule as any).default || fsModule;
     const info = await FileSystem.getInfoAsync(uri);
     if (info.exists && 'size' in info) {
