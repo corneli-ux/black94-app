@@ -517,6 +517,9 @@ export default function FeedScreen({ navigation }: any) {
           authorProfileImage: data.authorProfileImage || null,
           authorBadge: data.authorBadge || '',
           authorIsVerified: data.authorIsVerified || false,
+          // BUG FIX: Include factCheck fields in inline feed loader
+          factCheckVerified: data.factCheckVerified || 0,
+          factCheckDebunked: data.factCheckDebunked || 0,
           caption: data.caption || '',
           mediaUrls: parseMediaUrls(data.mediaUrls),
           pollData: data.pollData || undefined,
@@ -538,7 +541,10 @@ export default function FeedScreen({ navigation }: any) {
       // Batch fetch author profiles
       const uniqueAuthorIds = [...new Set(newPosts.map(p => p.authorId).filter(Boolean))];
       const authorProfileMap: Record<string, any> = {};
-      const CHUNK_SIZE = 30;
+      // BUG FIX: CHUNK_SIZE must be 10 — Firestore IN operator max is 10.
+      // The old value of 30 caused ALL batch interaction queries to fail
+      // (where postId IN [30 ids]), falling back to individual reads.
+      const CHUNK_SIZE = 10;
 
       for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
         const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
@@ -563,30 +569,45 @@ export default function FeedScreen({ navigation }: any) {
         }
       }
 
+      // BUG FIX: Enrich with silent corruption check (matches api.ts fetchFeed logic)
       for (const post of newPosts) {
         const fresh = authorProfileMap[post.authorId];
-        if (fresh) {
+        if (!fresh) continue;
+
           // GUARD: Skip enrichment if profile looks corrupted (empty username + displayName).
-          // The post's stamped data is more reliable than a corrupted user doc.
           const profileLooksCorrupted = !fresh.username && !fresh.displayName;
           if (profileLooksCorrupted) continue;
-          post.authorDisplayName = fresh.displayName || post.authorDisplayName;
-          post.authorUsername = fresh.username || post.authorUsername;
-          post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
-          post.authorBadge = fresh.badge || post.authorBadge;
-          post.authorIsVerified = fresh.isVerified || post.authorIsVerified;
+
+          // BUG FIX: Detect silent username corruption — if the fetched username
+          // looks like a Google auto-generated one AND differs from stamped data,
+          // the user doc is likely corrupted. Keep the stamped data.
+          const googleAutoName = fresh.displayName?.replace(/\s/g, '').toLowerCase() || '';
+          const isUsernameCorrupted = !!googleAutoName
+            && fresh.username === googleAutoName
+            && post.authorUsername
+            && post.authorUsername !== googleAutoName;
+
+          if (fresh.displayName) post.authorDisplayName = fresh.displayName;
+          if (fresh.username && !isUsernameCorrupted) post.authorUsername = fresh.username;
+          if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
+          if (fresh.badge) post.authorBadge = fresh.badge;
+          // BUG FIX: Use fresh isVerified directly (boolean, not || fallback).
+          // Old code used `fresh.isVerified || post.authorIsVerified` which meant
+          // if user was UN-verified (false), the old stamped true value persisted.
+          post.authorIsVerified = fresh.isVerified;
         }
       }
 
-      // Batch fetch interactions
+      // Batch fetch interactions (CHUNK_SIZE = 10 for Firestore IN limit)
       if (userId) {
         const postIds = newPosts.map(p => p.id);
         const likedIds = new Set<string>();
         const bookmarkedIds = new Set<string>();
         const repostedIds = new Set<string>();
 
-        for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
-          const chunk = postIds.slice(i, i + CHUNK_SIZE);
+        const INTERACTION_CHUNK = 10;
+        for (let i = 0; i < postIds.length; i += INTERACTION_CHUNK) {
+          const chunk = postIds.slice(i, i + INTERACTION_CHUNK);
           try {
             // Try batch query first (needs composite index). If it fails
             // (e.g., missing index), fall back to individual doc reads.

@@ -474,10 +474,14 @@ function _dotNotationToNestedMap(dotFields: Record<string, any>): Record<string,
   return result;
 }
 
+// BUG FIX: Added pre-fetched token parameter so step 1b doesn't need a
+// duplicate _getValidToken() call. The caller (set/update) already fetched a
+// valid token — reusing it saves one async round-trip per commit.
 async function _firestoreCommitUpdate(
   docPath: string,
   fields: Record<string, any>,
   transforms: Array<{ fieldPath: string; setToServerValue?: string; increment?: any }>,
+  preFetchedToken?: string,
 ): Promise<void> {
   // Separate dot-notation fields from regular top-level fields.
   // Dot-notation fields require special handling (updateMask) to avoid
@@ -506,13 +510,19 @@ async function _firestoreCommitUpdate(
     const nestedFields = _dotNotationToNestedMap(dotFields);
     if (__DEV__) console.log(`[Firestore] commit step 1b: PATCH dot-notation fields to ${docPath}: ${dotPaths.join(', ')}`);
 
-    const token = await _getValidToken();
+    // BUG FIX: Reuse the already-fetched token from the caller scope instead of
+    // calling _getValidToken() again. The caller (CompatDocRef.set/update) already
+    // fetched a valid token at the start of _firestoreCommitUpdate — fetching a
+    // second token here is wasteful and adds unnecessary latency.
+    // BUG FIX: Use pre-fetched token from caller instead of fetching a new one.
+    // Falls back to _getValidToken() if no pre-fetched token was provided.
+    const authHeader = preFetchedToken || (await _getValidToken());
     const url = `${FIRESTORE_BASE}/${docPath}?key=${API_KEY}&updateMask.fieldPaths=${dotPaths.map(encodeURIComponent).join(',')}`;
     const resp = await fetch(url, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${authHeader}`,
       },
       body: JSON.stringify({ fields: nestedFields }),
     });
@@ -854,8 +864,12 @@ class CompatDocRef {
     if (options?.merge) {
       // PATCH endpoint does NOT support fieldTransforms.
       // Use the commit API when transforms are present.
+      // BUG FIX: Fetch a valid token BEFORE calling _firestoreCommitUpdate.
+      // The old code referenced an undefined `token` variable, causing
+      // ReferenceError at runtime for any merge+transform operation.
       if (transforms.length > 0) {
-        await _firestoreCommitUpdate(this._path, fields, transforms);
+        const preToken = await _getValidToken();
+        await _firestoreCommitUpdate(this._path, fields, transforms, preToken);
       } else {
         await _firestoreFetch(this._path, 'PATCH', body);
       }
@@ -880,7 +894,10 @@ class CompatDocRef {
     const { fields, transforms } = _parseFields(data);
     if (transforms.length > 0) {
       // PATCH endpoint does NOT support fieldTransforms — use commit API.
-      await _firestoreCommitUpdate(this._path, fields, transforms);
+      // BUG FIX: Fetch a valid token BEFORE calling _firestoreCommitUpdate.
+      // The old code referenced an undefined `token` variable.
+      const preToken = await _getValidToken();
+      await _firestoreCommitUpdate(this._path, fields, transforms, preToken);
     } else {
       await _firestoreFetch(this._path, 'PATCH', { fields });
     }

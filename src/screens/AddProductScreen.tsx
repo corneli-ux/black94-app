@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Image, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -8,6 +9,8 @@ import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { checkPlanLimit } from '../lib/payments';
 import { User, Post } from '../lib/api';
+import { optimizeImage } from '../utils/imageOptimizer';
+import { uploadOptimizedImage } from '../utils/imageUpload';
 
 const CATEGORIES = [
   'Electronics',
@@ -26,6 +29,12 @@ const CATEGORIES = [
   'Other',
 ];
 
+const MAX_PRODUCT_IMAGES = 5;
+
+// ── Per-image upload status ───────────────────────────────────────────────
+
+type ImageUploadStatus = 'idle' | 'uploading' | 'done' | 'failed';
+
 interface FormState {
   name: string;
   description: string;
@@ -33,7 +42,7 @@ interface FormState {
   compareAtPrice: string;
   category: string;
   tags: string;
-  imageUrls: string;
+  images: string[];        // Array of URIs (local file:// or remote https://)
   sku: string;
   stock: string;
   isDigital: boolean;
@@ -47,12 +56,101 @@ const INITIAL_FORM: FormState = {
   compareAtPrice: '',
   category: '',
   tags: '',
-  imageUrls: '',
+  images: [],
   sku: '',
   stock: '1',
   isDigital: false,
   isFeatured: false,
 };
+
+// ── Image picker helpers (proper permission handling) ─────────────────────
+
+/**
+ * Opens the device gallery with proper permission handling.
+ * Returns null if the user denied permission or cancelled.
+ */
+async function openImagePicker(limit: number): Promise<ImagePicker.ImagePickerAsset[] | null> {
+  try {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (status === 'denied') {
+      Alert.alert(
+        'Photos Access Denied',
+        'BLACK94 needs access to your photos to select images. Please enable it in Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => ImagePicker.grantMediaLibraryPermissionsAsync() },
+        ],
+      );
+      return null;
+    }
+
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow photo library access to select images.');
+      return null;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: limit,
+    });
+
+    if (result.canceled || !result.assets || result.assets.length === 0) return null;
+    return result.assets.filter((a) => a.uri != null);
+  } catch (err) {
+    console.error('[AddProduct] Image picker error:', err);
+    Alert.alert('Error', 'Something went wrong while opening the gallery. Please try again.');
+    return null;
+  }
+}
+
+/**
+ * Opens the device camera with proper permission handling.
+ * Returns null if the user denied permission, cancelled, or the device has no camera.
+ */
+async function openCamera(): Promise<ImagePicker.ImagePickerAsset | null> {
+  try {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+
+    if (status === 'denied') {
+      Alert.alert(
+        'Camera Access Denied',
+        'BLACK94 needs camera access to take photos. Please enable it in your device Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          ...(Platform.OS === 'ios'
+            ? [{ text: 'Open Settings', onPress: () => ImagePicker.grantCameraPermissionsAsync() }]
+            : []),
+        ],
+      );
+      return null;
+    }
+
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera permission is required to take photos.');
+      return null;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+    });
+
+    if (result.canceled || !result.assets || result.assets.length === 0) return null;
+    return result.assets[0] || null;
+  } catch (err: any) {
+    if (err?.message?.includes('Camera is not available') || err?.message?.includes('No camera')) {
+      Alert.alert('Camera Unavailable', 'Your device does not have a camera or it is being used by another app.');
+    } else {
+      console.error('[AddProduct] Camera error:', err);
+      Alert.alert('Camera Error', 'Something went wrong while opening the camera. Please try again.');
+    }
+    return null;
+  }
+}
+
+// ── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AddProductScreen({ route, navigation }: any) {
   const currentUser = auth()?.currentUser;
@@ -61,6 +159,14 @@ export default function AddProductScreen({ route, navigation }: any) {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!!editProductId);
   const [showCategories, setShowCategories] = useState(false);
+
+  // Upload tracking state
+  const [uploadProgress, setUploadProgress] = useState('');
+  const [imageStatuses, setImageStatuses] = useState<ImageUploadStatus[]>([]);
+  const [imageProgress, setImageProgress] = useState<number[]>([]);
+
+  // Abort controller to cancel uploads
+  const abortRef = useRef<AbortController | null>(null);
 
   // Load existing product for editing
   useEffect(() => {
@@ -82,7 +188,7 @@ export default function AddProductScreen({ route, navigation }: any) {
           compareAtPrice: String(d.compareAtPrice || d.comparePrice || ''),
           category: d.category || '',
           tags: Array.isArray(d.tags) ? d.tags.join(', ') : (d.tags || ''),
-          imageUrls: imgs.join(', '),
+          images: imgs,  // Already uploaded URLs — keep as-is
           sku: d.sku || '',
           stock: String(d.stock ?? d.stockQuantity ?? '1'),
           isDigital: d.isDigital || d.digital || false,
@@ -98,9 +204,43 @@ export default function AddProductScreen({ route, navigation }: any) {
     loadProduct();
   }, [editProductId]);
 
-  const updateField = (key: keyof FormState, value: string | boolean) => {
+  const updateField = (key: keyof FormState, value: string | boolean | string[]) => {
     setForm(prev => ({ ...prev, [key]: value }));
   };
+
+  // ── Image actions ─────────────────────────────────────────────────────
+
+  const handleAddImages = useCallback(async () => {
+    if (saving) return;
+    const remaining = MAX_PRODUCT_IMAGES - form.images.length;
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', `You can add up to ${MAX_PRODUCT_IMAGES} images.`);
+      return;
+    }
+    const assets = await openImagePicker(remaining);
+    if (!assets || assets.length === 0) return;
+    const uris = assets.map((a) => a.uri!).slice(0, remaining);
+    if (uris.length > 0) {
+      setForm(prev => ({ ...prev, images: [...prev.images, ...uris] }));
+    }
+  }, [form.images.length, saving]);
+
+  const handleCamera = useCallback(async () => {
+    if (saving) return;
+    const remaining = MAX_PRODUCT_IMAGES - form.images.length;
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', `You can add up to ${MAX_PRODUCT_IMAGES} images.`);
+      return;
+    }
+    const asset = await openCamera();
+    if (!asset?.uri) return;
+    setForm(prev => ({ ...prev, images: [...prev.images, asset.uri!] }));
+  }, [form.images.length, saving]);
+
+  const handleRemoveImage = useCallback((index: number) => {
+    if (saving) return;
+    setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
+  }, [saving]);
 
   const handleSave = async () => {
     if (!form.name.trim()) {
@@ -126,11 +266,121 @@ export default function AddProductScreen({ route, navigation }: any) {
     }
 
     setSaving(true);
+    setUploadProgress('Preparing images...');
+
+    // Initialize per-image status tracking
+    const statuses: ImageUploadStatus[] = form.images.map(() => 'uploading');
+    const progresses: number[] = form.images.map(() => 0);
+    setImageStatuses(statuses);
+    setImageProgress(progresses);
+
+    // Create abort controller for this upload session
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+
     try {
-      const imageData: string[] = form.imageUrls
-        .split(',')
-        .map(u => u.trim())
-        .filter(Boolean);
+      // Upload all local images in parallel
+      const uploadPromises = form.images.map(async (uri, i) => {
+        // Skip images that are already uploaded (remote URLs)
+        if (uri.startsWith('http://') || uri.startsWith('https://')) {
+          setImageStatuses(prev => {
+            const next = [...prev];
+            next[i] = 'done';
+            return next;
+          });
+          return uri;
+        }
+
+        try {
+          // Optimize image
+          setUploadProgress(`Optimizing image ${i + 1}...`);
+          const optimized = await optimizeImage(uri, {
+            maxWidth: 2048,
+            jpegQuality: 0.88,
+            generateThumbnail: false,
+          });
+
+          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+          const storagePath = `products/${currentUser.uid}/${Date.now()}_${i}.${ext}`;
+
+          const result = await uploadOptimizedImage(optimized.optimizedUri, storagePath, {
+            mimeType: optimized.mimeType,
+            abortSignal: abortController.signal,
+            onProgress: (loaded, total) => {
+              const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+              setImageProgress(prev => {
+                const next = [...prev];
+                next[i] = pct;
+                return next;
+              });
+            },
+          });
+
+          // Mark this image as done
+          setImageStatuses(prev => {
+            const next = [...prev];
+            next[i] = 'done';
+            return next;
+          });
+
+          return result.downloadUrl;
+        } catch (err: any) {
+          if (abortController.signal.aborted) {
+            throw new Error('Upload cancelled');
+          }
+          // Mark this image as failed
+          setImageStatuses(prev => {
+            const next = [...prev];
+            next[i] = 'failed';
+            return next;
+          });
+          const errMsg = err?.message || String(err);
+          console.error(`[AddProduct] Image ${i + 1} upload failed:`, errMsg);
+          if (!handleSave._firstUploadError) {
+            handleSave._firstUploadError = errMsg;
+          }
+          return null;
+        }
+      });
+
+      // Reset stored error for this attempt
+      handleSave._firstUploadError = undefined;
+
+      const results = await Promise.all(uploadPromises);
+
+      // Check for failures
+      const failedCount = results.filter((r) => r === null).length;
+      const successCount = results.length - failedCount;
+
+      if (failedCount > 0 && successCount === 0) {
+        const detail = handleSave._firstUploadError || 'Unknown error';
+        const shortDetail = detail.length > 200 ? detail.slice(0, 200) + '...' : detail;
+        Alert.alert(
+          'Upload Failed',
+          `Could not upload ${failedCount} image${failedCount > 1 ? 's' : ''}.\n\n${shortDetail}`,
+        );
+        return;
+      }
+
+      if (failedCount > 0) {
+        const shouldContinue = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Partial Upload Failure',
+            `${failedCount} of ${results.length} image${failedCount > 1 ? 's' : ''} failed to upload. Your product will be saved with ${successCount} image${successCount > 1 ? 's' : ''}.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Save Anyway', onPress: () => resolve(true) },
+            ],
+          );
+        });
+        if (!shouldContinue) return;
+      }
+
+      // Build final URL list
+      const imageData = results.filter((r): r is string => r !== null);
+
+      setUploadProgress('Saving product...');
+
       const tagData: string[] = form.tags
         .split(',')
         .map(t => t.trim().replace(/^#/, ''))
@@ -138,6 +388,10 @@ export default function AddProductScreen({ route, navigation }: any) {
 
       const productData: Record<string, any> = {
         name: form.name.trim(),
+        // BUG FIX: Store lowercase name for case-insensitive search in shop.ts.
+        // searchProducts queries by 'nameLower' — without this field, store
+        // search returns no results for most queries.
+        nameLower: form.name.trim().toLowerCase(),
         description: form.description.trim(),
         price: Number(form.price),
         compareAtPrice: form.compareAtPrice.trim() ? Number(form.compareAtPrice) : null,
@@ -173,10 +427,18 @@ export default function AddProductScreen({ route, navigation }: any) {
         ]);
       }
     } catch (e: any) {
+      if (e?.message === 'Upload cancelled') {
+        console.log('[AddProduct] Upload cancelled by user.');
+        return;
+      }
       console.error('[AddProduct] Save error:', e);
       Alert.alert('Product', 'Could not save product. Please try again.');
     } finally {
       setSaving(false);
+      setUploadProgress('');
+      setImageStatuses([]);
+      setImageProgress([]);
+      abortRef.current = null;
     }
   };
 
@@ -193,7 +455,19 @@ export default function AddProductScreen({ route, navigation }: any) {
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => {
+              if (saving && abortRef.current) {
+                Alert.alert('Cancel Upload?', 'Images are being uploaded. Are you sure you want to cancel?', [
+                  { text: 'Keep Uploading', style: 'cancel' },
+                  { text: 'Cancel', style: 'destructive', onPress: () => { abortRef.current?.abort(); navigation.goBack(); } },
+                ]);
+                return;
+              }
+              navigation.goBack();
+            }}
+            style={styles.backBtn}
+          >
             <Text style={styles.backArrow}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{editProductId ? 'Edit Product' : 'Add Product'}</Text>
@@ -310,22 +584,81 @@ export default function AddProductScreen({ route, navigation }: any) {
             <Text style={styles.fieldHint}>Separate multiple tags with commas</Text>
           </View>
 
-          {/* Image URLs */}
+          {/* Product Photos */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Image URLs</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="https://example.com/image1.jpg, https://..."
-              placeholderTextColor={colors.textSecondary}
-              value={form.imageUrls}
-              onChangeText={v => updateField('imageUrls', v)}
-              multiline
-              numberOfLines={3}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Text style={styles.fieldHint}>Comma-separated image URLs</Text>
+            <View style={styles.imageSectionHeader}>
+              <Text style={styles.fieldLabel}>Product Photos</Text>
+              <Text style={styles.imageCount}>{form.images.length}/{MAX_PRODUCT_IMAGES}</Text>
+            </View>
+
+            {/* Image thumbnails */}
+            {form.images.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
+                {form.images.map((uri, i) => {
+                  const status = imageStatuses[i] || 'idle';
+                  const progress = imageProgress[i] || 0;
+                  return (
+                    <View key={`img-${i}-${uri}`} style={styles.imageCard}>
+                      <Image source={{ uri }} style={styles.imageThumb} resizeMode="cover" />
+
+                      {/* Upload overlay */}
+                      {status !== 'idle' && (
+                        <View style={[styles.uploadOverlay, status === 'failed' && styles.uploadOverlayFailed]}>
+                          {status === 'uploading' && (
+                            <>
+                              <ActivityIndicator size="small" color="#fff" />
+                              <Text style={styles.uploadOverlayText}>{progress}%</Text>
+                            </>
+                          )}
+                          {status === 'done' && (
+                            <Text style={styles.uploadDoneText}>✓</Text>
+                          )}
+                          {status === 'failed' && (
+                            <Text style={styles.uploadFailText}>!</Text>
+                          )}
+                        </View>
+                      )}
+
+                      {/* Remove button */}
+                      {!saving && (
+                        <TouchableOpacity
+                          style={styles.imageRemove}
+                          onPress={() => handleRemoveImage(i)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.imageRemoveText}>✕</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            {/* Add photo buttons */}
+            {!saving && form.images.length < MAX_PRODUCT_IMAGES && (
+              <View style={styles.imageActions}>
+                <TouchableOpacity style={styles.addPhotoBtn} onPress={handleAddImages} activeOpacity={0.7}>
+                  <Text style={styles.addPhotoIcon}>🖼</Text>
+                  <Text style={styles.addPhotoText}>Gallery</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.addPhotoBtn} onPress={handleCamera} activeOpacity={0.7}>
+                  <Text style={styles.addPhotoIcon}>📷</Text>
+                  <Text style={styles.addPhotoText}>Camera</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <Text style={styles.fieldHint}>Tap to add up to {MAX_PRODUCT_IMAGES} product images. First image is the main photo.</Text>
           </View>
+
+          {/* Upload progress */}
+          {uploadProgress ? (
+            <View style={styles.progressRow}>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Text style={styles.progressText}>{uploadProgress}</Text>
+            </View>
+          ) : null}
 
           {/* SKU + Stock */}
           <View style={styles.rowGroup}>
@@ -438,6 +771,116 @@ const styles = StyleSheet.create({
   },
   dropdownItemActive: { backgroundColor: 'rgba(42,127,255,0.08)' },
   dropdownText: { color: colors.text, fontSize: 14 },
+
+  // ── Image section ──────────────────────────────────────────────────────
+  imageSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  imageCount: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  imageScroll: {
+    marginBottom: 12,
+  },
+  imageCard: {
+    width: 100,
+    height: 100,
+    borderRadius: 10,
+    marginRight: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    position: 'relative',
+  },
+  imageThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  imageRemove: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageRemoveText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  uploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  uploadOverlayFailed: {
+    backgroundColor: 'rgba(244,33,46,0.35)',
+  },
+  uploadOverlayText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  uploadDoneText: {
+    color: colors.accentGreen,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  uploadFailText: {
+    color: colors.accentRed,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  imageActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+  },
+  addPhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.bgInput,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  addPhotoIcon: {
+    fontSize: 16,
+  },
+  addPhotoText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // ── Upload progress ────────────────────────────────────────────────────
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  progressText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+
+  // ── Toggles ────────────────────────────────────────────────────────────
   toggleRow: { flexDirection: 'row', alignItems: 'center' },
   toggleTrack: {
     width: 48, height: 28, borderRadius: 14,
@@ -451,6 +894,8 @@ const styles = StyleSheet.create({
   toggleThumbActive: { alignSelf: 'flex-end' },
   toggleLabel: { color: colors.text, fontSize: 15, fontWeight: '600' },
   toggleHint: { color: colors.textSecondary, fontSize: 12, marginTop: 1 },
+
+  // ── Save button ────────────────────────────────────────────────────────
   saveBtn: {
     backgroundColor: colors.accent, paddingVertical: 16, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center', marginTop: 8,

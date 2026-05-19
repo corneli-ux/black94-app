@@ -291,11 +291,16 @@ export async function searchProducts(
   queryStr: string,
   limitCount: number = 20,
 ): Promise<ShopProduct[]> {
+  // BUG FIX: Lowercase query for case-insensitive search.
+  // Firestore doesn't support case-insensitive queries natively,
+  // so we lowercase the search term. Product names stored in Firestore
+  // must also be lowercased for this to work correctly.
+  const lowerQuery = queryStr.toLowerCase();
   const snap = await firestore()
     .collection('products')
     .where('isActive', '==', true)
-    .where('name', '>=', queryStr)
-    .where('name', '<=', queryStr + '\uf8ff')
+    .where('nameLower', '>=', lowerQuery)
+    .where('nameLower', '<=', lowerQuery + '\uf8ff')
     .orderBy('name', 'asc')
     .limit(limitCount)
     .get();

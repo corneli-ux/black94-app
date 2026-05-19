@@ -135,7 +135,9 @@ export default function ProductDetailScreen({ route, navigation }: any) {
     }
   }, [productId]);
 
-  useEffect(() => { load(); }, []);
+  // BUG FIX: load() depends on productId — empty dep array means navigating
+  // to a different product reuses the stale initial load result.
+  useEffect(() => { load(); }, [load]);
 
   const handleAddToCart = async () => {
     const currentUser = auth()?.currentUser;

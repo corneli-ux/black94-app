@@ -253,8 +253,6 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   );
 });
 
-const { width: SCREEN_W } = Dimensions.get('window');
-
 const profileCardStyles = StyleSheet.create({
   postCard: {
     backgroundColor: colors.bg,
@@ -314,18 +312,7 @@ const profileCardStyles = StyleSheet.create({
   replyingToName: {
     color: colors.accent,
   },
-  replyContextCaption: {
-    color: '#94a3b8',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
+  // DEAD CODE REMOVED: `replyContextCaption` style was defined but never referenced in any component.
   /* Parent post media shown in reply cards */
   replyMediaContainer: {
     marginTop: 10,
@@ -491,7 +478,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
-  const [interactionsChecked, setInteractionsChecked] = useState(false);
   const [privacy, setPrivacy] = useState<{ nameVisibility?: string } | null>(null);
 
   // Fetch one active ad campaign for profile banner
@@ -586,7 +572,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
           post.reposted = repostedIds.has(post.id);
         }
         setPosts([...userPosts]);
-        setInteractionsChecked(true);
       }
     } catch (e) {
       console.warn('[UserProfileScreen] load error:', e);

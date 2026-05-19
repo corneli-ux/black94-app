@@ -244,11 +244,33 @@ async function isLikelyGraphic(
     // If we can read the header, check for alpha channel
     // PNG header: byte 25 has color type (bit 6 = alpha)
     if (base64.length > 36) {
-      // Decode base64 to check raw bytes — use Buffer for RN compatibility
+      // BUG FIX: Use safe base64 decode — atob() may not be available in
+      // React Native's New Architecture (Fabric). Uses Buffer fast-path with
+      // pure JS fallback (same approach as imageUpload.ts safeBase64Decode).
       try {
         const decoded = typeof Buffer !== 'undefined'
-          ? Buffer.from(base64, 'base64')
-          : Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+          ? new Uint8Array(Buffer.from(base64, 'base64'))
+          : (() => {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+            const lookup = new Map<string, number>();
+            for (let ci = 0; ci < chars.length; ci++) lookup.set(chars[ci], ci);
+            const cleaned = base64.replace(/\s/g, '');
+            const padCount = (cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0);
+            const outLen = Math.floor((cleaned.length * 3) / 4) - padCount;
+            const result = new Uint8Array(outLen);
+            let byteIdx = 0;
+            for (let ci = 0; ci < cleaned.length; ci += 4) {
+              const c0 = lookup.get(cleaned[ci]) || 0;
+              const c1 = lookup.get(cleaned[ci + 1] || '') || 0;
+              const c2 = cleaned[ci + 2] === '=' ? 0 : (lookup.get(cleaned[ci + 2] || '') || 0);
+              const c3 = cleaned[ci + 3] === '=' ? 0 : (lookup.get(cleaned[ci + 3] || '') || 0);
+              const triplet = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
+              result[byteIdx++] = (triplet >> 16) & 0xFF;
+              if (byteIdx < outLen) result[byteIdx++] = (triplet >> 8) & 0xFF;
+              if (byteIdx < outLen) result[byteIdx++] = triplet & 0xFF;
+            }
+            return result;
+          })();
         if (decoded.length >= 26) {
           const colorType = decoded[25];
           // Color type 4 = grayscale+alpha, 6 = RGB+alpha

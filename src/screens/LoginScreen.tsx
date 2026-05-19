@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, StatusBar, Alert, Linking, } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, StatusBar, Alert, Linking, Platform, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
@@ -19,7 +19,11 @@ export default function LoginScreen() {
         webClientId: '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
         scopes: ['profile', 'email'],
       });
-      await GoogleSignin.hasPlayServices();
+      // BUG FIX: hasPlayServices() is Android-only — calling it on iOS
+      // throws "hasPlayServices is not a function" and crashes the login screen.
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices();
+      }
       await GoogleSignin.signIn();
 
       let idToken: string | null = null;

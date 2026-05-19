@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,6 +22,11 @@ export function Avatar({
     : {};
 
   const [imgError, setImgError] = useState(false);
+
+  // BUG FIX: Reset imgError when uri changes. Without this, a recycled
+  // avatar (e.g., in FlatList) that previously had an error permanently
+  // shows the initials fallback even when the new uri is valid.
+  useEffect(() => { setImgError(false); }, [uri]);
 
   if (uri && !imgError) {
     return (

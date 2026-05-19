@@ -79,6 +79,18 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const [captionTruncated, setCaptionTruncated] = useState(false);
+  // BUG FIX: Track media load errors — without this, FlatList recycling
+  // causes a previously failed image to show its error overlay on a
+  // valid new post's image (same fix as FeedScreen.PostCard).
+  const [hasMediaError, setHasMediaError] = useState(false);
+  const prevMediaUrlRef = React.useRef(post.mediaUrls?.[0] || '');
+  React.useEffect(() => {
+    const currentUrl = post.mediaUrls?.[0] || '';
+    if (prevMediaUrlRef.current !== currentUrl) {
+      setHasMediaError(false);
+      prevMediaUrlRef.current = currentUrl;
+    }
+  }, [post.id, post.mediaUrls]);
 
   React.useEffect(() => {
     setIsReposted(post.reposted);
@@ -544,9 +556,11 @@ export default function ProfileScreen({ route, navigation }: any) {
         const bookmarkedIds = new Set<string>();
         const repostedIds = new Set<string>();
 
-        // Check interactions in chunks of 30
-        for (let i = 0; i < postIds.length; i += 30) {
-          const chunk = postIds.slice(i, i + 30);
+        // BUG FIX: CHUNK_SIZE must be 10 — Firestore IN operator max is 10.
+        // The old value of 30 caused batch queries with IN filter to fail.
+        const INTERACTION_CHUNK = 10;
+        for (let i = 0; i < postIds.length; i += INTERACTION_CHUNK) {
+          const chunk = postIds.slice(i, i + INTERACTION_CHUNK);
           try {
             const promises = chunk.flatMap(postId => [
               firestore().collection('post_likes').doc(`${postId}_${currentUser.uid}`).get()

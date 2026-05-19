@@ -128,7 +128,9 @@ function StoryProgressBar({
           style={[
             styles.progressFill,
             {
-              width: `${(paused ? progress : progress) * 100}%`,
+              // BUG FIX: Removed redundant ternary `paused ? progress : progress`
+              // which always evaluated to `progress` regardless of `paused`.
+              width: `${progress * 100}%`,
               backgroundColor: paused ? 'rgba(255,255,255,0.5)' : '#fff',
             },
           ]}

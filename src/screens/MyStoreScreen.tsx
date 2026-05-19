@@ -7,7 +7,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
-import { User } from '../lib/api';
+
 
 interface Product {
   id: string;

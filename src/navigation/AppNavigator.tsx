@@ -347,6 +347,11 @@ function DrawerNavigator() {
       <Drawer.Screen name="Bookmarks" component={LazyScreen(BookmarksScreen)} />
       <Drawer.Screen name="Cart" component={LazyScreen(CartScreen)} />
       <Drawer.Screen name="Settings" component={LazyScreen(SettingsScreen)} />
+      {/* BUG FIX: Register MyStoreStack and PremiumDashboard in Drawer.Navigator.
+         Without these, business users tapping "My Store" or "Upgrade" from the
+         drawer crash with "screen doesn't exist in Drawer navigator". */}
+      <Drawer.Screen name="MyStoreStack" component={LazyScreen(MyStoreScreen)} />
+      <Drawer.Screen name="PremiumDashboard" component={LazyScreen(PremiumDashboardScreen)} />
     </Drawer.Navigator>
   );
 }

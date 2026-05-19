@@ -59,9 +59,12 @@ export default function StorefrontScreen({ route, navigation }: any) {
 
   const load = useCallback(async () => {
     try {
+      // BUG FIX: Query by ownerId (not businessId). AddProductScreen saves
+      // products with 'ownerId', not 'businessId'. The old query used
+      // businessId which never matched any products — store appeared empty.
       const [userSnap, productsSnap] = await Promise.all([
         firestore().collection('users').doc(userId).get(),
-        firestore().collection('products').where('businessId', '==', userId).get(),
+        firestore().collection('products').where('ownerId', '==', userId).get(),
       ]);
 
       if (userSnap.exists) {
@@ -86,7 +89,9 @@ export default function StorefrontScreen({ route, navigation }: any) {
       let ratingSum = 0;
       let ratingCount = 0;
       let sold = 0;
-      for (const doc of productsSnap.docs) {
+      // Also filter by active=true (some products may have active=false)
+      const activeProducts = productsSnap.docs.filter(d => d.data()?.active !== false);
+      for (const doc of activeProducts) {
         const d = doc.data();
         const imgs = parseMediaUrls(d.images || d.imageUrls || d.mediaUrls);
         const p: Product = {
@@ -117,7 +122,9 @@ export default function StorefrontScreen({ route, navigation }: any) {
     }
   }, [userId]);
 
-  useEffect(() => { load(); }, []);
+  // BUG FIX: load() depends on userId — empty dep array means navigating
+  // to a different user's store reuses the stale initial load result.
+  useEffect(() => { load(); }, [load]);
 
   const renderProductCard = ({ item }: { item: Product }) => (
     <TouchableOpacity
