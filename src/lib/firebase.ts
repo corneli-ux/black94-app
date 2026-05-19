@@ -388,56 +388,99 @@ function _parseFields(data: Record<string, any>): {
 }
 
 /**
- * Firestore commit API helper for update + transform operations.
+ * _firestoreCommitUpdate — Applies field updates + server-side transforms safely.
  *
  * The PATCH endpoint (documents/{path}) does NOT support fieldTransforms.
- * The commit API accepts an array of writes, each with optional transforms.
- * We send a single update write with field transforms in one commit call.
+ * We need transforms (serverTimestamp, increment) for features like createdAt,
+ * updatedAt, counters, etc.
  *
- * This is the same approach the Firebase client SDK uses internally.
+ * CRITICAL FIX — The previous implementation used `write.update` in the commit
+ * endpoint, which has TWO fatal flaws:
+ *   1. `write.update` REQUIRES the document to exist. For new users signing in,
+ *      the user doc doesn't exist yet, so the commit silently fails and the user
+ *      document is NEVER created, causing all subsequent reads to return empty data.
+ *   2. `write.update` WITHOUT `updateMask` can REPLACE the entire document,
+ *      deleting fields not present in the fields map (e.g., username, displayName,
+ *      profileImage stripped when only subscription/badge fields were sent).
+ *
+ * Safe approach — split into two independent operations:
+ *   Step 1: documents.patch for field updates (guaranteed merge semantics,
+ *           works for BOTH new and existing documents).
+ *   Step 2: documents:commit with write.transform for transforms only
+ *           (serverTimestamp, increment — zero risk of corrupting fields).
+ *
+ * Trade-off: not atomic (two API calls), but correctness is more important
+ * than atomicity here.
  */
 async function _firestoreCommitUpdate(
   docPath: string,
   fields: Record<string, any>,
   transforms: Array<{ fieldPath: string; setToServerValue?: string; increment?: any }>,
 ): Promise<void> {
-  const token = await _getValidToken();
-  const url = `${FIRESTORE_BASE}:commit?key=${API_KEY}`;
-
-  const write: any = {
-    update: {
-      name: `projects/${PROJECT_ID}/databases/(default)/documents/${docPath}`,
-      fields,
-    },
-  };
-  if (transforms.length > 0) {
-    write.updateTransform = {
-      fieldTransforms: transforms.map((t) => {
-        if (t.setToServerValue) {
-          return { fieldPath: t.fieldPath, setToServerValue: t.setToServerValue };
-        }
-        if (t.increment) {
-          return { fieldPath: t.fieldPath, increment: t.increment };
-        }
-        return t;
-      }),
-    };
+  // Step 1: Write field updates via PATCH — guaranteed merge semantics,
+  // works for both new documents (creates) and existing documents (merges).
+  if (Object.keys(fields).length > 0) {
+    if (__DEV__) console.log(`[Firestore] commit step 1: PATCH fields to ${docPath}`);
+    await _firestoreFetch(docPath, 'PATCH', { fields });
   }
 
-  if (__DEV__) console.log(`[Firestore] commit update: ${docPath}, transforms: ${transforms.map(t => t.fieldPath).join(', ')}`);
+  // Step 2: Apply transforms via commit endpoint — write.transform ONLY
+  // applies fieldTransforms, never touches any other fields. Safe even if
+  // the document doesn't exist (it will be created by the PATCH above).
+  if (transforms.length > 0) {
+    const token = await _getValidToken();
+    const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:commit?key=${API_KEY}`;
+    const fullName = `projects/${PROJECT_ID}/databases/(default)/documents/${docPath}`;
 
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ writes: [write] }),
-  });
+    const write = {
+      transform: {
+        document: fullName,
+        fieldTransforms: transforms,
+      },
+    };
 
-  if (!resp.ok) {
-    const errorBody = await resp.text().catch(() => '');
-    throw new Error(`Firestore commit failed: ${resp.status} — ${errorBody.slice(0, 300)}`);
+    const body = { writes: [write] };
+
+    if (__DEV__) console.log(`[Firestore] commit step 2: transform on ${docPath}`);
+
+    let resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    // Auto-refresh on 401
+    if (resp.status === 401) {
+      _idToken = null;
+      try {
+        const refreshedToken = await _getValidToken();
+        resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${refreshedToken}`,
+          },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        throw new Error('Session expired');
+      }
+    }
+
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      const errMsg = data.error?.message || `Firestore transform commit failed (${resp.status})`;
+      if (__DEV__) console.error(`[Firestore] commit transform FAILED: ${resp.status} - ${errMsg}`);
+      const err: any = new Error(errMsg);
+      err.status = resp.status;
+      err.code = data.error?.status;
+      throw err;
+    }
+
+    if (__DEV__) console.log(`[Firestore] commit succeeded for ${docPath}`);
   }
 }
 

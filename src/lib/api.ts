@@ -153,18 +153,43 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
         console.warn('[Auth] Failed to create user doc:', e);
       }
     } else {
-      // Returning user — update profileImage only if Firestore has null
-      // but Google has a photo (recovery for users whose photos were stripped
-      // by the old _isStorageUrl filter).
+      // Returning user — self-heal corrupted documents + photo recovery.
+      //
+      // SELF-HEAL: A previous bug in _firestoreCommitUpdate used write.update
+      // without updateMask, which could REPLACE the entire document, deleting
+      // fields not in the update payload (e.g., username, displayName,
+      // profileImage stripped when only subscription/badge were written).
+      // Detect this by checking for missing essential fields and restore them.
       try {
         const existingPhoto = existingData?.profileImage;
         const needsPhotoRecovery = !existingPhoto && googlePhoto;
+
+        // Detect corrupted doc: essential fields missing after write.update bug
+        const isCorrupted = !existingData?.username || !existingData?.displayName;
+
         const updateFields: Record<string, any> = {
           updatedAt: firestore.FieldValue.serverTimestamp(),
         };
-        if (needsPhotoRecovery) {
+
+        if (isCorrupted) {
+          // Restore all essential fields from available sources
+          console.warn('[Auth] User doc corrupted (missing username/displayName) — self-healing');
+          updateFields.username = existingData?.username || username;
+          updateFields.usernameLower = existingData?.usernameLower || username.toLowerCase();
+          updateFields.displayName = existingData?.displayName || fbUser.displayName || 'User';
+          updateFields.email = existingData?.email || fbUser.email || '';
+          updateFields.profileImage = existingData?.profileImage || googlePhoto;
+          updateFields.role = existingData?.role || 'personal';
+          updateFields.badge = existingData?.badge || '';
+          updateFields.subscription = existingData?.subscription || 'free';
+          updateFields.isVerified = existingData?.isVerified || false;
+          if (!existingData?.createdAt) {
+            updateFields.createdAt = firestore.FieldValue.serverTimestamp();
+          }
+        } else if (needsPhotoRecovery) {
           updateFields.profileImage = googlePhoto;
         }
+
         await userDocRef.update(updateFields);
       } catch (e) {
         console.warn('[Auth] Failed to update user doc:', e);
