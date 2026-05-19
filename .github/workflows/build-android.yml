@@ -49,19 +49,19 @@ jobs:
             exit 1
           fi
 
-      # Pre-resolve dependency mismatches so expo prebuild doesn't prompt
+      # Auto-fix dependency version mismatches so expo prebuild doesn't prompt
+      # (Expo SDK 55 recommends react-native@0.83.6 but project uses 0.81.5)
       - name: Fix Expo dependency mismatches
         env:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-        run: npx expo install --fix || true
+        run: npx expo install --fix
 
-      # Use `script` to simulate TTY so the prompt is reachable via stdin
       - name: Expo prebuild
         env:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-        run: yes | script -qc "npx expo prebuild --platform android --clean" /dev/null
+        run: npx expo prebuild --platform android --clean
 
       - name: Fix splashscreen_logo drawable
         run: |
