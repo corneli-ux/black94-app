@@ -27,7 +27,7 @@ jobs:
         run: |
           printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/fb_sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/fb_sa.json" >> $GITHUB_ENV
-          gcloud auth activate-service-account --key-file=/tmp/fb_sa.json 2>/dev/null || true
+          gcloud auth activate-service-account --key-file=/tmp/fb_sa.json --project=black94
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
@@ -44,16 +44,39 @@ jobs:
           echo "${{ secrets.RAZORPAY_WEBHOOK_SECRET }}" | firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET --project black94 --force
 
       - name: Grant Secret Manager access to function service account
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/fb_sa.json
         run: |
-          PROJECT_NUMBER=$(gcloud projects describe black94 --format='value(projectNumber)' 2>/dev/null || echo '210565807767')
+          # Get project number — use gcloud if authenticated, else parse from service account
+          PROJECT_NUMBER=$(gcloud projects describe black94 --format='value(projectNumber)' 2>/dev/null)
+          if [ -z "$PROJECT_NUMBER" ]; then
+            PROJECT_NUMBER=$(python3 -c "import json; d=json.load(open('/tmp/fb_sa.json')); print(d.get('project_id','').split(':')[-1] if 'project_id' in d else '')")
+            # Extract numeric project number from Firebase project info
+            if [ -z "$PROJECT_NUMBER" ]; then
+              PROJECT_NUMBER=$(firebase projects:list --json 2>/dev/null | python3 -c "import json,sys; ps=json.load(sys.stdin); print(next((p.get('projectNumber','') for p in ps if p.get('projectId')=='black94'), ''))")
+            fi
+          fi
+          if [ -z "$PROJECT_NUMBER" ]; then
+            echo "WARNING: Could not determine project number. Skipping IAM grant."
+            exit 0
+          fi
+          # Cloud Functions use the compute service account
           SA="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
           for secret in RAZORPAY_KEY_ID RAZORPAY_KEY_SECRET RAZORPAY_WEBHOOK_SECRET; do
-            echo "Granting access to $secret for $SA"
+            echo "Granting Secret Manager access: $secret → $SA"
             gcloud secrets add-iam-policy-binding "$secret" \
               --member="$SA" \
               --role="roles/secretmanager.secretAccessor" \
-              --project=black94 2>/dev/null || echo "Skipped $secret"
+              --project=black94 2>/dev/null && echo "  OK" || echo "  FAILED (may already have access)"
           done
 
+      - name: Delete old callable functions (type mismatch with new HTTPS)
+        run: |
+          # Functions were previously deployed as onCall (callable) but code now
+          # uses onRequest (HTTPS). Firebase doesn't allow changing the type
+          # without deleting first.
+          firebase functions:delete createRazorpayOrder verifyRazorpayPayment razorpayWebhook \
+            --project black94 --force || true
+
       - name: Deploy Cloud Functions
-        run: firebase deploy --only functions --project black94
+        run: firebase deploy --only functions --project black94 --force
