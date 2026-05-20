@@ -460,26 +460,6 @@ export default function ProfileScreen({ route, navigation }: any) {
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       });
-
-      // BUG FIX: Normalize post author info to match the current profile.
-      // Older posts embed the author name/username from post-creation time.
-      // When a user changes their name, those posts still show the old name.
-      // Override with fresh values from the user document for consistency.
-      if (u) {
-        const curName = u.displayName || '';
-        const curUsername = u.username || '';
-        const curImage = u.profileImage || null;
-        const curBadge = u.badge || '';
-        const curVerified = u.isVerified || false;
-        for (const post of ps) {
-          post.authorDisplayName = curName || post.authorDisplayName;
-          post.authorUsername = curUsername || post.authorUsername;
-          post.authorProfileImage = curImage || post.authorProfileImage;
-          post.authorBadge = curBadge || post.authorBadge;
-          post.authorIsVerified = curVerified || post.authorIsVerified;
-        }
-      }
-
       // Sort client-side by createdAt descending (avoids composite index requirement)
       ps.sort((a, b) => b.createdAt - a.createdAt);
       setPosts(ps);

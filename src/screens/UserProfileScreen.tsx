@@ -589,30 +589,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       });
-
-      // BUG FIX: Normalize post author info to match the current profile.
-      // When a user changes their display name or username, the user doc is
-      // updated but older posts still contain the OLD authorDisplayName /
-      // authorUsername that was embedded at post-creation time. This caused
-      // the profile card to show "das" while older posts showed "cornelius"
-      // for the same account. Now we override each post's embedded author
-      // fields with the fresh values from the user document so the entire
-      // profile page is consistent.
-      if (userData) {
-        const currentName = userData.displayName || '';
-        const currentUsername = userData.username || '';
-        const currentImage = userData.profileImage || null;
-        const currentBadge = userData.badge || '';
-        const currentVerified = userData.isVerified || false;
-        for (const post of userPosts) {
-          post.authorDisplayName = currentName || post.authorDisplayName;
-          post.authorUsername = currentUsername || post.authorUsername;
-          post.authorProfileImage = currentImage || post.authorProfileImage;
-          post.authorBadge = currentBadge || post.authorBadge;
-          post.authorIsVerified = currentVerified || post.authorIsVerified;
-        }
-      }
-
       // Sort client-side by createdAt descending
       userPosts.sort((a, b) => b.createdAt - a.createdAt);
       setPosts(userPosts);
