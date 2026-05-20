@@ -879,6 +879,27 @@ export async function fetchChatList(): Promise<Chat[]> {
 
     if (validDocs.length === 0) {
       if (__DEV__) console.log('[Chat] No valid chat documents found after filtering');
+
+      // CRITICAL DIAGNOSTIC: Query ALL chats without filter to check if docs exist.
+      // This tells us whether the issue is:
+      //   a) No documents at all (chats never created)
+      //   b) Documents exist but where-clause doesn't match (wrong field values)
+      //   c) All documents are corrupted (filtered out above)
+      try {
+        const allChatsNoFilter = await firestore().collection('chats').limit(20).get();
+        if (__DEV__) {
+          console.log(`[Chat] DIAGNOSTIC: Total docs in chats collection (no filter): ${allChatsNoFilter.docs.length}`);
+          allChatsNoFilter.docs.forEach((docSnap: any, i: number) => {
+            const d = docSnap.data();
+            console.log(`[Chat] DIAGNOSTIC[${i}] id=${docSnap.id} user1Id=${d.user1Id} user2Id=${d.user2Id} fields=${Object.keys(d).join(',')}`);
+          });
+        }
+        // Also log the current userId for comparison
+        console.log(`[Chat] DIAGNOSTIC: Current userId = ${userId}`);
+      } catch (diagErr: any) {
+        console.error('[Chat] DIAGNOSTIC FAILED (unfiltered query error):', diagErr?.message || diagErr);
+      }
+
       return [];
     }
 
@@ -1129,14 +1150,23 @@ export async function blockUser(targetUserId: string): Promise<boolean> {
     ]);
 
     // Delete all messages in chats between these two users
-    const chatSnapshots = await Promise.all([
-      firestore().collection('chats').where('user1Id', '==', userId).where('user2Id', '==', targetUserId).get(),
-      firestore().collection('chats').where('user1Id', '==', targetUserId).where('user2Id', '==', userId).get(),
+    // BUG FIX: Use single-where + client-side filter (no composite index needed)
+    const [chatSnap1, chatSnap2] = await Promise.all([
+      firestore().collection('chats').where('user1Id', '==', userId).get(),
+      firestore().collection('chats').where('user2Id', '==', userId).get(),
     ]);
 
     const chatIds = [
-      ...chatSnapshots[0].docs.map(d => d.id),
-      ...chatSnapshots[1].docs.map(d => d.id),
+      ...chatSnap1.docs.filter((d: any) => {
+        const data = d.data();
+        const otherId = data.user1Id === userId ? data.user2Id : data.user1Id;
+        return otherId === targetUserId;
+      }).map((d: any) => d.id),
+      ...chatSnap2.docs.filter((d: any) => {
+        const data = d.data();
+        const otherId = data.user1Id === userId ? data.user2Id : data.user1Id;
+        return otherId === targetUserId;
+      }).map((d: any) => d.id),
     ];
 
     // Delete all messages in each chat (batch loop to handle more than 500)

@@ -140,21 +140,23 @@ export default function ChatListScreen({ navigation }: any) {
     if (!myId) return;
 
     try {
-      // Check if a chat already exists between the two users
+      // BUG FIX: Use single-where queries + client-side filter instead of
+      // compound queries. Compound queries (where user1Id==x AND user2Id==y)
+      // require a composite Firestore index. Without the index, the query
+      // fails with FAILED_PRECONDITION and is silently caught, causing a
+      // NEW duplicate chat to be created EVERY TIME the user opens a chat.
+      // Single-where queries (where user1Id==x) do NOT need composite indexes.
       const [snap1, snap2] = await Promise.all([
-        firestore().collection('chats')
-          .where('user1Id', '==', myId)
-          .where('user2Id', '==', targetUser.id)
-          .limit(1)
-          .get(),
-        firestore().collection('chats')
-          .where('user1Id', '==', targetUser.id)
-          .where('user2Id', '==', myId)
-          .limit(1)
-          .get(),
+        firestore().collection('chats').where('user1Id', '==', myId).get(),
+        firestore().collection('chats').where('user2Id', '==', myId).get(),
       ]);
 
-      const existingChat = [...snap1.docs, ...snap2.docs][0];
+      // Client-side filter for the specific user pair
+      const existingChat = [...snap1.docs, ...snap2.docs].find((docSnap: any) => {
+        const d = docSnap.data();
+        const otherId = d.user1Id === myId ? d.user2Id : d.user1Id;
+        return otherId === targetUser.id;
+      });
 
       if (existingChat) {
         const chatData = existingChat.data();
