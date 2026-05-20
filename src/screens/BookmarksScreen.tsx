@@ -11,6 +11,7 @@ import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { Post } from '../lib/api';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import CommentSheet from '../components/CommentSheet';
+import FeedMedia from '../components/FeedMedia';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -142,7 +143,6 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   const [commentCount, setCommentCount] = useState(post.commentCount);
   const [repostCount, setRepostCount] = useState(post.repostCount);
   const [reposted, setReposted] = useState(post.reposted);
-  const [hasMediaError, setHasMediaError] = useState(false);
   const [refreshedUrls, setRefreshedUrls] = useState<Record<string, string>>({});
   const refreshAttemptedRef = React.useRef(false);
 
@@ -151,7 +151,6 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   React.useEffect(() => {
     const currentUrl = post.mediaUrls?.[0] || '';
     if (prevUrlRef.current !== currentUrl) {
-      setHasMediaError(false);
       setRefreshedUrls({});
       refreshAttemptedRef.current = false;
       prevUrlRef.current = currentUrl;
@@ -166,14 +165,12 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
         const newUrl = await refreshFirebaseUrl(originalUrl);
         if (newUrl && newUrl !== originalUrl) {
           setRefreshedUrls(prev => ({ ...prev, [originalUrl]: newUrl }));
-          setHasMediaError(false);
           return;
         }
       } catch (refreshErr: any) {
         console.warn('[Bookmarks] URL refresh failed:', refreshErr?.message);
       }
     }
-    setHasMediaError(true);
   }, []);
 
   const handleLike = async () => {
@@ -248,21 +245,10 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
           </View>
           {post.caption ? <Text style={styles.caption} numberOfLines={4}>{post.caption}</Text> : null}
           {post.mediaUrls?.length > 0 && (
-            <View style={styles.mediaContainer}>
-              <Image
-                source={{ uri: refreshedUrls[post.mediaUrls[0]] || post.mediaUrls[0] }}
-                style={styles.media}
-                resizeMode="cover"
-                onLoad={() => setHasMediaError(false)}
-                onError={() => handleMediaError(post.mediaUrls[0])}
-              />
-              {hasMediaError && (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center' }]}>
-                  <Ionicons name="image-outline" size={24} color="#71767b" />
-                  <Text style={{ color: '#71767b', fontSize: 12, marginTop: 4 }}>Image failed to load</Text>
-                </View>
-              )}
-            </View>
+            <FeedMedia
+              uri={refreshedUrls[post.mediaUrls[0]] || post.mediaUrls[0]}
+              onRefreshUrl={() => handleMediaError(post.mediaUrls[0])}
+            />
           )}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
@@ -313,8 +299,6 @@ const styles = StyleSheet.create({
   dot: { color: colors.textSecondary, fontSize: 15 },
   time: { color: colors.textSecondary, fontSize: 15 },
   caption: { color: colors.text, fontSize: 15, lineHeight: 20, marginTop: 2 },
-  mediaContainer: { marginTop: 12, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-  media: { width: '100%', height: Math.min(SCREEN_W * 0.85, 510), backgroundColor: '#000000' },
   actions: { flexDirection: 'row', alignItems: 'center', marginTop: 12, marginLeft: 0, maxWidth: 440, justifyContent: 'space-between' },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
