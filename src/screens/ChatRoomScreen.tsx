@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, Image, Linking } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { sendMessage, blockUser, Message, tsToMillis } from '../lib/api';
@@ -7,6 +7,11 @@ import { auth, firestore } from '../lib/firebase';
 import { initE2EE, isE2EEReady, decryptMessage } from '../lib/e2ee';
 import { Avatar } from '../components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
+import { uploadOptimizedImage, copyToSafeCache } from '../utils/imageUpload';
+import { optimizeImage } from '../utils/imageOptimizer';
+import * as ImagePicker from 'expo-image-picker';
+
+const QUICK_EMOJIS = ['😀','😂','😍','🥺','😎','🤔','👍','❤️','🔥','👏','🙌','💯','😢','😡','🤣','😊','🙏','✨','🎉','👋','🤝','💪','👀','🫡','🫶','🥰','😘','😏','🥳','💩'];
 
 function formatTime(timestamp?: number | string): string {
   if (!timestamp) return '';
@@ -27,6 +32,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [showNuclearConfirm, setShowNuclearConfirm] = useState(false);
   const [blocking, setBlocking] = useState(false);
   const [e2eeReady, setE2eeReady] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
 
@@ -63,6 +70,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                   profileImage: d.profileImage || null, coverImage: d.coverImage || null,
                   role: d.role || 'personal', badge: d.badge || '',
                   subscription: d.subscription || 'free', isVerified: d.isVerified || false,
+                  phone: d.phone || null,
                   createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
                 };
               }
@@ -117,23 +125,32 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               const data = docSnap.data();
               const rawContent = data.content || '';
               const senderId = data.senderId || '';
+              const msgType = data.messageType || 'text';
               let content: string;
-              try {
-                const decrypted = await decryptMessage(rawContent, senderId);
-                content = decrypted ?? '[Unable to decrypt this message]';
-              } catch {
-                content = rawContent.startsWith('E2EE:')
-                  ? '[Unable to decrypt this message]'
-                  : rawContent;
+
+              // Image messages are URLs — skip decryption
+              if (msgType === 'image') {
+                content = rawContent;
+              } else {
+                try {
+                  const decrypted = await decryptMessage(rawContent, senderId);
+                  content = decrypted ?? '[Unable to decrypt this message]';
+                } catch {
+                  content = rawContent.startsWith('E2EE:')
+                    ? '[Unable to decrypt this message]'
+                    : rawContent;
+                }
               }
+
               return {
                 id: docSnap.id,
                 chatId: chat.id,
                 senderId,
                 receiverId: data.receiverId || '',
                 content,
+                messageType: msgType,
                 createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-              };
+              } as Message & { messageType: string };
             }),
           );
           setMessages(msgs);
@@ -153,6 +170,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     if (!text.trim() || sending) return;
     const content = text.trim();
     setText('');
+    setShowEmoji(false);
     setSending(true);
     try {
       await sendMessage(chat.id, chat.otherUser?.id || '', content);
@@ -203,13 +221,110 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     }
   };
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  // ── Image Upload Handler ──
+  const handleImageSend = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Denied', 'Please allow access to your photo library to send images.');
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['Images'] as ImagePicker.MediaType[],
+        quality: 0.8,
+      });
+
+      if (pickerResult.canceled || !pickerResult.assets?.length) return;
+
+      const asset = pickerResult.assets[0];
+      if (!asset.uri) return;
+
+      setUploading(true);
+
+      // Copy to safe cache before OS cleans the temp file
+      const safeUri = await copyToSafeCache(asset.uri);
+
+      // Optimize the image for chat (smaller max size than posts)
+      const optimized = await optimizeImage(safeUri, {
+        maxWidth: 1024,
+        maxHeight: 1024,
+        jpegQuality: 0.8,
+        generateThumbnail: false,
+      });
+
+      // Determine file extension from MIME type
+      const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+      const storagePath = `chats/${chat.id}/${Date.now()}.${ext}`;
+
+      // Upload to Firebase Storage
+      const result = await uploadOptimizedImage(optimized.optimizedUri, storagePath);
+
+      // Write the image message directly to Firestore
+      // (skip E2EE for image URLs — access controlled by Storage rules)
+      await firestore().collection('chats').doc(chat.id).collection('messages').add({
+        senderId: currentUser?.uid,
+        receiverId: chat.otherUser?.id,
+        content: result.downloadUrl,
+        messageType: 'image',
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Update the chat's last message preview
+      try {
+        await firestore().collection('chats').doc(chat.id).update({
+          lastMessage: '📷 Photo',
+          lastMessageTime: firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (updateErr) {
+        console.warn('[ChatRoom] Failed to update lastMessage preview:', updateErr);
+      }
+
+      // onSnapshot will pick up the new message automatically
+    } catch (e: any) {
+      console.error('[ChatRoom] Image upload failed:', e);
+      Alert.alert('Upload Failed', e?.message || 'Failed to upload image. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ── Phone Call Handler ──
+  const handlePhoneCall = () => {
+    const phone = (chat.otherUser as any)?.phone;
+    if (phone) {
+      Linking.openURL(`tel:${phone}`).catch(() => {
+        Alert.alert('Call Failed', 'Unable to initiate the call.');
+      });
+    } else {
+      const email = chat.otherUser?.email;
+      if (email) {
+        Alert.alert('No Phone Number', `No phone number available for this user.\n\nEmail: ${email}`);
+      } else {
+        Alert.alert('No Phone Number', 'No phone number available for this user.');
+      }
+    }
+  };
+
+  const renderMessage = ({ item }: { item: any }) => {
     const isMine = item.senderId === currentUser?.uid;
+    const isImage = item.messageType === 'image';
+
     return (
       <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
         {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-          <Text style={[styles.bubbleText, isMine && { color: '#000000' }]}>{item.content}</Text>
+          {isImage ? (
+            <Image
+              source={{ uri: item.content }}
+              style={styles.imageMessage}
+              resizeMode="cover"
+              accessible
+              accessibilityLabel="Image message"
+            />
+          ) : (
+            <Text style={[styles.bubbleText, isMine && { color: '#000000' }]}>{item.content}</Text>
+          )}
           <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }]}>
             {formatTime(item.createdAt)}
           </Text>
@@ -257,6 +372,16 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         )}
 
         <View style={{ width: 36 }} />
+
+        {/* Phone call button */}
+        <TouchableOpacity
+          style={styles.headerActionBtn}
+          onPress={handlePhoneCall}
+          activeOpacity={0.7}
+          accessibilityLabel="Make phone call"
+        >
+          <Ionicons name="call" size={20} color="#e7e9ea" />
+        </TouchableOpacity>
 
         {/* More menu button */}
         <View style={{ position: 'relative' }}>
@@ -318,9 +443,42 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         />
       )}
 
+      {/* Emoji Picker Panel */}
+      {showEmoji && (
+        <View style={styles.emojiPanel}>
+          <View style={styles.emojiGrid}>
+            {QUICK_EMOJIS.map((emoji, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.emojiItem}
+                onPress={() => setText(prev => prev + emoji)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.emojiText}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
       {/* Input bar */}
         <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
           <View style={styles.inputPill}>
+            {/* Attachment button inside the pill */}
+            <TouchableOpacity
+              style={styles.inputActionBtn}
+              onPress={handleImageSend}
+              disabled={uploading}
+              activeOpacity={0.7}
+              accessibilityLabel="Attach image"
+            >
+              {uploading ? (
+                <ActivityIndicator color={colors.accent} size="small" />
+              ) : (
+                <Ionicons name="attach" size={20} color="#71767b" />
+              )}
+            </TouchableOpacity>
+
             <TextInput
               style={styles.pillInput}
               placeholder="Start a message"
@@ -330,6 +488,16 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               multiline
               maxLength={2000}
             />
+
+            {/* Emoji toggle button inside the pill */}
+            <TouchableOpacity
+              style={styles.inputActionBtn}
+              onPress={() => setShowEmoji(prev => !prev)}
+              activeOpacity={0.7}
+              accessibilityLabel="Toggle emoji picker"
+            >
+              <Text style={{ fontSize: 20 }}>{showEmoji ? '⌨️' : '😊'}</Text>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             style={[
@@ -468,6 +636,12 @@ const styles = StyleSheet.create({
   },
   bubbleText: { color: '#e7e9ea', fontSize: 14, lineHeight: 22 },
   bubbleTime: { fontSize: 11, marginTop: 4 },
+  imageMessage: {
+    width: 250,
+    maxWidth: '100%',
+    height: 250,
+    borderRadius: 12,
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -484,8 +658,8 @@ const styles = StyleSheet.create({
     gap: 0,
     backgroundColor: '#16181c',
     borderRadius: 22,
-    paddingLeft: 6,
-    paddingRight: 6,
+    paddingLeft: 4,
+    paddingRight: 4,
     paddingVertical: 4,
     maxHeight: 120,
   },
@@ -500,6 +674,13 @@ const styles = StyleSheet.create({
     maxHeight: 100,
     minHeight: 0,
   },
+  inputActionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sendBtn: {
     width: 36,
     height: 36,
@@ -508,6 +689,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnInactive: {},
+  // Emoji picker panel
+  emojiPanel: {
+    backgroundColor: '#16181c',
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  emojiItem: {
+    width: '16.66%',
+    padding: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiText: {
+    fontSize: 26,
+  },
   // Nuclear block modal
   nuclearOverlay: {
     flex: 1,
