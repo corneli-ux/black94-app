@@ -4,6 +4,104 @@
 
 ---
 
+## Session: 2026-05-20 (cont. 3) — Fix Chat List Empty: Compound Query + Missing Composite Index
+
+### `7d1f53f` — fix: chat list empty — remove compound queries needing missing composite index
+
+**Root Cause — Chat List Empty:**
+- `createOrOpenChat` in `ChatListScreen` used COMPOUND Firestore queries:
+  `where('user1Id', '==', myId).where('user2Id', '==', targetUser.id).limit(1)`
+- This requires a composite index (`user1Id ASC, user2Id ASC`) that was NEVER created
+- No `firestore.indexes.json` file existed in the project
+- The REST wrapper `_firestoreFetch` silently caught the `FAILED_PRECONDITION` error and returned `[]`
+- Result: A NEW duplicate chat document was created EVERY TIME the user opened/composed a chat
+- `fetchChatList` uses single-where queries (no composite index needed), so it SHOULD have found the docs
+- BUT corrupted docs from the old `update()` bug (missing `user1Id`/`user2Id`) were being filtered out
+
+**Changes:**
+1. `ChatListScreen.createOrOpenChat` — replaced compound query with single-where queries + client-side filter (matches UserProfileScreen pattern)
+2. `api.ts blockUser` — same fix for chat cleanup during nuclear block
+3. `firestore.indexes.json` — created with ALL required composite indexes:
+   - `chats`: user1Id+user2Id (both directions), user1Id+lastMessageTime, user2Id+lastMessageTime
+   - `calls`: callerId+status, receiverId+status
+4. `firebase.json` — added `indexes` reference to `firestore.indexes.json`
+5. `fetchChatList` — added critical diagnostic: when no valid docs found, queries ALL chats without filter to determine if docs exist, logs field names for comparison
+
+**IMPORTANT:** The composite indexes need to be deployed to Firebase:
+```bash
+firebase deploy --only firestore:indexes --project black94
+```
+Or create them manually in the Firebase Console.
+
+**Files changed**: `src/screens/ChatListScreen.tsx`, `src/lib/api.ts`, `firestore.indexes.json`, `firebase.json`
+
+---
+
+## Session: 2026-05-20 (cont. 2) — Deep Chat Investigation + Diagnostics + Rules Fix
+
+### `17028c0` — fix: chat diagnostics + corrupted doc handling + calls rules
+
+**Deep Investigation Findings:**
+- Read ALL chat-related code (firebase.ts, api.ts, ChatListScreen, ChatRoomScreen, AudioCallScreen, UserProfileScreen, ProfileScreen, OrderTrackingScreen)
+- Read ALL Firestore security rules (462 lines) — found MISSING `calls` collection rules
+- Verified query pipeline: `_toFsValue`, `_mapOp`, `_parseFields`, `CompatCollectionRef.get()`, `_firestoreFetch`
+- Checked composite index requirements — single-field `where` queries on chats don't need indexes
+- `firestore.indexes.json` DOES NOT EXIST — 31 compound queries across the app need indexes but were created manually
+- Firestore rules were missing `calls` collection — ALL call operations (create/read/update) were DENIED by default
+- `_missingIndex` flag is set but NEVER checked by callers — silently swallows errors
+- Error handling in `fetchChatList()` silently caught ALL errors and returned `[]`
+
+**Changes:**
+1. `fetchChatList()` — comprehensive diagnostic logging:
+   - Logs each chat doc's fields for corruption detection
+   - Catches query errors with full stack trace (was silent before)
+   - Filters out corrupted docs (missing user1Id/user2Id from old updateMask bug)
+   - Returns only valid documents
+
+2. `ChatListScreen load()` — logs token refresh failures instead of silently swallowing
+
+3. `firestore.rules` — added `calls` collection rules:
+   ```
+   match /calls/{callId} {
+     allow read: if isAuthenticated();
+     allow create: if isAuthenticated();
+     allow update: if isAuthenticated();
+     allow delete: if isAuthenticated();
+   }
+   ```
+
+**NOTE:** Existing chat documents that were corrupted by the old `update()` bug cannot be auto-recovered. They need manual cleanup in the Firebase Console (delete docs with only `unreadUser1` or `unreadUser2` fields, no `user1Id`/`user2Id`). New chats created after the `updateMask` fix will work correctly.
+
+**Files changed**: `src/lib/api.ts`, `src/screens/ChatListScreen.tsx`, `firestore.rules`
+
+---
+
+## Session: 2026-05-20 (cont.) — Chat List Fix + Call UI Redesign
+
+### `ca713fa` — fix: CRITICAL — chat list disappearing + call UI redesign
+
+**Root Cause — Chat List Disappearing:**
+- `CompatDocRef.update()` in `firebase.ts` had two code paths:
+  1. With transforms (increment/serverTimestamp) → used `_firestoreCommitUpdate` with `updateMask` ✅
+  2. WITHOUT transforms → used raw `_firestoreFetch` PATCH **without** `updateMask` ❌
+- When `ChatRoomScreen` opened, it called `resetUnread({ unreadUser1: 0 })` — no transforms
+- Raw PATCH without `updateMask` replaces the ENTIRE Firestore document
+- This wiped `user1Id`/`user2Id` from the chat doc → `fetchChatList()` queries (where user1Id/user2Id == userId) returned nothing
+- **Fix**: ALL `update()` calls now include `updateMask` in the PATCH URL, preserving unspecified fields
+- **Impact**: Every chat ever opened had its document silently destroyed. New chats created but then immediately wiped on first open.
+
+**Call UI Redesign:**
+- Replaced emoji icons (🔇/🎙️/🔊/🔈/📱) with proper `Ionicons` from `@expo/vector-icons`
+- Added `Avatar` component showing the other user's actual profile image (not just a letter initial)
+- Gold ring around avatar matching BLACK94 brand identity
+- End/decline call icons rotated 135deg (standard phone UX convention)
+- Proper safe area insets via `useSafeAreaInsets()`
+- Staggered ripple animation (3 rings with 800ms delay between each)
+- Added contextual top hint text ("BLACK94 Voice Call" / "Incoming Voice Call" etc.)
+- **Files changed**: `src/lib/firebase.ts`, `src/screens/AudioCallScreen.tsx`
+
+---
+
 ## Session: 2026-05-20 — Memory System Creation
 
 ### `04f320f` — fix: replace Blob-based upload with Uint8Array
