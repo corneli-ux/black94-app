@@ -508,6 +508,91 @@ export default function FeedScreen({ navigation }: any) {
 
   const PAGE_SIZE = 10;
 
+  const enrichAuthorProfiles = useCallback(async (postsToEnrich: Post[]) => {
+    const uniqueAuthorIds = [...new Set(postsToEnrich.map(p => p.authorId).filter(Boolean))];
+    const CHUNK_SIZE = 10;
+    const authorProfileMap: Record<string, any> = {};
+    for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
+      const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
+      try {
+        const userDocs = await Promise.all(
+          chunk.map(uid => firestore().collection('users').doc(uid).get().catch(() => null))
+        );
+        for (const docSnap of userDocs) {
+          if (docSnap && docSnap.exists) {
+            const d = docSnap.data()!;
+            authorProfileMap[docSnap.id] = {
+              profileImage: d.profileImage || null,
+              badge: d.badge || '',
+              isVerified: d.isVerified || false,
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('[Feed] Batch author profile fetch failed for chunk:', e);
+      }
+    }
+    for (const post of postsToEnrich) {
+      const fresh = authorProfileMap[post.authorId];
+      if (!fresh) continue;
+      if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
+      if (fresh.badge) post.authorBadge = fresh.badge;
+      post.authorIsVerified = fresh.isVerified;
+    }
+  }, []);
+
+  const enrichInteractions = useCallback(async (postsToEnrich: Post[], userId: string) => {
+    const postIds = postsToEnrich.map(p => p.repostOf || p.id);
+    const likedIds = new Set<string>();
+    const bookmarkedIds = new Set<string>();
+    const repostedIds = new Set<string>();
+    const CHUNK = 10;
+    for (let i = 0; i < postIds.length; i += CHUNK) {
+      const chunk = postIds.slice(i, i + CHUNK);
+      try {
+        await Promise.all(chunk.flatMap(postId => [
+          firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(s => { if (s.exists) likedIds.add(postId); }).catch(() => {}),
+          firestore().collection('post_bookmarks').doc(`${postId}_${userId}`).get().then(s => { if (s.exists) bookmarkedIds.add(postId); }).catch(() => {}),
+          firestore().collection('post_reposts').doc(`${postId}_${userId}`).get().then(s => { if (s.exists) repostedIds.add(postId); }).catch(() => {}),
+        ]));
+      } catch (e) { console.warn('[Feed] Interaction fetch failed:', e); }
+    }
+    for (const post of postsToEnrich) {
+      const iid = post.repostOf || post.id;
+      post.liked = likedIds.has(iid);
+      post.bookmarked = bookmarkedIds.has(iid);
+      post.reposted = repostedIds.has(iid);
+    }
+    const pollPostIds = postsToEnrich.filter(p => p.pollData).map(p => p.id);
+    if (pollPostIds.length > 0) {
+      const pollVotedIds = new Set<string>();
+      await Promise.all(pollPostIds.map(async (postId) => {
+        try {
+          const v = await firestore().collection('posts').doc(postId).collection('poll_votes').doc(userId).get();
+          if (v.exists) pollVotedIds.add(postId);
+        } catch {}
+      }));
+      for (const post of postsToEnrich) {
+        if (post.pollData) post.pollVoted = pollVotedIds.has(post.repostOf || post.id);
+      }
+    }
+  }, []);
+
+  const enrichPostsInBackground = useCallback(async (postsToEnrich: Post[], userId: string | undefined) => {
+    if (postsToEnrich.length === 0) return;
+    await Promise.all([
+      enrichAuthorProfiles(postsToEnrich),
+      userId ? enrichInteractions(postsToEnrich, userId) : Promise.resolve(),
+    ]);
+    setPosts(prev => {
+      const enrichedIds = new Set(postsToEnrich.map(p => p.id));
+      return prev.map(p => {
+        if (!enrichedIds.has(p.id)) return p;
+        return postsToEnrich.find(ep => ep.id === p.id) || p;
+      });
+    });
+  }, []);
+
   const loadFeed = useCallback(async (append = false) => {
     try {
       if (append && (loadingMore || allLoaded)) return;
@@ -545,7 +630,6 @@ export default function FeedScreen({ navigation }: any) {
           authorProfileImage: data.authorProfileImage || null,
           authorBadge: data.authorBadge || '',
           authorIsVerified: data.authorIsVerified || false,
-          // BUG FIX: Include factCheck fields in inline feed loader
           factCheckVerified: data.factCheckVerified || 0,
           factCheckDebunked: data.factCheckDebunked || 0,
           caption: data.caption || '',
@@ -558,8 +642,6 @@ export default function FeedScreen({ navigation }: any) {
           bookmarked: false,
           reposted: false,
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-          // Repost fields — if this post is a repost, point interactions
-          // to the original post and carry the "reposted by" metadata
           repostOf: data.repostOf || undefined,
           repostedByUid: data.repostedByUid || undefined,
           repostedByUsername: data.repostedByUsername || undefined,
@@ -572,8 +654,6 @@ export default function FeedScreen({ navigation }: any) {
         if (append) { setLoadingMore(false); return; }
       }
 
-      // DIAGNOSTIC: Log mediaUrls for posts with images — helps debug image loading failures.
-      // If images fail to load, check these URLs: they should be valid Firebase Storage URLs.
       if (__DEV__) {
         for (const p of newPosts) {
           if (p.mediaUrls.length > 0) {
@@ -582,205 +662,48 @@ export default function FeedScreen({ navigation }: any) {
         }
       }
 
-      // Batch fetch author profiles
-      const uniqueAuthorIds = [...new Set(newPosts.map(p => p.authorId).filter(Boolean))];
-      const authorProfileMap: Record<string, any> = {};
-      // BUG FIX: CHUNK_SIZE must be 10 — Firestore IN operator max is 10.
-      // The old value of 30 caused ALL batch interaction queries to fail
-      // (where postId IN [30 ids]), falling back to individual reads.
-      const CHUNK_SIZE = 10;
-
-      for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
-        const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
-        try {
-          const userDocs = await Promise.all(
-            chunk.map(uid => firestore().collection('users').doc(uid).get().catch(() => null))
-          );
-          for (const docSnap of userDocs) {
-            if (docSnap && docSnap.exists) {
-              const d = docSnap.data()!;
-              authorProfileMap[docSnap.id] = {
-                displayName: d.displayName || d.username || '',
-                username: d.username || '',
-                profileImage: d.profileImage || null,
-                badge: d.badge || '',
-                isVerified: d.isVerified || false,
-              };
-            }
-          }
-        } catch (e) {
-          console.warn('[Feed] Batch author profile fetch failed for chunk:', e);
-        }
-      }
-
-      // BUG FIX: Only enrich profile image and badge from user doc — do NOT
-      // overwrite authorDisplayName or authorUsername. Those are stamped at
-      // post-creation time and must be preserved to show the correct author
-      // identity per-post (the user may have changed their name/username later).
-      for (const post of newPosts) {
-        const fresh = authorProfileMap[post.authorId];
-        if (!fresh) continue;
-
-        // GUARD: Skip enrichment if profile looks corrupted (empty username + displayName).
-        const profileLooksCorrupted = !fresh.username && !fresh.displayName;
-        if (profileLooksCorrupted) continue;
-
-        // Only update visual properties that can safely change over time
-        if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
-        if (fresh.badge) post.authorBadge = fresh.badge;
-        // BUG FIX: Use fresh isVerified directly (boolean, not || fallback).
-        // Old code used `fresh.isVerified || post.authorIsVerified` which meant
-        // if user was UN-verified (false), the old stamped true value persisted.
-        post.authorIsVerified = fresh.isVerified;
-      }
-
-      // Batch fetch interactions (CHUNK_SIZE = 10 for Firestore IN limit)
-      if (userId) {
-        // For reposts, check interactions against the ORIGINAL post ID
-        const postIds = newPosts.map(p => p.repostOf || p.id);
-        const likedIds = new Set<string>();
-        const bookmarkedIds = new Set<string>();
-        const repostedIds = new Set<string>();
-
-        const INTERACTION_CHUNK = 10;
-        for (let i = 0; i < postIds.length; i += INTERACTION_CHUNK) {
-          const chunk = postIds.slice(i, i + INTERACTION_CHUNK);
-          try {
-            // Try batch query first (needs composite index). If it fails
-            // (e.g., missing index), fall back to individual doc reads.
-            let batchSucceeded = true;
-            try {
-              const [likesSnap, bookmarksSnap, repostsSnap] = await Promise.all([
-                firestore().collection('post_likes')
-                  .where('postId', 'in', chunk)
-                  .where('userId', '==', userId)
-                  .get(),
-                firestore().collection('post_bookmarks')
-                  .where('postId', 'in', chunk)
-                  .where('userId', '==', userId)
-                  .get(),
-                firestore().collection('post_reposts')
-                  .where('postId', 'in', chunk)
-                  .where('userId', '==', userId)
-                  .get(),
-              ]);
-
-              for (const doc of likesSnap.docs) {
-                const d = doc.data();
-                if (d.postId) likedIds.add(d.postId);
-              }
-              for (const doc of bookmarksSnap.docs) {
-                const d = doc.data();
-                if (d.postId) bookmarkedIds.add(d.postId);
-              }
-              for (const doc of repostsSnap.docs) {
-                const d = doc.data();
-                if (d.postId) repostedIds.add(d.postId);
-              }
-
-              // Check if any result has the _missingIndex flag
-              if ((likesSnap as any)._missingIndex || (bookmarksSnap as any)._missingIndex || (repostsSnap as any)._missingIndex) {
-                batchSucceeded = false;
-              }
-            } catch (batchErr) {
-              console.warn('[Feed] Batch interaction query failed, falling back to individual reads:', batchErr);
-              batchSucceeded = false;
-            }
-
-            // Fallback: individual reads using composite doc IDs
-            if (!batchSucceeded) {
-              if (__DEV__) console.log('[Feed] Using individual interaction reads fallback');
-              const individualPromises = chunk.flatMap(postId => [
-                firestore().collection('post_likes').doc(`${postId}_${userId}`).get().then(snap => {
-                  if (snap.exists) likedIds.add(postId);
-                }).catch(() => {}),
-                firestore().collection('post_bookmarks').doc(`${postId}_${userId}`).get().then(snap => {
-                  if (snap.exists) bookmarkedIds.add(postId);
-                }).catch(() => {}),
-                firestore().collection('post_reposts').doc(`${postId}_${userId}`).get().then(snap => {
-                  if (snap.exists) repostedIds.add(postId);
-                }).catch(() => {}),
-              ]);
-              await Promise.all(individualPromises);
-            }
-          } catch (e) {
-            console.warn('[Feed] Batch interaction fetch failed for chunk:', e);
-          }
-        }
-
-        for (const post of newPosts) {
-          // For reposts, check interactions against the ORIGINAL post so
-          // likes/bookmarks/reposts on the original are reflected here.
-          const interactionId = post.repostOf || post.id;
-          post.liked = likedIds.has(interactionId);
-          post.bookmarked = bookmarkedIds.has(interactionId);
-          post.reposted = repostedIds.has(interactionId);
-        }
-
-        // Batch check poll votes for posts that have polls
-        const pollPostIds = newPosts.filter(p => p.pollData).map(p => p.id);
-        if (pollPostIds.length > 0) {
-          const pollVotedIds = new Set<string>();
-          // poll_votes is a subcollection under each post doc
-          // Check each poll post individually (subcollection queries can't be batched across parents)
-          await Promise.all(
-            pollPostIds.map(async (postId) => {
-              try {
-                const voteDoc = await firestore()
-                  .collection('posts').doc(postId)
-                  .collection('poll_votes').doc(userId)
-                  .get();
-                if (voteDoc.exists) {
-                  pollVotedIds.add(postId);
-                }
-              } catch (e) {
-                console.warn(`[Feed] Failed to check poll vote for post ${postId}:`, e);
-              }
-            })
-          );
-          for (const post of newPosts) {
-            if (post.pollData) {
-              // For reposts, check if user voted on the ORIGINAL post's poll
-              const pollCheckId = post.repostOf || post.id;
-              post.pollVoted = pollVotedIds.has(pollCheckId);
-            }
-          }
-        }
-      }
-
+      // IMMEDIATELY show posts to the user — enrichment runs in background
       if (append) {
         setPosts(prev => [...prev, ...newPosts]);
       } else {
         setPosts(newPosts);
       }
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
+
+      // Fire-and-forget enrichment (author profiles + interactions + poll votes)
+      enrichPostsInBackground(newPosts, userId);
     } catch (e: any) {
       console.error('[FeedScreen] Feed load error:', e?.message);
       if (!append) {
         Alert.alert('Feed', 'Unable to load feed right now. Pull down to retry.');
       }
-    } finally {
       setLoading(false);
       setRefreshing(false);
       setLoadingMore(false);
     }
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, loadingMore, allLoaded]);
 
-  // Fetch active ad campaigns
+  // Fetch active ad campaigns (deferred 2s so feed loads first)
   useEffect(() => {
-    (async () => {
-      try {
-        const adSnap = await firestore()
-          .collection('adCampaigns')
-          .where('status', '==', 'active')
-          .limit(5)
-          .get();
-        const adList = adSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-        setAds(adList);
-        if (__DEV__) console.log(`[Ads] Loaded ${adList.length} active campaigns`);
-      } catch (e) {
-        console.warn('[Ads] Failed to fetch ad campaigns:', e);
-      }
-    })();
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          const adSnap = await firestore()
+            .collection('adCampaigns')
+            .where('status', '==', 'active')
+            .limit(5)
+            .get();
+          const adList = adSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+          setAds(adList);
+          if (__DEV__) console.log(`[Ads] Loaded ${adList.length} active campaigns`);
+        } catch (e) {
+          console.warn('[Ads] Failed to fetch ad campaigns:', e);
+        }
+      })();
+    }, 2000);
+    return () => clearTimeout(timer);
   }, []);
 
   // Load feed on mount

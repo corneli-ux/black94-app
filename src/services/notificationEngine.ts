@@ -16,6 +16,7 @@ import { firestore, auth } from '../lib/firebase';
 
 const POLL_INTERVAL = 15000; // 15 seconds
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let initialPollTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ── Polling ─────────────────────────────────────────────────────────────────
 
@@ -31,11 +32,14 @@ export function startNotificationPolling(
 
   let lastKnownCount = -1;
 
-  // Fire immediately on start (don't wait 15s for the first check)
-  pollUnread(userId).then((count) => {
-    lastKnownCount = count;
-    onNewNotification(count);
-  });
+  // Defer first poll by 5 seconds to avoid competing with feed load at startup
+  initialPollTimer = setTimeout(() => {
+    initialPollTimer = null;
+    pollUnread(userId).then((count) => {
+      lastKnownCount = count;
+      onNewNotification(count);
+    });
+  }, 5000);
 
   pollTimer = setInterval(async () => {
     try {
@@ -64,6 +68,10 @@ export function stopNotificationPolling(): void {
     clearInterval(pollTimer);
     pollTimer = null;
     console.log('[NotificationEngine] Polling stopped');
+  }
+  if (initialPollTimer) {
+    clearTimeout(initialPollTimer);
+    initialPollTimer = null;
   }
 }
 
