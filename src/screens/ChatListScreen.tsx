@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,23 +38,31 @@ export default function ChatListScreen({ navigation }: any) {
       setFiltered(data);
     } catch (e: any) {
       console.error('[ChatListScreen] Chat load error:', e?.message);
-      Alert.alert('Chats', 'Unable to load conversations. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  // Reload chat list every time the screen comes into focus (e.g., returning from ChatRoom).
-  // Without this, chats created during the session never appear in the list.
+  // Reload chat list every time the screen comes into focus
+  const hasMountedRef = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      if (!loading) load();
-    }, [load, loading]),
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true;
+        return;
+      }
+      load();
+    }, [load]),
   );
 
-  // Initial load on mount
-  useEffect(() => { load(); }, []);
+  // Initial load on mount + polling every 10 seconds
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    load();
+    pollRef.current = setInterval(load, 10000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [load]);
 
   const handleCompose = useCallback(() => {
     setComposeModalVisible(true);

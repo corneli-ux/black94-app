@@ -1102,7 +1102,7 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
                   <TouchableOpacity style={styles.reactionBtn} onPress={() => {
                     try {
                       const { Share } = require('react-native');
-                      Share.share({ message: viewingStory.content || viewingStory.mediaUrl || '' });
+                      Share.share({ message: viewingStory.content || `Check out this story on Black94!\nhttps://black94.app/s/${viewingStory.id}` || '' });
                     } catch {}
                   }}>
                     <Ionicons name="send-outline" size={24} color="#fff" />

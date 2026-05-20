@@ -66,12 +66,11 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               if (otherSnap.exists) {
                 const d = otherSnap.data();
                 otherUser = {
-                  id: otherId, email: d.email || '', username: d.username || '',
+                  id: otherId, username: d.username || '',
                   displayName: d.displayName || '', bio: d.bio || '',
                   profileImage: d.profileImage || null, coverImage: d.coverImage || null,
                   role: d.role || 'personal', badge: d.badge || '',
                   subscription: d.subscription || 'free', isVerified: d.isVerified || false,
-                  phone: d.phone || null,
                   createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
                 };
               }
@@ -297,21 +296,12 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     }
   };
 
-  // ── Phone Call Handler ──
+  // ── Phone Call Handler — Navigate to in-app AudioCall screen ──
   const handlePhoneCall = () => {
-    const phone = (chat.otherUser as any)?.phone;
-    if (phone) {
-      Linking.openURL(`tel:${phone}`).catch(() => {
-        Alert.alert('Call Failed', 'Unable to initiate the call.');
-      });
-    } else {
-      const email = chat.otherUser?.email;
-      if (email) {
-        Alert.alert('No Phone Number', `No phone number available for this user.\n\nEmail: ${email}`);
-      } else {
-        Alert.alert('No Phone Number', 'No phone number available for this user.');
-      }
-    }
+    navigation.navigate('AudioCall', {
+      userId: chat.otherUser?.id,
+      userName: chat.otherUser?.displayName || chat.otherUser?.username || 'User',
+    });
   };
 
   const renderMessage = ({ item }: { item: any }) => {

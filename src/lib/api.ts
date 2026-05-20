@@ -889,7 +889,6 @@ export async function fetchChatList(): Promise<Chat[]> {
         unreadCount,
         otherUser: otherData ? {
           id: otherId,
-          email: otherData.email || '',
           username: otherData.username || '',
           displayName: otherData.displayName || '',
           bio: otherData.bio || '',
