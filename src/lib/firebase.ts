@@ -796,11 +796,19 @@ class CompatCollectionRef {
       { structuredQuery },
     );
 
-    // runQuery returns array of { document: ... } or { done: true }
+    // runQuery returns array of { document: ... }, { done: true }, or { error: ... }.
+    // CRITICAL BUG FIX: The old code only filtered for r.document, silently discarding
+    // error entries. When Firestore rules deny a query, runQuery returns HTTP 200 with
+    // { error: { code: 403, message: "..." } } in the body — NOT HTTP 403. This caused
+    // fetchChatList() to silently return 0 results instead of surfacing the real error.
+    // Now we detect error-only responses and throw so callers can log/diagnose properly.
+    const allResults = results || [];
+    const errorResults = allResults.filter((r: any) => r.error);
+
     // Deduplicate by document name to handle edge cases where startAt
     // (inclusive cursor) returns the same doc as the previous page.
     const seen = new Set<string>();
-    const docs = (results || [])
+    const docs = allResults
       .filter((r: any) => r.document)
       .filter((r: any) => {
         const name = r.document.name;
@@ -817,6 +825,28 @@ class CompatCollectionRef {
           exists: true,
         };
       });
+
+    // If NO documents were returned but there ARE errors, the query likely failed
+    // due to permissions or a server-side issue. Surface the error instead of
+    // silently returning empty results.
+    if (docs.length === 0 && errorResults.length > 0) {
+      const firstErr = errorResults[0].error;
+      const errMsg = firstErr?.message || JSON.stringify(firstErr);
+      const errCode = firstErr?.code || firstErr?.status || 'UNKNOWN';
+      if (__DEV__) {
+        console.error(`[Firestore] runQuery on ${this._path} returned ${errorResults.length} error(s), 0 docs:`);
+        errorResults.forEach((e: any, i: number) => {
+          console.error(`[Firestore]   error[${i}]: code=${e.error?.code || '?'} status=${e.error?.status || '?'} msg=${e.error?.message || '?'}`);
+        });
+      }
+      // Re-throw as a proper Error so callers (fetchChatList, etc.) can catch
+      // and log it instead of silently showing an empty list
+      const err: any = new Error(`Firestore query failed (${errCode}): ${errMsg}`);
+      err.status = parseInt(errCode, 10) || 403;
+      err.code = errCode;
+      err._runQueryErrors = errorResults.map((e: any) => e.error);
+      throw err;
+    }
 
     if (__DEV__) console.log(`[Firestore] Collection get: ${this._path} returned ${docs.length} docs`);
     return { docs, empty: docs.length === 0, size: docs.length };
