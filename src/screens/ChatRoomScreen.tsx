@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchMessages, sendMessage, blockUser, Message } from '../lib/api';
+import { fetchMessages, sendMessage, blockUser, Message, tsToMillis } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { initE2EE, isE2EEReady } from '../lib/e2ee';
 import { Avatar } from '../components/Avatar';
@@ -63,7 +63,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                   profileImage: d.profileImage || null, coverImage: d.coverImage || null,
                   role: d.role || 'personal', badge: d.badge || '',
                   subscription: d.subscription || 'free', isVerified: d.isVerified || false,
-                  createdAt: d.createdAt?.seconds ? d.createdAt.seconds * 1000 : Date.now(),
+                  createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
                 };
               }
             } catch {}

@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchChatList, Chat, fetchUserPrivacySettings, checkFollowing, searchUsers, User } from '../lib/api';
+import { fetchChatList, Chat, fetchUserPrivacySettings, checkFollowing, searchUsers, User, tsToMillis } from '../lib/api';
 import { auth, firestore, getValidToken } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -44,6 +45,15 @@ export default function ChatListScreen({ navigation }: any) {
     }
   }, []);
 
+  // Reload chat list every time the screen comes into focus (e.g., returning from ChatRoom).
+  // Without this, chats created during the session never appear in the list.
+  useFocusEffect(
+    useCallback(() => {
+      if (!loading) load();
+    }, [load, loading]),
+  );
+
+  // Initial load on mount
   useEffect(() => { load(); }, []);
 
   const handleCompose = useCallback(() => {
@@ -144,9 +154,7 @@ export default function ChatListScreen({ navigation }: any) {
           lastMessage: typeof chatData.lastMessage === 'string'
             ? chatData.lastMessage
             : (chatData.lastMessage?.content || chatData.lastMessage?.text || ''),
-          lastMessageTime: chatData.lastMessageTime?.seconds
-            ? chatData.lastMessageTime.seconds * 1000
-            : Date.now(),
+          lastMessageTime: (() => { try { return tsToMillis(chatData.lastMessageTime); } catch { return Date.now(); } })(),
           unreadCount: 0,
           otherUser: targetUser,
         };

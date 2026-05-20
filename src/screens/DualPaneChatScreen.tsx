@@ -290,7 +290,11 @@ export default function DualPaneChatScreen({ navigation }: any) {
       // BUG FIX: Use sendMessage from api.ts instead of inline Firestore writes.
       // The inline code bypassed block checks and DM notifications, and
       // didn't increment unread counts for the receiver.
-      await sendMessage(selectedChat.id, messageText.trim(), otherId);
+      // CRITICAL: sendMessage(chatId, receiverId, content) — receiverId and content
+      // were previously swapped, sending the message text as the receiver ID and
+      // the user ID as the message content. This caused E2EE to encrypt for a
+      // non-existent user, block checks to fail, and messages to be garbage.
+      await sendMessage(selectedChat.id, otherId, messageText.trim());
       setMessageText('');
       // Reload messages after send to show the new message
       if (messagesEndRef.current) {
