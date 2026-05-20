@@ -212,10 +212,16 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     // Create or update user doc in Firestore
     const userDocRef = firestore().collection('users').doc(fbUser.uid);
     let userDocSnap;
+    let fetchFailed = false;
     try {
       userDocSnap = await userDocRef.get();
     } catch (e) {
-      console.warn('[Auth] Firestore user doc fetch failed, creating new:', e);
+      console.warn('[Auth] Firestore user doc fetch failed:', e);
+      // BUG FIX: Do NOT treat fetch failure as "new user". The old code set
+      // exists: false, which caused set(merge) to overwrite the user's custom
+      // username/displayName with Google-derived defaults. This is how a user
+      // registered as @cornelius had their profile changed to @das.
+      fetchFailed = true;
       userDocSnap = { exists: false, data: () => null };
     }
     const username = fbUser.displayName?.replace(/\s/g, '').toLowerCase() || fbUser.uid;
@@ -248,20 +254,28 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     let existingData = userDocSnap.exists ? userDocSnap.data() : null;
 
     if (!userDocSnap.exists) {
-      userData.createdAt = firestore.FieldValue.serverTimestamp();
-      try {
-        // Use merge: true so if the doc was created by another client between
-        // the get() and set() (race condition), we don't overwrite existing fields.
-        await userDocRef.set(userData, { merge: true });
-        // USERNAME FIX: Check if the username is already taken before claiming it.
-        // Without this check, two users with the same displayName could overwrite
-        // each other's username mapping, causing username hijacking.
-        const usernameDoc = await firestore().collection('usernames').doc(username.toLowerCase()).get();
-        if (!usernameDoc.exists) {
-          await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: fbUser.uid });
+      // BUG FIX: If the Firestore fetch FAILED, don't create/overwrite the user doc.
+      // The doc likely exists — we just couldn't reach Firestore. Creating it now
+      // would overwrite the user's custom username/displayName with Google defaults.
+      // Fall through to return cached data from AsyncStorage instead.
+      if (fetchFailed) {
+        console.warn('[Auth] Skipping user doc creation — fetch failed, doc likely exists');
+      } else {
+        userData.createdAt = firestore.FieldValue.serverTimestamp();
+        try {
+          // Use merge: true so if the doc was created by another client between
+          // the get() and set() (race condition), we don't overwrite existing fields.
+          await userDocRef.set(userData, { merge: true });
+          // USERNAME FIX: Check if the username is already taken before claiming it.
+          // Without this check, two users with the same displayName could overwrite
+          // each other's username mapping, causing username hijacking.
+          const usernameDoc = await firestore().collection('usernames').doc(username.toLowerCase()).get();
+          if (!usernameDoc.exists) {
+            await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: fbUser.uid });
+          }
+        } catch (e) {
+          console.warn('[Auth] Failed to create user doc:', e);
         }
-      } catch (e) {
-        console.warn('[Auth] Failed to create user doc:', e);
       }
     } else {
       // Returning user — self-heal corrupted documents + photo recovery.
