@@ -151,6 +151,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ── Voice Call Signaling ──────────────────────────────────────────
+    match /calls/{callId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
     // ── Notifications ───────────────────────────────────────────────────
     match /notifications/{notifId} {
       allow read: if isAuthenticated();

@@ -31,13 +31,16 @@ export default function ChatListScreen({ navigation }: any) {
   const load = useCallback(async () => {
     try {
       // Ensure auth token is fresh before querying Firestore
-      try { await getValidToken(); } catch {}
+      try { await getValidToken(); } catch (e: any) {
+        console.error('[ChatListScreen] Token refresh FAILED:', e?.message);
+      }
       const data = await fetchChatList();
       if (__DEV__) console.log('[ChatListScreen] Loaded', data.length, 'chats');
       setChats(data);
       setFiltered(data);
     } catch (e: any) {
       console.error('[ChatListScreen] Chat load error:', e?.message);
+      console.error('[ChatListScreen] Error stack:', e?.stack);
     } finally {
       setLoading(false);
       setRefreshing(false);

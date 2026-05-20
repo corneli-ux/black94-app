@@ -828,27 +828,68 @@ export async function votePostPoll(
 
 export async function fetchChatList(): Promise<Chat[]> {
   const userId = currentUser()?.uid;
-  if (!userId) return [];
+  if (!userId) {
+    if (__DEV__) console.warn('[Chat] fetchChatList: no userId, skipping');
+    return [];
+  }
 
   try {
     if (__DEV__) console.log('[Chat] Fetching chat list for user:', userId);
-    const [snap1, snap2] = await Promise.all([
-      firestore().collection('chats').where('user1Id', '==', userId).get(),
-      firestore().collection('chats').where('user2Id', '==', userId).get(),
-    ]);
-    if (__DEV__) console.log(`[Chat] Got ${snap1.docs.length} + ${snap2.docs.length} chats`);
+
+    // Run two parallel queries — one for each side of the user pair
+    let snap1: any, snap2: any;
+    try {
+      [snap1, snap2] = await Promise.all([
+        firestore().collection('chats').where('user1Id', '==', userId).get(),
+        firestore().collection('chats').where('user2Id', '==', userId).get(),
+      ]);
+    } catch (queryErr: any) {
+      // Log the full error — don't silently swallow
+      console.error('[Chat] Firestore query FAILED:', queryErr?.message || queryErr);
+      console.error('[Chat] Query error stack:', queryErr?.stack);
+      // Check if it's the _missingIndex silent error
+      if (snap1?._missingIndex || snap2?._missingIndex) {
+        console.error('[Chat] COMPOSITE INDEX MISSING for chats collection!');
+      }
+      return [];
+    }
+
+    if (__DEV__) console.log(`[Chat] Got ${snap1.docs.length} + ${snap2.docs.length} raw docs`);
 
     const allDocs = [...snap1.docs, ...snap2.docs];
-    if (allDocs.length === 0) return [];
+
+    // Debug: log each chat doc's fields to diagnose corruption
+    if (__DEV__ && allDocs.length > 0) {
+      allDocs.forEach((docSnap: any, i: number) => {
+        const d = docSnap.data();
+        console.log(`[Chat] Doc[${i}] id=${docSnap.id} user1Id=${d.user1Id} user2Id=${d.user2Id} lastMessage=${typeof d.lastMessage} ts=${d.lastMessageTime}`);
+      });
+    }
+
+    // Filter out corrupted docs — if user1Id or user2Id is missing,
+    // the doc was destroyed by the old update() bug (no updateMask).
+    const validDocs = allDocs.filter((docSnap: any) => {
+      const d = docSnap.data();
+      if (!d.user1Id || !d.user2Id) {
+        console.warn(`[Chat] CORRUPTED chat doc ${docSnap.id}: missing user1Id/user2Id — skipping. Fields: ${Object.keys(d).join(', ')}`);
+        return false;
+      }
+      return true;
+    });
+
+    if (validDocs.length === 0) {
+      if (__DEV__) console.log('[Chat] No valid chat documents found after filtering');
+      return [];
+    }
 
     // Collect unique other user IDs
-    const otherUserIds = [...new Set(allDocs.map(docSnap => {
+    const otherUserIds = [...new Set(validDocs.map(docSnap => {
       const data = docSnap.data();
       return data.user1Id === userId ? data.user2Id : data.user1Id;
     }))];
 
-    // Batch fetch all user profiles in parallel (chunks of 30)
-    const CHUNK_SIZE = 10; // Firestore IN operator max is 10
+    // Batch fetch all user profiles in parallel (chunks of 10)
+    const CHUNK_SIZE = 10;
     const userMap: Record<string, any> = {};
 
     for (let i = 0; i < otherUserIds.length; i += CHUNK_SIZE) {
@@ -871,7 +912,7 @@ export async function fetchChatList(): Promise<Chat[]> {
     }
 
     // Build chat objects using batched userMap
-    const chats: Chat[] = allDocs.map(docSnap => {
+    const chats: Chat[] = validDocs.map(docSnap => {
       const data = docSnap.data();
       const otherId = data.user1Id === userId ? data.user2Id : data.user1Id;
       const isUser1 = data.user1Id === userId;
@@ -903,9 +944,11 @@ export async function fetchChatList(): Promise<Chat[]> {
       };
     });
 
+    if (__DEV__) console.log(`[Chat] Returning ${chats.length} valid chats`);
     return chats.sort((a, b) => b.lastMessageTime - a.lastMessageTime);
   } catch (e: any) {
     console.error('[Chat] Processing error:', e?.message);
+    console.error('[Chat] Processing error stack:', e?.stack);
   }
   return [];
 }
