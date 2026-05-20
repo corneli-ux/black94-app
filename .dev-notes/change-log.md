@@ -6,6 +6,19 @@
 
 ## Session: 2026-05-20 — Memory System Creation
 
+### `04f320f` — fix: replace Blob-based upload with Uint8Array
+- **Root Cause**: React Native's `Blob` constructor does NOT support `ArrayBuffer`/`ArrayBufferView` on many Android versions
+- Error: "Creating blobs from 'ArrayBuffer' and 'ArrayBufferView' are not supported"
+- **Fix**: Renamed `readFileAsBlob()` → `readFileAsBinary()` returning `Uint8Array`
+- Upload pipeline: `base64 → Uint8Array → XHR.send(Uint8Array)` (works on ALL RN platforms)
+- `fetch()` with Blob kept as fast-path on iOS where it works
+- Also fixes slow uploads caused by double conversion (`Blob → arrayBuffer → XHR`)
+- **Files changed**: `src/utils/imageUpload.ts`
+
+### `d016ca4` — docs: complete project memory system
+- Updated `.dev-notes/` with complete infrastructure documentation
+- Files: `project-infra.md`, `change-log.md`, `known-bugs.md`, `rules.md`, `do-not-touch.md`
+
 ### `c899649` — docs: add persistent project memory
 - Created `.dev-notes/` directory with full project infrastructure documentation
 - Files: `project-infra.md`, `change-log.md`, `known-bugs.md`, `rules.md`, `do-not-touch.md`
