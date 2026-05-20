@@ -7,7 +7,7 @@ import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis, parseMediaUrls } from '../lib/api';
+import { tsToMillis, parseMediaUrls, toggleRepost } from '../lib/api';
 import { Post } from '../lib/api';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import CommentSheet from '../components/CommentSheet';
@@ -70,8 +70,7 @@ export default function BookmarksScreen() {
       for (const post of posts) {
         const fresh = authorMap[post.authorId];
         if (fresh) {
-          post.authorDisplayName = fresh.displayName || post.authorDisplayName;
-          post.authorUsername = fresh.username || post.authorUsername;
+          // Only enrich visual properties — preserve stamped authorDisplayName/authorUsername
           post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
           post.authorBadge = fresh.badge || post.authorBadge;
           post.authorIsVerified = fresh.isVerified || post.authorIsVerified;
@@ -211,15 +210,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   const handleRepost = async () => {
     const next = !reposted; setReposted(next); setRepostCount(c => c + (next ? 1 : -1));
     try {
-      const uid = auth()?.currentUser?.uid; if (!uid) return;
-      if (next) {
-        await firestore().collection('post_reposts').add({ postId: post.id, userId: uid, createdAt: firestore.FieldValue.serverTimestamp() });
-        await firestore().collection('posts').doc(post.id).update({ repostCount: firestore.FieldValue.increment(1) });
-      } else {
-        const snap = await firestore().collection('post_reposts').where('postId', '==', post.id).where('userId', '==', uid).get();
-        for (const d of snap.docs) await d.ref.delete();
-        await firestore().collection('posts').doc(post.id).update({ repostCount: firestore.FieldValue.increment(-1) });
-      }
+      await toggleRepost(post.id, reposted);
     } catch (e) {
       // Revert optimistic state on failure
       setReposted(!next);

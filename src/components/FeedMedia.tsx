@@ -16,10 +16,10 @@ interface FeedMediaProps {
  * 1. Uses Image.getSize() to fetch actual image dimensions.
  * 2. Calculates display height so the image fits naturally within the
  *    content column width (SCREEN_W - 32px padding).
- * 3. Caps the height at 1× screen width for very tall vertical images,
- *    and sets a minimum of 200px for very wide images.
- * 4. Uses resizeMode="cover" so the image fills the container cleanly
- *    without black bars (minimal cropping for extreme aspect ratios).
+ * 3. Caps the height at 1.35× screen width for very tall vertical images,
+ *    and sets a minimum of 180px for very wide images.
+ * 4. Uses resizeMode="contain" so the full image is always visible
+ *    without any cropping (dark background fills remaining space).
  * 5. Shows a dark placeholder while dimensions are loading.
  * 6. On load error, calls onRefreshUrl (for Firebase token refresh) then
  *    shows the error fallback. If the parent updates the uri prop, the
@@ -55,8 +55,8 @@ export default function FeedMedia({ uri, onRefreshUrl }: FeedMediaProps) {
     const aspect = dimensions.width / dimensions.height;
     const fullWidth = SCREEN_W - 32; // 16px horizontal padding on each side
     const naturalHeight = fullWidth / aspect;
-    // Clamp: min 200px, max 1× screen width (for very tall vertical images)
-    displayHeight = Math.min(Math.max(naturalHeight, 200), SCREEN_W);
+    // Clamp: min 180px, max 1.35× screen width (for very tall vertical images)
+    displayHeight = Math.min(Math.max(naturalHeight, 180), SCREEN_W * 1.35);
   }
 
   return (
@@ -70,7 +70,7 @@ export default function FeedMedia({ uri, onRefreshUrl }: FeedMediaProps) {
       <Image
         source={{ uri }}
         style={[styles.image, { width: '100%', height: displayHeight }]}
-        resizeMode="cover"
+        resizeMode="contain"
         onError={() => {
           // Mark as failed immediately; parent can reset by updating uri prop
           setFailed(true);

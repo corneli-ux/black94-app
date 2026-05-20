@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Alert, Share, Image,
@@ -14,6 +13,7 @@ import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import FeedMedia from '../components/FeedMedia';
+import { useAppStore } from '../stores/app';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
 const SCREEN_W = scale(390);
@@ -613,7 +613,10 @@ export default function FeedScreen({ navigation }: any) {
         }
       }
 
-      // BUG FIX: Enrich with silent corruption check (matches api.ts fetchFeed logic)
+      // BUG FIX: Only enrich profile image and badge from user doc — do NOT
+      // overwrite authorDisplayName or authorUsername. Those are stamped at
+      // post-creation time and must be preserved to show the correct author
+      // identity per-post (the user may have changed their name/username later).
       for (const post of newPosts) {
         const fresh = authorProfileMap[post.authorId];
         if (!fresh) continue;
@@ -622,17 +625,7 @@ export default function FeedScreen({ navigation }: any) {
         const profileLooksCorrupted = !fresh.username && !fresh.displayName;
         if (profileLooksCorrupted) continue;
 
-        // BUG FIX: Detect silent username corruption — if the fetched username
-        // looks like a Google auto-generated one AND differs from stamped data,
-        // the user doc is likely corrupted. Keep the stamped data.
-        const googleAutoName = fresh.displayName?.replace(/\s/g, '').toLowerCase() || '';
-        const isUsernameCorrupted = !!googleAutoName
-          && fresh.username === googleAutoName
-          && post.authorUsername
-          && post.authorUsername !== googleAutoName;
-
-        if (fresh.displayName) post.authorDisplayName = fresh.displayName;
-        if (fresh.username && !isUsernameCorrupted) post.authorUsername = fresh.username;
+        // Only update visual properties that can safely change over time
         if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
         if (fresh.badge) post.authorBadge = fresh.badge;
         // BUG FIX: Use fresh isVerified directly (boolean, not || fallback).
@@ -790,7 +783,7 @@ export default function FeedScreen({ navigation }: any) {
     })();
   }, []);
 
-  // Load feed on mount — use a ref to prevent useFocusEffect from double-loading
+  // Load feed on mount
   const hasMountedRef = useRef(false);
   useEffect(() => {
     if (!hasMountedRef.current) {
@@ -799,17 +792,16 @@ export default function FeedScreen({ navigation }: any) {
     }
   }, [loadFeed]);
 
-  // Reload feed when screen regains focus (e.g. returning from CreatePost)
-  // Skip the first focus event since useEffect already loaded above.
-  useFocusEffect(
-    useCallback(() => {
-      if (hasMountedRef.current && !loading) {
-        lastDocRef.current = null;
-        setAllLoaded(false);
-        loadFeed(false);
-      }
-    }, [loadFeed, loading]),
-  );
+  // Reload feed when screen regains focus ONLY if explicitly requested
+  // (e.g. after creating a post). Avoids unnecessary full re-fetch on every tab switch.
+  const feedRefreshKey = useAppStore(s => s.feedRefreshKey);
+  useEffect(() => {
+    if (hasMountedRef.current && feedRefreshKey > 0 && !loading) {
+      lastDocRef.current = null;
+      setAllLoaded(false);
+      loadFeed(false);
+    }
+  }, [feedRefreshKey]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

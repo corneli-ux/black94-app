@@ -35,6 +35,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [showEmoji, setShowEmoji] = useState(false);
   const [uploading, setUploading] = useState(false);
   const flatRef = useRef<FlatList>(null);
+  const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentUser = auth()?.currentUser;
 
   const insets = useSafeAreaInsets();
@@ -111,59 +112,66 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
     setLoading(true);
 
-    const unsubscribe = firestore()
-      .collection('chats')
-      .doc(chat.id)
-      .collection('messages')
-      .orderBy('createdAt', 'asc')
-      .limit(50)
-      .onSnapshot(
-        async (snapshot) => {
-          // Process messages with E2E decryption (same logic as fetchMessages)
-          const msgs = await Promise.all(
-            snapshot.docs.map(async (docSnap) => {
-              const data = docSnap.data();
-              const rawContent = data.content || '';
-              const senderId = data.senderId || '';
-              const msgType = data.messageType || 'text';
-              let content: string;
+    const loadMessages = async () => {
+      try {
+        const snap = await firestore()
+          .collection('chats')
+          .doc(chat.id)
+          .collection('messages')
+          .orderBy('createdAt', 'asc')
+          .limit(50)
+          .get();
 
-              // Image messages are URLs — skip decryption
-              if (msgType === 'image') {
-                content = rawContent;
-              } else {
-                try {
-                  const decrypted = await decryptMessage(rawContent, senderId);
-                  content = decrypted ?? '[Unable to decrypt this message]';
-                } catch {
-                  content = rawContent.startsWith('E2EE:')
-                    ? '[Unable to decrypt this message]'
-                    : rawContent;
-                }
+        const msgs = await Promise.all(
+          snap.docs.map(async (docSnap) => {
+            const data = docSnap.data();
+            const rawContent = data.content || '';
+            const senderId = data.senderId || '';
+            const msgType = data.messageType || 'text';
+            let content: string;
+
+            if (msgType === 'image') {
+              content = rawContent;
+            } else {
+              try {
+                const decrypted = await decryptMessage(rawContent, senderId);
+                content = decrypted ?? '[Unable to decrypt this message]';
+              } catch {
+                content = rawContent.startsWith('E2EE:')
+                  ? '[Unable to decrypt this message]'
+                  : rawContent;
               }
+            }
 
-              return {
-                id: docSnap.id,
-                chatId: chat.id,
-                senderId,
-                receiverId: data.receiverId || '',
-                content,
-                messageType: msgType,
-                createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-              } as Message & { messageType: string };
-            }),
-          );
-          setMessages(msgs);
-          setLoading(false);
-          setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
-        },
-        (error) => {
-          console.error('[ChatRoom] onSnapshot error:', error);
-          setLoading(false);
-        },
-      );
+            return {
+              id: docSnap.id,
+              chatId: chat.id,
+              senderId,
+              receiverId: data.receiverId || '',
+              content,
+              messageType: msgType,
+              createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+            } as Message & { messageType: string };
+          }),
+        );
+        setMessages(msgs);
+        setLoading(false);
+        setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
+      } catch (err) {
+        console.warn('[ChatRoom] message poll error:', err);
+        setLoading(false);
+      }
+    };
 
-    return () => unsubscribe();
+    loadMessages();
+    msgPollRef.current = setInterval(loadMessages, 3000);
+
+    return () => {
+      if (msgPollRef.current) {
+        clearInterval(msgPollRef.current);
+        msgPollRef.current = null;
+      }
+    };
   }, [chat?.id]);
 
   const handleSend = async () => {

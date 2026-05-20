@@ -1014,6 +1014,7 @@ export {
 };
 
 export { _getValidToken as getValidToken };
+export { _restoreAuth as restoreAuth };
 
 /** Update the in-memory auth user profile (e.g., after profile edit, username change). */
 export async function updateAuthUser(updates: Partial<AuthUser>): Promise<void> {

@@ -173,12 +173,13 @@ function TabBarBadge({ count }: { count: number }) {
 }
 
 function MainTabs() {
-  const { unreadNotificationCount, user } = useAppStore();
+  const unreadNotificationCount = useAppStore(s => s.unreadNotificationCount);
   const insets = useSafeAreaInsets();
   const tabBarHeight = 50 + (insets.bottom || 0);
   return (
     <Tab.Navigator
       screenOptions={{
+        lazy: true,
         headerShown: false,
         tabBarStyle: {
           position: 'absolute',
@@ -414,7 +415,8 @@ function AppStack() {
 }
 
 export default function AppNavigator() {
-  const { user, isReady } = useAppStore();
+  const user = useAppStore(s => s.user);
+  const isReady = useAppStore(s => s.isReady);
 
   // While not ready, show dark splash-like screen
   if (!isReady) {
