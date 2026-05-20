@@ -239,26 +239,22 @@ export async function copyToSafeCache(uri: string): Promise<string> {
 }
 
 /**
- * Reads a local file and returns a Blob.
+ * Reads a local file and returns a Uint8Array of binary data.
  *
- * ROOT CAUSE FIX for black images: The old approach used
- * FileSystem.readAsStringAsync → base64 → safeBase64Decode → ArrayBuffer → XHR.send().
- * On certain Android devices, XHR silently corrupts binary data in the request body.
- * The upload returns HTTP 200, but the stored file is garbage → black frames.
+ * IMPORTANT FIX: React Native's Blob constructor does NOT support ArrayBuffer or
+ * ArrayBufferView on many Android versions (throws "Creating blobs from
+ * 'ArrayBuffer' and 'ArrayBufferView' are not supported"). We return Uint8Array
+ * instead and let the upload functions use XHR.send(Uint8Array) directly, which
+ * is supported on ALL React Native platforms.
  *
- * New approach: Use fetch(fileUri) to read the file into an ArrayBuffer,
- * then create a Blob. Blob is the native way to carry binary data in fetch()
- * and is serialized correctly by OkHttp on all Android versions.
+ * Strategy: readAsStringAsync(base64) → safeBase64Decode → Uint8Array.
+ * This is the most reliable cross-platform approach for React Native.
  */
-async function readFileAsBlob(uri: string, mimeType: string): Promise<Blob> {
-  // expo-file-system v19 (Expo SDK 54) moved legacy functions to a separate
-  // entry point. Importing from 'expo-file-system' throws at runtime.
+async function readFileAsBinary(uri: string): Promise<Uint8Array> {
   const fsModule = await import('expo-file-system/legacy');
   const FileSystem = (fsModule as any).default || fsModule;
 
   // Verify the file exists before attempting to read it.
-  // Without this check, a deleted cache file produces a cryptic
-  // FileNotFoundException instead of a user-friendly error.
   try {
     const info = await FileSystem.getInfoAsync(uri);
     if (!info.exists) {
@@ -268,49 +264,30 @@ async function readFileAsBlob(uri: string, mimeType: string): Promise<Blob> {
       );
     }
   } catch (checkErr: any) {
-    // If the existence check itself fails, try reading anyway
-    // (some URIs like content:// may not support getInfoAsync)
     if (checkErr?.message?.includes('not found') || checkErr?.message?.includes('no longer exists')) {
       throw checkErr;
     }
   }
 
-  // Strategy 1: Use fetch() to read the file URI directly.
-  // React Native's fetch supports file://, content://, and asset:// URIs.
-  // This returns an ArrayBuffer without going through base64 at all,
-  // eliminating the entire encode/decode chain.
+  // Strategy 1: base64 read — most reliable cross-platform approach.
   try {
-    const response = await fetch(uri);
-    if (!response.ok) {
-      throw new Error(`Failed to read file: HTTP ${response.status}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    return new Blob([arrayBuffer], { type: mimeType });
-  } catch (fetchErr: any) {
-    // Strategy 2: Fallback to readAsStringAsync + manual decode.
-    // This is the old approach that works but has the base64 overhead.
-    console.warn('[imageUpload] fetch(fileUri) failed, falling back to readAsStringAsync:', fetchErr?.message);
-    try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: 'base64' as const,
-      });
-      const bytes = safeBase64Decode(base64);
-      return new Blob([bytes.buffer], { type: mimeType });
-    } catch (fsErr: any) {
-      // Strategy 3: Try stripping file:// prefix (some Android versions need this)
-      if (uri.startsWith('file://')) {
-        try {
-          const base64 = await FileSystem.readAsStringAsync(uri.slice(7), {
-            encoding: 'base64' as const,
-          });
-          const bytes = safeBase64Decode(base64);
-          return new Blob([bytes.buffer], { type: mimeType });
-        } catch {
-          // Fall through to throw original error
-        }
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: 'base64' as const,
+    });
+    return safeBase64Decode(base64);
+  } catch (err1: any) {
+    // Strategy 2: Try stripping file:// prefix (some Android versions)
+    if (uri.startsWith('file://')) {
+      try {
+        const base64 = await FileSystem.readAsStringAsync(uri.slice(7), {
+          encoding: 'base64' as const,
+        });
+        return safeBase64Decode(base64);
+      } catch {
+        // Fall through
       }
-      throw fsErr;
     }
+    throw new Error(`Failed to read image file: ${err1?.message || 'Unknown error'}`);
   }
 }
 
@@ -336,33 +313,35 @@ async function getFileSize(uri: string): Promise<number> {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Upload a Blob to Firebase Storage using fetch().
+ * Upload binary data to Firebase Storage using fetch().
  *
- * ROOT CAUSE FIX: The old XHR-based upload (doUpload) silently corrupts binary
- * data on certain Android devices. XHR.send(ArrayBuffer) goes through
- * JavaScriptCore's bridge which can mangle binary on some Android versions.
+ * Uses XHR as the primary upload method because:
+ *  1. React Native's Blob constructor does NOT support ArrayBuffer/ArrayBufferView
+ *     on many Android versions — throws "Creating blobs from ArrayBuffer...".
+ *  2. XHR.send(Uint8Array) is supported on ALL React Native platforms.
+ *  3. XHR provides upload progress events (fetch doesn't).
  *
- * fetch() with Blob body uses OkHttp's native serialization which handles
- * binary data correctly on ALL Android versions. This is the primary upload
- * method now — XHR is only kept as a fallback for progress tracking.
- *
- * Trade-off: no upload progress events (fetch doesn't support them).
+ * fetch() is kept as a fast-path attempt on platforms where Blob works.
  */
 function doUploadFetch(
   uploadUrl: string,
-  blob: Blob,
+  binaryData: Uint8Array,
   mimeType: string,
   token: string,
   encodedPath: string,
 ): Promise<string> {
-  return fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': mimeType,
-    },
-    body: blob,
-  }).then(async (resp) => {
+  // Try creating a Blob first — works on iOS and some Android versions.
+  // If it fails (ArrayBuffer not supported), fall back to XHR.
+  try {
+    const blob = new Blob([binaryData.buffer], { type: mimeType });
+    return fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': mimeType,
+      },
+      body: blob,
+    }).then(async (resp) => {
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
       const error: any = new Error(`Upload failed: HTTP ${resp.status} — ${text.slice(0, 300)}`);
@@ -376,23 +355,24 @@ function doUploadFetch(
     }
     return `${STORAGE_BASE}/${encodedPath}?alt=media`;
   });
+  } catch (blobErr: any) {
+    // Blob constructor failed (ArrayBuffer not supported) — return a rejected
+    // promise so the caller falls back to XHR.
+    throw new Error(`Blob not supported: ${blobErr?.message}`);
+  }
 }
 
 /**
  * Perform a single upload attempt using XMLHttpRequest with progress tracking.
  *
- * Uses Firebase Storage's simple (one-shot) upload endpoint:
- *   POST /v0/b/{bucket}/o?uploadType=media&name={path}
- *   Headers: Authorization, Content-Type
- *   Body: raw binary ArrayBuffer
- *
- * The server responds with JSON containing downloadTokens.
+ * Uses Firebase Storage's simple (one-shot) upload endpoint.
+ * XHR.send(Uint8Array) is supported on ALL React Native platforms.
  *
  * @returns Download URL string
  */
 function doUpload(
   uploadUrl: string,
-  binaryBody: ArrayBuffer,
+  binaryBody: Uint8Array,
   mimeType: string,
   token: string,
   encodedPath: string,
@@ -503,15 +483,13 @@ export async function uploadOptimizedImage(
   let mimeType = detectMimeType(uri, mimeTypeOverride);
   const startTime = Date.now();
 
-  // Read the file as a Blob.
-  // ROOT CAUSE FIX: We read via fetch(fileUri) → ArrayBuffer → Blob instead of
-  // the old readAsStringAsync → base64 → safeBase64Decode → ArrayBuffer chain.
-  // This eliminates the base64 round-trip AND avoids expo-file-system's
-  // readAsStringAsync which is what triggers the FileNotFoundException.
+  // Read the file as Uint8Array.
+  // FIX: React Native's Blob doesn't support ArrayBuffer on many Android versions.
+  // We use base64 → Uint8Array which works on ALL platforms.
   console.log(`[imageUpload] Reading file: ${uri} (${mimeType})`);
-  const blob = await readFileAsBlob(uri, mimeType);
+  const binaryData = await readFileAsBinary(uri);
 
-  const fileSize = blob.size;
+  const fileSize = binaryData.length;
   if (fileSize === 0) {
     throw new Error(`File is empty or could not be read: ${uri}`);
   }
@@ -524,8 +502,7 @@ export async function uploadOptimizedImage(
   console.log(`[imageUpload] File read successfully: ${fileSize} bytes`);
 
   // BLACK PHOTO FIX #2: Validate image magic bytes before uploading.
-  // Read the first 4 bytes from the Blob to check the file signature.
-  const headerBytes = await blob.slice(0, 4).arrayBuffer().then(buf => new Uint8Array(buf));
+  const headerBytes = binaryData.slice(0, 4);
   if (fileSize >= 4) {
     const isJpeg = headerBytes[0] === 0xFF && headerBytes[1] === 0xD8 && headerBytes[2] === 0xFF;
     const isPng = headerBytes[0] === 0x89 && headerBytes[1] === 0x50 && headerBytes[2] === 0x4E && headerBytes[3] === 0x47;
@@ -566,39 +543,31 @@ export async function uploadOptimizedImage(
 
       console.log(`[imageUpload] Upload attempt ${attempt + 1}/${maxRetries + 1} to ${path}`);
 
-      // ROOT CAUSE FIX: Use fetch() with Blob body as the PRIMARY upload method.
-      // XHR.send(ArrayBuffer) silently corrupts binary data on certain Android
-      // devices (JavaScriptCore bridge issue). fetch() uses OkHttp's native
-      // blob serialization which is correct on all Android versions.
-      // Trade-off: no upload progress events, but uploads actually succeed.
+      // Upload using XHR as PRIMARY method (works on all RN platforms).
+      // XHR.send(Uint8Array) is universally supported in React Native.
+      // fetch() with Blob is tried first as a fast path on platforms that support it.
       let downloadUrl: string;
       try {
-        // Re-wrap blob with the (possibly corrected) mimeType
-        const uploadBlob = new Blob([blob], { type: mimeType });
+        // Try fetch + Blob first (fast path for iOS/some Android)
         downloadUrl = await doUploadFetch(
           uploadUrl,
-          uploadBlob,
+          binaryData,
           mimeType,
           token,
           encodedPath,
         );
       } catch (fetchErr: any) {
-        // Fallback: try XHR if fetch fails (rare, but possible on some devices)
+        // Fallback: XHR with Uint8Array (works on ALL platforms)
         console.warn(`[imageUpload] fetch upload failed, trying XHR fallback: ${fetchErr.message}`);
-        try {
-          const arrayBuffer = await blob.arrayBuffer();
-          downloadUrl = await doUpload(
-            uploadUrl,
-            arrayBuffer,
-            mimeType,
-            token,
-            encodedPath,
-            onProgress,
-            abortSignal,
-          );
-        } catch (xhrErr: any) {
-          throw xhrErr;
-        }
+        downloadUrl = await doUpload(
+          uploadUrl,
+          binaryData,
+          mimeType,
+          token,
+          encodedPath,
+          onProgress,
+          abortSignal,
+        );
       }
 
       // Post-upload verification: fetch the first bytes to confirm the file is valid.
