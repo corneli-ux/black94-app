@@ -419,6 +419,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [messaging, setMessaging] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [profileAd, setProfileAd] = useState<any>(null);
+  const [coverImageError, setCoverImageError] = useState(false);
 
   const isBusinessAccount = user?.role === 'business';
   const showStoreTab = isBusinessAccount;
@@ -442,6 +443,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       ]);
       if (__DEV__) console.log(`[ProfileScreen] Got user: ${u?.displayName || 'null'}, posts: ${feed.docs.length}, followers: ${followersSnap.size}, following: ${followingSnap.size}`);
       setUser(u);
+      setCoverImageError(false);
       setFollowing(isFollowing);
       setFollowersCount(followersSnap.size);
       setFollowingCount(followingSnap.size);
@@ -791,10 +793,24 @@ export default function ProfileScreen({ route, navigation }: any) {
 
       {/* Cover */}
       <View style={styles.coverWrap}>
-        {user?.coverImage ? (
-          <Image source={{ uri: user.coverImage }} style={styles.cover} resizeMode="cover" />
+        {user?.coverImage && !coverImageError ? (
+          <Image
+            source={{ uri: user.coverImage }}
+            style={styles.cover}
+            resizeMode="cover"
+            onError={(e) => {
+              console.warn('[ProfileScreen] Cover image failed to load:', e.nativeEvent?.error);
+              setCoverImageError(true);
+            }}
+          />
         ) : (
-          <View style={[styles.cover, styles.coverPlaceholder]} />
+          <View style={[styles.cover, styles.coverPlaceholder]}>
+            {coverImageError && user?.coverImage && (
+              <View style={styles.coverErrorOverlay}>
+                <Ionicons name="image-outline" size={24} color="#555" />
+              </View>
+            )}
+          </View>
         )}
       </View>
 
@@ -931,6 +947,11 @@ const styles = StyleSheet.create({
   cover: { width: '100%', height: '100%' },
   /* Fallback: solid black */
   coverPlaceholder: { backgroundColor: '#000000' },
+  coverErrorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   /* web: flex items-end justify-between px-5 -mt-8 mb-3 */
   avatarRow: {
     flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',

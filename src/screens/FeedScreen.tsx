@@ -8,6 +8,7 @@ import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '../theme/colors';
 import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive';
 import { toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
+import { refreshFirebaseUrl } from '../utils/imageUpload';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -192,7 +193,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   const [showHeart, setShowHeart] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [hasMediaError, setHasMediaError] = useState(false);
-  const [refreshedUrl, setRefreshedUrl] = useState<string | null>(null);
+  const [refreshedUrls, setRefreshedUrls] = useState<Record<string, string>>({});
   const refreshAttemptedRef = React.useRef(false);
   const lastTapRef = useRef(0);
 
@@ -217,7 +218,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     const currentUrl = post.mediaUrls?.[0] || '';
     if (prevMediaUrlRef.current !== currentUrl) {
       setHasMediaError(false);
-      setRefreshedUrl(null);
+      setRefreshedUrls({});
       refreshAttemptedRef.current = false;
       prevMediaUrlRef.current = currentUrl;
     }
@@ -230,11 +231,10 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     if (!refreshAttemptedRef.current && originalUrl) {
       refreshAttemptedRef.current = true;
       try {
-        const { refreshFirebaseUrl } = require('../utils/imageUpload');
         const newUrl = await refreshFirebaseUrl(originalUrl);
         if (newUrl && newUrl !== originalUrl) {
           console.log('[Feed] Refreshed URL, retrying:', newUrl.slice(0, 80));
-          setRefreshedUrl(newUrl);
+          setRefreshedUrls(prev => ({ ...prev, [originalUrl]: newUrl }));
           setHasMediaError(false); // Give it another chance
           return;
         }
@@ -362,7 +362,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
               <View style={styles.mediaContainer}>
                 <Image
-                  source={{ uri: refreshedUrl || post.mediaUrls[0] }}
+                  source={{ uri: refreshedUrls[post.mediaUrls[0]] || post.mediaUrls[0] }}
                   style={styles.media}
                   resizeMode="cover"
                   // BUG FIX: Show placeholder when image fails to load

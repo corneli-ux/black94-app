@@ -228,15 +228,27 @@ export async function copyToSafeCache(uri: string): Promise<string> {
   }
 }
 
-async function readFileAsBase64(uri: string): Promise<string> {
+/**
+ * Reads a local file and returns a Blob.
+ *
+ * ROOT CAUSE FIX for black images: The old approach used
+ * FileSystem.readAsStringAsync → base64 → safeBase64Decode → ArrayBuffer → XHR.send().
+ * On certain Android devices, XHR silently corrupts binary data in the request body.
+ * The upload returns HTTP 200, but the stored file is garbage → black frames.
+ *
+ * New approach: Use fetch(fileUri) to read the file into an ArrayBuffer,
+ * then create a Blob. Blob is the native way to carry binary data in fetch()
+ * and is serialized correctly by OkHttp on all Android versions.
+ */
+async function readFileAsBlob(uri: string, mimeType: string): Promise<Blob> {
   // expo-file-system v19 (Expo SDK 54) moved legacy functions to a separate
   // entry point. Importing from 'expo-file-system' throws at runtime.
-  // The /legacy subpath exports the same API that always worked.
   const fsModule = await import('expo-file-system/legacy');
   const FileSystem = (fsModule as any).default || fsModule;
 
-  // BUG FIX: Check file existence BEFORE reading to give a clear error message
-  // instead of a cryptic FileNotFoundException.
+  // Verify the file exists before attempting to read it.
+  // Without this check, a deleted cache file produces a cryptic
+  // FileNotFoundException instead of a user-friendly error.
   try {
     const info = await FileSystem.getInfoAsync(uri);
     if (!info.exists) {
@@ -246,34 +258,49 @@ async function readFileAsBase64(uri: string): Promise<string> {
       );
     }
   } catch (checkErr: any) {
-    // If the existence check itself fails, we'll try reading anyway
+    // If the existence check itself fails, try reading anyway
     // (some URIs like content:// may not support getInfoAsync)
     if (checkErr?.message?.includes('not found') || checkErr?.message?.includes('no longer exists')) {
       throw checkErr;
     }
   }
 
-  // Strategy:
-  //   1. Try reading the URI directly (works for file://, content://, asset://)
-  //   2. If that fails AND the URI starts with file://, strip the scheme
+  // Strategy 1: Use fetch() to read the file URI directly.
+  // React Native's fetch supports file://, content://, and asset:// URIs.
+  // This returns an ArrayBuffer without going through base64 at all,
+  // eliminating the entire encode/decode chain.
   try {
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: 'base64' as const,
-    });
-    return base64;
-  } catch (directErr: any) {
-    if (uri.startsWith('file://')) {
-      try {
-        const filePath = uri.slice(7);
-        const base64 = await FileSystem.readAsStringAsync(filePath, {
-          encoding: 'base64' as const,
-        });
-        return base64;
-      } catch {
-        // Fall through to throw original error
-      }
+    const response = await fetch(uri);
+    if (!response.ok) {
+      throw new Error(`Failed to read file: HTTP ${response.status}`);
     }
-    throw directErr;
+    const arrayBuffer = await response.arrayBuffer();
+    return new Blob([arrayBuffer], { type: mimeType });
+  } catch (fetchErr: any) {
+    // Strategy 2: Fallback to readAsStringAsync + manual decode.
+    // This is the old approach that works but has the base64 overhead.
+    console.warn('[imageUpload] fetch(fileUri) failed, falling back to readAsStringAsync:', fetchErr?.message);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: 'base64' as const,
+      });
+      const bytes = safeBase64Decode(base64);
+      return new Blob([bytes.buffer], { type: mimeType });
+    } catch (fsErr: any) {
+      // Strategy 3: Try stripping file:// prefix (some Android versions need this)
+      if (uri.startsWith('file://')) {
+        try {
+          const base64 = await FileSystem.readAsStringAsync(uri.slice(7), {
+            encoding: 'base64' as const,
+          });
+          const bytes = safeBase64Decode(base64);
+          return new Blob([bytes.buffer], { type: mimeType });
+        } catch {
+          // Fall through to throw original error
+        }
+      }
+      throw fsErr;
+    }
   }
 }
 
@@ -299,19 +326,21 @@ async function getFileSize(uri: string): Promise<number> {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Fallback upload using fetch() — used when XMLHttpRequest fails with a network error.
+ * Upload a Blob to Firebase Storage using fetch().
  *
- * Some Android XMLHttpRequest implementations silently corrupt binary data,
- * resulting in a 200 response but an empty or invalid file on the server.
- * fetch() uses a different HTTP stack (OkHttp directly on Android) which
- * may handle binary uploads more reliably on those devices.
+ * ROOT CAUSE FIX: The old XHR-based upload (doUpload) silently corrupts binary
+ * data on certain Android devices. XHR.send(ArrayBuffer) goes through
+ * JavaScriptCore's bridge which can mangle binary on some Android versions.
  *
- * Trade-off: no upload progress events (fetch doesn't support them), but
- * the upload itself succeeds where XHR would produce corrupted files.
+ * fetch() with Blob body uses OkHttp's native serialization which handles
+ * binary data correctly on ALL Android versions. This is the primary upload
+ * method now — XHR is only kept as a fallback for progress tracking.
+ *
+ * Trade-off: no upload progress events (fetch doesn't support them).
  */
 function doUploadFetch(
   uploadUrl: string,
-  binaryBody: ArrayBuffer,
+  blob: Blob,
   mimeType: string,
   token: string,
   encodedPath: string,
@@ -322,7 +351,7 @@ function doUploadFetch(
       'Authorization': `Bearer ${token}`,
       'Content-Type': mimeType,
     },
-    body: binaryBody,
+    body: blob,
   }).then(async (resp) => {
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -464,22 +493,20 @@ export async function uploadOptimizedImage(
   let mimeType = detectMimeType(uri, mimeTypeOverride);
   const startTime = Date.now();
 
-  // Read the file as base64, then decode to binary ArrayBuffer.
-  // Firebase Storage expects raw binary bytes — sending base64 as a string
-  // would store the base64 characters as the file content (corrupted image).
+  // Read the file as a Blob.
+  // ROOT CAUSE FIX: We read via fetch(fileUri) → ArrayBuffer → Blob instead of
+  // the old readAsStringAsync → base64 → safeBase64Decode → ArrayBuffer chain.
+  // This eliminates the base64 round-trip AND avoids expo-file-system's
+  // readAsStringAsync which is what triggers the FileNotFoundException.
   console.log(`[imageUpload] Reading file: ${uri} (${mimeType})`);
-  const base64Data = await readFileAsBase64(uri);
-  const bytes = safeBase64Decode(base64Data);
+  const blob = await readFileAsBlob(uri, mimeType);
 
-  const fileSize = bytes.byteLength;
+  const fileSize = blob.size;
   if (fileSize === 0) {
     throw new Error(`File is empty or could not be read: ${uri}`);
   }
 
   // BLACK PHOTO FIX: Sanity check — a valid image should be at least 100 bytes.
-  // Anything smaller is almost certainly corrupted data (e.g., empty PNG header,
-  // truncated JPEG). This catches expo-image-manipulator bugs that produce
-  // near-empty files on certain Android devices.
   if (fileSize < 100) {
     throw new Error(`File too small to be a valid image (${fileSize} bytes): ${uri}`);
   }
@@ -487,22 +514,17 @@ export async function uploadOptimizedImage(
   console.log(`[imageUpload] File read successfully: ${fileSize} bytes`);
 
   // BLACK PHOTO FIX #2: Validate image magic bytes before uploading.
-  // If the binary data is corrupt (wrong MIME type, zeroed out, etc.),
-  // uploading it wastes bandwidth and stores garbage in Firebase Storage.
-  // A valid JPEG starts with FF D8 FF, PNG with 89 50 4E 47, GIF with 47 49 46.
-  // Also detect MIME type mismatch — e.g., PNG bytes with Content-Type: image/jpeg.
+  // Read the first 4 bytes from the Blob to check the file signature.
+  const headerBytes = await blob.slice(0, 4).arrayBuffer().then(buf => new Uint8Array(buf));
   if (fileSize >= 4) {
-    const isJpeg = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
-    const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
-    const isGif = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
+    const isJpeg = headerBytes[0] === 0xFF && headerBytes[1] === 0xD8 && headerBytes[2] === 0xFF;
+    const isPng = headerBytes[0] === 0x89 && headerBytes[1] === 0x50 && headerBytes[2] === 0x4E && headerBytes[3] === 0x47;
+    const isGif = headerBytes[0] === 0x47 && headerBytes[1] === 0x49 && headerBytes[2] === 0x46;
     if (!isJpeg && !isPng && !isGif) {
-      console.error(`[imageUpload] File has invalid magic bytes: ${bytes[0].toString(16).padStart(2, '0')} ${bytes[1].toString(16).padStart(2, '0')} ${bytes[2].toString(16).padStart(2, '0')} ${bytes[3].toString(16).padStart(2, '0')}. Expected JPEG (FF D8 FF), PNG (89 50 4E 47), or GIF (47 49 46)`);
+      console.error(`[imageUpload] File has invalid magic bytes: ${headerBytes[0].toString(16).padStart(2, '0')} ${headerBytes[1].toString(16).padStart(2, '0')} ${headerBytes[2].toString(16).padStart(2, '0')} ${headerBytes[3].toString(16).padStart(2, '0')}. Expected JPEG (FF D8 FF), PNG (89 50 4E 47), or GIF (47 49 46)`);
       throw new Error(`File is not a valid image (invalid magic bytes). It may have been corrupted during optimization. Try again with a different image.`);
     }
-    // BUG FIX: Auto-correct MIME type if the actual bytes don't match.
-    // This handles expo-image-manipulator format mismatches (e.g., outputs PNG
-    // bytes when JPEG was requested). Without this, Firebase Storage stores
-    // the file with the wrong Content-Type, causing React Native's Image to fail.
+    // Auto-correct MIME type if the actual bytes don't match.
     if (isPng && mimeType === 'image/jpeg') {
       console.warn('[imageUpload] MIME mismatch: PNG bytes but Content-Type is image/jpeg. Auto-correcting to image/png.');
       mimeType = 'image/png';
@@ -512,11 +534,6 @@ export async function uploadOptimizedImage(
     }
     console.log(`[imageUpload] Magic byte check passed: ${isJpeg ? 'JPEG' : isPng ? 'PNG' : 'GIF'}`);
   }
-
-  // Ensure clean ArrayBuffer copy (avoid SharedArrayBuffer views)
-  const binaryBody: ArrayBuffer = bytes.buffer.byteLength === bytes.byteLength
-    ? bytes.buffer
-    : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 
   // Build the simple upload URL
   const encodedPath = encodeStoragePath(path);
@@ -539,30 +556,37 @@ export async function uploadOptimizedImage(
 
       console.log(`[imageUpload] Upload attempt ${attempt + 1}/${maxRetries + 1} to ${path}`);
 
+      // ROOT CAUSE FIX: Use fetch() with Blob body as the PRIMARY upload method.
+      // XHR.send(ArrayBuffer) silently corrupts binary data on certain Android
+      // devices (JavaScriptCore bridge issue). fetch() uses OkHttp's native
+      // blob serialization which is correct on all Android versions.
+      // Trade-off: no upload progress events, but uploads actually succeed.
       let downloadUrl: string;
       try {
-        downloadUrl = await doUpload(
+        // Re-wrap blob with the (possibly corrected) mimeType
+        const uploadBlob = new Blob([blob], { type: mimeType });
+        downloadUrl = await doUploadFetch(
           uploadUrl,
-          binaryBody,
+          uploadBlob,
           mimeType,
           token,
           encodedPath,
-          onProgress,
-          abortSignal,
         );
-      } catch (xhrErr: any) {
-        // Fallback: if XHR fails with a network error (no HTTP status),
-        // try fetch() which uses a different HTTP stack on Android.
-        if (!xhrErr.status) {
-          console.warn(`[imageUpload] XHR upload failed with network error, falling back to fetch(): ${xhrErr.message}`);
-          downloadUrl = await doUploadFetch(
+      } catch (fetchErr: any) {
+        // Fallback: try XHR if fetch fails (rare, but possible on some devices)
+        console.warn(`[imageUpload] fetch upload failed, trying XHR fallback: ${fetchErr.message}`);
+        try {
+          const arrayBuffer = await blob.arrayBuffer();
+          downloadUrl = await doUpload(
             uploadUrl,
-            binaryBody,
+            arrayBuffer,
             mimeType,
             token,
             encodedPath,
+            onProgress,
+            abortSignal,
           );
-        } else {
+        } catch (xhrErr: any) {
           throw xhrErr;
         }
       }

@@ -9,6 +9,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { Post } from '../lib/api';
+import { refreshFirebaseUrl } from '../utils/imageUpload';
 import CommentSheet from '../components/CommentSheet';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -142,7 +143,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   const [repostCount, setRepostCount] = useState(post.repostCount);
   const [reposted, setReposted] = useState(post.reposted);
   const [hasMediaError, setHasMediaError] = useState(false);
-  const [refreshedUrl, setRefreshedUrl] = useState<string | null>(null);
+  const [refreshedUrls, setRefreshedUrls] = useState<Record<string, string>>({});
   const refreshAttemptedRef = React.useRef(false);
 
   // Reset when post changes
@@ -151,7 +152,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
     const currentUrl = post.mediaUrls?.[0] || '';
     if (prevUrlRef.current !== currentUrl) {
       setHasMediaError(false);
-      setRefreshedUrl(null);
+      setRefreshedUrls({});
       refreshAttemptedRef.current = false;
       prevUrlRef.current = currentUrl;
     }
@@ -162,14 +163,15 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
     if (!refreshAttemptedRef.current && originalUrl) {
       refreshAttemptedRef.current = true;
       try {
-        const { refreshFirebaseUrl } = require('../utils/imageUpload');
         const newUrl = await refreshFirebaseUrl(originalUrl);
         if (newUrl && newUrl !== originalUrl) {
-          setRefreshedUrl(newUrl);
+          setRefreshedUrls(prev => ({ ...prev, [originalUrl]: newUrl }));
           setHasMediaError(false);
           return;
         }
-      } catch {}
+      } catch (refreshErr: any) {
+        console.warn('[Bookmarks] URL refresh failed:', refreshErr?.message);
+      }
     }
     setHasMediaError(true);
   }, []);
@@ -248,7 +250,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
           {post.mediaUrls?.length > 0 && (
             <View style={styles.mediaContainer}>
               <Image
-                source={{ uri: refreshedUrl || post.mediaUrls[0] }}
+                source={{ uri: refreshedUrls[post.mediaUrls[0]] || post.mediaUrls[0] }}
                 style={styles.media}
                 resizeMode="cover"
                 onLoad={() => setHasMediaError(false)}

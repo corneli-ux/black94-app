@@ -238,7 +238,10 @@ async function isLikelyGraphic(
   // Check for transparency — PNGs with alpha are almost always graphics
   try {
     // Read first few bytes to check PNG color type
-    const base64 = await FileSystem.readAsStringAsync(uri.slice(7), {
+    // BUG FIX: Safely strip file:// prefix. The old code blindly used uri.slice(7)
+    // which crashes if the URI doesn't start with 'file://'.
+    const readPath = uri.startsWith('file://') ? uri.slice(7) : uri;
+    const base64 = await FileSystem.readAsStringAsync(readPath, {
       encoding: 'base64' as const,
       length: 64,
     });
@@ -288,12 +291,10 @@ async function validateFileSize(uri: string): Promise<void> {
  */
 async function cleanupTemp(uri: string): Promise<void> {
   if (!uri || !uri.startsWith((FileSystem as any).cacheDirectory || '')) return;
-  // BUG FIX: Never delete files from ImagePicker's cache directory — those are
-  // managed by expo-image-picker and the OS. Only delete files from our own
-  // temp directories (img_*, B94_picked_*, etc.). Deleting ImagePicker's files
-  // caused the "FileNotFoundException" when the upload pipeline tried to read
-  // a file that was already cleaned up by cleanupTemp after resize.
-  if (uri.includes('/ImagePicker/')) return;
+  // BUG FIX: Never delete files from ImagePicker's cache directory OR our safe
+  // cache directory (B94_picked/). These are managed separately and deleting
+  // them causes FileNotFoundException when the upload pipeline tries to read.
+  if (uri.includes('/ImagePicker/') || uri.includes('/B94_picked/')) return;
   try {
     await FileSystem.deleteAsync(uri, { idempotent: true });
   } catch {
@@ -467,7 +468,9 @@ export async function optimizeImage(
   // If the output is corrupt (all-black or garbage), fall back to the original URI.
   let actualMime: OptimizedMimeType = outputMime;
   try {
-    const headerBase64 = await FileSystem.readAsStringAsync(finalResult.uri.slice(7), {
+    // BUG FIX: Safely strip file:// prefix.
+    const finalPath = finalResult.uri.startsWith('file://') ? finalResult.uri.slice(7) : finalResult.uri;
+    const headerBase64 = await FileSystem.readAsStringAsync(finalPath, {
       encoding: 'base64',
       length: 16,
     });

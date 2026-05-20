@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Image, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
@@ -161,6 +162,7 @@ export default function AddProductScreen({ route, navigation }: any) {
   const [uploadProgress, setUploadProgress] = useState('');
   const [imageStatuses, setImageStatuses] = useState<ImageUploadStatus[]>([]);
   const [imageProgress, setImageProgress] = useState<number[]>([]);
+  const [imageLoadErrors, setImageLoadErrors] = useState<Set<number>>(new Set());
 
   // Abort controller to cancel uploads
   const abortRef = useRef<AbortController | null>(null);
@@ -229,7 +231,10 @@ export default function AddProductScreen({ route, navigation }: any) {
           console.warn('[AddProduct] Failed to cache image:', copyErr?.message);
         }
       }
-      if (safeUris.length > 0) setForm(prev => ({ ...prev, images: [...prev.images, ...safeUris] }));
+      if (safeUris.length > 0) {
+        setImageLoadErrors(new Set());
+        setForm(prev => ({ ...prev, images: [...prev.images, ...safeUris] }));
+      }
       else if (rawUris.length > 0) Alert.alert('Image Error', 'Selected images are no longer available. Please try again.');
     } catch {
       if (rawUris.length > 0) setForm(prev => ({ ...prev, images: [...prev.images, ...rawUris] }));
@@ -249,6 +254,7 @@ export default function AddProductScreen({ route, navigation }: any) {
     try {
       const { copyToSafeCache } = require('../utils/imageUpload');
       const safeUri = await copyToSafeCache(asset.uri);
+      setImageLoadErrors(new Set());
       setForm(prev => ({ ...prev, images: [...prev.images, safeUri] }));
     } catch {
       setForm(prev => ({ ...prev, images: [...prev.images, asset.uri!] }));
@@ -257,6 +263,7 @@ export default function AddProductScreen({ route, navigation }: any) {
 
   const handleRemoveImage = useCallback((index: number) => {
     if (saving) return;
+    setImageLoadErrors(new Set());
     setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
   }, [saving]);
 
@@ -617,7 +624,15 @@ export default function AddProductScreen({ route, navigation }: any) {
                   const progress = imageProgress[i] || 0;
                   return (
                     <View key={`img-${i}-${uri}`} style={styles.imageCard}>
-                      <Image source={{ uri }} style={styles.imageThumb} resizeMode="cover" />
+                      {imageLoadErrors.has(i) ? (
+                        <View style={styles.imageThumbError}>
+                          <Ionicons name="image-outline" size={28} color="#555" />
+                        </View>
+                      ) : (
+                        <Image source={{ uri }} style={styles.imageThumb} resizeMode="cover" onError={() => {
+                          setImageLoadErrors(prev => new Set(prev).add(i));
+                        }} />
+                      )}
 
                       {/* Upload overlay */}
                       {status !== 'idle' && (
@@ -818,6 +833,13 @@ const styles = StyleSheet.create({
   imageThumb: {
     width: '100%',
     height: '100%',
+  },
+  imageThumbError: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#1a1a1a',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   imageRemove: {
     position: 'absolute',
