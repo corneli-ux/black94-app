@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchMessages, sendMessage, blockUser, Message, tsToMillis } from '../lib/api';
+import { sendMessage, blockUser, Message, tsToMillis } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
-import { initE2EE, isE2EEReady } from '../lib/e2ee';
+import { initE2EE, isE2EEReady, decryptMessage } from '../lib/e2ee';
 import { Avatar } from '../components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -29,7 +29,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [e2eeReady, setE2eeReady] = useState(false);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const insets = useSafeAreaInsets();
 
   // ── Initialize E2EE & check encryption status ──
@@ -85,21 +85,11 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     }
   }, [routeChatId, routeChat, currentUser?.uid]);
 
-  const load = useCallback(async (silent = false) => {
-    if (!chat) return;
-    try {
-      const msgs = await fetchMessages(chat.id);
-      setMessages(msgs);
-      if (!silent) setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, [chat?.id]);
-
+  // Realtime message listener using onSnapshot — replaces polling
   useEffect(() => {
-    if (!chat) return;
+    if (!chat?.id) return;
+
+    // Reset unread count
     const resetUnread = async () => {
       try {
         const isUser1 = chat.user1Id === currentUser?.uid;
@@ -110,9 +100,53 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       }
     };
     resetUnread();
-    load();
-    pollRef.current = setInterval(() => load(true), 5000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+
+    setLoading(true);
+
+    const unsubscribe = firestore()
+      .collection('chats')
+      .doc(chat.id)
+      .collection('messages')
+      .orderBy('createdAt', 'asc')
+      .limit(50)
+      .onSnapshot(
+        async (snapshot) => {
+          // Process messages with E2E decryption (same logic as fetchMessages)
+          const msgs = await Promise.all(
+            snapshot.docs.map(async (docSnap) => {
+              const data = docSnap.data();
+              const rawContent = data.content || '';
+              const senderId = data.senderId || '';
+              let content: string;
+              try {
+                const decrypted = await decryptMessage(rawContent, senderId);
+                content = decrypted ?? '[Unable to decrypt this message]';
+              } catch {
+                content = rawContent.startsWith('E2EE:')
+                  ? '[Unable to decrypt this message]'
+                  : rawContent;
+              }
+              return {
+                id: docSnap.id,
+                chatId: chat.id,
+                senderId,
+                receiverId: data.receiverId || '',
+                content,
+                createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+              };
+            }),
+          );
+          setMessages(msgs);
+          setLoading(false);
+          setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
+        },
+        (error) => {
+          console.error('[ChatRoom] onSnapshot error:', error);
+          setLoading(false);
+        },
+      );
+
+    return () => unsubscribe();
   }, [chat?.id]);
 
   const handleSend = async () => {
@@ -120,43 +154,29 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     const content = text.trim();
     setText('');
     setSending(true);
-    const tempMsg: Message = {
-      id: `tmp-${Date.now()}`, chatId: chat.id,
-      senderId: currentUser?.uid || '', receiverId: chat.otherUser?.id || '',
-      content, createdAt: Date.now(),
-    };
-    setMessages(prev => [...prev, tempMsg]);
-    setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
     try {
       await sendMessage(chat.id, chat.otherUser?.id || '', content);
-      await load(true);
+      // No need to call load() — onSnapshot will pick up the new message automatically
     } catch (e: any) {
       console.error('[ChatRoom] Send failed:', e?.message || e);
-      // Roll back the optimistic temp message
-      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-
       // If it looks like an auth error, try once more with a fresh token
       const isAuthError = e?.message?.includes('Not authenticated') ||
         e?.message?.includes('Session expired') ||
         e?.message?.includes('sign in again') ||
         e?.message?.includes('permission');
       if (isAuthError) {
-        console.log('[ChatRoom] Auth error on send — retrying with fresh token...');
         try {
           const { _invalidateTokenCache } = await import('../lib/firebase');
           _invalidateTokenCache();
         } catch {}
         try {
           await sendMessage(chat.id, chat.otherUser?.id || '', content);
-          // Re-add the temp message and reload
-          setMessages(prev => [...prev, tempMsg]);
-          await load(true);
         } catch (retryErr: any) {
-          console.error('[ChatRoom] Retry also failed:', retryErr?.message || retryErr);
           Alert.alert('Send Failed', `${retryErr?.message || 'Unknown error'}. Please try again.`);
         }
       } else {
         Alert.alert('Send Failed', `${e?.message || 'Unknown error'}. Please try again.`);
+        setText(content); // Restore the text on failure
       }
     } finally {
       setSending(false);

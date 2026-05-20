@@ -34,6 +34,7 @@ import {
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
+import FeedMedia from '../components/FeedMedia';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -104,18 +105,8 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   const [isReposted, setIsReposted] = useState(post.reposted);
   const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
   const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
-  const [hasMediaError, setHasMediaError] = useState(false);
 
-  // Reset media error when post changes (FlatList recycling)
-  const prevMediaUrlRef = useRef(post.mediaUrls?.[0] || '');
-  React.useEffect(() => {
-    const currentUrl = post.mediaUrls?.[0] || '';
-    if (prevMediaUrlRef.current !== currentUrl) {
-      setHasMediaError(false);
-      prevMediaUrlRef.current = currentUrl;
-    }
-  }, [post.id, post.mediaUrls]);
-
+  // Reset optimistic states when post prop changes
   React.useEffect(() => {
     setIsReposted(post.reposted);
     setLocalRepostCount(post.repostCount);
@@ -164,7 +155,16 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             }} activeOpacity={0.7} hitSlop={8}>
           <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
         </TouchableOpacity>
-        <TouchableOpacity style={profileCardStyles.contentColumn} activeOpacity={0.7} onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
+        <TouchableOpacity style={profileCardStyles.contentColumn} activeOpacity={0.7} onPress={() => navigation.navigate('PostComments', { postId: post.repostOf || post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
+          {/* Repost indicator */}
+          {post.repostOf && (
+            <View style={profileCardStyles.repostHeader}>
+              <RepostIcon size={14} color="#71767b" />
+              <Text style={profileCardStyles.repostHeaderText}>
+                {post.repostedByDisplayName || post.repostedByUsername || 'Someone'} reposted
+              </Text>
+            </View>
+          )}
           <View style={profileCardStyles.headerRow}>
             <TouchableOpacity onPress={() => {
               if (post.authorId !== currentUser?.uid) {
@@ -181,7 +181,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               <Text style={profileCardStyles.dot}>·</Text>
               <Text style={profileCardStyles.time}>{timeAgo(post.createdAt)}</Text>
             </TouchableOpacity>
-            {isOwnPost && (
+            {!post.repostOf && isOwnPost && (
               <TouchableOpacity
                 style={profileCardStyles.moreBtn}
                 onPress={() => Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
@@ -196,15 +196,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
           {post.caption ? <HighlightedCaption text={post.caption} style={profileCardStyles.caption} /> : null}
           {(post.mediaUrls?.length > 0) && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
-              <View style={profileCardStyles.mediaContainer}>
-                <Image source={{ uri: post.mediaUrls[0] }} style={profileCardStyles.media} resizeMode="contain" onLoad={() => setHasMediaError(false)} onError={(e) => { console.warn('[UserProfile] Image failed:', post.mediaUrls[0]?.slice(0, 80), e.nativeEvent?.error); setHasMediaError(true); }} />
-                {hasMediaError && (
-                  <View style={[StyleSheet.absoluteFill, profileCardStyles.mediaErrorOverlay]}>
-                    <Ionicons name="image-outline" size={24} color="#71767b" />
-                    <Text style={profileCardStyles.mediaErrorText}>Image failed to load</Text>
-                  </View>
-                )}
-              </View>
+              <FeedMedia uri={post.mediaUrls[0]} />
             </TouchableOpacity>
           )}
           {/* Action bar — exact match to FeedScreen PostCard */}
@@ -351,6 +343,18 @@ const profileCardStyles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
+  },
+  repostHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  repostHeaderText: {
+    color: '#71767b',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
   },
   replyMedia: {
     width: '100%',
@@ -587,15 +591,59 @@ export default function UserProfileScreen({ navigation, route }: any) {
           bookmarked: false,
           reposted: false,
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+          repostOf: data.repostOf || undefined,
+          repostedByUid: data.repostedByUid || undefined,
+          repostedByUsername: data.repostedByUsername || undefined,
+          repostedByDisplayName: data.repostedByDisplayName || undefined,
         };
       });
-      // Sort client-side by createdAt descending
-      userPosts.sort((a, b) => b.createdAt - a.createdAt);
-      setPosts(userPosts);
+
+      // BUG FIX: Also fetch repost posts for this user. Repost posts have the
+      // original author's authorId, not the reposting user's ID.
+      let repostPosts: Post[] = [];
+      try {
+        const repostSnap = await firestore()
+          .collection('posts')
+          .where('repostedByUid', '==', userId)
+          .limit(50)
+          .get();
+        repostPosts = repostSnap.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            authorId: data.authorId || '',
+            authorUsername: data.authorUsername || '',
+            authorDisplayName: data.authorDisplayName || '',
+            authorProfileImage: data.authorProfileImage || null,
+            authorBadge: data.authorBadge || '',
+            authorIsVerified: data.authorIsVerified || false,
+            caption: data.caption || '',
+            mediaUrls: parseMediaUrls(data.mediaUrls),
+            likeCount: data.likeCount || 0,
+            commentCount: data.commentCount || 0,
+            repostCount: data.repostCount || 0,
+            liked: false,
+            bookmarked: false,
+            reposted: true,
+            createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+            repostOf: data.repostOf || undefined,
+            repostedByUid: data.repostedByUid || undefined,
+            repostedByUsername: data.repostedByUsername || undefined,
+            repostedByDisplayName: data.repostedByDisplayName || undefined,
+          };
+        });
+      } catch (e) {
+        console.warn('[UserProfile] Failed to fetch repost posts:', e);
+      }
+
+      // Merge own posts + repost posts, sort by createdAt descending
+      const allPosts = [...userPosts, ...repostPosts];
+      allPosts.sort((a, b) => b.createdAt - a.createdAt);
+      setPosts(allPosts);
 
       // Batch check interactions for current user
-      if (currentUid && userPosts.length > 0) {
-        const postIds = userPosts.map(p => p.id);
+      if (currentUid && allPosts.length > 0) {
+        const postIds = allPosts.map(p => p.id);
         const likedIds = new Set<string>();
         const bookmarkedIds = new Set<string>();
         const repostedIds = new Set<string>();
@@ -619,12 +667,12 @@ export default function UserProfileScreen({ navigation, route }: any) {
           }
         }
 
-        for (const post of userPosts) {
+        for (const post of allPosts) {
           post.liked = likedIds.has(post.id);
           post.bookmarked = bookmarkedIds.has(post.id);
           post.reposted = repostedIds.has(post.id);
         }
-        setPosts([...userPosts]);
+        setPosts([...allPosts]);
       }
     } catch (e) {
       console.warn('[UserProfileScreen] load error:', e);

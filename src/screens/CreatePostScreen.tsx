@@ -619,8 +619,9 @@ const CreatePostScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Upload progress summary */}
-          {uploadProgress ? (
+          {/* Upload progress summary — only show for text-only posts or final "Posting..." step.
+              Per-image progress is shown in the media grid overlay above. */}
+          {uploadProgress && (selectedImages.length === 0 || uploadProgress === 'Posting...') ? (
             <View style={styles.progressRow}>
               <ActivityIndicator size="small" color={COLORS.gold} />
               <Text style={styles.progressText}>{uploadProgress}</Text>

@@ -1006,6 +1006,7 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     status: 'sent',
     encrypted: isEncrypted,
     createdAt: firestore.FieldValue.serverTimestamp(),
+    clientCreatedAt: Date.now(), // Ensures correct ordering before server timestamp resolves
   });
 
   // Increment unread count for receiver, reset sender's unread to 0

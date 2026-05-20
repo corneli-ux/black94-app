@@ -9,7 +9,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { CommentData, fetchPostComments, addPostComment, fetchActiveAdCampaigns, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark } from '../lib/api';
 import FactCheckBottomSheet from './FactCheckBottomSheet';
 import { useAppStore } from '../stores/app';
-import { auth } from '../lib/firebase';
+import { auth, firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Polyline } from 'react-native-svg';
@@ -58,6 +58,26 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     try {
       const data = await fetchPostComments(postId);
       setComments(data);
+      // BUG FIX: Correct the post's commentCount with the actual count.
+      // The stored commentCount can drift from reality (e.g., if increment
+      // failed, or comments were deleted). Every time someone opens the
+      // comments screen, sync the count to the actual query result.
+      try {
+        const actualCount = data.length;
+        const postDoc = await firestore().collection('posts').doc(postId).get();
+        if (postDoc.exists) {
+          const storedCount = postDoc.data()?.commentCount || 0;
+          if (storedCount !== actualCount) {
+            await firestore().collection('posts').doc(postId).update({
+              commentCount: actualCount,
+            });
+            if (__DEV__) console.log(`[PostComments] Corrected commentCount: ${storedCount} → ${actualCount}`);
+          }
+        }
+      } catch (e) {
+        // Non-critical — don't block comment loading
+        console.warn('[PostComments] Failed to correct commentCount:', e);
+      }
     } catch (e: any) {
       console.error('[PostComments] loadComments error:', e?.message);
       setCommentsError(e?.message || 'Failed to load comments');

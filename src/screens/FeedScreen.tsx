@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
+import FeedMedia from '../components/FeedMedia';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
 const SCREEN_W = scale(390);
@@ -194,7 +195,6 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   const currentUser = auth()?.currentUser;
   const [showHeart, setShowHeart] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [hasMediaError, setHasMediaError] = useState(false);
   const [refreshedUrls, setRefreshedUrls] = useState<Record<string, string>>({});
   const refreshAttemptedRef = React.useRef(false);
   const lastTapRef = useRef(0);
@@ -216,14 +216,13 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     setLocalRepostCount(post.repostCount);
   }, [post.reposted, post.repostCount]);
 
-  // BUG FIX: Reset hasMediaError when post changes (FlatList recycling).
-  // Without this, a recycled PostCard that previously had a media error
-  // shows the error overlay on a perfectly valid new post's image.
+  // BUG FIX: Reset refreshedUrls when post changes (FlatList recycling).
+  // Without this, a recycled PostCard may use a stale refreshed URL
+  // from a previous post.
   const prevMediaUrlRef = React.useRef(post.mediaUrls?.[0] || '');
   React.useEffect(() => {
     const currentUrl = post.mediaUrls?.[0] || '';
     if (prevMediaUrlRef.current !== currentUrl) {
-      setHasMediaError(false);
       setRefreshedUrls({});
       refreshAttemptedRef.current = false;
       prevMediaUrlRef.current = currentUrl;
@@ -232,6 +231,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
   // BUG FIX: When image fails to load, try refreshing the Firebase Storage
   // download URL (token may have expired) before showing the error overlay.
+  // FeedMedia handles display — this only manages the URL refresh logic.
   const handleMediaError = React.useCallback(async (originalUrl: string) => {
     console.warn('[Feed] Image failed:', originalUrl?.slice(0, 80));
     if (!refreshAttemptedRef.current && originalUrl) {
@@ -241,14 +241,13 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
         if (newUrl && newUrl !== originalUrl) {
           console.log('[Feed] Refreshed URL, retrying:', newUrl.slice(0, 80));
           setRefreshedUrls(prev => ({ ...prev, [originalUrl]: newUrl }));
-          setHasMediaError(false); // Give it another chance
-          return;
+          return; // FeedMedia will auto-retry via uri prop change
         }
       } catch (refreshErr: any) {
         console.warn('[Feed] URL refresh failed:', refreshErr?.message);
       }
     }
-    setHasMediaError(true);
+    // Refresh failed or already attempted — FeedMedia shows error state
   }, []);
 
   const handleDoubleTap = () => {
@@ -373,27 +372,13 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             )
           ) : null}
 
-          {/* Media */}
+          {/* Media — FeedMedia handles aspect-ratio-aware sizing & errors */}
           {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
-              <View style={styles.mediaContainer}>
-                <Image
-                  source={{ uri: refreshedUrls[post.mediaUrls[0]] || post.mediaUrls[0] }}
-                  style={styles.media}
-                  resizeMode="contain"
-                  // BUG FIX: Show placeholder when image fails to load
-                  // (expired token, broken URL) instead of a black rectangle.
-                  // On first failure, tries refreshing the Firebase URL.
-                  onLoad={() => setHasMediaError(false)}
-                  onError={() => handleMediaError(post.mediaUrls[0])}
-                />
-                {hasMediaError && (
-                  <View style={[StyleSheet.absoluteFill, styles.mediaErrorOverlay]}>
-                    <Ionicons name="image-outline" size={24} color="#71767b" />
-                    <Text style={styles.mediaErrorText}>Image failed to load</Text>
-                  </View>
-                )}
-              </View>
+              <FeedMedia
+                uri={refreshedUrls[post.mediaUrls[0]] || post.mediaUrls[0]}
+                onRefreshUrl={() => handleMediaError(post.mediaUrls[0])}
+              />
             </TouchableOpacity>
           )}
 
