@@ -61,6 +61,11 @@ export interface Post {
   createdAt: number;
   factCheckVerified?: number;
   factCheckDebunked?: number;
+  // Repost fields — set when this post is a repost of another post
+  repostOf?: string;
+  repostedByUid?: string;
+  repostedByUsername?: string;
+  repostedByDisplayName?: string;
 }
 
 export interface Chat {
@@ -661,15 +666,62 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
 
   const repostRef = firestore().collection('post_reposts').doc(`${postId}_${userId}`);
   const postRef = firestore().collection('posts').doc(postId);
+  // Use a deterministic doc ID so we can delete it without a composite-index query
+  const repostPostId = `repost_${postId}_${userId}`;
 
   try {
     if (currentlyReposted) {
       await repostRef.delete();
       try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
+      // Delete the visible repost entry from the posts collection
+      try { await firestore().collection('posts').doc(repostPostId).delete(); } catch {}
       return false;
     } else {
       await repostRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
       try { await postRef.update({ repostCount: firestore.FieldValue.increment(1) }); } catch {}
+
+      // ── Create a visible repost post in the posts collection ──
+      // This is what makes the repost actually appear in the feed.
+      // We copy the original post's content and author info so the feed
+      // can render the repost without an extra read.
+      try {
+        const postDoc = await postRef.get();
+        const postData = postDoc.exists ? postDoc.data() : null;
+
+        if (postData) {
+          // Fetch reposting user's profile for the "reposted by" header
+          const repostingUserDoc = await firestore().collection('users').doc(userId).get();
+          const repostingUser = repostingUserDoc.exists ? repostingUserDoc.data() : null;
+
+          await firestore().collection('posts').doc(repostPostId).set({
+            // Repost metadata
+            repostOf: postId,
+            repostedByUid: userId,
+            repostedByUsername: repostingUser?.username || '',
+            repostedByDisplayName: repostingUser?.displayName || 'User',
+            // Copy original post content & author info for display
+            authorId: postData.authorId || '',
+            authorUsername: postData.authorUsername || '',
+            authorDisplayName: postData.authorDisplayName || '',
+            authorProfileImage: postData.authorProfileImage || null,
+            authorBadge: postData.authorBadge || '',
+            authorIsVerified: postData.authorIsVerified || false,
+            caption: postData.caption || '',
+            mediaUrls: postData.mediaUrls || [],
+            pollData: postData.pollData || null,
+            // Copy counts (will be slightly stale but avoids extra reads)
+            likeCount: postData.likeCount || 0,
+            commentCount: postData.commentCount || 0,
+            repostCount: postData.repostCount || 0,
+            factCheckVerified: postData.factCheckVerified || 0,
+            factCheckDebunked: postData.factCheckDebunked || 0,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (e) {
+        console.warn('[Repost] Failed to create visible repost post:', e);
+      }
 
       // ── Notification: tell post author someone reposted their post ──
       try {

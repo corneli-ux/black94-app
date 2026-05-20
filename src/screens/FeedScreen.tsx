@@ -124,7 +124,9 @@ function InlinePoll({ post }: { post: Post }) {
     if (voted || !currentUser || voting) return;
     setVoting(true);
     try {
-      const result = await votePostPoll(post.id, optionId);
+      // For reposts, vote on the ORIGINAL post's poll
+      const targetPostId = post.repostOf || post.id;
+      const result = await votePostPoll(targetPostId, optionId);
       if (result) {
         setLocalPoll(result);
         setVoted(true);
@@ -200,6 +202,10 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   const CAPTION_LIMIT = 150;
   const isLongCaption = post.caption && post.caption.length > CAPTION_LIMIT;
 
+  // For reposts, all interactions (like, comment, bookmark, repost) should
+  // target the ORIGINAL post, not the repost wrapper.
+  const interactionId = post.repostOf || post.id;
+
   // Per-post optimistic repost state
   const [isReposted, setIsReposted] = useState(post.reposted);
   const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
@@ -249,7 +255,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
       if (!post.liked) {
-        onLike(post.id, post.liked);
+        onLike(interactionId, post.liked);
       }
       setShowHeart(true);
       setTimeout(() => setShowHeart(false), 900);
@@ -261,7 +267,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     const next = !isReposted;
     setIsReposted(next);
     setLocalRepostCount(prev => prev + (next ? 1 : -1));
-    onRepost(post.id, isReposted);
+    onRepost(interactionId, isReposted);
   };
 
   const handleShare = async () => {
@@ -300,8 +306,18 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
         <TouchableOpacity
           style={styles.contentColumn}
           activeOpacity={0.7}
-          onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}
+          onPress={() => navigation.navigate('PostComments', { postId: interactionId, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}
         >
+          {/* Repost indicator */}
+          {post.repostOf && (
+            <View style={styles.repostHeader}>
+              <RepostIcon size={14} color="#71767b" />
+              <Text style={styles.repostHeaderText}>
+                {post.repostedByDisplayName || post.repostedByUsername || 'Someone'} reposted
+              </Text>
+            </View>
+          )}
+
           {/* Header row */}
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -324,8 +340,8 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
             </TouchableOpacity>
 
-            {/* More button */}
-            {post.authorId === currentUser?.uid && (
+            {/* More button — only show for own posts, not reposts */}
+            {!post.repostOf && post.authorId === currentUser?.uid && (
               <TouchableOpacity
                 style={styles.moreBtn}
                 onPress={() => {
@@ -389,7 +405,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {/* Action bar */}
           <View style={styles.actions}>
             {/* Comment */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: interactionId, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
               <View style={styles.actionIconWrap}>
                 <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
               </View>
@@ -414,7 +430,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </TouchableOpacity>
 
             {/* Like */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(interactionId, post.liked)}>
               <View style={styles.actionIconWrap}>
                 {post.liked ? (
                   <Ionicons name="heart" size={18} color={colors.like} />
@@ -438,7 +454,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
             {/* Bookmark + Share */}
             <View style={styles.actionPair}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(post.id, post.bookmarked)}>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(interactionId, post.bookmarked)}>
                 <View style={styles.actionIconWrap}>
                   {post.bookmarked ? (
                     <Ionicons name="bookmark" size={18} color={colors.bookmark} />
@@ -557,6 +573,12 @@ export default function FeedScreen({ navigation }: any) {
           bookmarked: false,
           reposted: false,
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+          // Repost fields — if this post is a repost, point interactions
+          // to the original post and carry the "reposted by" metadata
+          repostOf: data.repostOf || undefined,
+          repostedByUid: data.repostedByUid || undefined,
+          repostedByUsername: data.repostedByUsername || undefined,
+          repostedByDisplayName: data.repostedByDisplayName || undefined,
         };
       });
 
@@ -636,7 +658,8 @@ export default function FeedScreen({ navigation }: any) {
 
       // Batch fetch interactions (CHUNK_SIZE = 10 for Firestore IN limit)
       if (userId) {
-        const postIds = newPosts.map(p => p.id);
+        // For reposts, check interactions against the ORIGINAL post ID
+        const postIds = newPosts.map(p => p.repostOf || p.id);
         const likedIds = new Set<string>();
         const bookmarkedIds = new Set<string>();
         const repostedIds = new Set<string>();
@@ -708,9 +731,12 @@ export default function FeedScreen({ navigation }: any) {
         }
 
         for (const post of newPosts) {
-          post.liked = likedIds.has(post.id);
-          post.bookmarked = bookmarkedIds.has(post.id);
-          post.reposted = repostedIds.has(post.id);
+          // For reposts, check interactions against the ORIGINAL post so
+          // likes/bookmarks/reposts on the original are reflected here.
+          const interactionId = post.repostOf || post.id;
+          post.liked = likedIds.has(interactionId);
+          post.bookmarked = bookmarkedIds.has(interactionId);
+          post.reposted = repostedIds.has(interactionId);
         }
 
         // Batch check poll votes for posts that have polls
@@ -736,7 +762,9 @@ export default function FeedScreen({ navigation }: any) {
           );
           for (const post of newPosts) {
             if (post.pollData) {
-              post.pollVoted = pollVotedIds.has(post.id);
+              // For reposts, check if user voted on the ORIGINAL post's poll
+              const pollCheckId = post.repostOf || post.id;
+              post.pollVoted = pollVotedIds.has(pollCheckId);
             }
           }
         }
@@ -1076,6 +1104,18 @@ const styles = StyleSheet.create({
     paddingRight: 16,
     paddingTop: 4,
     paddingBottom: 12,
+  },
+  repostHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+    paddingLeft: 52,
+  },
+  repostHeaderText: {
+    color: '#71767b',
+    fontSize: 13,
+    fontWeight: '500',
   },
   contentRow: {
     flexDirection: 'row',
