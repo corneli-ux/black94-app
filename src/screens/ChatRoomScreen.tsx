@@ -296,11 +296,13 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     }
   };
 
-  // ── Phone Call Handler — Navigate to in-app AudioCall screen ──
+  // ── Phone Call Handler — initiate call via Firestore signaling ──
   const handlePhoneCall = () => {
+    if (!chat?.otherUser) return;
     navigation.navigate('AudioCall', {
-      userId: chat.otherUser?.id,
-      userName: chat.otherUser?.displayName || chat.otherUser?.username || 'User',
+      userId: chat.otherUser.id,
+      userName: chat.otherUser.displayName || chat.otherUser.username || 'User',
+      userProfileImage: chat.otherUser.profileImage,
     });
   };
 

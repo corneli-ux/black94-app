@@ -92,7 +92,7 @@ async function pollUnread(userId: string): Promise<number> {
 
 export interface CreateNotificationParams {
   recipientId: string;
-  type: 'follow' | 'like' | 'comment' | 'repost' | 'mention' | 'chat' | 'story_view' | 'milestone' | 'suggestion';
+  type: 'follow' | 'like' | 'comment' | 'repost' | 'mention' | 'chat' | 'story_view' | 'milestone' | 'suggestion' | 'call';
   actorId: string;
   actorDisplayName: string;
   actorUsername: string;
@@ -123,7 +123,7 @@ export async function createNotification(
 
   // BUG FIX: Input validation — prevent junk notifications
   if (!params.recipientId?.trim() || !params.actorId?.trim()) return;
-  const validTypes = ['follow', 'like', 'comment', 'repost', 'mention', 'chat', 'story_view', 'milestone', 'suggestion', 'follow_up_reminder'];
+  const validTypes = ['follow', 'like', 'comment', 'repost', 'mention', 'chat', 'story_view', 'milestone', 'suggestion', 'follow_up_reminder', 'call'];
   if (!validTypes.includes(params.type)) return;
 
   // BUG FIX: Don't notify if recipient has blocked the actor

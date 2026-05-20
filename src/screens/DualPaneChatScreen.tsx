@@ -409,6 +409,21 @@ export default function DualPaneChatScreen({ navigation }: any) {
           <Text style={styles.roomName}>
             {selectedChat.otherUser?.displayName ?? 'Chat'}
           </Text>
+          {/* Call button */}
+          <TouchableOpacity
+            style={styles.callBtn}
+            onPress={() => {
+              if (!selectedChat.otherUser) return;
+              navigation.navigate('AudioCall', {
+                userId: selectedChat.otherUser.id,
+                userName: selectedChat.otherUser.displayName || selectedChat.otherUser.username || 'User',
+                userProfileImage: selectedChat.otherUser.profileImage,
+              });
+            }}
+            hitSlop={8}
+          >
+            <Ionicons name="call" size={20} color="#e7e9ea" />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.blockBtn}
             onPress={() => setShowNuclearConfirm(true)}
@@ -825,6 +840,13 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   // Nuclear block
+  callBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   blockBtn: {
     padding: 4,
     marginLeft: 'auto',

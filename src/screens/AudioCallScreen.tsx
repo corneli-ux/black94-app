@@ -1,11 +1,15 @@
 /**
- * AudioCallScreen.tsx — Full-screen audio call UI
+ * AudioCallScreen.tsx — Full-screen audio call UI with real Firestore signaling
  *
- * BETA: This screen shows the call UI but does not establish a real
- * VoIP connection. Audio/VoIP integration (Agora/Twilio) is needed for
- * actual calling functionality.
+ * Call flow:
+ * 1. Caller taps call button → initiateCall() creates Firestore call doc (status: ringing)
+ * 2. Receiver gets in-app notification → taps to navigate to this screen
+ * 3. Receiver taps "Accept" → answerCall() updates status to 'connected'
+ * 4. Caller polls and detects 'connected' → shows connected state
+ * 5. Either party taps "End" → endCall() updates status to 'ended'
  *
- * Current flow: Calling (3s timer) → Connected (timer) → End Call → navigate back.
+ * Audio streaming requires a VoIP SDK (Agora/Twilio/ZEGO) integration.
+ * The signaling layer (ringing → answer → end) is fully functional via Firestore.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -17,33 +21,160 @@ import {
   StatusBar,
   Animated,
   Easing,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { colors } from '../theme/colors';
+import { initiateCall, answerCall, endCall as endCallApi, pollCallStatus, CallData } from '../lib/api';
+import { auth } from '../lib/firebase';
 
-type CallStatus = 'calling' | 'connected' | 'ended';
+type CallRole = 'caller' | 'receiver';
+type CallStatus = 'initiating' | 'ringing' | 'connected' | 'ended';
+
+const RING_TIMEOUT = 45000; // 45 seconds before auto-ending unanswered call
+const POLL_INTERVAL = 1500; // Poll every 1.5 seconds
 
 export default function AudioCallScreen({ route, navigation }: any) {
-  const { userId, userName } = route.params;
+  const { userId, userName, userProfileImage, callId: routeCallId, role: routeRole } = route.params;
 
-  const [callStatus, setCallStatus] = useState<CallStatus>('calling');
+  const currentUser = auth()?.currentUser;
+  const myId = currentUser?.uid;
+
+  // Determine role: if routeRole is 'receiver', we're answering. Otherwise, we're calling.
+  const [role, setRole] = useState<CallRole>(routeRole === 'receiver' ? 'receiver' : 'caller');
+  const [callStatus, setCallStatus] = useState<CallStatus>(routeRole === 'receiver' ? 'ringing' : 'initiating');
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [showRedFlash, setShowRedFlash] = useState(false);
+  const [callData, setCallData] = useState<CallData | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rippleAnim = useRef(new Animated.Value(0)).current;
+  const hasEndedRef = useRef(false);
 
-  // ── Preview call flow (no real VoIP connection) ────────────────────────
+  // ── Caller: initiate the call ──────────────────────────────────────────
   useEffect(() => {
-    // After 3s, show connected state
-    const connectTimeout = setTimeout(() => {
-      setCallStatus('connected');
-    }, 3000);
+    if (role !== 'caller' || !userId || !myId) return;
 
-    return () => clearTimeout(connectTimeout);
+    const startCall = async () => {
+      try {
+        const call = await initiateCall(userId, userName, userProfileImage || null);
+        setCallData(call);
+        setCallStatus('ringing');
+
+        // Start polling for status changes
+        pollRef.current = setInterval(async () => {
+          if (hasEndedRef.current) return;
+          try {
+            const updated = await pollCallStatus(call.id);
+            if (!updated) {
+              // Call doc was deleted
+              handleEnd();
+              return;
+            }
+            setCallData(updated);
+            if (updated.status === 'connected') {
+              setCallStatus('connected');
+              if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+              if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
+            } else if (updated.status === 'ended' || updated.status === 'missed') {
+              handleEnd();
+            }
+          } catch {}
+        }, POLL_INTERVAL);
+
+        // Auto-end after 45s if no answer
+        ringTimeoutRef.current = setTimeout(() => {
+          if (callStatus === 'ringing' && !hasEndedRef.current) {
+            Alert.alert('Unanswered', `${userName || 'User'} didn't answer the call.`);
+            handleEnd();
+          }
+        }, RING_TIMEOUT);
+
+      } catch (e: any) {
+        console.error('[Call] Failed to initiate:', e?.message || e);
+        Alert.alert('Call Failed', e?.message || 'Could not start the call. Please try again.');
+        navigation.goBack();
+      }
+    };
+
+    startCall();
+
+    return () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
+    };
+  }, [role, userId, myId]);
+
+  // ── Receiver: poll for call status (caller may end the call while ringing) ──
+  useEffect(() => {
+    if (role !== 'receiver' || !routeCallId) return;
+
+    pollRef.current = setInterval(async () => {
+      if (hasEndedRef.current) return;
+      try {
+        const updated = await pollCallStatus(routeCallId);
+        if (!updated) {
+          handleEnd();
+          return;
+        }
+        setCallData(updated);
+        if (updated.status === 'ended' || updated.status === 'missed') {
+          Alert.alert('Call Ended', 'The caller ended the call.');
+          handleEnd();
+        }
+      } catch {}
+    }, POLL_INTERVAL);
+
+    return () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+  }, [role, routeCallId]);
+
+  // ── Receiver: answer the call ──────────────────────────────────────────
+  const handleAccept = useCallback(async () => {
+    if (!routeCallId) return;
+    try {
+      setCallStatus('connected');
+      await answerCall(routeCallId);
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    } catch (e: any) {
+      console.error('[Call] Failed to answer:', e?.message || e);
+      Alert.alert('Error', 'Could not answer the call.');
+      handleEnd();
+    }
+  }, [routeCallId]);
+
+  // ── Receiver: decline the call ─────────────────────────────────────────
+  const handleDecline = useCallback(() => {
+    handleEnd();
   }, []);
+
+  // ── End call (shared by caller and receiver) ───────────────────────────
+  const handleEnd = useCallback(async () => {
+    if (hasEndedRef.current) return;
+    hasEndedRef.current = true;
+
+    setShowRedFlash(true);
+    setCallStatus('ended');
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
+
+    // Fire-and-forget: update the call document
+    const callIdToUpdate = callData?.id || routeCallId;
+    if (callIdToUpdate) {
+      try { await endCallApi(callIdToUpdate); } catch {}
+    }
+
+    setTimeout(() => {
+      navigation.goBack();
+    }, 600);
+  }, [callData, routeCallId, navigation]);
 
   // ── Timer when connected ───────────────────────────────────────────────
   useEffect(() => {
@@ -58,9 +189,9 @@ export default function AudioCallScreen({ route, navigation }: any) {
     };
   }, [callStatus]);
 
-  // ── Pulse animation while calling ──────────────────────────────────────
+  // ── Pulse animation while ringing ──────────────────────────────────────
   useEffect(() => {
-    if (callStatus !== 'calling') {
+    if (callStatus !== 'ringing') {
       pulseAnim.stopAnimation();
       rippleAnim.stopAnimation();
       return;
@@ -109,22 +240,13 @@ export default function AudioCallScreen({ route, navigation }: any) {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  // ── End call ───────────────────────────────────────────────────────────
-  const handleEndCall = useCallback(() => {
-    setShowRedFlash(true);
-    setCallStatus('ended');
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    setTimeout(() => {
-      navigation.goBack();
-    }, 600);
-  }, [navigation]);
-
   // ── Status text ────────────────────────────────────────────────────────
   const getStatusText = () => {
     switch (callStatus) {
-      case 'calling':
+      case 'initiating':
         return 'Calling...';
+      case 'ringing':
+        return role === 'caller' ? 'Ringing...' : 'Incoming Call';
       case 'connected':
         return 'Connected';
       case 'ended':
@@ -134,23 +256,26 @@ export default function AudioCallScreen({ route, navigation }: any) {
 
   const getStatusColor = () => {
     switch (callStatus) {
-      case 'calling':
-        return colors.accentGold;
+      case 'initiating':
+        return '#D4AF37';
+      case 'ringing':
+        return '#D4AF37';
       case 'connected':
-        return colors.accentGreen;
+        return '#4ade80';
       case 'ended':
-        return colors.error;
+        return '#f43f5e';
     }
   };
+
+  const displayName = callData
+    ? (role === 'caller'
+        ? (userName || 'Unknown')
+        : (callData.callerName || 'Unknown'))
+    : (userName || 'Unknown');
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
-
-      {/* Beta banner — audio calls are preview-only */}
-      <View style={styles.betaBanner}>
-        <Text style={styles.betaBannerText}>BETA — Voice calls coming soon</Text>
-      </View>
 
       {/* Red flash overlay on end call */}
       {showRedFlash && <View style={styles.redFlash} />}
@@ -158,8 +283,8 @@ export default function AudioCallScreen({ route, navigation }: any) {
       {/* Gradient overlay */}
       <View style={styles.gradientOverlay} />
 
-      {/* Ripple rings while calling */}
-      {callStatus === 'calling' && (
+      {/* Ripple rings while ringing */}
+      {callStatus === 'ringing' && (
         <View style={styles.rippleContainer}>
           {[0, 1, 2].map((i) => (
             <Animated.View
@@ -180,19 +305,19 @@ export default function AudioCallScreen({ route, navigation }: any) {
       <Animated.View
         style={[
           styles.avatarWrapper,
-          callStatus === 'calling' && { transform: [{ scale: pulseAnim }] },
+          callStatus === 'ringing' && { transform: [{ scale: pulseAnim }] },
         ]}>
         <View style={styles.avatarOuter}>
           <View style={styles.avatarInner}>
             <Text style={styles.avatarInitial}>
-              {(userName ?? 'U')[0].toUpperCase()}
+              {(displayName ?? 'U')[0].toUpperCase()}
             </Text>
           </View>
         </View>
       </Animated.View>
 
       {/* Caller info */}
-      <Text style={styles.callerName}>{userName ?? 'Unknown'}</Text>
+      <Text style={styles.callerName}>{displayName}</Text>
       <View style={styles.statusRow}>
         <View
           style={[styles.statusDot, { backgroundColor: getStatusColor() }]}
@@ -206,71 +331,107 @@ export default function AudioCallScreen({ route, navigation }: any) {
       {callStatus === 'connected' && (
         <Text style={styles.timerText}>{formatTime(elapsed)}</Text>
       )}
-      {callStatus === 'ended' && (
+      {callStatus === 'ended' && elapsed > 0 && (
         <Text style={styles.timerText}>{formatTime(elapsed)}</Text>
       )}
 
       {/* Spacer */}
       <View style={styles.spacer} />
 
-      {/* Action buttons */}
-      <View style={styles.actionsContainer}>
-        {/* Mute */}
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            isMuted && styles.actionButtonActive,
-          ]}
-          onPress={() => setIsMuted((prev) => !prev)}
-          activeOpacity={0.7}>
-          <View
-            style={[
-              styles.actionIconBg,
-              isMuted && styles.actionIconBgActive,
-            ]}>
-            <Text style={styles.actionIcon}>
-              {isMuted ? '🔇' : '🎙️'}
+      {/* Action buttons — shown when connected */}
+      {callStatus === 'connected' ? (
+        <View style={styles.actionsContainer}>
+          {/* Mute */}
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setIsMuted((prev) => !prev)}
+            activeOpacity={0.7}>
+            <View
+              style={[
+                styles.actionIconBg,
+                isMuted && styles.actionIconBgActive,
+              ]}>
+              <Text style={styles.actionIcon}>
+                {isMuted ? '🔇' : '🎙️'}
+              </Text>
+            </View>
+            <Text style={[styles.actionLabel, isMuted && styles.actionLabelActive]}>
+              {isMuted ? 'Muted' : 'Mic'}
             </Text>
-          </View>
-          <Text style={[styles.actionLabel, isMuted && styles.actionLabelActive]}>
-            {isMuted ? 'Muted' : 'Mic'}
-          </Text>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* Speaker */}
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            isSpeaker && styles.actionButtonActive,
-          ]}
-          onPress={() => setIsSpeaker((prev) => !prev)}
-          activeOpacity={0.7}>
-          <View
-            style={[
-              styles.actionIconBg,
-              isSpeaker && styles.actionIconBgActive,
-            ]}>
-            <Text style={styles.actionIcon}>
-              {isSpeaker ? '🔊' : '🔈'}
+          {/* Speaker */}
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setIsSpeaker((prev) => !prev)}
+            activeOpacity={0.7}>
+            <View
+              style={[
+                styles.actionIconBg,
+                isSpeaker && styles.actionIconBgActive,
+              ]}>
+              <Text style={styles.actionIcon}>
+                {isSpeaker ? '🔊' : '🔈'}
+              </Text>
+            </View>
+            <Text
+              style={[styles.actionLabel, isSpeaker && styles.actionLabelActive]}>
+              Speaker
             </Text>
-          </View>
-          <Text
-            style={[styles.actionLabel, isSpeaker && styles.actionLabelActive]}>
-            {isSpeaker ? 'Speaker' : 'Speaker'}
-          </Text>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* End Call */}
-        <TouchableOpacity
-          style={styles.endCallButton}
-          onPress={handleEndCall}
-          activeOpacity={0.8}>
-          <View style={styles.endCallIconBg}>
-            <Text style={styles.endCallIcon}>📱</Text>
-          </View>
-          <Text style={styles.endCallLabel}>End</Text>
-        </TouchableOpacity>
-      </View>
+          {/* End Call */}
+          <TouchableOpacity
+            style={styles.endCallButton}
+            onPress={handleEnd}
+            activeOpacity={0.8}>
+            <View style={styles.endCallIconBg}>
+              <Text style={styles.endCallIcon}>📱</Text>
+            </View>
+            <Text style={styles.endCallLabel}>End</Text>
+          </TouchableOpacity>
+        </View>
+      ) : callStatus === 'ringing' || callStatus === 'initiating' ? (
+        /* Ringing / Initiating — Accept/Decline buttons */
+        <View style={styles.ringingActionsContainer}>
+          {role === 'receiver' ? (
+            <>
+              {/* Decline */}
+              <TouchableOpacity
+                style={styles.declineButton}
+                onPress={handleDecline}
+                activeOpacity={0.8}>
+                <View style={styles.declineIconBg}>
+                  <Text style={styles.declineIcon}>📞</Text>
+                </View>
+                <Text style={styles.declineLabel}>Decline</Text>
+              </TouchableOpacity>
+
+              {/* Accept */}
+              <TouchableOpacity
+                style={styles.acceptButton}
+                onPress={handleAccept}
+                activeOpacity={0.8}>
+                <View style={styles.acceptIconBg}>
+                  <Text style={styles.acceptIcon}>✓</Text>
+                </View>
+                <Text style={styles.acceptLabel}>Accept</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            /* Caller: only end button while ringing */
+            <TouchableOpacity
+              style={styles.endCallButton}
+              onPress={handleEnd}
+              activeOpacity={0.8}>
+              <View style={styles.endCallIconBg}>
+                <Text style={styles.endCallIcon}>📱</Text>
+              </View>
+              <Text style={styles.endCallLabel}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : null}
 
       {/* Safe area bottom spacer */}
       <View style={styles.bottomSpacer} />
@@ -290,10 +451,6 @@ const styles = StyleSheet.create({
   gradientOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
-    borderTopWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
   },
   redFlash: {
     ...StyleSheet.absoluteFillObject,
@@ -314,7 +471,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 100,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(212, 175, 55, 0.2)',
   },
   avatarWrapper: {
     marginBottom: 24,
@@ -323,29 +480,29 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(42, 127, 255, 0.2)',
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: colors.primary,
+    borderColor: '#D4AF37',
   },
   avatarInner: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: '#16181c',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarInitial: {
     fontSize: 40,
     fontWeight: '700',
-    color: colors.text,
+    color: '#D4AF37',
   },
   callerName: {
     fontSize: 28,
     fontWeight: '700',
-    color: colors.text,
+    color: '#e7e9ea',
     marginBottom: 8,
   },
   statusRow: {
@@ -366,13 +523,14 @@ const styles = StyleSheet.create({
   timerText: {
     fontSize: 18,
     fontWeight: '300',
-    color: colors.textSecondary,
+    color: '#94a3b8',
     letterSpacing: 2,
     marginTop: 4,
   },
   spacer: {
     flex: 1,
   },
+  // Connected actions (mute, speaker, end)
   actionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -388,26 +546,26 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: '#16181c',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   actionIconBgActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
   actionIcon: {
     fontSize: 24,
   },
   actionLabel: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: '#94a3b8',
     fontWeight: '500',
   },
   actionLabelActive: {
-    color: colors.primary,
+    color: '#D4AF37',
   },
   endCallButton: {
     alignItems: 'center',
@@ -417,7 +575,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.error,
+    backgroundColor: '#f43f5e',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -426,23 +584,59 @@ const styles = StyleSheet.create({
   },
   endCallLabel: {
     fontSize: 12,
-    color: colors.error,
+    color: '#f43f5e',
     fontWeight: '500',
+  },
+  // Ringing actions (accept, decline)
+  ringingActionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 60,
+  },
+  acceptButton: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  acceptIconBg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#4ade80',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  acceptIcon: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  acceptLabel: {
+    fontSize: 14,
+    color: '#4ade80',
+    fontWeight: '600',
+  },
+  declineButton: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  declineIconBg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#f43f5e',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  declineIcon: {
+    fontSize: 24,
+  },
+  declineLabel: {
+    fontSize: 14,
+    color: '#f43f5e',
+    fontWeight: '600',
   },
   bottomSpacer: {
     height: 60,
-  },
-  betaBanner: {
-    backgroundColor: 'rgba(212, 175, 55, 0.15)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(212, 175, 55, 0.3)',
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  betaBannerText: {
-    color: '#D4AF37',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.5,
   },
 });

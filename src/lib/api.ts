@@ -1128,6 +1128,162 @@ export async function blockUser(targetUserId: string): Promise<boolean> {
   }
 }
 
+/* ── Voice Call Signaling ────────────────────────────────────────────────── */
+
+export interface CallData {
+  id: string;
+  callerId: string;
+  callerName: string;
+  callerProfileImage: string | null;
+  receiverId: string;
+  status: 'ringing' | 'connected' | 'ended' | 'missed';
+  type: 'audio';
+  createdAt: number;
+  connectedAt: number | null;
+  endedAt: number | null;
+  endedBy: string | null;
+}
+
+/**
+ * Initiate a voice call — creates a Firestore call document and notifies the receiver.
+ * The call document is polled by both parties for status changes.
+ */
+export async function initiateCall(receiverId: string, receiverName: string, receiverProfileImage: string | null): Promise<CallData> {
+  const userId = currentUser()?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  // Check if blocked
+  try {
+    const [iBlockedThem, theyBlockedMe] = await Promise.all([
+      firestore().collection('blocks').doc(`${userId}_${receiverId}`).get(),
+      firestore().collection('blocks').doc(`${receiverId}_${userId}`).get(),
+    ]);
+    if (iBlockedThem.exists || theyBlockedMe.exists) {
+      throw new Error('Cannot call this user');
+    }
+  } catch (e: any) {
+    if (e.message === 'Cannot call this user') throw e;
+  }
+
+  // Get caller's display name for the call document
+  let callerName = 'User';
+  let callerProfileImage: string | null = null;
+  try {
+    const { useAppStore } = await import('../stores/app');
+    const storeUser = useAppStore.getState().user;
+    if (storeUser) {
+      callerName = storeUser.displayName || storeUser.username || 'User';
+      callerProfileImage = storeUser.profileImage || null;
+    }
+  } catch {}
+
+  const callRef = await firestore().collection('calls').add({
+    callerId: userId,
+    callerName,
+    callerProfileImage,
+    receiverId,
+    status: 'ringing',
+    type: 'audio',
+    createdAt: firestore.FieldValue.serverTimestamp(),
+    connectedAt: null,
+    endedAt: null,
+    endedBy: null,
+  });
+
+  // Notify the receiver
+  try {
+    const actor = await getActorData(userId);
+    createNotification({
+      recipientId: receiverId,
+      type: 'call',
+      actorId: userId,
+      ...actor,
+      postCaption: `📞 Voice call from ${actor.actorDisplayName}`,
+    });
+  } catch (e) {
+    console.warn('[Call] Notification failed:', e);
+  }
+
+  return {
+    id: callRef.id,
+    callerId: userId,
+    callerName,
+    callerProfileImage,
+    receiverId,
+    status: 'ringing',
+    type: 'audio',
+    createdAt: Date.now(),
+    connectedAt: null,
+    endedAt: null,
+    endedBy: null,
+  };
+}
+
+/**
+ * Answer an incoming call — updates the call document status to 'connected'.
+ */
+export async function answerCall(callId: string): Promise<void> {
+  const userId = currentUser()?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  await firestore().collection('calls').doc(callId).update({
+    status: 'connected',
+    connectedAt: firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+/**
+ * End a call — updates the call document status to 'ended'.
+ * If the call was never connected, marks it as 'missed' for analytics.
+ */
+export async function endCall(callId: string): Promise<void> {
+  const userId = currentUser()?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  // First read the call to check if it was connected
+  let wasConnected = false;
+  try {
+    const callDoc = await firestore().collection('calls').doc(callId).get();
+    if (callDoc.exists) {
+      const data = callDoc.data();
+      wasConnected = !!data?.connectedAt;
+    }
+  } catch {}
+
+  await firestore().collection('calls').doc(callId).update({
+    status: wasConnected ? 'ended' : 'missed',
+    endedAt: firestore.FieldValue.serverTimestamp(),
+    endedBy: userId,
+  });
+}
+
+/**
+ * Poll a call document for status changes.
+ * Returns null if the call document doesn't exist or was deleted.
+ */
+export async function pollCallStatus(callId: string): Promise<CallData | null> {
+  try {
+    const doc = await firestore().collection('calls').doc(callId).get();
+    if (!doc.exists) return null;
+    const data = doc.data();
+    return {
+      id: doc.id,
+      callerId: data.callerId || '',
+      callerName: data.callerName || 'Unknown',
+      callerProfileImage: data.callerProfileImage || null,
+      receiverId: data.receiverId || '',
+      status: data.status || 'ended',
+      type: data.type || 'audio',
+      createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+      connectedAt: (() => { try { return tsToMillis(data.connectedAt); } catch { return null; } })(),
+      endedAt: (() => { try { return tsToMillis(data.endedAt); } catch { return null; } })(),
+      endedBy: data.endedBy || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /* ── User ─────────────────────────────────────────────────────────────────── */
 
 export async function fetchUserProfile(userId: string): Promise<User | null> {

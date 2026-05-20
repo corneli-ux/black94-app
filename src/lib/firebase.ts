@@ -505,10 +505,34 @@ async function _firestoreCommitUpdate(
     }
   }
 
-  // Step 1a: Write regular (non-dot-notation) field updates via PATCH.
+  // Step 1a: Write regular (non-dot-notation) field updates via PATCH with updateMask.
+  // CRITICAL BUG FIX: Without updateMask, Firestore REST PATCH replaces the ENTIRE
+  // document, deleting any fields not present in the payload. This caused chat docs
+  // to lose user1Id/user2Id when sendMessage() updated lastMessage/unreadCount,
+  // making chats invisible to fetchChatList() queries. Now we include updateMask
+  // to ensure only the specified fields are updated, preserving all other fields.
   if (Object.keys(regularFields).length > 0) {
-    if (__DEV__) console.log(`[Firestore] commit step 1a: PATCH regular fields to ${docPath}`);
-    await _firestoreFetch(docPath, 'PATCH', { fields: regularFields });
+    const regularPaths = Object.keys(regularFields);
+    if (__DEV__) console.log(`[Firestore] commit step 1a: PATCH regular fields to ${docPath}: ${regularPaths.join(', ')}`);
+    const authHeader = preFetchedToken || (await _getValidToken());
+    const url = `${FIRESTORE_BASE}/${docPath}?key=${API_KEY}&updateMask.fieldPaths=${regularPaths.map(encodeURIComponent).join('&updateMask.fieldPaths=')}`;
+    const resp = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authHeader}`,
+      },
+      body: JSON.stringify({ fields: regularFields }),
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      const errMsg = data.error?.message || `Firestore regular PATCH failed (${resp.status})`;
+      if (__DEV__) console.error(`[Firestore] regular PATCH FAILED: ${resp.status} - ${errMsg}`);
+      const err: any = new Error(errMsg);
+      err.status = resp.status;
+      err.code = data.error?.status;
+      throw err;
+    }
   }
 
   // Step 1b: Write dot-notation field updates via PATCH with updateMask.
@@ -880,7 +904,29 @@ class CompatDocRef {
         const preToken = await _getValidToken();
         await _firestoreCommitUpdate(this._path, fields, transforms, preToken);
       } else {
-        await _firestoreFetch(this._path, 'PATCH', body);
+        // BUG FIX: set(merge) must use updateMask to preserve existing fields.
+        // Without updateMask, Firestore REST PATCH replaces the entire document,
+        // deleting fields not in the payload. Use empty updateMask (fieldPaths=)
+        // to get true merge behavior: update only fields in request, keep rest.
+        const token = await _getValidToken();
+        const url = `${FIRESTORE_BASE}/${this._path}?key=${API_KEY}&updateMask.fieldPaths=`;
+        const resp = await fetch(url, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          const errMsg = data.error?.message || `Firestore merge PATCH failed (${resp.status})`;
+          if (__DEV__) console.error(`[Firestore] merge PATCH FAILED: ${resp.status} - ${errMsg}`);
+          const err: any = new Error(errMsg);
+          err.status = resp.status;
+          err.code = data.error?.status;
+          throw err;
+        }
       }
     } else {
       // PUT (replace) — doesn't support transforms;
