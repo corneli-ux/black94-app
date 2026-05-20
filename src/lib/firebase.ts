@@ -954,7 +954,33 @@ class CompatDocRef {
       const preToken = await _getValidToken();
       await _firestoreCommitUpdate(this._path, fields, transforms, preToken);
     } else {
-      await _firestoreFetch(this._path, 'PATCH', { fields });
+      // CRITICAL BUG FIX: Always include updateMask in PATCH requests.
+      // Without updateMask, Firestore REST PATCH replaces the ENTIRE document,
+      // deleting any fields not present in the payload. This caused chat docs
+      // to lose user1Id/user2Id when update({ unreadUser1: 0 }) was called,
+      // making chats invisible to fetchChatList() queries.
+      const fieldPaths = Object.keys(fields);
+      if (fieldPaths.length === 0) return; // Nothing to update
+      const token = await _getValidToken();
+      const maskParam = fieldPaths.map(p => `updateMask.fieldPaths=${encodeURIComponent(p)}`).join('&');
+      const url = `${FIRESTORE_BASE}/${this._path}?key=${API_KEY}&${maskParam}`;
+      const resp = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ fields }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        const errMsg = data.error?.message || `Firestore update PATCH failed (${resp.status})`;
+        if (__DEV__) console.error(`[Firestore] update PATCH FAILED: ${resp.status} - ${errMsg}`);
+        const err: any = new Error(errMsg);
+        err.status = resp.status;
+        err.code = data.error?.status;
+        throw err;
+      }
     }
   }
 

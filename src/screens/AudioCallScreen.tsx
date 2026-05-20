@@ -2,14 +2,14 @@
  * AudioCallScreen.tsx — Full-screen audio call UI with real Firestore signaling
  *
  * Call flow:
- * 1. Caller taps call button → initiateCall() creates Firestore call doc (status: ringing)
- * 2. Receiver gets in-app notification → taps to navigate to this screen
- * 3. Receiver taps "Accept" → answerCall() updates status to 'connected'
- * 4. Caller polls and detects 'connected' → shows connected state
- * 5. Either party taps "End" → endCall() updates status to 'ended'
+ * 1. Caller taps call button -> initiateCall() creates Firestore call doc (status: ringing)
+ * 2. Receiver gets in-app notification -> taps to navigate to this screen
+ * 3. Receiver taps "Accept" -> answerCall() updates status to 'connected'
+ * 4. Caller polls and detects 'connected' -> shows connected state
+ * 5. Either party taps "End" -> endCall() updates status to 'ended'
  *
  * Audio streaming requires a VoIP SDK (Agora/Twilio/ZEGO) integration.
- * The signaling layer (ringing → answer → end) is fully functional via Firestore.
+ * The signaling layer (ringing -> answer -> end) is fully functional via Firestore.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,26 +21,28 @@ import {
   StatusBar,
   Animated,
   Easing,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { initiateCall, answerCall, endCall as endCallApi, pollCallStatus, CallData } from '../lib/api';
 import { auth } from '../lib/firebase';
+import { Avatar } from '../components/Avatar';
+import { Ionicons } from '@expo/vector-icons';
 
 type CallRole = 'caller' | 'receiver';
 type CallStatus = 'initiating' | 'ringing' | 'connected' | 'ended';
 
-const RING_TIMEOUT = 45000; // 45 seconds before auto-ending unanswered call
-const POLL_INTERVAL = 1500; // Poll every 1.5 seconds
+const RING_TIMEOUT = 45000;
+const POLL_INTERVAL = 1500;
 
 export default function AudioCallScreen({ route, navigation }: any) {
   const { userId, userName, userProfileImage, callId: routeCallId, role: routeRole } = route.params;
+  const insets = useSafeAreaInsets();
 
   const currentUser = auth()?.currentUser;
   const myId = currentUser?.uid;
 
-  // Determine role: if routeRole is 'receiver', we're answering. Otherwise, we're calling.
   const [role, setRole] = useState<CallRole>(routeRole === 'receiver' ? 'receiver' : 'caller');
   const [callStatus, setCallStatus] = useState<CallStatus>(routeRole === 'receiver' ? 'ringing' : 'initiating');
   const [isMuted, setIsMuted] = useState(false);
@@ -53,8 +55,25 @@ export default function AudioCallScreen({ route, navigation }: any) {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const rippleAnim = useRef(new Animated.Value(0)).current;
+  const rippleAnims = [
+    useRef(new Animated.Value(0)).current,
+    useRef(new Animated.Value(0)).current,
+    useRef(new Animated.Value(0)).current,
+  ];
   const hasEndedRef = useRef(false);
+
+  // Resolve the display name and profile image for the other party
+  const displayName = callData
+    ? (role === 'caller'
+        ? (userName || 'Unknown')
+        : (callData.callerName || 'Unknown'))
+    : (userName || 'Unknown');
+
+  const displayImage = callData
+    ? (role === 'caller'
+        ? (userProfileImage || null)
+        : (callData.callerProfileImage || null))
+    : (userProfileImage || null);
 
   // ── Caller: initiate the call ──────────────────────────────────────────
   useEffect(() => {
@@ -66,13 +85,11 @@ export default function AudioCallScreen({ route, navigation }: any) {
         setCallData(call);
         setCallStatus('ringing');
 
-        // Start polling for status changes
         pollRef.current = setInterval(async () => {
           if (hasEndedRef.current) return;
           try {
             const updated = await pollCallStatus(call.id);
             if (!updated) {
-              // Call doc was deleted
               handleEnd();
               return;
             }
@@ -87,7 +104,6 @@ export default function AudioCallScreen({ route, navigation }: any) {
           } catch {}
         }, POLL_INTERVAL);
 
-        // Auto-end after 45s if no answer
         ringTimeoutRef.current = setTimeout(() => {
           if (callStatus === 'ringing' && !hasEndedRef.current) {
             Alert.alert('Unanswered', `${userName || 'User'} didn't answer the call.`);
@@ -110,7 +126,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
     };
   }, [role, userId, myId]);
 
-  // ── Receiver: poll for call status (caller may end the call while ringing) ──
+  // ── Receiver: poll for call status ─────────────────────────────────────
   useEffect(() => {
     if (role !== 'receiver' || !routeCallId) return;
 
@@ -154,7 +170,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
     handleEnd();
   }, []);
 
-  // ── End call (shared by caller and receiver) ───────────────────────────
+  // ── End call (shared) ─────────────────────────────────────────────────
   const handleEnd = useCallback(async () => {
     if (hasEndedRef.current) return;
     hasEndedRef.current = true;
@@ -165,7 +181,6 @@ export default function AudioCallScreen({ route, navigation }: any) {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
 
-    // Fire-and-forget: update the call document
     const callIdToUpdate = callData?.id || routeCallId;
     if (callIdToUpdate) {
       try { await endCallApi(callIdToUpdate); } catch {}
@@ -189,25 +204,25 @@ export default function AudioCallScreen({ route, navigation }: any) {
     };
   }, [callStatus]);
 
-  // ── Pulse animation while ringing ──────────────────────────────────────
+  // ── Pulse + ripple animations while ringing ────────────────────────────
   useEffect(() => {
     if (callStatus !== 'ringing') {
       pulseAnim.stopAnimation();
-      rippleAnim.stopAnimation();
+      rippleAnims.forEach(a => a.stopAnimation());
       return;
     }
 
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.08,
-          duration: 1200,
+          toValue: 1.06,
+          duration: 1400,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1200,
+          duration: 1400,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -215,63 +230,54 @@ export default function AudioCallScreen({ route, navigation }: any) {
     );
     pulse.start();
 
-    const ripple = Animated.loop(
-      Animated.sequence([
-        Animated.timing(rippleAnim, {
-          toValue: 1,
-          duration: 2500,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    ripple.start();
+    const ripples = rippleAnims.map((anim, i) => {
+      const ripple = Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 800),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 2400,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      ripple.start();
+      return ripple;
+    });
 
     return () => {
       pulse.stop();
-      ripple.stop();
+      ripples.forEach(r => r.stop());
     };
-  }, [callStatus, pulseAnim, rippleAnim]);
+  }, [callStatus, pulseAnim]);
 
-  // ── Format timer ───────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  // ── Status text ────────────────────────────────────────────────────────
   const getStatusText = () => {
     switch (callStatus) {
-      case 'initiating':
-        return 'Calling...';
-      case 'ringing':
-        return role === 'caller' ? 'Ringing...' : 'Incoming Call';
-      case 'connected':
-        return 'Connected';
-      case 'ended':
-        return 'Call Ended';
+      case 'initiating': return 'Calling...';
+      case 'ringing': return role === 'caller' ? 'Ringing...' : 'Incoming Call';
+      case 'connected': return 'Connected';
+      case 'ended': return 'Call Ended';
     }
   };
 
   const getStatusColor = () => {
     switch (callStatus) {
-      case 'initiating':
-        return '#D4AF37';
-      case 'ringing':
-        return '#D4AF37';
-      case 'connected':
-        return '#4ade80';
-      case 'ended':
-        return '#f43f5e';
+      case 'initiating': return '#D4AF37';
+      case 'ringing': return '#D4AF37';
+      case 'connected': return '#4ade80';
+      case 'ended': return '#f43f5e';
     }
   };
 
-  const displayName = callData
-    ? (role === 'caller'
-        ? (userName || 'Unknown')
-        : (callData.callerName || 'Unknown'))
-    : (userName || 'Unknown');
+  const statusColor = getStatusColor();
 
   return (
     <View style={styles.container}>
@@ -280,20 +286,26 @@ export default function AudioCallScreen({ route, navigation }: any) {
       {/* Red flash overlay on end call */}
       {showRedFlash && <View style={styles.redFlash} />}
 
-      {/* Gradient overlay */}
-      <View style={styles.gradientOverlay} />
+      {/* Top area — back hint (for caller initiating) */}
+      <View style={[styles.topArea, { paddingTop: insets.top || 12 }]}>
+        <Text style={styles.topHint}>
+          {callStatus === 'initiating' ? 'BLACK94 Voice Call' :
+           callStatus === 'ringing' && role === 'receiver' ? 'Incoming Voice Call' :
+           callStatus === 'connected' ? 'Voice Call Active' : ''}
+        </Text>
+      </View>
 
       {/* Ripple rings while ringing */}
       {callStatus === 'ringing' && (
         <View style={styles.rippleContainer}>
-          {[0, 1, 2].map((i) => (
+          {rippleAnims.map((anim, i) => (
             <Animated.View
               key={i}
               style={[
                 styles.rippleRing,
                 {
-                  transform: [{ scale: rippleAnim }],
-                  opacity: 1 - (rippleAnim as any)._value,
+                  transform: [{ scale: anim }],
+                  opacity: 1 - (anim as any)._value,
                 },
               ]}
             />
@@ -301,140 +313,124 @@ export default function AudioCallScreen({ route, navigation }: any) {
         </View>
       )}
 
-      {/* Avatar */}
+      {/* Avatar with pulse animation */}
       <Animated.View
         style={[
           styles.avatarWrapper,
           callStatus === 'ringing' && { transform: [{ scale: pulseAnim }] },
         ]}>
-        <View style={styles.avatarOuter}>
-          <View style={styles.avatarInner}>
-            <Text style={styles.avatarInitial}>
-              {(displayName ?? 'U')[0].toUpperCase()}
-            </Text>
-          </View>
+        <View style={styles.avatarRing}>
+          <Avatar
+            uri={displayImage}
+            name={displayName}
+            size={108}
+          />
         </View>
       </Animated.View>
 
       {/* Caller info */}
       <Text style={styles.callerName}>{displayName}</Text>
       <View style={styles.statusRow}>
-        <View
-          style={[styles.statusDot, { backgroundColor: getStatusColor() }]}
-        />
-        <Text style={[styles.statusText, { color: getStatusColor() }]}>
+        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+        <Text style={[styles.statusText, { color: statusColor }]}>
           {getStatusText()}
         </Text>
       </View>
 
       {/* Timer */}
-      {callStatus === 'connected' && (
-        <Text style={styles.timerText}>{formatTime(elapsed)}</Text>
-      )}
-      {callStatus === 'ended' && elapsed > 0 && (
+      {(callStatus === 'connected' || (callStatus === 'ended' && elapsed > 0)) && (
         <Text style={styles.timerText}>{formatTime(elapsed)}</Text>
       )}
 
       {/* Spacer */}
       <View style={styles.spacer} />
 
-      {/* Action buttons — shown when connected */}
+      {/* ── Connected: Mute / Speaker / End ── */}
       {callStatus === 'connected' ? (
-        <View style={styles.actionsContainer}>
-          {/* Mute */}
+        <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={styles.actionButton}
+            style={styles.actionBtn}
             onPress={() => setIsMuted((prev) => !prev)}
             activeOpacity={0.7}>
-            <View
-              style={[
-                styles.actionIconBg,
-                isMuted && styles.actionIconBgActive,
-              ]}>
-              <Text style={styles.actionIcon}>
-                {isMuted ? '🔇' : '🎙️'}
-              </Text>
+            <View style={[styles.actionCircle, isMuted && styles.actionCircleActive]}>
+              <Ionicons
+                name={isMuted ? 'mic-off' : 'mic'}
+                size={26}
+                color={isMuted ? '#000' : '#e7e9ea'}
+              />
             </View>
             <Text style={[styles.actionLabel, isMuted && styles.actionLabelActive]}>
               {isMuted ? 'Muted' : 'Mic'}
             </Text>
           </TouchableOpacity>
 
-          {/* Speaker */}
           <TouchableOpacity
-            style={styles.actionButton}
+            style={styles.actionBtn}
             onPress={() => setIsSpeaker((prev) => !prev)}
             activeOpacity={0.7}>
-            <View
-              style={[
-                styles.actionIconBg,
-                isSpeaker && styles.actionIconBgActive,
-              ]}>
-              <Text style={styles.actionIcon}>
-                {isSpeaker ? '🔊' : '🔈'}
-              </Text>
+            <View style={[styles.actionCircle, isSpeaker && styles.actionCircleActive]}>
+              <Ionicons
+                name={isSpeaker ? 'volume-high' : 'volume-medium'}
+                size={26}
+                color={isSpeaker ? '#000' : '#e7e9ea'}
+              />
             </View>
-            <Text
-              style={[styles.actionLabel, isSpeaker && styles.actionLabelActive]}>
+            <Text style={[styles.actionLabel, isSpeaker && styles.actionLabelActive]}>
               Speaker
             </Text>
           </TouchableOpacity>
 
-          {/* End Call */}
           <TouchableOpacity
-            style={styles.endCallButton}
+            style={styles.actionBtn}
             onPress={handleEnd}
             activeOpacity={0.8}>
-            <View style={styles.endCallIconBg}>
-              <Text style={styles.endCallIcon}>📱</Text>
+            <View style={styles.endCircle}>
+              <Ionicons name="call" size={28} color="#fff" />
             </View>
-            <Text style={styles.endCallLabel}>End</Text>
+            <Text style={styles.endLabel}>End</Text>
           </TouchableOpacity>
         </View>
-      ) : callStatus === 'ringing' || callStatus === 'initiating' ? (
-        /* Ringing / Initiating — Accept/Decline buttons */
-        <View style={styles.ringingActionsContainer}>
+      ) : (callStatus === 'ringing' || callStatus === 'initiating') ? (
+        /* ── Ringing / Initiating: Accept / Decline / Cancel ── */
+        <View style={styles.actionsRow}>
           {role === 'receiver' ? (
             <>
-              {/* Decline */}
               <TouchableOpacity
-                style={styles.declineButton}
+                style={styles.actionBtn}
                 onPress={handleDecline}
                 activeOpacity={0.8}>
-                <View style={styles.declineIconBg}>
-                  <Text style={styles.declineIcon}>📞</Text>
+                <View style={styles.declineCircle}>
+                  <Ionicons name="call" size={30} color="#fff" />
                 </View>
                 <Text style={styles.declineLabel}>Decline</Text>
               </TouchableOpacity>
 
-              {/* Accept */}
               <TouchableOpacity
-                style={styles.acceptButton}
+                style={styles.actionBtn}
                 onPress={handleAccept}
                 activeOpacity={0.8}>
-                <View style={styles.acceptIconBg}>
-                  <Text style={styles.acceptIcon}>✓</Text>
+                <View style={styles.acceptCircle}>
+                  <Ionicons name="call" size={30} color="#fff" />
                 </View>
                 <Text style={styles.acceptLabel}>Accept</Text>
               </TouchableOpacity>
             </>
           ) : (
-            /* Caller: only end button while ringing */
             <TouchableOpacity
-              style={styles.endCallButton}
+              style={styles.actionBtn}
               onPress={handleEnd}
               activeOpacity={0.8}>
-              <View style={styles.endCallIconBg}>
-                <Text style={styles.endCallIcon}>📱</Text>
+              <View style={styles.endCircle}>
+                <Ionicons name="call" size={28} color="#fff" />
               </View>
-              <Text style={styles.endCallLabel}>Cancel</Text>
+              <Text style={styles.endLabel}>Cancel</Text>
             </TouchableOpacity>
           )}
         </View>
       ) : null}
 
-      {/* Safe area bottom spacer */}
-      <View style={styles.bottomSpacer} />
+      {/* Bottom safe area spacer */}
+      <View style={{ height: Math.max(insets.bottom, 40) + 20 }} />
     </View>
   );
 }
@@ -444,21 +440,29 @@ export default function AudioCallScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#000',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
+    justifyContent: 'space-between',
   },
   redFlash: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: 'rgba(239, 68, 68, 0.25)',
     zIndex: 100,
+  },
+  topArea: {
+    width: '100%',
+    alignItems: 'center',
+    paddingBottom: 8,
+  },
+  topHint: {
+    color: '#64748b',
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.5,
   },
   rippleContainer: {
     position: 'absolute',
+    top: '28%',
     width: 200,
     height: 200,
     borderRadius: 100,
@@ -470,46 +474,36 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(212, 175, 55, 0.15)',
   },
   avatarWrapper: {
-    marginBottom: 24,
+    marginTop: 20,
+    marginBottom: 20,
   },
-  avatarOuter: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(212, 175, 55, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
+  avatarRing: {
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    backgroundColor: 'rgba(212, 175, 55, 0.08)',
+    borderWidth: 2.5,
     borderColor: '#D4AF37',
-  },
-  avatarInner: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#16181c',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  avatarInitial: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: '#D4AF37',
+    padding: 10,
   },
   callerName: {
     fontSize: 28,
     fontWeight: '700',
     color: '#e7e9ea',
     marginBottom: 8,
+    textAlign: 'center',
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   statusDot: {
     width: 8,
@@ -530,34 +524,32 @@ const styles = StyleSheet.create({
   spacer: {
     flex: 1,
   },
-  // Connected actions (mute, speaker, end)
-  actionsContainer: {
+
+  // ── Action buttons row ──
+  actionsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 32,
+    gap: 48,
+    marginBottom: 12,
   },
-  actionButton: {
+  actionBtn: {
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
-  actionButtonActive: {},
-  actionIconBg: {
+  actionCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
     backgroundColor: '#16181c',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
-  actionIconBgActive: {
+  actionCircleActive: {
     backgroundColor: '#D4AF37',
     borderColor: '#D4AF37',
-  },
-  actionIcon: {
-    fontSize: 24,
   },
   actionLabel: {
     fontSize: 12,
@@ -567,38 +559,25 @@ const styles = StyleSheet.create({
   actionLabelActive: {
     color: '#D4AF37',
   },
-  endCallButton: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  endCallIconBg: {
+
+  // ── End call ──
+  endCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
     backgroundColor: '#f43f5e',
     justifyContent: 'center',
     alignItems: 'center',
+    transform: [{ rotate: '135deg' }],
   },
-  endCallIcon: {
-    fontSize: 24,
-  },
-  endCallLabel: {
+  endLabel: {
     fontSize: 12,
     color: '#f43f5e',
     fontWeight: '500',
   },
-  // Ringing actions (accept, decline)
-  ringingActionsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 60,
-  },
-  acceptButton: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  acceptIconBg: {
+
+  // ── Accept (receiver) ──
+  acceptCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
@@ -606,37 +585,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  acceptIcon: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#000000',
-  },
   acceptLabel: {
     fontSize: 14,
     color: '#4ade80',
     fontWeight: '600',
   },
-  declineButton: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  declineIconBg: {
+
+  // ── Decline (receiver) ──
+  declineCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
     backgroundColor: '#f43f5e',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  declineIcon: {
-    fontSize: 24,
+    transform: [{ rotate: '135deg' }],
   },
   declineLabel: {
     fontSize: 14,
     color: '#f43f5e',
     fontWeight: '600',
-  },
-  bottomSpacer: {
-    height: 60,
   },
 });
