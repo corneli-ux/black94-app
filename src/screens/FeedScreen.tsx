@@ -364,7 +364,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                 <Image
                   source={{ uri: refreshedUrls[post.mediaUrls[0]] || post.mediaUrls[0] }}
                   style={styles.media}
-                  resizeMode="cover"
+                  resizeMode="contain"
                   // BUG FIX: Show placeholder when image fails to load
                   // (expired token, broken URL) instead of a black rectangle.
                   // On first failure, tries refreshing the Firebase URL.

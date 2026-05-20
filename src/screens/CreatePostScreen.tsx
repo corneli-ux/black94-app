@@ -327,7 +327,8 @@ const CreatePostScreen: React.FC = () => {
 
           try {
             const optimized = await optimizeImage(uri, {
-              maxWidth: 2048,
+              maxWidth: 1600,
+              maxHeight: 1600,
               jpegQuality: 0.88,
               generateThumbnail: false,
             });
@@ -509,11 +510,7 @@ const CreatePostScreen: React.FC = () => {
             disabled={!canPost}
             activeOpacity={0.7}
           >
-            {posting ? (
-              <ActivityIndicator size="small" color={COLORS.white} />
-            ) : (
-              <Text style={[styles.postButtonText, canPost && styles.postButtonTextActive]}>Post</Text>
-            )}
+            <Text style={[styles.postButtonText, canPost && styles.postButtonTextActive, posting && { opacity: 0.6 }]}>{posting ? 'Posting...' : 'Post'}</Text>
           </TouchableOpacity>
         </View>
 

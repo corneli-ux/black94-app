@@ -60,6 +60,8 @@ export interface OptimizedImageResult {
 export interface OptimizeOptions {
   /** Maximum dimension (longest side) in px for the full-size output. Default: 2048 */
   maxWidth?: number;
+  /** Maximum height in px. Default: 1600. Tall vertical images are capped at this height. */
+  maxHeight?: number;
   /** JPG quality (0–1). Default: 0.88. Ignored for PNG. */
   jpegQuality?: number;
   /** Whether to generate a thumbnail. Default: true */
@@ -333,6 +335,7 @@ export async function optimizeImage(
 ): Promise<OptimizedImageResult> {
   const {
     maxWidth = DEFAULT_MAX_DIMENSION,
+    maxHeight = 1600,
     jpegQuality = DEFAULT_JPEG_QUALITY,
     generateThumbnail = true,
     thumbnailMaxSize = DEFAULT_THUMBNAIL_MAX,
@@ -406,6 +409,15 @@ export async function optimizeImage(
     // Ensure minimum 1px per dimension
     resizeWidth = Math.max(1, resizeWidth);
     resizeHeight = Math.max(1, resizeHeight);
+  }
+
+  // Cap height for very tall vertical images (screenshots, stories).
+  // A 9:16 image at 2048px wide would be 3640px tall — way too much for feed display.
+  // Cap at maxHeight while preserving aspect ratio so vertical images don't dominate.
+  if (resizeHeight > maxHeight && resizeHeight > resizeWidth) {
+    const scale = maxHeight / resizeHeight;
+    resizeWidth = Math.max(1, Math.round(resizeWidth * scale));
+    resizeHeight = maxHeight;
   }
 
   // Step 6: Resize the image
