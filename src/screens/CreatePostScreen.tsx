@@ -12,7 +12,6 @@ import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
 import { checkPlanLimit } from '../lib/payments';
 import { uploadOptimizedImage } from '../utils/imageUpload';
-import { optimizeImage } from '../utils/imageOptimizer';
 import { auth } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 
@@ -83,14 +82,11 @@ async function openImagePicker(limit: number): Promise<ImagePicker.ImagePickerAs
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      // BUG FIX: Removed quality: 0.8 and maxWidth: 1200.
-      // These picker-side options forced JPEG conversion of ALL images,
-      // turning PNG transparency into BLACK pixels. The upload pipeline
-      // (imageOptimizer + uploadOptimizedImage) handles compression
-      // and resizing properly, preserving format when needed.
+      mediaTypes: ImagePicker.MediaType.Images,
+      quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: limit,
+      maxWidth: 1200,
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) return null;
@@ -136,10 +132,10 @@ async function openCamera(): Promise<ImagePicker.ImagePickerAsset | null> {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      // BUG FIX: Removed quality and maxWidth — picker-side JPEG conversion
-      // was turning PNG transparency into black pixels.
+      mediaTypes: ImagePicker.MediaType.Images,
+      quality: 0.8,
       allowsMultipleSelection: false,
+      maxWidth: 1200,
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) return null;
@@ -204,30 +200,8 @@ const CreatePostScreen: React.FC = () => {
     }
     const assets = await openImagePicker(remaining);
     if (!assets || assets.length === 0) return;
-    const rawUris = assets.map((a) => a.uri!).slice(0, remaining);
-    // BUG FIX: Copy each picked image to a permanent cache location IMMEDIATELY.
-    // ImagePicker's temp files in /cache/ImagePicker/ can be cleaned up by
-    // Android OS at any time, causing FileNotFoundException on upload.
-    try {
-      const { copyToSafeCache } = require('../utils/imageUpload');
-      const safeUris: string[] = [];
-      for (const rawUri of rawUris) {
-        try {
-          const safeUri = await copyToSafeCache(rawUri);
-          safeUris.push(safeUri);
-        } catch (copyErr: any) {
-          console.warn('[CreatePost] Failed to cache image:', copyErr?.message);
-          // Skip this image — it's gone from the picker's cache
-        }
-      }
-      if (safeUris.length > 0) setSelectedImages((prev) => [...prev, ...safeUris]);
-      else if (rawUris.length > 0) {
-        Alert.alert('Image Error', 'Selected images are no longer available. Please try again.');
-      }
-    } catch {
-      // copyToSafeCache import failed — fall back to original URIs
-      if (rawUris.length > 0) setSelectedImages((prev) => [...prev, ...rawUris]);
-    }
+    const uris = assets.map((a) => a.uri!).slice(0, remaining);
+    if (uris.length > 0) setSelectedImages((prev) => [...prev, ...uris]);
   }, [selectedImages.length, posting]);
 
   const handleCamera = useCallback(async () => {
@@ -239,14 +213,7 @@ const CreatePostScreen: React.FC = () => {
     }
     const asset = await openCamera();
     if (!asset?.uri) return;
-    // Camera images can also be in volatile cache — copy to safe location
-    try {
-      const { copyToSafeCache } = require('../utils/imageUpload');
-      const safeUri = await copyToSafeCache(asset.uri);
-      setSelectedImages((prev) => [...prev, safeUri]);
-    } catch {
-      setSelectedImages((prev) => [...prev, asset.uri]);
-    }
+    setSelectedImages((prev) => [...prev, asset.uri!]);
   }, [selectedImages.length, posting]);
 
   const handleRemoveImage = useCallback((index: number) => {
@@ -281,16 +248,10 @@ const CreatePostScreen: React.FC = () => {
     }
 
     // Check plan limits for free users
-    try {
-      const planCheck = await checkPlanLimit(user?.id || '', 'post');
-      if (!planCheck.allowed) {
-        Alert.alert('Limit Reached', planCheck.reason || 'Upgrade your plan to create more posts.');
-        return;
-      }
-    } catch (e) {
-      // If plan check fails (network, auth), allow the post to continue
-      // rather than silently failing. The server-side rules will enforce limits.
-      console.warn('[CreatePost] Plan limit check failed, allowing post:', e);
+    const planCheck = await checkPlanLimit(user?.id || '', 'post');
+    if (!planCheck.allowed) {
+      Alert.alert('Limit Reached', planCheck.reason || 'Upgrade your plan to create more posts.');
+      return;
     }
 
     setPosting(true);
@@ -309,50 +270,10 @@ const CreatePostScreen: React.FC = () => {
     try {
       // Upload all images in parallel (not sequential)
       const uploadPromises = selectedImages.map(async (uri, i) => {
+        const storagePath = `posts/${currentUser.uid}/${Date.now()}_${i}.jpg`;
         try {
-          // BUG FIX: Optimize image BEFORE uploading. Previously, raw picker
-          // output was uploaded directly with hardcoded mimeType: 'image/jpeg'.
-          // If the user picked a PNG (screenshot, graphic), the binary was PNG
-          // but Content-Type said JPEG → React Native decoded PNG bytes as JPEG
-          // → black/corrupted photos. optimizeImage produces a consistent JPEG
-          // output with correct MIME type.
-          setUploadProgress(`Optimizing image ${i + 1}...`);
-          let uploadUri = uri;
-          // BUG FIX: Detect MIME type from original URI extension.
-          // Previously hardcoded to 'image/jpeg'. When optimization fails and
-          // the original was PNG, uploading PNG bytes with Content-Type: image/jpeg
-          // caused images to fail loading in React Native.
-          const uriExt = uri.split('?')[0].split('.').pop()?.toLowerCase();
-          let uploadMime = uriExt === 'png' ? 'image/png' : 'image/jpeg';
-
-          try {
-            const optimized = await optimizeImage(uri, {
-              maxWidth: 1600,
-              maxHeight: 1600,
-              jpegQuality: 0.88,
-              generateThumbnail: false,
-            });
-
-            // BLACK PHOTO FIX: Validate that the optimized image is not suspiciously
-            // small or zero-byte. expo-image-manipulator can silently produce corrupted
-            // output (black/empty images) on certain Android devices/GPU drivers.
-            // If the optimized file looks broken, fall back to the original URI.
-            if (optimized.size > 100) {
-              uploadUri = optimized.optimizedUri;
-              uploadMime = optimized.mimeType;
-            } else {
-              console.warn(`[CreatePost] Optimized image ${i + 1} is 0 bytes, using original`);
-            }
-          } catch (optErr: any) {
-            // If optimization fails entirely, fall back to uploading the original
-            console.warn(`[CreatePost] Image optimization failed for ${i + 1}, using original:`, optErr?.message);
-          }
-
-          const ext = uploadMime === 'image/png' ? 'png' : 'jpg';
-          const storagePath = `posts/${currentUser.uid}/${Date.now()}_${i}.${ext}`;
-
-          const result = await uploadOptimizedImage(uploadUri, storagePath, {
-            mimeType: uploadMime,
+          const result = await uploadOptimizedImage(uri, storagePath, {
+            mimeType: 'image/jpeg',
             abortSignal: abortController.signal,
             onProgress: (loaded, total) => {
               const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
@@ -363,8 +284,6 @@ const CreatePostScreen: React.FC = () => {
               });
             },
           });
-
-          console.log(`[CreatePost] Image ${i + 1} uploaded successfully: ${result.downloadUrl.slice(0, 100)}...`);
 
           // Mark this image as done
           setImageStatuses((prev) => {
@@ -384,18 +303,10 @@ const CreatePostScreen: React.FC = () => {
             next[i] = 'failed';
             return next;
           });
-          const errMsg = err?.message || String(err);
-          console.error(`[CreatePost] Image ${i + 1} upload failed:`, errMsg);
-          // Store the first error message so we can show it to the user
-          if (!handlePost._firstUploadError) {
-            handlePost._firstUploadError = errMsg;
-          }
+          console.error(`[CreatePost] Image ${i + 1} upload failed:`, err);
           return null; // Signal failure but don't throw
         }
       });
-
-      // Reset stored error for this attempt
-      handlePost._firstUploadError = undefined;
 
       const results = await Promise.all(uploadPromises);
 
@@ -404,13 +315,10 @@ const CreatePostScreen: React.FC = () => {
       const successCount = results.length - failedCount;
 
       if (failedCount > 0 && successCount === 0) {
-        // All uploads failed — show the actual error message, not a generic "check connection"
-        const detail = handlePost._firstUploadError || 'Unknown error';
-        // Truncate very long error messages for the alert
-        const shortDetail = detail.length > 200 ? detail.slice(0, 200) + '...' : detail;
+        // All uploads failed — do NOT create the post
         Alert.alert(
           'Upload Failed',
-          `Could not upload ${failedCount} image${failedCount > 1 ? 's' : ''}.\n\n${shortDetail}`,
+          `${failedCount} image${failedCount > 1 ? 's' : ''} could not be uploaded. Please check your connection and try again.`,
         );
         return;
       }
@@ -510,7 +418,11 @@ const CreatePostScreen: React.FC = () => {
             disabled={!canPost}
             activeOpacity={0.7}
           >
-            <Text style={[styles.postButtonText, canPost && styles.postButtonTextActive, posting && { opacity: 0.6 }]}>{posting ? 'Posting...' : 'Post'}</Text>
+            {posting ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <Text style={[styles.postButtonText, canPost && styles.postButtonTextActive]}>Post</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -619,9 +531,8 @@ const CreatePostScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Upload progress summary — only show for text-only posts or final "Posting..." step.
-              Per-image progress is shown in the media grid overlay above. */}
-          {uploadProgress && (selectedImages.length === 0 || uploadProgress === 'Posting...') ? (
+          {/* Upload progress summary */}
+          {uploadProgress ? (
             <View style={styles.progressRow}>
               <ActivityIndicator size="small" color={COLORS.gold} />
               <Text style={styles.progressText}>{uploadProgress}</Text>
@@ -677,7 +588,7 @@ const CreatePostScreen: React.FC = () => {
               </View>
               <TouchableOpacity style={styles.pollCreateBtn} onPress={() => {
                 if (!pollData?.options.length) return;
-                setPollData(prev => prev ? { ...prev, question: pollQuestion.trim() || 'Untitled poll', duration: pollDuration } : prev);
+                setPollData(prev => prev ? { ...prev, question: pollQuestion.trim() || 'Untitled poll' } : prev);
                 setShowPollCreator(false);
               }}><Text style={styles.pollCreateBtnText}>Done</Text></TouchableOpacity>
             </View>

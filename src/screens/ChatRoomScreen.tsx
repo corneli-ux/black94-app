@@ -1,17 +1,25 @@
-import { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, Image, Linking } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, ScrollView, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { sendMessage, blockUser, Message, tsToMillis } from '../lib/api';
+import { fetchMessages, sendMessage, blockUser, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
-import { initE2EE, isE2EEReady, decryptMessage } from '../lib/e2ee';
 import { Avatar } from '../components/Avatar';
+import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
-import { uploadOptimizedImage, copyToSafeCache } from '../utils/imageUpload';
-import { optimizeImage } from '../utils/imageOptimizer';
 import * as ImagePicker from 'expo-image-picker';
+import { uploadOptimizedImage } from '../utils/imageUpload';
 
-const QUICK_EMOJIS = ['😀','😂','😍','🥺','😎','🤔','👍','❤️','🔥','👏','🙌','💯','😢','😡','🤣','😊','🙏','✨','🎉','👋','🤝','💪','👀','🫡','🫶','🥰','😘','😏','🥳','💩'];
+/* ── Emoji data ─────────────────────────────────────────────────────────────── */
+
+const EMOJI_CATEGORIES = [
+  { name: 'Smileys', emojis: ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐'] },
+  { name: 'Gestures', emojis: ['👋','🤚','🖐','✋','🖖','🫱','🫲','🫳','🫴','👌','🤌','🤏','✌','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏'] },
+  { name: 'Hearts', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','❣️','💕','💞','💓','💗','💖','💘','💝','💟','♥️','🫀','💌','💋','💍','💎','🔥','⭐','🌟','✨','💥','💫','💦','💨','🌈','☀️','🌙','⚡'] },
+  { name: 'Objects', emojis: ['🎉','🎊','🎈','🎁','🏆','🥇','🎵','🎶','🎸','🎤','📱','💻','📸','🎮','⚽','🏀','🎯','🚀','✈️','🏠','🍕','🍔','🍟','🌮','🍦','☕','🍺','🥂','💊'] },
+];
+
+const ALL_EMOJIS = EMOJI_CATEGORIES.flatMap(c => c.emojis);
 
 function formatTime(timestamp?: number | string): string {
   if (!timestamp) return '';
@@ -28,28 +36,41 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(!routeChat);
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showNuclearConfirm, setShowNuclearConfirm] = useState(false);
   const [blocking, setBlocking] = useState(false);
-  const [e2eeReady, setE2eeReady] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [activeEmojiCategory, setActiveEmojiCategory] = useState(0);
   const flatRef = useRef<FlatList>(null);
-  const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const emojiListRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
-
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const insets = useSafeAreaInsets();
 
-  // ── Initialize E2EE & check encryption status ──
-  useEffect(() => {
-    if (!currentUser?.uid) return;
-    initE2EE(currentUser.uid).catch(() => {});
-  }, [currentUser?.uid]);
+  // ── GIF callback ref ──────────────────────────────────────────────────────
+  const gifCallbackRef = useRef<((url: string) => void) | null>(null);
 
   useEffect(() => {
-    if (!chat?.otherUser?.id || !currentUser?.uid) return;
-    isE2EEReady(chat.otherUser.id).then(setE2eeReady).catch(() => {});
-  }, [chat?.otherUser?.id, currentUser?.uid]);
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Re-poll to pick up any GIF sent via GifPickerScreen
+      if (chat?.id) load(true);
+    });
+    return unsubscribe;
+  }, [navigation, chat?.id]);
+
+  // ── GIF callback handler ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!chat) return;
+    // Check if a GIF URL was passed back from GifPickerScreen
+    const gifUrl = route.params?.selectedGifUrl;
+    if (gifUrl && typeof gifUrl === 'string' && gifUrl.startsWith('http')) {
+      // Clear the param so it doesn't re-trigger
+      navigation.setParams({ selectedGifUrl: undefined });
+      sendMediaMessage(gifUrl, 'gif', '');
+    }
+  }, [route.params?.selectedGifUrl]);
 
   // If chatId was passed (e.g., from UserProfileScreen), fetch the chat doc
   useEffect(() => {
@@ -66,12 +87,12 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               if (otherSnap.exists) {
                 const d = otherSnap.data();
                 otherUser = {
-                  id: otherId, username: d.username || '',
+                  id: otherId, email: d.email || '', username: d.username || '',
                   displayName: d.displayName || '', bio: d.bio || '',
                   profileImage: d.profileImage || null, coverImage: d.coverImage || null,
                   role: d.role || 'personal', badge: d.badge || '',
                   subscription: d.subscription || 'free', isVerified: d.isVerified || false,
-                  createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
+                  createdAt: d.createdAt?.seconds ? d.createdAt.seconds * 1000 : Date.now(),
                 };
               }
             } catch {}
@@ -91,13 +112,23 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       };
       fetchChat();
     }
-  }, [routeChatId, routeChat, currentUser?.uid]);
+  }, [routeChatId, routeChat]);
 
-  // Realtime message listener using onSnapshot — replaces polling
+  const load = useCallback(async (silent = false) => {
+    if (!chat) return;
+    try {
+      const msgs = await fetchMessages(chat.id);
+      setMessages(msgs);
+      if (!silent) setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [chat?.id]);
+
   useEffect(() => {
-    if (!chat?.id) return;
-
-    // Reset unread count
+    if (!chat) return;
     const resetUnread = async () => {
       try {
         const isUser1 = chat.user1Id === currentUser?.uid;
@@ -108,105 +139,155 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       }
     };
     resetUnread();
-
-    setLoading(true);
-
-    const loadMessages = async () => {
-      try {
-        const snap = await firestore()
-          .collection('chats')
-          .doc(chat.id)
-          .collection('messages')
-          .orderBy('createdAt', 'asc')
-          .limit(50)
-          .get();
-
-        const msgs = await Promise.all(
-          snap.docs.map(async (docSnap) => {
-            const data = docSnap.data();
-            const rawContent = data.content || '';
-            const senderId = data.senderId || '';
-            const msgType = data.messageType || 'text';
-            let content: string;
-
-            if (msgType === 'image') {
-              content = rawContent;
-            } else {
-              try {
-                const decrypted = await decryptMessage(rawContent, senderId);
-                content = decrypted ?? '[Unable to decrypt this message]';
-              } catch {
-                content = rawContent.startsWith('E2EE:')
-                  ? '[Unable to decrypt this message]'
-                  : rawContent;
-              }
-            }
-
-            return {
-              id: docSnap.id,
-              chatId: chat.id,
-              senderId,
-              receiverId: data.receiverId || '',
-              content,
-              messageType: msgType,
-              createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-            } as Message & { messageType: string };
-          }),
-        );
-        setMessages(msgs);
-        setLoading(false);
-        setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
-      } catch (err) {
-        console.warn('[ChatRoom] message poll error:', err);
-        setLoading(false);
-      }
-    };
-
-    loadMessages();
-    msgPollRef.current = setInterval(loadMessages, 3000);
-
-    return () => {
-      if (msgPollRef.current) {
-        clearInterval(msgPollRef.current);
-        msgPollRef.current = null;
-      }
-    };
+    load();
+    pollRef.current = setInterval(() => load(true), 5000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [chat?.id]);
+
+  // ── Send text message ─────────────────────────────────────────────────────
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
     const content = text.trim();
     setText('');
-    setShowEmoji(false);
     setSending(true);
+    const tempMsg: Message = {
+      id: `tmp-${Date.now()}`, chatId: chat.id,
+      senderId: currentUser?.uid || '', receiverId: chat.otherUser?.id || '',
+      content, messageType: 'text', createdAt: Date.now(),
+    };
+    setMessages(prev => [...prev, tempMsg]);
+    setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
     try {
       await sendMessage(chat.id, chat.otherUser?.id || '', content);
-      // No need to call load() — onSnapshot will pick up the new message automatically
-    } catch (e: any) {
-      console.error('[ChatRoom] Send failed:', e?.message || e);
-      // If it looks like an auth error, try once more with a fresh token
-      const isAuthError = e?.message?.includes('Not authenticated') ||
-        e?.message?.includes('Session expired') ||
-        e?.message?.includes('sign in again') ||
-        e?.message?.includes('permission');
-      if (isAuthError) {
-        try {
-          const { _invalidateTokenCache } = await import('../lib/firebase');
-          _invalidateTokenCache();
-        } catch {}
-        try {
-          await sendMessage(chat.id, chat.otherUser?.id || '', content);
-        } catch (retryErr: any) {
-          Alert.alert('Send Failed', `${retryErr?.message || 'Unknown error'}. Please try again.`);
-        }
-      } else {
-        Alert.alert('Send Failed', `${e?.message || 'Unknown error'}. Please try again.`);
-        setText(content); // Restore the text on failure
-      }
+      await load(true);
+    } catch (e) {
+      console.error('[ChatRoom] Send failed:', e);
+      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      Alert.alert('Send Failed', 'Could not send your message. Please try again.');
     } finally {
       setSending(false);
     }
   };
+
+  // ── Send media message (image or gif) ─────────────────────────────────────
+
+  const sendMediaMessage = async (mediaUrl: string, msgType: string, content: string) => {
+    if (!chat) return;
+    setSending(true);
+    const tempMsg: Message = {
+      id: `tmp-media-${Date.now()}`, chatId: chat.id,
+      senderId: currentUser?.uid || '', receiverId: chat.otherUser?.id || '',
+      content: content || (msgType === 'gif' ? 'GIF' : ''), messageType: msgType,
+      mediaUrl, createdAt: Date.now(),
+    };
+    setMessages(prev => [...prev, tempMsg]);
+    setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+    try {
+      await sendMessage(chat.id, chat.otherUser?.id || '', content || '', { messageType: msgType, mediaUrl });
+      await load(true);
+    } catch (e) {
+      console.error('[ChatRoom] Media send failed:', e);
+      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      Alert.alert('Send Failed', 'Could not send. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ── Pick & send image ─────────────────────────────────────────────────────
+
+  const handlePickImage = async () => {
+    setShowAttachMenu(false);
+    setShowEmoji(false);
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow photo library access to send images.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaType.Images,
+        quality: 0.7,
+        allowsMultipleSelection: false,
+        maxWidth: 1200,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      const asset = result.assets[0];
+      setUploading(true);
+
+      // Upload to Firebase Storage
+      const storagePath = `chats/${chat.id}/${Date.now()}_${asset.fileName || 'photo.jpg'}`;
+      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+        mimeType: asset.mimeType || 'image/jpeg',
+      });
+
+      await sendMediaMessage(uploadResult.downloadUrl, 'image', '');
+    } catch (err: any) {
+      console.error('[ChatRoom] Image send error:', err);
+      Alert.alert('Upload Failed', err.message || 'Could not upload image. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ── Open camera for chat ──────────────────────────────────────────────────
+
+  const handleCamera = async () => {
+    setShowAttachMenu(false);
+    setShowEmoji(false);
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Camera access is needed to take photos.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaType.Images,
+        quality: 0.7,
+        allowsMultipleSelection: false,
+        maxWidth: 1200,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      const asset = result.assets[0];
+      setUploading(true);
+
+      const storagePath = `chats/${chat.id}/${Date.now()}_camera.jpg`;
+      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+        mimeType: asset.mimeType || 'image/jpeg',
+      });
+
+      await sendMediaMessage(uploadResult.downloadUrl, 'image', '');
+    } catch (err: any) {
+      console.error('[ChatRoom] Camera error:', err);
+      Alert.alert('Upload Failed', err.message || 'Could not upload photo. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ── Open GIF picker ───────────────────────────────────────────────────────
+
+  const handleOpenGifPicker = () => {
+    setShowAttachMenu(false);
+    setShowEmoji(false);
+    navigation.navigate('GifPicker', {
+      onSelect: (gifUrl: string) => {
+        // This won't work with React Navigation params for functions,
+        // so we use the route.params approach instead
+      },
+    });
+  };
+
+  // ── Add emoji to text ─────────────────────────────────────────────────────
+
+  const handleEmojiSelect = (emoji: string) => {
+    setText(prev => prev + emoji);
+  };
+
+  // ── Nuclear Block ─────────────────────────────────────────────────────────
 
   const handleNuclearBlock = async () => {
     setShowMenu(false);
@@ -228,103 +309,48 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     }
   };
 
-  // ── Image Upload Handler ──
-  const handleImageSend = async () => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert('Permission Denied', 'Please allow access to your photo library to send images.');
-        return;
-      }
+  // ── Render message bubble ─────────────────────────────────────────────────
 
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['Images'] as ImagePicker.MediaType[],
-        quality: 0.8,
-      });
-
-      if (pickerResult.canceled || !pickerResult.assets?.length) return;
-
-      const asset = pickerResult.assets[0];
-      if (!asset.uri) return;
-
-      setUploading(true);
-
-      // Copy to safe cache before OS cleans the temp file
-      const safeUri = await copyToSafeCache(asset.uri);
-
-      // Optimize the image for chat (smaller max size than posts)
-      const optimized = await optimizeImage(safeUri, {
-        maxWidth: 1024,
-        maxHeight: 1024,
-        jpegQuality: 0.8,
-        generateThumbnail: false,
-      });
-
-      // Determine file extension from MIME type
-      const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
-      const storagePath = `chats/${chat.id}/${Date.now()}.${ext}`;
-
-      // Upload to Firebase Storage
-      const result = await uploadOptimizedImage(optimized.optimizedUri, storagePath);
-
-      // Write the image message directly to Firestore
-      // (skip E2EE for image URLs — access controlled by Storage rules)
-      await firestore().collection('chats').doc(chat.id).collection('messages').add({
-        senderId: currentUser?.uid,
-        receiverId: chat.otherUser?.id,
-        content: result.downloadUrl,
-        messageType: 'image',
-        createdAt: firestore.FieldValue.serverTimestamp(),
-      });
-
-      // Update the chat's last message preview
-      try {
-        await firestore().collection('chats').doc(chat.id).update({
-          lastMessage: '📷 Photo',
-          lastMessageTime: firestore.FieldValue.serverTimestamp(),
-        });
-      } catch (updateErr) {
-        console.warn('[ChatRoom] Failed to update lastMessage preview:', updateErr);
-      }
-
-      // onSnapshot will pick up the new message automatically
-    } catch (e: any) {
-      console.error('[ChatRoom] Image upload failed:', e);
-      Alert.alert('Upload Failed', e?.message || 'Failed to upload image. Please try again.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // ── Phone Call Handler — initiate call via Firestore signaling ──
-  const handlePhoneCall = () => {
-    if (!chat?.otherUser) return;
-    navigation.navigate('AudioCall', {
-      userId: chat.otherUser.id,
-      userName: chat.otherUser.displayName || chat.otherUser.username || 'User',
-      userProfileImage: chat.otherUser.profileImage,
-    });
-  };
-
-  const renderMessage = ({ item }: { item: any }) => {
+  const renderMessage = ({ item }: { item: Message }) => {
     const isMine = item.senderId === currentUser?.uid;
-    const isImage = item.messageType === 'image';
+    const msgType = item.messageType || 'text';
 
     return (
       <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
         {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-          {isImage ? (
+          {/* Image message */}
+          {msgType === 'image' && item.mediaUrl ? (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => {
+                // Could open full-screen image viewer here
+              }}
+            >
+              <Image
+                source={{ uri: item.mediaUrl }}
+                style={styles.bubbleImage}
+                resizeMode="cover"
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          ) : null}
+
+          {/* GIF message */}
+          {msgType === 'gif' && item.mediaUrl ? (
             <Image
-              source={{ uri: item.content }}
-              style={styles.imageMessage}
-              resizeMode="cover"
-              accessible
-              accessibilityLabel="Image message"
+              source={{ uri: item.mediaUrl }}
+              style={styles.bubbleGif}
+              resizeMode="contain"
             />
-          ) : (
+          ) : null}
+
+          {/* Text content (for text messages or captions) */}
+          {item.content && msgType === 'text' ? (
             <Text style={[styles.bubbleText, isMine && { color: '#000000' }]}>{item.content}</Text>
-          )}
+          ) : null}
+
+          {/* Timestamp */}
           <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }]}>
             {formatTime(item.createdAt)}
           </Text>
@@ -332,6 +358,37 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       </View>
     );
   };
+
+  // ── Emoji category tabs ───────────────────────────────────────────────────
+
+  const renderEmojiCategoryTab = ({ item, index }: { item: typeof EMOJI_CATEGORIES[0]; index: number }) => (
+    <TouchableOpacity
+      key={item.name}
+      style={[styles.emojiTab, activeEmojiCategory === index && styles.emojiTabActive]}
+      onPress={() => {
+        setActiveEmojiCategory(index);
+        emojiListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }}
+      activeOpacity={0.6}
+    >
+      <Text style={[styles.emojiTabText, activeEmojiCategory === index && styles.emojiTabTextActive]}>
+        {item.name}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  // ── Emoji grid ────────────────────────────────────────────────────────────
+
+  const renderEmojiItem = ({ item }: { item: string }) => (
+    <TouchableOpacity
+      key={item}
+      style={styles.emojiCell}
+      onPress={() => handleEmojiSelect(item)}
+      activeOpacity={0.6}
+    >
+      <Text style={styles.emojiChar}>{item}</Text>
+    </TouchableOpacity>
+  );
 
   if (!chat) {
     return (
@@ -353,18 +410,10 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           <>
             <Avatar uri={chat.otherUser?.profileImage} name={chat.otherUser?.displayName} size={36} />
             <View style={{ marginLeft: 10, flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.headerName} numberOfLines={1}>
-                  {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
-                </Text>
-                {e2eeReady && (
-                  <Ionicons name="lock-closed" size={14} color="#4ade80" style={{ marginLeft: 6 }} />
-                )}
-              </View>
-              <Text style={styles.headerHandle}>
-                @{chat.otherUser?.username}
-                {e2eeReady ? ' · End-to-end encrypted' : ''}
+              <Text style={styles.headerName} numberOfLines={1}>
+                {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
               </Text>
+              <Text style={styles.headerHandle}>@{chat.otherUser?.username}</Text>
             </View>
           </>
         ) : (
@@ -372,16 +421,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         )}
 
         <View style={{ width: 36 }} />
-
-        {/* Phone call button */}
-        <TouchableOpacity
-          style={styles.headerActionBtn}
-          onPress={handlePhoneCall}
-          activeOpacity={0.7}
-          accessibilityLabel="Make phone call"
-        >
-          <Ionicons name="call" size={20} color="#e7e9ea" />
-        </TouchableOpacity>
 
         {/* More menu button */}
         <View style={{ position: 'relative' }}>
@@ -438,7 +477,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             </View>
           }
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
-          ListFooterComponent={<View style={{ height: 80 }} />}
+          ListFooterComponent={<View style={{ height: showEmoji ? 280 : 80 }} />}
           keyboardShouldPersistTaps="handled"
         />
       )}
@@ -446,74 +485,128 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       {/* Emoji Picker Panel */}
       {showEmoji && (
         <View style={styles.emojiPanel}>
-          <View style={styles.emojiGrid}>
-            {QUICK_EMOJIS.map((emoji, index) => (
+          {/* Category tabs */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.emojiTabsRow}
+          >
+            {EMOJI_CATEGORIES.map((cat, i) => (
               <TouchableOpacity
-                key={index}
-                style={styles.emojiItem}
-                onPress={() => setText(prev => prev + emoji)}
-                activeOpacity={0.7}
+                key={cat.name}
+                style={[styles.emojiTab, activeEmojiCategory === i && styles.emojiTabActive]}
+                onPress={() => {
+                  setActiveEmojiCategory(i);
+                  emojiListRef.current?.scrollToOffset({ offset: 0, animated: true });
+                }}
+                activeOpacity={0.6}
               >
-                <Text style={styles.emojiText}>{emoji}</Text>
+                <Text style={[styles.emojiTabText, activeEmojiCategory === i && styles.emojiTabTextActive]}>
+                  {cat.name}
+                </Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
+
+          {/* Emoji grid */}
+          <FlatList
+            ref={emojiListRef}
+            data={EMOJI_CATEGORIES[activeEmojiCategory]?.emojis || []}
+            renderItem={renderEmojiItem}
+            keyExtractor={(item) => item}
+            numColumns={8}
+            columnWrapperStyle={styles.emojiRow}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          />
         </View>
       )}
 
       {/* Input bar */}
-        <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
-          <View style={styles.inputPill}>
-            {/* Attachment button inside the pill */}
-            <TouchableOpacity
-              style={styles.inputActionBtn}
-              onPress={handleImageSend}
-              disabled={uploading}
-              activeOpacity={0.7}
-              accessibilityLabel="Attach image"
-            >
-              {uploading ? (
-                <ActivityIndicator color={colors.accent} size="small" />
-              ) : (
-                <Ionicons name="attach" size={20} color="#71767b" />
-              )}
-            </TouchableOpacity>
-
-            <TextInput
-              style={styles.pillInput}
-              placeholder="Start a message"
-              placeholderTextColor="#71767b"
-              value={text}
-              onChangeText={setText}
-              multiline
-              maxLength={2000}
-            />
-
-            {/* Emoji toggle button inside the pill */}
-            <TouchableOpacity
-              style={styles.inputActionBtn}
-              onPress={() => setShowEmoji(prev => !prev)}
-              activeOpacity={0.7}
-              accessibilityLabel="Toggle emoji picker"
-            >
-              <Text style={{ fontSize: 20 }}>{showEmoji ? '⌨️' : '😊'}</Text>
-            </TouchableOpacity>
-          </View>
+      <View style={[styles.inputRow, { paddingBottom: showEmoji ? 4 : Math.max(8, insets.bottom) }]}>
+        {/* Attachment / emoji buttons */}
+        <View style={styles.inputActions}>
           <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              !text.trim() && !sending && styles.sendBtnInactive,
-            ]}
-            onPress={handleSend}
-            disabled={!text.trim() || sending}
-            activeOpacity={0.7}
+            style={styles.inputActionBtn}
+            onPress={() => { setShowEmoji(!showEmoji); setShowAttachMenu(false); }}
+            activeOpacity={0.6}
           >
-            {sending
-              ? <ActivityIndicator color={colors.accent} size="small" />
-              : <Ionicons name="send" size={18} color={text.trim() ? colors.accent : '#374151'} />
-            }
+            <Ionicons name={showEmoji ? 'close-circle' : 'happy-outline'} size={22} color={showEmoji ? colors.accent : '#71767b'} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.inputActionBtn}
+            onPress={() => { setShowAttachMenu(!showAttachMenu); setShowEmoji(false); }}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="add-circle-outline" size={22} color={showAttachMenu ? colors.accent : '#71767b'} />
           </TouchableOpacity>
         </View>
+
+        <View style={styles.inputPill}>
+          <TextInput
+            style={styles.pillInput}
+            placeholder="Start a message"
+            placeholderTextColor="#71767b"
+            value={text}
+            onChangeText={setText}
+            multiline
+            onFocus={() => { setShowEmoji(false); setShowAttachMenu(false); }}
+          />
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.sendBtn,
+            (text.trim() || sending) && styles.sendBtnActive,
+          ]}
+          onPress={handleSend}
+          disabled={!text.trim() || sending}
+          activeOpacity={0.7}
+        >
+          {sending || uploading
+            ? <ActivityIndicator color={colors.accent} size="small" />
+            : <Ionicons name="send" size={18} color={text.trim() ? '#FFFFFF' : '#374151'} />
+          }
+        </TouchableOpacity>
+      </View>
+
+      {/* Attachment menu popup */}
+      {showAttachMenu && (
+        <>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setShowAttachMenu(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.attachMenu}>
+            <TouchableOpacity style={styles.attachItem} onPress={handlePickImage} activeOpacity={0.7}>
+              <View style={[styles.attachIcon, { backgroundColor: 'rgba(59,130,246,0.15)' }]}>
+                <Ionicons name="image-outline" size={22} color="#3B82F6" />
+              </View>
+              <Text style={styles.attachLabel}>Photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.attachItem} onPress={handleCamera} activeOpacity={0.7}>
+              <View style={[styles.attachIcon, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
+                <Ionicons name="camera-outline" size={22} color="#10B981" />
+              </View>
+              <Text style={styles.attachLabel}>Camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.attachItem} onPress={handleOpenGifPicker} activeOpacity={0.7}>
+              <View style={[styles.attachIcon, { backgroundColor: 'rgba(168,85,247,0.15)' }]}>
+                <Ionicons name="film-outline" size={22} color="#A855F7" />
+              </View>
+              <Text style={styles.attachLabel}>GIF</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {/* Uploading overlay */}
+      {uploading && (
+        <View style={styles.uploadingOverlay}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={styles.uploadingText}>Sending photo...</Text>
+        </View>
+      )}
 
       {/* Nuclear Block Confirmation Modal */}
       <Modal
@@ -620,10 +713,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  // ── Messages ──
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginVertical: 2 },
   msgRowRight: { justifyContent: 'flex-end' },
   msgRowLeft: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '82%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
+  bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleMine: {
     backgroundColor: '#FFFFFF',
     borderBottomRightRadius: 4,
@@ -636,20 +730,40 @@ const styles = StyleSheet.create({
   },
   bubbleText: { color: '#e7e9ea', fontSize: 14, lineHeight: 22 },
   bubbleTime: { fontSize: 11, marginTop: 4 },
-  imageMessage: {
-    width: 250,
-    maxWidth: '100%',
-    height: 250,
-    borderRadius: 12,
+  // ── Image in bubble ──
+  bubbleImage: {
+    width: 220,
+    height: 220,
+    borderRadius: 14,
+    marginBottom: 4,
   },
+  bubbleGif: {
+    width: 200,
+    height: 160,
+    borderRadius: 14,
+    marginBottom: 4,
+  },
+  // ── Input bar ──
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderTopWidth: 1,
     borderTopColor: '#374151',
+  },
+  inputActions: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 2,
+    paddingBottom: 4,
+  },
+  inputActionBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   inputPill: {
     flex: 1,
@@ -658,8 +772,8 @@ const styles = StyleSheet.create({
     gap: 0,
     backgroundColor: '#16181c',
     borderRadius: 22,
-    paddingLeft: 4,
-    paddingRight: 4,
+    paddingLeft: 6,
+    paddingRight: 6,
     paddingVertical: 4,
     maxHeight: 120,
   },
@@ -674,44 +788,113 @@ const styles = StyleSheet.create({
     maxHeight: 100,
     minHeight: 0,
   },
-  inputActionBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 2,
+  },
+  sendBtnActive: {
+    backgroundColor: colors.accent,
   },
   sendBtnInactive: {},
-  // Emoji picker panel
-  emojiPanel: {
-    backgroundColor: '#16181c',
-    borderTopWidth: 1,
-    borderTopColor: '#374151',
-    paddingHorizontal: 8,
-    paddingVertical: 12,
-  },
-  emojiGrid: {
+  // ── Attachment menu ──
+  attachMenu: {
+    position: 'absolute',
+    bottom: 60,
+    left: 14,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
+    gap: 16,
+    backgroundColor: '#16181c',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 16,
+    zIndex: 60,
   },
-  emojiItem: {
-    width: '16.66%',
-    padding: 6,
+  attachItem: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  attachIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emojiText: {
-    fontSize: 26,
+  attachLabel: {
+    color: '#e7e9ea',
+    fontSize: 11,
+    fontWeight: '500',
   },
-  // Nuclear block modal
+  // ── Emoji picker ──
+  emojiPanel: {
+    backgroundColor: '#0d0d0d',
+    borderTopWidth: 1,
+    borderTopColor: '#2f3336',
+    maxHeight: 280,
+  },
+  emojiTabsRow: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 4,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#2f3336',
+  },
+  emojiTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'transparent',
+  },
+  emojiTabActive: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  emojiTabText: {
+    color: '#71767b',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  emojiTabTextActive: {
+    color: '#e7e9ea',
+  },
+  emojiRow: {
+    gap: 2,
+  },
+  emojiCell: {
+    width: '12.5%',
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiChar: {
+    fontSize: 22,
+  },
+  // ── Upload overlay ──
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    zIndex: 100,
+  },
+  uploadingText: {
+    color: '#e7e9ea',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  // ── Nuclear block modal ──
   nuclearOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.8)',

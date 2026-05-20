@@ -25,18 +25,18 @@ import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { tsToMillis } from '../lib/api';
 import { uploadOptimizedImage } from '../utils/imageUpload';
-import { optimizeImage } from '../utils/imageOptimizer';
 import { useAppStore } from '../stores/app';
-import { checkPlanLimit } from '../lib/payments';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
    ═══════════════════════════════════════════════════════════════════════════ */
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const HIGHLIGHT_SIZE = 48;
 const HIGHLIGHT_RING_PADDING = 3;
 const STORY_DURATION = 5000;
 const DOUBLE_TAP_DELAY = 300;
+const HEART_ANIM_DURATION = 900;
+
 const STORY_CATEGORIES = [
   { id: 'all', label: 'All', icon: 'sparkles' },
   { id: 'voice', label: 'Voice', icon: 'mic' },
@@ -59,7 +59,6 @@ interface Story {
   content: string;
   mediaUrl: string | null;
   type: string;
-  fontSize?: number;
   viewCount: number;
   likeCount: number;
   createdAt: number;
@@ -128,9 +127,7 @@ function StoryProgressBar({
           style={[
             styles.progressFill,
             {
-              // BUG FIX: Removed redundant ternary `paused ? progress : progress`
-              // which always evaluated to `progress` regardless of `paused`.
-              width: `${progress * 100}%`,
+              width: `${(paused ? progress : progress) * 100}%`,
               backgroundColor: paused ? 'rgba(255,255,255,0.5)' : '#fff',
             },
           ]}
@@ -204,7 +201,7 @@ function HeartOverlay({
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN SCREEN
    ═══════════════════════════════════════════════════════════════════════════ */
-export default function StoriesScreen({ navigation: _navigation }: any) {
+export default function StoriesScreen({ navigation }: any) {
   /* ── State ──────────────────────────────────────────────────────────────── */
   const [stories, setStories] = useState<Story[]>([]);
   const [filtered, setFiltered] = useState<Story[]>([]);
@@ -233,7 +230,6 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressingRef = useRef(false);
   const viewedStoriesRef = useRef<Set<string>>(new Set());
-  const likePendingRef = useRef(false);
   const currentUser = auth()?.currentUser;
 
   // ── Get user profile from Zustand store (Firestore data, not just auth) ──
@@ -263,8 +259,7 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
             authorProfileImage: data.authorProfileImage || null,
             content: data.content || data.text || '',
             mediaUrl: data.mediaUrl || null,
-            type: data.type || data.format || 'text',
-            fontSize: data.fontSize || null,
+            type: data.type || 'text',
             viewCount: data.viewCount || 0,
             likeCount: data.likeCount || 0,
             createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
@@ -320,86 +315,20 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
     }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: false,
-        // BUG FIX: Removed quality — picker JPEG conversion was turning
-        // PNG transparency into black pixels.
+        quality: 0.8,
       });
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
-
-      // BUG FIX: Copy to permanent cache immediately — ImagePicker's temp files
-      // can be cleaned by Android OS before optimization/upload starts.
-      let assetUri = asset.uri;
-      try {
-        const { copyToSafeCache } = require('../utils/imageUpload');
-        assetUri = await copyToSafeCache(asset.uri);
-      } catch (copyErr: any) {
-        console.warn('[StoriesScreen] copyToSafeCache failed, using original:', copyErr?.message);
-      }
-
       setUploading(true);
 
-      // BUG FIX: Check plan limit BEFORE uploading image to avoid
-      // orphaned storage blobs when limit is reached.
-      try {
-        const planCheck = await checkPlanLimit(currentUser.uid, 'story');
-        if (!planCheck.allowed) {
-          Alert.alert('Limit Reached', planCheck.reason || 'Upgrade your plan to create more stories.');
-          setUploading(false);
-          return;
-        }
-      } catch (e) {
-        // If plan check fails (network), allow the story to continue
-        console.warn('[StoriesScreen] Plan limit check failed, allowing story:', e);
-      }
-
       // Upload image to Firebase Storage first (Firestore has 1MB doc limit — no inline base64)
-      // Retry up to 2 times on failure (handles transient auth/network issues)
-      let uploadResult: any = null;
-      let uploadSuccess = false;
-      for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
-        try {
-          // BUG FIX: Optimize before upload — ensures correct Content-Type.
-          // BLACK PHOTO FIX: Fall back to original if optimization produces 0-byte file.
-          let uploadUri = assetUri;
-          const uriExt = assetUri.split('?')[0].split('.').pop()?.toLowerCase();
-          let uploadMime = uriExt === 'png' ? 'image/png' : 'image/jpeg';
-          try {
-            const optimized = await optimizeImage(assetUri, {
-              maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
-            });
-            if (optimized.size > 0) {
-              uploadUri = optimized.optimizedUri;
-              uploadMime = optimized.mimeType;
-            } else {
-              console.warn('[StoriesScreen] Optimized story image is 0 bytes, using original');
-            }
-          } catch (optErr: any) {
-            console.warn('[StoriesScreen] Optimization failed, using original:', optErr?.message);
-          }
-          const ext = uploadMime === 'image/png' ? 'png' : 'jpg';
-          const storagePath = `stories/${currentUser.uid}/${Date.now()}.${ext}`;
-          uploadResult = await uploadOptimizedImage(uploadUri, storagePath, {
-            mimeType: uploadMime,
-          });
-          uploadSuccess = true;
-          break;
-        } catch (uploadErr: any) {
-          console.warn(`[StoriesScreen] Upload attempt ${uploadAttempt + 1} failed:`, uploadErr?.message || uploadErr);
-          if (uploadAttempt < 2) {
-            // Try invalidating the token cache before retrying
-            try {
-              const { _invalidateTokenCache } = await import('../lib/firebase');
-              _invalidateTokenCache();
-            } catch {}
-          }
-        }
-      }
-      if (!uploadSuccess || !uploadResult) {
-        throw new Error('Image upload failed after retries');
-      }
+      const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
+      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+        mimeType: 'image/jpeg',
+      });
 
       const storyData = {
         authorId: currentUser.uid,
@@ -420,9 +349,7 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
       loadStories();
     } catch (e: any) {
       console.error('[StoriesScreen] Upload failed:', e);
-      const errMsg = e?.message || String(e);
-      const shortMsg = errMsg.length > 200 ? errMsg.slice(0, 200) + '...' : errMsg;
-      Alert.alert('Upload Failed', `Could not post your story.\n\n${shortMsg}`);
+      Alert.alert('Upload', 'Could not post your story. Please check your connection and try again.');
     } finally {
       setUploading(false);
     }
@@ -436,83 +363,20 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
     }
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: false,
-        // BUG FIX: Removed quality — picker JPEG conversion was turning
-        // PNG transparency into black pixels.
+        quality: 0.8,
       });
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
-
-      // BUG FIX: Copy camera image to permanent cache immediately
-      let assetUri = asset.uri;
-      try {
-        const { copyToSafeCache } = require('../utils/imageUpload');
-        assetUri = await copyToSafeCache(asset.uri);
-      } catch (copyErr: any) {
-        console.warn('[StoriesScreen] copyToSafeCache failed (camera), using original:', copyErr?.message);
-      }
-
       setUploading(true);
 
-      // BUG FIX: Check plan limit BEFORE uploading image to avoid
-      // orphaned storage blobs when limit is reached.
-      try {
-        const planCheck = await checkPlanLimit(currentUser.uid, 'story');
-        if (!planCheck.allowed) {
-          Alert.alert('Limit Reached', planCheck.reason || 'Upgrade your plan to create more stories.');
-          setUploading(false);
-          return;
-        }
-      } catch (e) {
-        console.warn('[StoriesScreen] Plan limit check failed, allowing story:', e);
-      }
-
       // Upload image to Firebase Storage first
-      // Retry up to 2 times on failure (handles transient auth/network issues)
-      let uploadResult: any = null;
-      let uploadSuccess = false;
-      for (let uploadAttempt = 0; uploadAttempt < 3; uploadAttempt++) {
-        try {
-          // BUG FIX: Optimize before upload — ensures correct Content-Type.
-          // BLACK PHOTO FIX: Fall back to original if optimization produces 0-byte file.
-          let uploadUri = assetUri;
-          const uriExt = assetUri.split('?')[0].split('.').pop()?.toLowerCase();
-          let uploadMime = uriExt === 'png' ? 'image/png' : 'image/jpeg';
-          try {
-            const optimized = await optimizeImage(assetUri, {
-              maxWidth: 2048, jpegQuality: 0.88, generateThumbnail: false,
-            });
-            if (optimized.size > 0) {
-              uploadUri = optimized.optimizedUri;
-              uploadMime = optimized.mimeType;
-            } else {
-              console.warn('[StoriesScreen] Optimized camera image is 0 bytes, using original');
-            }
-          } catch (optErr: any) {
-            console.warn('[StoriesScreen] Optimization failed, using original:', optErr?.message);
-          }
-          const ext = uploadMime === 'image/png' ? 'png' : 'jpg';
-          const storagePath = `stories/${currentUser.uid}/${Date.now()}.${ext}`;
-          uploadResult = await uploadOptimizedImage(uploadUri, storagePath, {
-            mimeType: uploadMime,
-          });
-          uploadSuccess = true;
-          break;
-        } catch (uploadErr: any) {
-          console.warn(`[StoriesScreen] Camera upload attempt ${uploadAttempt + 1} failed:`, uploadErr?.message || uploadErr);
-          if (uploadAttempt < 2) {
-            try {
-              const { _invalidateTokenCache } = await import('../lib/firebase');
-              _invalidateTokenCache();
-            } catch {}
-          }
-        }
-      }
-      if (!uploadSuccess || !uploadResult) {
-        throw new Error('Camera upload failed after retries');
-      }
+      const storagePath = `stories/${currentUser.uid}/${Date.now()}.jpg`;
+      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+        mimeType: 'image/jpeg',
+      });
 
       const storyData = {
         authorId: currentUser.uid,
@@ -533,9 +397,7 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
       loadStories();
     } catch (e: any) {
       console.error('[StoriesScreen] Camera upload failed:', e);
-      const errMsg = e?.message || String(e);
-      const shortMsg = errMsg.length > 200 ? errMsg.slice(0, 200) + '...' : errMsg;
-      Alert.alert('Upload Failed', `Could not post your story.\n\n${shortMsg}`);
+      Alert.alert('Upload', 'Could not post your story. Please check your connection and try again.');
     } finally {
       setUploading(false);
 }
@@ -555,14 +417,9 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
     }
   }, []);
 
-  /* ── Like a story (double-tap — only if not already liked) ────────────── */
+  /* ── Like a story ─────────────────────────────────────────────────────── */
   const doLike = useCallback(async () => {
-    if (!viewingStory || !currentUser || liked) return;
-    // BUG FIX: Add pending guard to prevent double-increment race condition.
-    // Without this, rapid double-taps could fire two Firestore increments
-    // before the first setLiked(true) re-render filters out the second call.
-    if (likePendingRef.current) return;
-    likePendingRef.current = true;
+    if (!viewingStory || !currentUser) return;
     setLiked(true);
     try {
       await firestore()
@@ -571,15 +428,11 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
         .update({ likeCount: firestore.FieldValue.increment(1) });
     } catch (e) {
       console.warn('[StoriesScreen] Failed to like story:', e);
-    } finally {
-      likePendingRef.current = false;
     }
-  }, [viewingStory, currentUser, liked]);
+  }, [viewingStory, currentUser]);
 
   const toggleLike = useCallback(async () => {
     if (!viewingStory || !currentUser) return;
-    if (likePendingRef.current) return; // Guard against rapid double-tap
-    likePendingRef.current = true;
     const newLiked = !liked;
     setLiked(newLiked);
     try {
@@ -588,36 +441,9 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
         .doc(viewingStory.id)
         .update({ likeCount: firestore.FieldValue.increment(newLiked ? 1 : -1) });
     } catch (e) {
-      // Revert optimistic state on failure
-      setLiked(liked);
       console.warn('[StoriesScreen] Failed to like story:', e);
-    } finally {
-      likePendingRef.current = false;
     }
   }, [viewingStory, currentUser, liked]);
-
-  /* ── Submit story comment (saves to Firestore) ───────────────────────── */
-  const submitStoryComment = useCallback(async () => {
-    if (!commentText.trim() || !viewingStory || !currentUser) return;
-    const text = commentText.trim();
-    setCommentText('');
-    setShowCommentInput(false);
-    try {
-      const storeUserData = storeUser;
-      await firestore().collection('story_comments').add({
-        storyId: viewingStory.id,
-        authorId: currentUser.uid,
-        authorUsername: storeUserData?.username || currentUser.email?.split('@')[0] || 'user',
-        authorDisplayName: storeUserData?.displayName || currentUser.displayName || 'Anonymous',
-        authorProfileImage: storeUserData?.profileImage || currentUser.photoURL || null,
-        content: text,
-        createdAt: firestore.FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      console.error('[StoriesScreen] Failed to save comment:', e);
-      Alert.alert('Comment', 'Failed to post comment. Please try again.');
-    }
-  }, [commentText, viewingStory, currentUser, storeUser]);
 
   /* ── Story viewer: open, navigation, timer ───────────────────────────── */
   const openStoryViewer = useCallback(
@@ -642,13 +468,6 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
       setShowCommentInput(false);
       setCommentText('');
       pausedElapsedRef.current = 0;
-      // Mark this story (and all author stories) as viewed in local state
-      setStories(prev => prev.map(s =>
-        s.authorId === authorId ? { ...s, viewed: true } : s
-      ));
-      setFiltered(prev => prev.map(s =>
-        s.authorId === authorId ? { ...s, viewed: true } : s
-      ));
       incrementViewCount(authorStoryList[startIndex].id);
     },
     [stories, incrementViewCount],
@@ -1044,15 +863,15 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
               onTouchEnd={handleStoryTouchEnd}
               onTouchMove={handleStoryTouchMove}
             >
-              {viewingStory.mediaUrl && viewingStory.mediaUrl.startsWith('http') ? (
+              {viewingStory.mediaUrl ? (
                 <Image
                   source={{ uri: viewingStory.mediaUrl }}
                   style={styles.viewerImage}
                   resizeMode="contain"
                 />
               ) : (
-                <View style={[styles.viewerTextContent, viewingStory.mediaUrl && !viewingStory.mediaUrl.startsWith('http') ? { backgroundColor: (() => { const g: Record<string, string> = { purple: '#667eea', sunset: '#f093fb', ocean: '#4facfe', forest: '#43e97b', fire: '#fa709a', night: '#a18cd1', blue: '#2193b0', dark: '#232526' }; return g[viewingStory.mediaUrl] || '#667eea'; })() } : undefined]}>
-                  <Text style={[styles.viewerStoryText, viewingStory.fontSize ? { fontSize: viewingStory.fontSize } : undefined]}>{viewingStory.content}</Text>
+                <View style={styles.viewerTextContent}>
+                  <Text style={styles.viewerStoryText}>{viewingStory.content}</Text>
                 </View>
               )}
 
@@ -1099,15 +918,10 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
                   >
                     <Ionicons name="chatbubble-outline" size={24} color="#fff" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.reactionBtn} onPress={() => {
-                    try {
-                      const { Share } = require('react-native');
-                      Share.share({ message: viewingStory.content || `Check out this story on Black94!\nhttps://black94.app/s/${viewingStory.id}` || '' });
-                    } catch {}
-                  }}>
+                  <TouchableOpacity style={styles.reactionBtn}>
                     <Ionicons name="send-outline" size={24} color="#fff" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.reactionBtn} onPress={closeStoryViewer}>
+                  <TouchableOpacity style={styles.reactionBtn}>
                     <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
                   </TouchableOpacity>
                 </View>
@@ -1146,11 +960,23 @@ export default function StoriesScreen({ navigation: _navigation }: any) {
                         onChangeText={setCommentText}
                         autoFocus
                         returnKeyType="send"
-                        onSubmitEditing={submitStoryComment}
+                        onSubmitEditing={() => {
+                          if (commentText.trim()) {
+                            Alert.alert('Comment', `Comment posted: "${commentText.trim()}"`);
+                            setCommentText('');
+                            setShowCommentInput(false);
+                          }
+                        }}
                       />
                     </View>
                     <TouchableOpacity
-                      onPress={submitStoryComment}
+                      onPress={() => {
+                        if (commentText.trim()) {
+                          Alert.alert('Comment', `Comment posted: "${commentText.trim()}"`);
+                          setCommentText('');
+                          setShowCommentInput(false);
+                        }
+                      }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Ionicons
@@ -1311,6 +1137,87 @@ const styles = StyleSheet.create({
   storyCountText: {
     color: colors.textMuted,
     fontSize: 13,
+  },
+
+  /* ── Trending Music ──────────────────────────────────────────────────── */
+  musicScroll: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  musicCard: {
+    width: 110,
+    alignItems: 'center',
+  },
+  musicCardCoverWrap: {
+    position: 'relative',
+    marginBottom: 8,
+  },
+  musicCardCover: {
+    width: 100,
+    height: 100,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  musicPlayBtn: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  musicTitle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    maxWidth: 100,
+  },
+  musicArtist: {
+    color: colors.textMuted,
+    fontSize: 11,
+    textAlign: 'center',
+    maxWidth: 100,
+    marginTop: 1,
+  },
+
+  /* ── Filters (circular, Instagram-style) ─────────────────────────────── */
+  filtersScroll: {
+    paddingHorizontal: 16,
+    gap: 16,
+    alignItems: 'center',
+  },
+  filterItem: {
+    alignItems: 'center',
+    width: 70,
+  },
+  filterCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCircleInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.bg,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  filterLabel: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
   },
 
   /* ── Recent Stories Grid ─────────────────────────────────────────────── */

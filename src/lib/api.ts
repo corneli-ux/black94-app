@@ -84,6 +84,9 @@ export interface Message {
   senderId: string;
   receiverId: string;
   content: string;
+  messageType?: string;
+  mediaUrl?: string | null;
+  status?: string;
   createdAt: number;
 }
 
@@ -990,18 +993,24 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
         const data = docSnap.data();
         const rawContent = data.content || '';
         const senderId = data.senderId || '';
+        const msgType = data.messageType || 'text';
 
         // Attempt E2E decryption;
         // null = tampered/corrupted → show placeholder, NEVER raw ciphertext
         // string = decrypted plaintext OR legacy non-E2EE message
+        // Media messages (image/gif) are not encrypted — use content as-is
         let content: string;
-        try {
-          const decrypted = await decryptMessage(rawContent, senderId);
-          content = decrypted ?? '[Unable to decrypt this message]';
-        } catch {
-          content = rawContent.startsWith('E2EE:')
-            ? '[Unable to decrypt this message]'
-            : rawContent;
+        if (msgType === 'image' || msgType === 'gif') {
+          content = rawContent;
+        } else {
+          try {
+            const decrypted = await decryptMessage(rawContent, senderId);
+            content = decrypted ?? '[Unable to decrypt this message]';
+          } catch {
+            content = rawContent.startsWith('E2EE:')
+              ? '[Unable to decrypt this message]'
+              : rawContent;
+          }
         }
 
         return {
@@ -1010,6 +1019,9 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
           senderId,
           receiverId: data.receiverId || '',
           content,
+          messageType: data.messageType || 'text',
+          mediaUrl: data.mediaUrl || null,
+          status: data.status || 'sent',
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       }),
@@ -1022,9 +1034,11 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
   }
 }
 
-export async function sendMessage(chatId: string, receiverId: string, content: string): Promise<{ sent: boolean; reason?: string }> {
+export async function sendMessage(chatId: string, receiverId: string, content: string, options?: { messageType?: string; mediaUrl?: string }): Promise<{ sent: boolean; reason?: string }> {
   const userId = currentUser()?.uid;
   if (!userId) return { sent: false, reason: 'not_authenticated' };
+  const msgType = options?.messageType || 'text';
+  const mediaUrl = options?.mediaUrl || null;
 
   // ── Nuclear Block Check: prevent messaging if either user blocked the other ──
   try {
@@ -1042,22 +1056,28 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   }
 
   // ── E2E Encryption: encrypt content before storing ──
+  // Skip encryption for media messages (image/gif) — the payload is the mediaUrl, not text.
   // If encryption fails (no key, error, etc.), send as plaintext with encrypted: false.
   let storedContent: string;
   let isEncrypted = true;
-  try {
-    const encrypted = await encryptMessage(content, userId, receiverId);
-    if (encrypted) {
-      storedContent = encrypted;
-    } else {
-      // Recipient has no public key — send as plaintext
+  if (msgType === 'image' || msgType === 'gif') {
+    isEncrypted = false;
+    storedContent = content; // empty or placeholder for media messages
+  } else {
+    try {
+      const encrypted = await encryptMessage(content, userId, receiverId);
+      if (encrypted) {
+        storedContent = encrypted;
+      } else {
+        // Recipient has no public key — send as plaintext
+        isEncrypted = false;
+        storedContent = content;
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('[E2EE] Encryption failed, sending plaintext:', e);
       isEncrypted = false;
       storedContent = content;
     }
-  } catch (e) {
-    if (__DEV__) console.warn('[E2EE] Encryption failed, sending plaintext:', e);
-    isEncrypted = false;
-    storedContent = content;
   }
 
   await firestore().collection('chats').doc(chatId).collection('messages').add({
@@ -1065,7 +1085,8 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     senderId: userId,
     receiverId,
     content: storedContent,
-    messageType: 'text',
+    messageType: msgType,
+    mediaUrl,
     status: 'sent',
     encrypted: isEncrypted,
     createdAt: firestore.FieldValue.serverTimestamp(),
@@ -1099,6 +1120,8 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   const senderUnreadField = senderIsUser1 ? 'unreadUser1' : 'unreadUser2';
   const receiverUnreadField = senderIsUser1 ? 'unreadUser2' : 'unreadUser1';
 
+  // Preview text for chat list
+  const previewText = msgType === 'image' ? '\u{1F4F7} Photo' : msgType === 'gif' ? 'GIF' : content;
   await firestore().collection('chats').doc(chatId).update({
     lastMessage: encryptedPreviewText(),
     lastMessageTime: firestore.FieldValue.serverTimestamp(),

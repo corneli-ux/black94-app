@@ -370,6 +370,7 @@ export default function DualPaneChatScreen({ navigation }: any) {
   // ── Render message bubble ──────────────────────────────────────────────
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isMine = item.senderId === currentUserId;
+    const msgType = item.messageType || 'text';
     return (
       <View
         style={[styles.msgWrapper, isMine ? styles.msgMine : styles.msgTheirs]}>
@@ -378,9 +379,25 @@ export default function DualPaneChatScreen({ navigation }: any) {
             styles.msgBubble,
             isMine ? styles.msgBubbleMine : styles.msgBubbleTheirs,
           ]}>
-          <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
-            {item.content}
-          </Text>
+          {msgType === 'image' && item.mediaUrl ? (
+            <Image
+              source={{ uri: item.mediaUrl }}
+              style={{ width: 220, height: 220, borderRadius: 14, marginBottom: 4 }}
+              resizeMode="contain"
+            />
+          ) : null}
+          {msgType === 'gif' && item.mediaUrl ? (
+            <Image
+              source={{ uri: item.mediaUrl }}
+              style={{ width: 200, height: 160, borderRadius: 14, marginBottom: 4 }}
+              resizeMode="contain"
+            />
+          ) : null}
+          {item.content && msgType === 'text' ? (
+            <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
+              {item.content}
+            </Text>
+          ) : null}
         </View>
       </View>
     );
