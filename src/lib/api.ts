@@ -86,19 +86,64 @@ export interface Message {
 
 export function parseMediaUrls(raw: any): string[] {
   if (!raw) return [];
-  if (Array.isArray(raw)) return raw.filter((v: any) => typeof v === 'string' && v.trim());
+  if (Array.isArray(raw)) {
+    // ROOT CAUSE FIX: Fix broken Firebase Storage URLs that have un-encoded
+    // slashes in the path (produced by old encodeStoragePath which joined
+    // segments with '/' instead of '%2F'). These URLs return HTTP 400.
+    return raw
+      .filter((v: any) => typeof v === 'string' && v.trim())
+      .map((url: string) => fixMediaUrl(url));
+  }
   if (typeof raw === 'string') {
     // BUG FIX: If the string is a URL (starts with http:// or https://),
     // return it as-is instead of splitting on commas. Firebase Storage
     // URLs don't contain commas in the path, but if downloadTokens
     // (comma-separated) was accidentally stored as the URL, splitting
     // would produce broken fragments.
-    if (raw.startsWith('http://') || raw.startsWith('https://')) return [raw];
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return [fixMediaUrl(raw)];
     if (raw.startsWith('data:')) return [raw];
     // Legacy format: comma-separated list of URLs
-    return raw.split(',').map(u => u.trim()).filter(Boolean);
+    return raw.split(',').map(u => fixMediaUrl(u.trim())).filter(Boolean);
   }
   return [];
+}
+
+/**
+ * Fixes a Firebase Storage URL that has un-encoded slashes in the object path.
+ *
+ * The old upload code used encodeStoragePath() which joined path segments with '/'
+ * instead of '%2F'. This produced URLs like:
+ *   .../o/posts/uid/file.jpg?alt=media&token=...    → HTTP 400 Bad Request
+ *
+ * Firebase Storage requires:
+ *   .../o/posts%2Fuid%2Ffile.jpg?alt=media&token=... → HTTP 200 OK
+ *
+ * This function is a synchronous version (no imports from imageUpload needed)
+ * that repairs the URL in-place for use in parseMediaUrls.
+ */
+function fixMediaUrl(url: string): string {
+  if (!url || (!url.startsWith('https://firebasestorage.googleapis.com') && !url.startsWith('https://storage.googleapis.com'))) {
+    return url;
+  }
+  try {
+    // Find the path between /o/ and ? in the URL
+    const oIdx = url.indexOf('/o/');
+    if (oIdx === -1) return url;
+    const baseUrl = url.substring(0, oIdx + 3); // everything up to and including /o/
+    const afterO = url.substring(oIdx + 3);
+    const qIdx = afterO.indexOf('?');
+    const pathPart = qIdx === -1 ? afterO : afterO.substring(0, qIdx);
+    const queryPart = qIdx === -1 ? '' : afterO.substring(qIdx);
+
+    // Decode, split by /, re-encode with %2F
+    const decoded = decodeURIComponent(pathPart);
+    const segments = decoded.split('/');
+    if (segments.length <= 1) return url; // single segment, nothing to fix
+    const fixedPath = segments.map(s => encodeURIComponent(s)).join('%2F');
+    return `${baseUrl}${fixedPath}${queryPart}`;
+  } catch {
+    return url;
+  }
 }
 
 export { tsToMillis } from '../utils/datetime';

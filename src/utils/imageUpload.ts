@@ -140,15 +140,25 @@ function detectMimeType(uri: string, override?: string): string {
 }
 
 /**
- * Encodes a Firebase Storage path for use in URLs.
- * Encodes each path segment separately, preserving '/' separators.
- * This is correct for use in both query parameters and URL paths.
+ * Encodes a Firebase Storage path for use in download URLs.
+ *
+ * Firebase Storage download URLs use the GCS object path in the URL path:
+ *   /v0/b/{bucket}/o/{encoded_path}?alt=media&token=...
+ *
+ * CRITICAL: Slashes in the storage path MUST be encoded as %2F, not left as
+ * literal '/'. A literal '/' in the URL path is interpreted as a path
+ * separator by the URL router, so:
+ *
+ *   BROKEN:  .../o/posts/uid/file.jpg?alt=media        → HTTP 400 Bad Request
+ *   CORRECT: .../o/posts%2Fuid%2Ffile.jpg?alt=media      → HTTP 200 OK
+ *
+ * Each path segment is individually encodeURIComponent'd, then joined with %2F.
  */
 function encodeStoragePath(path: string): string {
   return path
     .split('/')
     .map(segment => encodeURIComponent(segment))
-    .join('/');
+    .join('%2F');
 }
 
 /**
@@ -797,6 +807,51 @@ export async function getImageDownloadUrl(
   } catch (err: any) {
     console.warn(`[imageUpload] getImageDownloadUrl error:`, err.message);
     return null;
+  }
+}
+
+/**
+ * fixFirebaseUrl — Repairs a Firebase Storage download URL that has un-encoded
+ * slashes in the object path.
+ *
+ * ROOT CAUSE FIX: The old encodeStoragePath() joined path segments with '/'
+ * instead of '%2F', producing URLs like:
+ *   .../o/posts/uid/file.jpg?alt=media&token=...    ← HTTP 400 Bad Request
+ *
+ * The correct format requires %2F:
+ *   .../o/posts%2Fuid%2Ffile.jpg?alt=media&token=... ← HTTP 200 OK
+ *
+ * This function detects and repairs such URLs so that existing broken URLs
+ * in Firestore (from before the fix) still work.
+ *
+ * It's safe to call on already-correct URLs — it only modifies URLs that
+ * contain un-encoded slashes between /o/ and ?.
+ */
+export function fixFirebaseUrl(url: string): string {
+  if (!url || (!url.startsWith('https://firebasestorage.googleapis.com') && !url.startsWith('https://storage.googleapis.com'))) {
+    return url; // Not a Firebase Storage URL
+  }
+
+  try {
+    // Find the path between /o/ and ? in the URL
+    const oIdx = url.indexOf('/o/');
+    if (oIdx === -1) return url;
+    const baseUrl = url.substring(0, oIdx + 3); // everything up to and including /o/
+    const afterO = url.substring(oIdx + 3);
+    const qIdx = afterO.indexOf('?');
+    const pathPart = qIdx === -1 ? afterO : afterO.substring(0, qIdx);
+    const queryPart = qIdx === -1 ? '' : afterO.substring(qIdx);
+
+    // Decode, split by /, re-encode with %2F
+    const decoded = decodeURIComponent(pathPart);
+    const segments = decoded.split('/');
+    if (segments.length <= 1) return url; // Single segment — no slashes to fix
+
+    // Re-encode: each segment gets encodeURIComponent, joined with %2F
+    const fixedPath = segments.map(s => encodeURIComponent(s)).join('%2F');
+    return `${baseUrl}${fixedPath}${queryPart}`;
+  } catch {
+    return url; // If anything goes wrong, return original
   }
 }
 
