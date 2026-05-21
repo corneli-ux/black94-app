@@ -32,20 +32,25 @@ export function startNotificationPolling(
 
   let lastKnownCount = -1;
 
-  // Defer first poll by 5 seconds to avoid competing with feed load at startup
+  // Defer first poll by 2 seconds to avoid competing with feed load at startup
   initialPollTimer = setTimeout(() => {
     initialPollTimer = null;
     pollUnread(userId).then((count) => {
       lastKnownCount = count;
       onNewNotification(count);
+    }).catch((e) => {
+      // CRITICAL FIX: If the initial poll fails (index missing, network error, etc.),
+      // set lastKnownCount to 0 instead of leaving it at -1.
+      // Without this, the interval guard (lastKnownCount === -1) permanently
+      // kills ALL future polling, and the badge never updates.
+      console.warn('[NotificationEngine] Initial poll failed, using 0:', e?.message || e);
+      lastKnownCount = 0;
+      onNewNotification(0);
     });
-  }, 5000);
+  }, 2000);
 
   pollTimer = setInterval(async () => {
     try {
-      // BUG FIX: Skip first tick if initial poll hasn't resolved yet.
-      // Without this guard, lastKnownCount is still -1 and any result
-      // (even 0) triggers a spurious onNewNotification callback.
       if (lastKnownCount === -1) return;
       const count = await pollUnread(userId);
       if (count !== lastKnownCount) {

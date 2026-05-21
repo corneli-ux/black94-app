@@ -219,7 +219,7 @@ export async function dispatchEngagementNotification(
           commentContent: params.commentContent || '',
           read: false,
           createdAt: firestore.FieldValue.serverTimestamp(),
-        });
+        }, { merge: true });
     } catch (e) {
       console.warn('[EngagementEngine] Firestore write failed:', e);
     }

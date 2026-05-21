@@ -265,12 +265,10 @@ export async function sendPushNotification(payload: PushPayload): Promise<boolea
       priority: payload.priority || 'high',
     };
 
-    // CRITICAL: On Android, specify the notification channel ID.
-    // Without this, the notification will NOT appear when the app is
-    // in the background on Android 8+.
-    if (Platform.OS === 'android') {
-      message.channelId = payload.channelId || CHANNEL_ID;
-    }
+    // CRITICAL: Always include the Android notification channel ID.
+    // The recipient might be on Android even if the SENDER is on iOS/web.
+    // Without channelId, Android 8+ silently drops background notifications.
+    message.channelId = payload.channelId || CHANNEL_ID;
 
     const resp = await fetch(EXPO_PUSH_URL, {
       method: 'POST',

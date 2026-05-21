@@ -65,25 +65,17 @@ export default function NotificationsScreen({ navigation }: any) {
   const load = async () => {
     if (!currentUser) { setLoading(false); return; }
     try {
-      // Order by createdAt descending to get most recent first.
-      // Requires composite index: recipientId ASC, createdAt DESC
-      let snap;
-      try {
-        snap = await firestore()
-          .collection('notifications')
-          .where('recipientId', '==', currentUser.uid)
-          .orderBy('createdAt', 'desc')
-          .limit(50)
-          .get();
-      } catch (orderByError) {
-        // Fallback: no composite index yet — fetch without orderBy, sort client-side
-        if (__DEV__) console.warn('[Notifications] orderBy failed (missing index?), falling back:', orderByError);
-        snap = await firestore()
-          .collection('notifications')
-          .where('recipientId', '==', currentUser.uid)
-          .limit(50)
-          .get();
-      }
+      // Fetch notifications for this user — sort client-side to avoid
+      // requiring a composite index (recipientId ASC, createdAt DESC).
+      // The old code used orderBy('createdAt', 'desc') which needs a composite
+      // index that may not exist. When the index was missing, the custom
+      // Firestore REST wrapper returned an empty array (not an error), so the
+      // catch/fallback never triggered — notifications were always invisible.
+      const snap = await firestore()
+        .collection('notifications')
+        .where('recipientId', '==', currentUser.uid)
+        .limit(50)
+        .get();
 
       const ns: Notification[] = snap.docs.map(d => {
         const data = d.data();
