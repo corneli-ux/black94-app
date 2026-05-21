@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal, Keyboard } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, blockUser, Message } from '../lib/api';
@@ -130,6 +130,16 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     pollRef.current = setInterval(() => load(true), 2000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [chat?.id]);
+
+  // Scroll to bottom when keyboard opens (Android: OS resize + KAV off,
+  // but we still need to ensure the last message is visible)
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const sub = Keyboard.addListener(showEvent, () => {
+      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    return () => sub.remove();
+  }, []);
 
   // ── Send text message ─────────────────────────────────────────────────────
 
@@ -348,7 +358,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
+    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
       {/* Header with SafeAreaView for notch */}
       <SafeAreaView edges={['top']}>
       <View style={[styles.header]}>

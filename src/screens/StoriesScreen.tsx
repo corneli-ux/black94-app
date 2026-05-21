@@ -294,18 +294,20 @@ export default function StoriesScreen({ navigation }: any) {
     [stories],
   );
 
-  /* ── Unique author bubbles (first story per author) ───────────────────── */
+  /* ── Unique author bubbles (first story per author, excluding self) ──── */
   const authorBubbles = useMemo(() => {
     const seen = new Set<string>();
     const result: Story[] = [];
     for (const s of stories) {
+      // Skip current user — they already have the "Your story" circle
+      if (s.authorId === currentUser?.uid) continue;
       if (!seen.has(s.authorId)) {
         seen.add(s.authorId);
         result.push(s);
       }
     }
     return result;
-  }, [stories]);
+  }, [stories, currentUser?.uid]);
 
   /* ── Image picker + upload ───────────────────────────────────────────── */
   const pickAndUploadStory = useCallback(async () => {
@@ -1349,7 +1351,7 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     height: 2.5,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 1.5,
     overflow: 'hidden',
   },

@@ -21,6 +21,7 @@ import {
   Dimensions,
   Alert,
   Modal,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -275,6 +276,15 @@ export default function DualPaneChatScreen({ navigation }: any) {
     }
   }, [messages.length]);
 
+  // Scroll to bottom when keyboard opens
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const sub = Keyboard.addListener(showEvent, () => {
+      setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    return () => sub.remove();
+  }, []);
+
   // ── Send message ───────────────────────────────────────────────────────
   const [sending, setSending] = useState(false);
   const handleSend = useCallback(async () => {
@@ -428,7 +438,7 @@ export default function DualPaneChatScreen({ navigation }: any) {
     return (
       <KeyboardAvoidingView
         style={styles.roomContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {/* Room header */}
         <View style={styles.roomHeader}>
           <TouchableOpacity onPress={() => !IS_TABLET && setPhoneTab('list')}>
@@ -516,6 +526,9 @@ export default function DualPaneChatScreen({ navigation }: any) {
             keyExtractor={(m) => m.id}
             contentContainerStyle={styles.msgList}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => messagesEndRef.current?.scrollToEnd({ animated: false })}
+            ListFooterComponent={<View style={{ height: 60 }} />}
             ListEmptyComponent={
               <View style={styles.emptyMsg}>
                 <Text style={styles.emptyMsgText}>No messages yet. Say hi!</Text>

@@ -761,7 +761,13 @@ export default function FeedScreen({ navigation }: any) {
     setPosts(prev => prev.map(p => p.id === postId
       ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
       : p));
-    try { await toggleRepost(postId, reposted); } catch (e) {
+    try {
+      await toggleRepost(postId, reposted);
+      // Reload feed so the new repost post appears at the top
+      lastDocRef.current = null;
+      setAllLoaded(false);
+      loadFeed(false);
+    } catch (e) {
       // Revert optimistic update on failure
       setPosts(prev => prev.map(p => p.id === postId
         ? { ...p, reposted, repostCount: p.repostCount }
