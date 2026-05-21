@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Component, useCallback, useRef } from 'react';
+import React, { useEffect, useState, Component } from 'react';
 import { StatusBar, Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
@@ -16,11 +16,6 @@ import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
 import { fetchUserProfile } from './src/lib/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// CRITICAL: Import push notifications at app startup (not lazy!) so that
-// setNotificationHandler is registered before any push can arrive.
-// Also initializes Android notification channel on first load.
-import { initNotifications } from './src/services/pushNotifications';
 
 const USER_CACHE_KEY = '@black94/user_cache';
 
@@ -89,20 +84,23 @@ const FORCE_READY_TIMEOUT = 15000;
 export default function App() {
   const { user, setUser, setToken, setIsReady, isReady, setLoading, setPendingNotificationTap } = useAppStore();
   const [fontsLoaded, setFontsLoaded] = useState(false);
-  const navigationRef = useRef(null);
 
   // ── Initialize push notifications at startup ──
   // This runs ONCE before auth. It creates the Android notification channel
   // and registers tap listeners. On web, it's a no-op.
   useEffect(() => {
     if (IS_WEB) return;
-    initNotifications((tapData) => {
-      console.log('[App] Notification tap received:', JSON.stringify(tapData));
-      // Store the tap data in the global store — the navigator will pick
-      // it up and route to the correct screen.
-      setPendingNotificationTap(tapData);
+    // Dynamic import — expo-notifications uses native modules that crash on web.
+    // On native, this is still fast enough because it runs at app startup.
+    import('./src/services/pushNotifications').then(({ initNotifications }) => {
+      initNotifications((tapData) => {
+        console.log('[App] Notification tap received:', JSON.stringify(tapData));
+        setPendingNotificationTap(tapData);
+      }).catch(e => {
+        console.warn('[App] Notification init failed:', e);
+      });
     }).catch(e => {
-      console.warn('[App] Notification init failed:', e);
+      console.warn('[App] Failed to import pushNotifications:', e);
     });
   }, []);
 
@@ -329,7 +327,7 @@ export default function App() {
               <Text style={styles.appName}>Black94</Text>
             </View>
           ) : (
-            <Navigation ref={navigationRef} />
+            <Navigation />
           )}
         </View>
       </SafeAreaProvider>

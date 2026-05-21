@@ -18,7 +18,7 @@
  */
 
 import * as Notifications from 'expo-notifications';
-import { Platform, AndroidImportance } from 'react-native';
+import { Platform } from 'react-native';
 import { firestore, auth } from '../lib/firebase';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -43,14 +43,14 @@ async function ensureAndroidChannel(): Promise<void> {
   try {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
       name: 'Messages & Notifications',
-      importance: AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#FFFFFF',
       enableVibrate: true,
       enableLights: true,
       showBadge: true,
       bypassDnd: false,
-      lockscreenVisibility: AndroidImportance.HIGH,
+      lockscreenVisibility: Notifications.AndroidImportance.HIGH,
     });
     _channelCreated = true;
     console.log('[Push] Android notification channel created:', CHANNEL_ID);

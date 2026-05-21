@@ -414,15 +414,12 @@ function AppStack() {
   );
 }
 
-export default React.forwardRef(function AppNavigator(_props, ref) {
+export default function AppNavigator() {
   const user = useAppStore(s => s.user);
   const isReady = useAppStore(s => s.isReady);
   const pendingNotificationTap = useAppStore(s => s.pendingNotificationTap);
   const setPendingNotificationTap = useAppStore(s => s.setPendingNotificationTap);
   const navRef = useRef(null);
-
-  // Expose navigation ref to parent (App.js)
-  React.useImperativeHandle(ref, () => navRef.current, []);
 
   // ── Handle notification taps ──
   // When a user taps a push notification, route them to the correct screen
