@@ -433,6 +433,34 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ── Push Notification Tokens ───────────────────────────────────
+    match /user_push_tokens/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+    match /user_push_tokens/{userId}/tokens/{tokenId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // ── Engagement Tracking ──────────────────────────────────────────
+    match /engagement_milestones/{milestoneId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+    match /user_engagement/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isOwner(userId);
+      allow delete: if false;
+    }
+
     // ── Activities / Feed ───────────────────────────────────────────────
     match /activities/{id} {
       allow read: if isAuthenticated();
