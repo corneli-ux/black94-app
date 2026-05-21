@@ -257,8 +257,8 @@ export default function DualPaneChatScreen({ navigation }: any) {
     setLoadingMessages(true);
     loadMessages();
 
-    // Poll every 3 seconds instead of onSnapshot
-    msgPollRef.current = setInterval(loadMessages, 3000);
+    // Poll every 2 seconds for near-real-time chat
+    msgPollRef.current = setInterval(loadMessages, 2000);
 
     return () => {
       if (msgPollRef.current) {
@@ -285,23 +285,34 @@ export default function DualPaneChatScreen({ navigation }: any) {
         ? selectedChat.user2Id
         : selectedChat.user1Id;
 
+    const content = messageText.trim();
+    setMessageText('');
     setSending(true);
+
+    // Optimistic: add temp message immediately for instant feel
+    const tempMsg: ChatMessage = {
+      id: `tmp-${Date.now()}`,
+      chatId: selectedChat.id,
+      senderId: currentUserId,
+      receiverId: otherId,
+      content,
+      messageType: 'text',
+      mediaUrl: null,
+      status: 'sent',
+      createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, tempMsg]);
+    setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 50);
+
     try {
-      // BUG FIX: Use sendMessage from api.ts instead of inline Firestore writes.
-      // The inline code bypassed block checks and DM notifications, and
-      // didn't increment unread counts for the receiver.
-      // CRITICAL: sendMessage(chatId, receiverId, content) — receiverId and content
-      // were previously swapped, sending the message text as the receiver ID and
-      // the user ID as the message content. This caused E2EE to encrypt for a
-      // non-existent user, block checks to fail, and messages to be garbage.
-      await sendMessage(selectedChat.id, otherId, messageText.trim());
-      setMessageText('');
-      // Reload messages after send to show the new message
-      if (messagesEndRef.current) {
-        setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 200);
-      }
+      await sendMessage(selectedChat.id, otherId, content);
+      // Don't reload — polling (2s) will pick up the server message.
+      // The optimistic temp message is already visible.
     } catch (err: any) {
       console.error('[DualPaneChatScreen] send error:', err?.message || err);
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      setMessageText(content);
     } finally {
       setSending(false);
     }
@@ -633,6 +644,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     width: 0,
+    backgroundColor: 'transparent',
   },
   // Phone layout
   phoneLayout: {
@@ -640,8 +652,7 @@ const styles = StyleSheet.create({
   },
   phoneTabBar: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomWidth: 0,
     backgroundColor: colors.surface,
   },
   phoneTab: {
@@ -747,8 +758,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomWidth: 0,
     gap: 12,
   },
   roomName: {
@@ -823,8 +833,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopWidth: 0,
     gap: 8,
     backgroundColor: colors.surface,
     // Let SafeAreaView handle bottom inset instead of hardcoding

@@ -59,11 +59,11 @@ export default function ChatListScreen({ navigation }: any) {
     }, [load]),
   );
 
-  // Initial load on mount + polling every 10 seconds
+  // Initial load on mount + polling every 5 seconds (faster for real-time feel)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     load();
-    pollRef.current = setInterval(load, 10000);
+    pollRef.current = setInterval(load, 5000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [load]);
 

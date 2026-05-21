@@ -3,6 +3,16 @@ import { User } from '../lib/api';
 import { tsToMillis } from '../utils/datetime';
 import { startNotificationPolling, stopNotificationPolling } from '../services/notificationEngine';
 
+// Lazy-imported notification types to avoid circular deps
+type NotificationTapData = {
+  type?: string;
+  postId?: string;
+  actorId?: string;
+  actorUsername?: string;
+  recipientId?: string;
+  chatId?: string;
+};
+
 interface AppState {
   user: User | null;
   setUser: (user: User | null) => void;
@@ -17,6 +27,9 @@ interface AppState {
   feedRefreshKey: number;
   triggerFeedRefresh: () => void;
   logout: () => void;
+  // Push notification handling
+  pendingNotificationTap: NotificationTapData | null;
+  setPendingNotificationTap: (data: NotificationTapData | null) => void;
 }
 
 /**
@@ -59,6 +72,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       startNotificationPolling(normalized.id, (count) => {
         set({ unreadNotificationCount: count });
       });
+      // Initialize push notifications after login
+      import('../services/pushNotifications').then(({ requestNotificationPermissions }) => {
+        requestNotificationPermissions().catch(() => {});
+      }).catch(() => {});
     } else {
       stopNotificationPolling();
     }
@@ -73,9 +90,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setUnreadNotificationCount: (count) => set({ unreadNotificationCount: count }),
   feedRefreshKey: 0,
   triggerFeedRefresh: () => set((s) => ({ feedRefreshKey: s.feedRefreshKey + 1 })),
+  pendingNotificationTap: null,
+  setPendingNotificationTap: (data) => set({ pendingNotificationTap: data }),
   logout: () => {
     stopNotificationPolling();
-    set({ user: null, token: null, unreadNotificationCount: 0, loading: false });
+    set({ user: null, token: null, unreadNotificationCount: 0, loading: false, pendingNotificationTap: null });
   },
 }));
 

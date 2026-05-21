@@ -14,7 +14,7 @@
 
 import { firestore, auth } from '../lib/firebase';
 
-const POLL_INTERVAL = 15000; // 15 seconds
+const POLL_INTERVAL = 5000; // 5 seconds (faster for better UX)
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let initialPollTimer: ReturnType<typeof setTimeout> | null = null;
 

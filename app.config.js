@@ -84,6 +84,13 @@ module.exports = function () {
               'com.googleusercontent.apps.210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o',
           },
         ],
+        [
+          'expo-notifications',
+          {
+            icon: './assets/icon.png',
+            color: '#FFFFFF',
+          },
+        ],
       ],
       extra: {
         eas: {

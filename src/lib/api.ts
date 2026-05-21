@@ -1,5 +1,5 @@
 import { auth, firestore, signInWithGoogleIdToken, signOut } from './firebase';
-import { createNotification } from '../services/notificationEngine';
+import { dispatchEngagementNotification, checkFollowerMilestones, checkPostLikeMilestones, sendWelcomeNotification, trackUserActivity } from '../services/engagementEngine';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   initE2EE,
@@ -484,6 +484,24 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
   }
 }
 
+/**
+ * Initialize push notifications and engagement tracking after sign-in.
+ * Call this after signInWithGoogle succeeds.
+ */
+export async function initPostSignUp(userId: string): Promise<void> {
+  try {
+    // Request notification permissions and register push token
+    const { requestNotificationPermissions } = await import('../services/pushNotifications');
+    await requestNotificationPermissions();
+    // Send welcome notification (only on first sign-in)
+    sendWelcomeNotification(userId).catch(() => {});
+    // Track first activity
+    trackUserActivity(userId).catch(() => {});
+  } catch (e) {
+    console.warn('[Auth] Post sign-up init failed:', e);
+  }
+}
+
 export async function signOutUser(): Promise<void> {
   try {
     const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
@@ -496,6 +514,11 @@ export async function signOutUser(): Promise<void> {
   // ── Destroy E2EE keys on logout ──
   try {
     await destroyLocalKeys();
+  } catch {}
+  // Clear push notification token on logout
+  try {
+    const { clearPushToken } = await import('../services/pushNotifications');
+    await clearPushToken();
   } catch {}
   // Clear user profile cache — no longer valid after logout
   try {
@@ -622,14 +645,17 @@ export async function toggleLike(postId: string, currentlyLiked: boolean): Promi
         const postAuthorId = postData?.authorId;
         if (postAuthorId && postAuthorId !== userId) {
           const actor = await getActorData(userId);
-          createNotification({
+          const newLikeCount = (postData?.likeCount || 0) + 1;
+          dispatchEngagementNotification({
             recipientId: postAuthorId,
             type: 'like',
             actorId: userId,
             ...actor,
             postId,
             postCaption: postData?.caption || '',
-          });
+          }).catch(() => {});
+          // Check for post like milestone
+          checkPostLikeMilestones(postAuthorId, postId, newLikeCount).catch(() => {});
         }
       } catch (e) {
         console.warn('[Like] Notification fire-and-forget failed:', e);
@@ -733,14 +759,14 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
         const postAuthorId = postData?.authorId;
         if (postAuthorId && postAuthorId !== userId) {
           const actor = await getActorData(userId);
-          createNotification({
+          dispatchEngagementNotification({
             recipientId: postAuthorId,
             type: 'repost',
             actorId: userId,
             ...actor,
             postId,
             postCaption: postData?.caption || '',
-          });
+          }).catch(() => {});
         }
       } catch (e) {
         console.warn('[Repost] Notification fire-and-forget failed:', e);
@@ -1104,12 +1130,15 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     // ── Notification: tell receiver they got a new DM ──
     try {
       const actor = await getActorData(userId);
-      createNotification({
+      dispatchEngagementNotification({
         recipientId: receiverId,
         type: 'chat',
         actorId: userId,
         ...actor,
-      });
+        priority: 'high',
+      }).catch(() => {});
+      // Track activity for engagement scoring
+      trackUserActivity(userId).catch(() => {});
     } catch (e) {
       console.warn('[Messages] Notification fire-and-forget failed:', e);
     }
@@ -1132,12 +1161,14 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   // ── Notification: tell receiver they got a new DM ──
   try {
     const actor = await getActorData(userId);
-    createNotification({
+    dispatchEngagementNotification({
       recipientId: receiverId,
       type: 'chat',
       actorId: userId,
       ...actor,
-    });
+      priority: 'high',
+    }).catch(() => {});
+    trackUserActivity(userId).catch(() => {});
   } catch (e) {
     console.warn('[Messages] Notification fire-and-forget failed:', e);
   }
@@ -1289,13 +1320,14 @@ export async function initiateCall(receiverId: string, receiverName: string, rec
   // Notify the receiver
   try {
     const actor = await getActorData(userId);
-    createNotification({
+    dispatchEngagementNotification({
       recipientId: receiverId,
       type: 'call',
       actorId: userId,
       ...actor,
       postCaption: `📞 Voice call from ${actor.actorDisplayName}`,
-    });
+      priority: 'critical',
+    }).catch(() => {});
   } catch (e) {
     console.warn('[Call] Notification failed:', e);
   }
@@ -1523,12 +1555,19 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
     // ── Notification: tell target user they got a new follower ──
     try {
       const actor = await getActorData(userId);
-      createNotification({
+      dispatchEngagementNotification({
         recipientId: targetUserId,
         type: 'follow',
         actorId: userId,
         ...actor,
-      });
+      }).catch(() => {});
+      // Check follower milestone
+      const targetDoc = await firestore().collection('users').doc(targetUserId).get();
+      const targetData = targetDoc.exists ? targetDoc.data() : null;
+      const followerCount = targetData?.followerCount || 0;
+      checkFollowerMilestones(targetUserId, followerCount + 1).catch(() => {});
+      // Track activity
+      trackUserActivity(userId).catch(() => {});
     } catch (e) {
       console.warn('[Follow] Notification fire-and-forget failed:', e);
     }
@@ -1703,7 +1742,7 @@ export async function addPostComment(postId: string, content: string, replyToId?
       const actorUsername = userData?.username || storeUser?.username || '';
       const actorPhoto = userData?.profileImage || storeUser?.profileImage || null;
       const actorVerified = userData?.isVerified ?? storeUser?.isVerified ?? false;
-      createNotification({
+      dispatchEngagementNotification({
         recipientId: postAuthorId,
         type: 'comment',
         actorId: userId,
@@ -1715,7 +1754,8 @@ export async function addPostComment(postId: string, content: string, replyToId?
         postId,
         postCaption: postData?.caption || '',
         commentContent: content.trim(),
-      });
+      }).catch(() => {});
+      trackUserActivity(userId).catch(() => {});
     }
   } catch (e) {
     console.warn('[Comments] Notification fire-and-forget failed:', e);
@@ -1831,14 +1871,14 @@ export async function toggleCommentRepost(commentId: string, currentlyReposted: 
         const commentAuthorId = commentData?.authorId;
         if (commentAuthorId && commentAuthorId !== userId) {
           const actor = await getActorData(userId);
-          createNotification({
+          dispatchEngagementNotification({
             recipientId: commentAuthorId,
             type: 'repost',
             actorId: userId,
             ...actor,
             commentId,
             commentContent: (commentData?.content || '').slice(0, 80),
-          });
+          }).catch(() => {});
         }
       } catch (e) {
         console.warn('[CommentRepost] Notification fire-and-forget failed:', e);

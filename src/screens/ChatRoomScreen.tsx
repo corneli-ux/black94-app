@@ -126,7 +126,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     };
     resetUnread();
     load();
-    pollRef.current = setInterval(() => load(true), 5000);
+    // Poll every 2 seconds for near-real-time feel
+    pollRef.current = setInterval(() => load(true), 2000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [chat?.id]);
 
@@ -143,13 +144,15 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       content, messageType: 'text', createdAt: Date.now(),
     };
     setMessages(prev => [...prev, tempMsg]);
-    setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+    setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
     try {
       await sendMessage(chat.id, chat.otherUser?.id || '', content);
-      await load(true);
+      // Don't reload — polling (2s) picks up the server message.
+      // Optimistic temp message is already visible for instant feel.
     } catch (e) {
       console.error('[ChatRoom] Send failed:', e);
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      setText(content); // Restore text on failure
       Alert.alert('Send Failed', 'Could not send your message. Please try again.');
     } finally {
       setSending(false);
@@ -572,8 +575,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomWidth: 0,
     backgroundColor: 'rgba(0,0,0,0.9)',
   },
   backBtn: {
