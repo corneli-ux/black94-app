@@ -183,7 +183,10 @@ export async function requestNotificationPermissions(): Promise<boolean> {
  */
 async function registerPushToken(): Promise<string | null> {
   try {
-    const projectId = 'black94-app';
+    // IMPORTANT: This must match the EAS project (@owner/slug).
+    // Using a wrong projectId causes tokens to be registered under a
+    // non-existent project, and Expo silently rejects push sends.
+    const projectId = '@corneli1/black94';
     const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
 
     if (!token) {
@@ -396,7 +399,7 @@ export async function clearPushToken(): Promise<void> {
     if (!userId) return;
 
     // Get current token
-    const projectId = 'black94-app';
+    const projectId = '@corneli1/black94';
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     if (!tokenData.data) return;
 
