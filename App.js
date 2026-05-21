@@ -197,9 +197,10 @@ export default function App() {
               }
               // Cancel safety timeout since auth is validated
               clearTimeout(safetyTimer);
-              // Re-register push token on auth restore (token may have changed)
-              import('./src/services/pushNotifications').then(({ requestNotificationPermissions }) => {
-                requestNotificationPermissions().catch((e) => console.warn('[App] Push re-register failed:', e));
+              // Re-initialize push notifications + activity tracking on auth restore
+              // (token may have changed since last session)
+              import('./src/lib/api').then(({ initPostSignUp }) => {
+                initPostSignUp(fbUser.uid).catch((e) => console.warn('[App] initPostSignUp on restore failed:', e));
               }).catch(() => {});
               // Fetch full profile in background and update
               fetchUserProfile(fbUser.uid).then(profile => {

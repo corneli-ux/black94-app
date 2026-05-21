@@ -11,6 +11,13 @@
  *
  * This module is the central dispatch point for ALL notifications.
  * It writes to the Firestore `notifications` collection AND sends push.
+ *
+ * ARCHITECTURE NOTE:
+ *   Firestore notification docs are ALWAYS written IMMEDIATELY (no delay).
+ *   Only the push notification is batched (3s) to combine rapid-fire events
+ *   (e.g. "5 people liked your post") into a single push.
+ *   This prevents notifications from being lost if the sender closes the app
+ *   within the batch window.
  */
 
 import { firestore, auth } from '../lib/firebase';
@@ -83,51 +90,89 @@ function isRateLimited(recipientId: string, type: string): boolean {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   BATCHING — combine multiple notifications of the same type
+   PUSH BATCHING — combine push notifications of the same type
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const _batchBuffer = new Map<string, { count: number; latestActor: string; latestData: any; timer: any }>();
-const BATCH_DELAY = 3000; // Wait 3 seconds to batch
+// CRITICAL: Firestore notification docs are ALWAYS written immediately.
+// Only the PUSH notification is batched (delayed to combine e.g. "5 people liked").
+// Old code batched BOTH doc+push via setTimeout — if the sender closed the app
+// within 3 seconds, the notification was lost entirely (no doc, no push).
+const _pushBatch = new Map<string, { count: number; latestData: EngagementNotification; timer: any }>();
+const BATCH_DELAY = 3000; // Wait 3 seconds to batch pushes
 
 function getBatchKey(recipientId: string, type: string, postId?: string): string {
   return `${recipientId}_${type}${postId ? `_${postId}` : ''}`;
 }
 
-function addToBatch(params: EngagementNotification, sendNow: () => Promise<void>): void {
-  // Critical notifications are never batched
+function batchPush(params: EngagementNotification, title: string, body: string, data: Record<string, string>): void {
+  // Critical notifications and chat are never batched
   if (params.priority === 'critical' || params.type === 'chat') {
-    sendNow();
+    sendPushToUser(params.recipientId, title, body, data).catch(() => {});
     return;
   }
 
   const key = getBatchKey(params.recipientId, params.type, params.postId);
 
-  if (_batchBuffer.has(key)) {
-    // Already buffered — increment count
-    const entry = _batchBuffer.get(key)!;
+  if (_pushBatch.has(key)) {
+    // Already buffered — increment count, update with latest actor data
+    const entry = _pushBatch.get(key)!;
     entry.count++;
-    entry.latestActor = params.actorDisplayName;
     entry.latestData = params;
 
     // Reset timer
     clearTimeout(entry.timer);
     entry.timer = setTimeout(() => {
-      _batchBuffer.delete(key);
-      sendNow();
+      _pushBatch.delete(key);
+      const count = entry.count;
+      const latest = entry.latestData;
+      const batchTitle = count > 1 ? buildBatchTitle(latest, count) : title;
+      const batchBody = count > 1 ? buildBatchBody(latest, count) : body;
+      sendPushToUser(latest.recipientId, batchTitle, batchBody, data).catch(() => {});
     }, BATCH_DELAY);
   } else {
-    // First notification of this type — buffer it
+    // First notification of this type — buffer the push
+    const capturedTitle = title;
+    const capturedBody = body;
     const timer = setTimeout(() => {
-      _batchBuffer.delete(key);
-      sendNow();
+      _pushBatch.delete(key);
+      sendPushToUser(params.recipientId, capturedTitle, capturedBody, data).catch(() => {});
     }, BATCH_DELAY);
 
-    _batchBuffer.set(key, {
+    _pushBatch.set(key, {
       count: 1,
-      latestActor: params.actorDisplayName,
       latestData: params,
       timer,
     });
+  }
+}
+
+/** Build batched push title when multiple actors trigger same notification */
+function buildBatchTitle(params: EngagementNotification, count: number): string {
+  switch (params.type) {
+    case 'like': return `${count} people liked your post`;
+    case 'comment': return `${count} people commented on your post`;
+    case 'follow': return `${count} people started following you`;
+    case 'repost': return `${count} people reposted your post`;
+    default: return buildPushTitle(params);
+  }
+}
+
+/** Build batched push body when multiple actors trigger same notification */
+function buildBatchBody(params: EngagementNotification, count: number): string {
+  const name = params.actorDisplayName || 'Someone';
+  switch (params.type) {
+    case 'like':
+      return params.postCaption
+        ? `"${params.postCaption.slice(0, 60)}" and ${count - 1} more`
+        : `${name} and ${count - 1} others liked your post`;
+    case 'follow':
+      return `Including @${params.actorUsername || 'someone'}`;
+    case 'repost':
+      return params.postCaption
+        ? `"${params.postCaption.slice(0, 60)}" and ${count - 1} more`
+        : `${name} and ${count - 1} others reposted`;
+    default:
+      return buildPushBody(params);
   }
 }
 
@@ -143,8 +188,7 @@ function addToBatch(params: EngagementNotification, sendNow: () => Promise<void>
  *   - Self-notification prevention
  *   - Block checking
  *   - Rate limiting
- *   - Smart batching
- *   - Push notification dispatch
+ *   - Push notification batching (doc is always written immediately)
  *   - Firestore persistence
  */
 export async function dispatchEngagementNotification(
@@ -184,62 +228,51 @@ export async function dispatchEngagementNotification(
   const pushBody = params.pushBody || buildPushBody(params);
   const pushData = params.pushData || buildPushData(params);
 
-  const sendFn = async () => {
-    // Check batch count
-    const key = getBatchKey(params.recipientId, params.type, params.postId);
-    const batch = _batchBuffer.get(key);
-    const count = batch?.count || 1;
-
-    // Write to Firestore
-    const { recipientId, type, actorId, postId } = params;
-    let docId: string;
-    if (type === 'comment' && postId) {
-      docId = `${type}_${actorId}_${postId}_${Date.now()}`;
-    } else if (postId) {
-      docId = `${type}_${actorId}_${postId}`;
-    } else {
-      docId = `${type}_${actorId}_${Date.now()}`;
-    }
-
-    try {
-      await firestore()
-        .collection('notifications')
-        .doc(docId)
-        .set({
-          recipientId,
-          type,
-          actorId,
-          actorDisplayName: params.actorDisplayName || '',
-          actorUsername: params.actorUsername || '',
-          actorProfileImage: params.actorProfileImage || null,
-          actorIsVerified: params.actorIsVerified || false,
-          actorBadge: params.actorBadge || '',
-          postId: params.postId || '',
-          postCaption: params.postCaption || '',
-          commentContent: params.commentContent || '',
-          read: false,
-          createdAt: firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-    } catch (e) {
-      console.warn('[EngagementEngine] Firestore write failed:', e);
-    }
-
-    // Send push notification (fire-and-forget but with logging)
-    sendPushToUser(recipientId, pushTitle, pushBody, pushData).then((success) => {
-      if (!success) {
-        console.warn('[EngagementEngine] Push notification not delivered to', recipientId, '— user may not have registered a push token');
-      }
-    }).catch((e) => {
-      console.warn('[EngagementEngine] Push dispatch error:', e?.message || e);
-    });
-  };
-
-  // Apply batching for non-critical notifications
-  if (params.priority === 'critical' || params.type === 'chat') {
-    await sendFn();
+  // ══════════════════════════════════════════════════════════════
+  // STEP 1: Write Firestore notification doc IMMEDIATELY (no delay).
+  // This ensures the notification ALWAYS appears in the tab, even if
+  // the sender closes the app right after the action.
+  // ══════════════════════════════════════════════════════════════
+  const { recipientId, type, actorId, postId } = params;
+  let docId: string;
+  if (type === 'comment' && postId) {
+    docId = `${type}_${actorId}_${postId}_${Date.now()}`;
+  } else if (postId) {
+    docId = `${type}_${actorId}_${postId}`;
   } else {
-    addToBatch(params, sendFn);
+    docId = `${type}_${actorId}_${Date.now()}`;
   }
+
+  try {
+    await firestore()
+      .collection('notifications')
+      .doc(docId)
+      .set({
+        recipientId,
+        type,
+        actorId,
+        actorDisplayName: params.actorDisplayName || '',
+        actorUsername: params.actorUsername || '',
+        actorProfileImage: params.actorProfileImage || null,
+        actorIsVerified: params.actorIsVerified || false,
+        actorBadge: params.actorBadge || '',
+        postId: params.postId || '',
+        postCaption: params.postCaption || '',
+        commentContent: params.commentContent || '',
+        read: false,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+  } catch (e) {
+    console.warn('[EngagementEngine] Firestore write failed:', e);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // STEP 2: Send push notification (batched for non-critical types).
+  // Chat and critical notifications are sent immediately.
+  // Likes/follows/etc. are batched for 3s to combine rapid-fire
+  // events ("5 people liked your post") into one push.
+  // ══════════════════════════════════════════════════════════════
+  batchPush(params, pushTitle, pushBody, pushData);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -468,7 +501,7 @@ export async function checkReEngagement(userId: string): Promise<void> {
     let lastActiveMs: number;
     try {
       lastActiveMs = typeof lastActivity === 'object' && lastActivity.seconds
-        ? lastActive.seconds * 1000
+        ? lastActivity.seconds * 1000
         : new Date(lastActivity).getTime();
     } catch {
       return;
