@@ -82,7 +82,7 @@ async function openImagePicker(limit: number): Promise<ImagePicker.ImagePickerAs
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: limit,
@@ -132,7 +132,7 @@ async function openCamera(): Promise<ImagePicker.ImagePickerAsset | null> {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
       allowsMultipleSelection: false,
       maxWidth: 1200,

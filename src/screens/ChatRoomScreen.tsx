@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, ScrollView, Alert, Modal } from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, blockUser, Message } from '../lib/api';
@@ -9,17 +9,6 @@ import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadOptimizedImage } from '../utils/imageUpload';
-
-/* ── Emoji data ─────────────────────────────────────────────────────────────── */
-
-const EMOJI_CATEGORIES = [
-  { name: 'Smileys', emojis: ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐'] },
-  { name: 'Gestures', emojis: ['👋','🤚','🖐','✋','🖖','🫱','🫲','🫳','🫴','👌','🤌','🤏','✌','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏'] },
-  { name: 'Hearts', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','❣️','💕','💞','💓','💗','💖','💘','💝','💟','♥️','🫀','💌','💋','💍','💎','🔥','⭐','🌟','✨','💥','💫','💦','💨','🌈','☀️','🌙','⚡'] },
-  { name: 'Objects', emojis: ['🎉','🎊','🎈','🎁','🏆','🥇','🎵','🎶','🎸','🎤','📱','💻','📸','🎮','⚽','🏀','🎯','🚀','✈️','🏠','🍕','🍔','🍟','🌮','🍦','☕','🍺','🥂','💊'] },
-];
-
-const ALL_EMOJIS = EMOJI_CATEGORIES.flatMap(c => c.emojis);
 
 function formatTime(timestamp?: number | string): string {
   if (!timestamp) return '';
@@ -40,11 +29,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [showMenu, setShowMenu] = useState(false);
   const [showNuclearConfirm, setShowNuclearConfirm] = useState(false);
   const [blocking, setBlocking] = useState(false);
-  const [showEmoji, setShowEmoji] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
-  const [activeEmojiCategory, setActiveEmojiCategory] = useState(0);
   const flatRef = useRef<FlatList>(null);
-  const emojiListRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const insets = useSafeAreaInsets();
@@ -199,7 +185,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
   const handlePickImage = async () => {
     setShowAttachMenu(false);
-    setShowEmoji(false);
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
@@ -207,7 +192,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.7,
         allowsMultipleSelection: false,
         maxWidth: 1200,
@@ -236,7 +221,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
   const handleCamera = async () => {
     setShowAttachMenu(false);
-    setShowEmoji(false);
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -244,7 +228,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.7,
         allowsMultipleSelection: false,
         maxWidth: 1200,
@@ -272,19 +256,12 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
   const handleOpenGifPicker = () => {
     setShowAttachMenu(false);
-    setShowEmoji(false);
     navigation.navigate('GifPicker', {
       onSelect: (gifUrl: string) => {
         // This won't work with React Navigation params for functions,
         // so we use the route.params approach instead
       },
     });
-  };
-
-  // ── Add emoji to text ─────────────────────────────────────────────────────
-
-  const handleEmojiSelect = (emoji: string) => {
-    setText(prev => prev + emoji);
   };
 
   // ── Nuclear Block ─────────────────────────────────────────────────────────
@@ -359,37 +336,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     );
   };
 
-  // ── Emoji category tabs ───────────────────────────────────────────────────
-
-  const renderEmojiCategoryTab = ({ item, index }: { item: typeof EMOJI_CATEGORIES[0]; index: number }) => (
-    <TouchableOpacity
-      key={item.name}
-      style={[styles.emojiTab, activeEmojiCategory === index && styles.emojiTabActive]}
-      onPress={() => {
-        setActiveEmojiCategory(index);
-        emojiListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      }}
-      activeOpacity={0.6}
-    >
-      <Text style={[styles.emojiTabText, activeEmojiCategory === index && styles.emojiTabTextActive]}>
-        {item.name}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  // ── Emoji grid ────────────────────────────────────────────────────────────
-
-  const renderEmojiItem = ({ item }: { item: string }) => (
-    <TouchableOpacity
-      key={item}
-      style={styles.emojiCell}
-      onPress={() => handleEmojiSelect(item)}
-      activeOpacity={0.6}
-    >
-      <Text style={styles.emojiChar}>{item}</Text>
-    </TouchableOpacity>
-  );
-
   if (!chat) {
     return (
       <View style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -420,7 +366,21 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: 10 }} />
         )}
 
-        <View style={{ width: 36 }} />
+        {/* Call button */}
+        <TouchableOpacity
+          style={styles.headerActionBtn}
+          onPress={() => {
+            if (!chat?.otherUser) return;
+            navigation.navigate('AudioCall', {
+              userId: chat.otherUser.id,
+              userName: chat.otherUser.displayName || chat.otherUser.username || 'User',
+              userProfileImage: chat.otherUser.profileImage,
+            });
+          }}
+          hitSlop={8}
+        >
+          <Ionicons name="call" size={20} color="#e7e9ea" />
+        </TouchableOpacity>
 
         {/* More menu button */}
         <View style={{ position: 'relative' }}>
@@ -477,70 +437,21 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             </View>
           }
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
-          ListFooterComponent={<View style={{ height: showEmoji ? 280 : 80 }} />}
+          ListFooterComponent={<View style={{ height: 80 }} />}
           keyboardShouldPersistTaps="handled"
         />
       )}
 
-      {/* Emoji Picker Panel */}
-      {showEmoji && (
-        <View style={styles.emojiPanel}>
-          {/* Category tabs */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.emojiTabsRow}
-          >
-            {EMOJI_CATEGORIES.map((cat, i) => (
-              <TouchableOpacity
-                key={cat.name}
-                style={[styles.emojiTab, activeEmojiCategory === i && styles.emojiTabActive]}
-                onPress={() => {
-                  setActiveEmojiCategory(i);
-                  emojiListRef.current?.scrollToOffset({ offset: 0, animated: true });
-                }}
-                activeOpacity={0.6}
-              >
-                <Text style={[styles.emojiTabText, activeEmojiCategory === i && styles.emojiTabTextActive]}>
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Emoji grid */}
-          <FlatList
-            ref={emojiListRef}
-            data={EMOJI_CATEGORIES[activeEmojiCategory]?.emojis || []}
-            renderItem={renderEmojiItem}
-            keyExtractor={(item) => item}
-            numColumns={8}
-            columnWrapperStyle={styles.emojiRow}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          />
-        </View>
-      )}
-
       {/* Input bar */}
-      <View style={[styles.inputRow, { paddingBottom: showEmoji ? 4 : Math.max(8, insets.bottom) }]}>
-        {/* Attachment / emoji buttons */}
-        <View style={styles.inputActions}>
-          <TouchableOpacity
-            style={styles.inputActionBtn}
-            onPress={() => { setShowEmoji(!showEmoji); setShowAttachMenu(false); }}
-            activeOpacity={0.6}
-          >
-            <Ionicons name={showEmoji ? 'close-circle' : 'happy-outline'} size={22} color={showEmoji ? colors.accent : '#71767b'} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.inputActionBtn}
-            onPress={() => { setShowAttachMenu(!showAttachMenu); setShowEmoji(false); }}
-            activeOpacity={0.6}
-          >
-            <Ionicons name="add-circle-outline" size={22} color={showAttachMenu ? colors.accent : '#71767b'} />
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
+        {/* Attachment button */}
+        <TouchableOpacity
+          style={styles.inputActionBtn}
+          onPress={() => setShowAttachMenu(!showAttachMenu)}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="add-circle-outline" size={22} color={showAttachMenu ? colors.accent : '#71767b'} />
+        </TouchableOpacity>
 
         <View style={styles.inputPill}>
           <TextInput
@@ -550,7 +461,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             value={text}
             onChangeText={setText}
             multiline
-            onFocus={() => { setShowEmoji(false); setShowAttachMenu(false); }}
+            onFocus={() => setShowAttachMenu(false)}
           />
         </View>
         <TouchableOpacity
@@ -750,20 +661,14 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#374151',
-  },
-  inputActions: {
-    flexDirection: 'column',
-    justifyContent: 'center',
-    gap: 2,
-    paddingBottom: 4,
+    borderTopWidth: 0,
   },
   inputActionBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 2,
   },
   inputPill: {
     flex: 1,
@@ -835,49 +740,6 @@ const styles = StyleSheet.create({
     color: '#e7e9ea',
     fontSize: 11,
     fontWeight: '500',
-  },
-  // ── Emoji picker ──
-  emojiPanel: {
-    backgroundColor: '#0d0d0d',
-    borderTopWidth: 1,
-    borderTopColor: '#2f3336',
-    maxHeight: 280,
-  },
-  emojiTabsRow: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 4,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#2f3336',
-  },
-  emojiTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: 'transparent',
-  },
-  emojiTabActive: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  emojiTabText: {
-    color: '#71767b',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  emojiTabTextActive: {
-    color: '#e7e9ea',
-  },
-  emojiRow: {
-    gap: 2,
-  },
-  emojiCell: {
-    width: '12.5%',
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emojiChar: {
-    fontSize: 22,
   },
   // ── Upload overlay ──
   uploadingOverlay: {

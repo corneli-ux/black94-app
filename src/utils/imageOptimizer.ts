@@ -583,7 +583,7 @@ export async function pickAndOptimizeImage(
 ): Promise<OptimizedImageResult | null> {
   const {
     allowsEditing = false,
-    mediaTypes = [ImagePicker.MediaType.Images],
+    mediaTypes = [ImagePicker.MediaTypeOptions.Images],
     aspect,
     pickerQuality = 1,
     ...optimizeOpts

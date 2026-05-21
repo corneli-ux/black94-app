@@ -627,15 +627,12 @@ const styles = StyleSheet.create({
   },
   tabletLeftPane: {
     width: '40%',
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
   },
   tabletRightPane: {
     flex: 1,
   },
   divider: {
-    width: 1,
-    backgroundColor: colors.border,
+    width: 0,
   },
   // Phone layout
   phoneLayout: {
