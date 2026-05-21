@@ -46,6 +46,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
 
   const panResponderRef = useRef<any>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const pausedProgressRef = useRef(0); // BUG FIX: Save progress value when pausing
   const currentUser = auth()?.currentUser;
 
   // Load stories
@@ -140,15 +141,23 @@ export default function StoryViewerScreen({ navigation, route }: any) {
 
   // Progress bar animation
   useEffect(() => {
-    if (stories.length === 0 || isPaused) {
+    if (stories.length === 0) return;
+
+    if (isPaused) {
+      // BUG FIX: Save current progress before pausing so we resume from the same spot
       progressAnim.stopAnimation();
+      progressAnim.addListener(({ value }) => { pausedProgressRef.current = value; });
+      setTimeout(() => progressAnim.removeAllListeners(), 50);
       return;
     }
 
-    progressAnim.setValue(0);
+    // BUG FIX: Resume from saved progress on unpause, reset to 0 only for new stories
+    const startValue = pausedProgressRef.current > 0.01 ? pausedProgressRef.current : 0;
+    pausedProgressRef.current = 0;
+    progressAnim.setValue(startValue);
     Animated.timing(progressAnim, {
       toValue: 1,
-      duration: STORY_DURATION,
+      duration: STORY_DURATION * (1 - startValue), // remaining time
       useNativeDriver: false,
     }).start(({ finished }) => {
       if (finished) {
@@ -441,7 +450,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
 
       {/* Swipe up hint */}
       <View style={styles.swipeHintContainer}>
-        <Text style={styles.swipeHint}>Swipe up to dismiss</Text>
+        <Text style={styles.swipeHint}>Swipe down to dismiss</Text>
       </View>
 
       {/* Pause indicator */}

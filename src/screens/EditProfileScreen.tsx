@@ -204,7 +204,7 @@ export default function EditProfileScreen({ navigation }: any) {
         Alert.alert('Error', 'Username must be 3-20 characters (letters, numbers, underscores)');
         return;
       }
-      if (!usernameAvailable) {
+      if (usernameAvailable === false) {
         Alert.alert('Error', 'This username is not available');
         return;
       }

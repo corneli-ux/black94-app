@@ -127,7 +127,7 @@ function StoryProgressBar({
           style={[
             styles.progressFill,
             {
-              width: `${(paused ? progress : progress) * 100}%`,
+              width: `${progress * 100}%`,
               backgroundColor: paused ? 'rgba(255,255,255,0.5)' : '#fff',
             },
           ]}
@@ -409,6 +409,8 @@ export default function StoriesScreen({ navigation }: any) {
   const incrementViewCount = useCallback(async (storyId: string) => {
     if (viewedStoriesRef.current.has(storyId)) return;
     viewedStoriesRef.current.add(storyId);
+    // BUG FIX: Update local story state so highlight ring turns gray after viewing
+    setStories(prev => prev.map(s => s.id === storyId ? { ...s, viewed: true } : s));
     try {
       await firestore()
         .collection('stories')
@@ -421,8 +423,7 @@ export default function StoriesScreen({ navigation }: any) {
 
   /* ── Like a story ─────────────────────────────────────────────────────── */
   const doLike = useCallback(async () => {
-    if (!viewingStory || !currentUser) return;
-    setLiked(true);
+    if (!viewingStory || !currentUser || liked) return; // BUG FIX: skip if already liked (prevents double-increment)
     try {
       await firestore()
         .collection('stories')
@@ -583,11 +584,11 @@ export default function StoriesScreen({ navigation }: any) {
 
       if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
         // Double tap — show heart animation + like
+        lastTapRef.current = 0; // BUG FIX: Set BEFORE setTimeout to prevent navigation
         setHeartPos({ x, y });
         setHeartVisible(false);
         setTimeout(() => setHeartVisible(true), 10);
         doLike();
-        lastTapRef.current = 0;
       } else {
         lastTapRef.current = now;
 
@@ -949,8 +950,8 @@ export default function StoriesScreen({ navigation }: any) {
                 <SafeAreaView edges={['bottom']}>
                   <View style={styles.commentInputRow}>
                     <Avatar
-                      uri={viewingStory.authorProfileImage}
-                      name={viewingStory.authorDisplayName}
+                      uri={userProfileImage}
+                      name={userDisplayName}
                       size={32}
                     />
                     <View style={styles.commentInputWrapper}>

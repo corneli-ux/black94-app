@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Dimensions, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,6 +55,8 @@ export default function BookmarksScreen() {
               caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
               likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
               repostCount: data.repostCount || 0, liked: false, bookmarked: true, reposted: false,
+              repostOf: data.repostOf || undefined, repostedByUid: data.repostedByUid || undefined,
+              repostedByUsername: data.repostedByUsername || undefined, repostedByDisplayName: data.repostedByDisplayName || undefined,
               createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
             });
           }
@@ -143,11 +145,11 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   const [repostCount, setRepostCount] = useState(post.repostCount);
   const [reposted, setReposted] = useState(post.reposted);
   const [refreshedUrls, setRefreshedUrls] = useState<Record<string, string>>({});
-  const refreshAttemptedRef = React.useRef(false);
+  const refreshAttemptedRef = useRef(false);
 
   // Reset when post changes
-  const prevUrlRef = React.useRef(post.mediaUrls?.[0] || '');
-  React.useEffect(() => {
+  const prevUrlRef = useRef(post.mediaUrls?.[0] || '');
+  useEffect(() => {
     const currentUrl = post.mediaUrls?.[0] || '';
     if (prevUrlRef.current !== currentUrl) {
       setRefreshedUrls({});
@@ -156,7 +158,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
     }
   }, [post.id, post.mediaUrls]);
 
-  const handleMediaError = React.useCallback(async (originalUrl: string) => {
+  const handleMediaError = useCallback(async (originalUrl: string) => {
     console.warn('[Bookmarks] Image failed:', originalUrl?.slice(0, 80));
     if (!refreshAttemptedRef.current && originalUrl) {
       refreshAttemptedRef.current = true;

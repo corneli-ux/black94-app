@@ -57,6 +57,8 @@ export default function NotificationsScreen({ navigation }: any) {
     try {
       await markAllNotificationsRead(currentUser.uid);
       setUnreadNotificationCount(0);
+      // BUG FIX: Also update local state so unread indicators disappear immediately
+      setNotifs(prev => prev.map(n => ({ ...n, read: true })));
     } catch (e) {
       console.warn('Failed to mark read:', e);
     }

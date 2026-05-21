@@ -56,7 +56,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       navigation.setParams({ selectedGifUrl: undefined });
       sendMediaMessage(gifUrl, 'gif', '');
     }
-  }, [route.params?.selectedGifUrl]);
+  }, [route.params?.selectedGifUrl, chat?.id]);
 
   // If chatId was passed (e.g., from UserProfileScreen), fetch the chat doc
   useEffect(() => {

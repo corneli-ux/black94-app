@@ -551,7 +551,7 @@ export default function ChatListScreen({ navigation }: any) {
                     <Avatar uri={item.otherUser?.profileImage} name={item.otherUser?.displayName} size={48} />
                     {item.unreadCount > 0 && (
                       <View style={styles.unreadBadge}>
-                        <Text style={styles.unreadText}>{item.unreadCount}</Text>
+                        <Text style={styles.unreadText}>{item.unreadCount > 99 ? '99+' : item.unreadCount}</Text>
                       </View>
                     )}
                   </View>

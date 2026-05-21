@@ -739,26 +739,27 @@ export default function FeedScreen({ navigation }: any) {
   }, [loadingMore, allLoaded, loadFeed]);
 
   const handleLike = async (postId: string, liked: boolean) => {
-    setPosts(prev => prev.map(p => p.id === postId
+    // Match both the repost wrapper (p.id) and original post (p.repostOf)
+    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
       : p));
     try { await toggleLike(postId, liked); } catch (e) {
       // Revert optimistic update on failure — prevents ghost likes
-      setPosts(prev => prev.map(p => p.id === postId
+      setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
         ? { ...p, liked, likeCount: p.likeCount }
         : p));
     }
   };
 
   const handleBookmark = async (postId: string, bookmarked: boolean) => {
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, bookmarked: !bookmarked } : p));
+    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId) ? { ...p, bookmarked: !bookmarked } : p));
     try { await toggleBookmark(postId, bookmarked); } catch (e) {
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, bookmarked } : p));
+      setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId) ? { ...p, bookmarked } : p));
     }
   };
 
   const handleRepost = async (postId: string, reposted: boolean) => {
-    setPosts(prev => prev.map(p => p.id === postId
+    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
       : p));
     try {
@@ -769,7 +770,7 @@ export default function FeedScreen({ navigation }: any) {
       loadFeed(false);
     } catch (e) {
       // Revert optimistic update on failure
-      setPosts(prev => prev.map(p => p.id === postId
+      setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
         ? { ...p, reposted, repostCount: p.repostCount }
         : p));
     }

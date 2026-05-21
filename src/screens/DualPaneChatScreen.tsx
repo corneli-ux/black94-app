@@ -332,8 +332,16 @@ export default function DualPaneChatScreen({ navigation }: any) {
     (chatId: string) => {
       setSelectedChatId(chatId);
       if (!IS_TABLET) setPhoneTab('room');
+      // BUG FIX: Reset unread count when selecting a chat (matches ChatRoomScreen behavior)
+      const chat = chats.find(c => c.id === chatId);
+      if (chat) {
+        const isUser1 = chat.user1Id === currentUserId;
+        const field = isUser1 ? 'unreadUser1' : 'unreadUser2';
+        firestore().collection('chats').doc(chatId).update({ [field]: 0 }).catch(() => {});
+        setChats(prev => prev.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c));
+      }
     },
-    [],
+    [chats, currentUserId],
   );
 
   // ── Nuclear Block ──────────────────────────────────────────────────────
@@ -453,7 +461,7 @@ export default function DualPaneChatScreen({ navigation }: any) {
             onPress={() => {
               if (!selectedChat.otherUser) return;
               navigation.navigate('AudioCall', {
-                userId: selectedChat.otherUser.id,
+                userId: selectedChat.otherUser.uid,
                 userName: selectedChat.otherUser.displayName || selectedChat.otherUser.username || 'User',
                 userProfileImage: selectedChat.otherUser.profileImage,
               });
@@ -554,7 +562,7 @@ export default function DualPaneChatScreen({ navigation }: any) {
               (!messageText.trim() || sending) && styles.sendBtnDisabled,
             ]}
             onPress={handleSend}
-            disabled={!messageText.trim()}>
+            disabled={!messageText.trim() || sending}>
             <Ionicons name="send" size={20} color={colors.white} />
           </TouchableOpacity>
         </View>
