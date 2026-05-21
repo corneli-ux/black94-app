@@ -170,7 +170,7 @@ export async function dispatchEngagementNotification(
       .doc(`${params.actorId}_${params.recipientId}`)
       .get();
     if (blockDoc.exists) return;
-  } catch { /* Allow if block check fails */ }
+  } catch { /* Allow if block check fails — don't silently drop on network error */ }
 
   // Rate limiting (chat and critical bypass rate limits)
   if (params.type !== 'chat' && params.priority !== 'critical') {
@@ -224,8 +224,14 @@ export async function dispatchEngagementNotification(
       console.warn('[EngagementEngine] Firestore write failed:', e);
     }
 
-    // Send push notification (fire-and-forget)
-    sendPushToUser(recipientId, pushTitle, pushBody, pushData).catch(() => {});
+    // Send push notification (fire-and-forget but with logging)
+    sendPushToUser(recipientId, pushTitle, pushBody, pushData).then((success) => {
+      if (!success) {
+        console.warn('[EngagementEngine] Push notification not delivered to', recipientId, '— user may not have registered a push token');
+      }
+    }).catch((e) => {
+      console.warn('[EngagementEngine] Push dispatch error:', e?.message || e);
+    });
   };
 
   // Apply batching for non-critical notifications

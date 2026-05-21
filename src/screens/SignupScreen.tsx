@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Image, StyleSheet, StatusBar, Alert, Link
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
-import { signInWithGoogle } from '../lib/api';
+import { signInWithGoogle, initPostSignUp } from '../lib/api';
 import { useAppStore } from '../stores/app';
 
 export default function SignupScreen() {
@@ -39,6 +39,7 @@ export default function SignupScreen() {
       if (user) {
         setUser(user);
         setToken(user.id);
+        initPostSignUp(user.id).catch((e) => console.warn('[Signup] initPostSignUp failed:', e));
       }
     } catch (error: any) {
       console.error('Sign up error:', error);

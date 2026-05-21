@@ -97,12 +97,8 @@ export default function NotificationsScreen({ navigation }: any) {
       // Sort client-side descending by createdAt
       ns.sort((a, b) => b.createdAt - a.createdAt);
       setNotifs(ns);
-
-      // Auto mark all as read (matches web app behavior)
-      const unread = ns.filter(n => !n.read);
-      if (unread.length > 0) {
-        markAllRead();
-      }
+      // NOTE: Do NOT auto-mark all as read. Let the user see unread indicators
+      // and manually mark them read via the "Mark all read" button.
     } catch (e) {
       console.error(e);
     } finally {

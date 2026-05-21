@@ -197,6 +197,10 @@ export default function App() {
               }
               // Cancel safety timeout since auth is validated
               clearTimeout(safetyTimer);
+              // Re-register push token on auth restore (token may have changed)
+              import('./src/services/pushNotifications').then(({ requestNotificationPermissions }) => {
+                requestNotificationPermissions().catch((e) => console.warn('[App] Push re-register failed:', e));
+              }).catch(() => {});
               // Fetch full profile in background and update
               fetchUserProfile(fbUser.uid).then(profile => {
                 if (profile) {

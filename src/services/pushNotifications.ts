@@ -318,20 +318,45 @@ export async function sendPushToUser(
   data?: Record<string, string>,
 ): Promise<boolean> {
   try {
-    // Read the user's push tokens
+    // Read the user's push tokens from subcollection
     const tokensSnap = await firestore()
       .collection('user_push_tokens')
       .doc(recipientId)
       .collection('tokens')
       .get();
 
-    if (tokensSnap.empty) {
-      // No tokens = push not set up for this user, silently skip
-      return false;
+    let tokens: string[] = [];
+    if (!tokensSnap.empty) {
+      tokens = tokensSnap.docs.map(doc => doc.data().token).filter(Boolean);
     }
 
-    const tokens = tokensSnap.docs.map(doc => doc.data().token).filter(Boolean);
-    if (tokens.length === 0) return false;
+    // Fallback: if subcollection is empty, check the parent doc's latestToken field.
+    // This handles cases where only registerPushToken() parent doc write succeeded
+    // but the subcollection write failed (e.g., permission issue or race condition).
+    if (tokens.length === 0) {
+      try {
+        const parentDoc = await firestore()
+          .collection('user_push_tokens')
+          .doc(recipientId)
+          .get();
+        if (parentDoc.exists) {
+          const parentData = parentDoc.data();
+          const latestToken = parentData?.latestToken;
+          if (latestToken) {
+            tokens.push(latestToken);
+            if (__DEV__) console.log('[Push] Using latestToken fallback for', recipientId);
+          }
+        }
+      } catch (fallbackErr) {
+        console.warn('[Push] latestToken fallback read failed:', fallbackErr);
+      }
+    }
+
+    if (tokens.length === 0) {
+      // No tokens = push not set up for this user, silently skip
+      if (__DEV__) console.log('[Push] No push tokens found for user:', recipientId);
+      return false;
+    }
 
     // Send to all devices in parallel
     const results = await Promise.all(

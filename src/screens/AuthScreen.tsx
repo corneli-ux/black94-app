@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
-import { signInWithGoogle } from '../lib/api';
+import { signInWithGoogle, initPostSignUp } from '../lib/api';
 
 const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
 
@@ -87,6 +87,8 @@ export default function AuthScreen() {
           if (user) {
             setUser(user);
             setToken(user.id);
+            // Initialize push notifications, welcome message & activity tracking
+            initPostSignUp(user.id).catch((e) => console.warn('[AuthScreen] initPostSignUp failed:', e));
             return; // Success!
           }
         } catch (err: any) {
