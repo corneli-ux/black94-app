@@ -659,11 +659,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
   },
   phoneTabActive: {
-    borderBottomColor: colors.primary,
+    borderBottomWidth: 0,
   },
   phoneTabText: {
     fontSize: 14,
@@ -671,8 +669,8 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   phoneTabTextActive: {
-    color: colors.primary,
-    fontWeight: '600',
+    color: colors.text,
+    fontWeight: '700',
   },
   // List pane
   listPane: {

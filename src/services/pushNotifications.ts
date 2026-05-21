@@ -3,10 +3,11 @@
  *
  * Handles:
  *   1. Requesting notification permissions from the user
- *   2. Registering the Expo push token with Firestore (for targeting)
- *   3. Sending push notifications via Expo's Push API
- *   4. Handling incoming notifications (foreground, background, quit)
- *   5. Processing notification taps for deep linking
+ *   2. Creating Android notification channels (required for Android 8+)
+ *   3. Registering the Expo push token with Firestore (for targeting)
+ *   4. Sending push notifications via Expo's Push API
+ *   5. Handling incoming notifications (foreground, background, quit)
+ *   6. Processing notification taps for deep linking
  *
  * Architecture:
  *   - Uses Expo Push Notification Service (not FCM directly)
@@ -17,7 +18,7 @@
  */
 
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Platform, AndroidImportance } from 'react-native';
 import { firestore, auth } from '../lib/firebase';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -27,11 +28,44 @@ import { firestore, auth } from '../lib/firebase';
 // Expo Push API endpoint
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
+// Android notification channel ID
+const CHANNEL_ID = 'black94-messages';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANDROID NOTIFICATION CHANNEL — required for Android 8+
+   Without this, background notifications will NOT appear on Android 8+.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let _channelCreated = false;
+
+async function ensureAndroidChannel(): Promise<void> {
+  if (Platform.OS !== 'android' || _channelCreated) return;
+  try {
+    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+      name: 'Messages & Notifications',
+      importance: AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FFFFFF',
+      enableVibrate: true,
+      enableLights: true,
+      showBadge: true,
+      bypassDnd: false,
+      lockscreenVisibility: AndroidImportance.HIGH,
+    });
+    _channelCreated = true;
+    console.log('[Push] Android notification channel created:', CHANNEL_ID);
+  } catch (e) {
+    console.warn('[Push] Failed to create Android channel:', e);
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    NOTIFICATION BEHAVIOR (foreground handling)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-// Configure how notifications appear when the app is in foreground
+// Configure how notifications appear when the app is in foreground.
+// This MUST run at module load time (not lazily) so it's registered before
+// any push arrives. Import this module at the app entry point.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -41,15 +75,86 @@ Notifications.setNotificationHandler({
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   INIT — call once at app startup (before any navigation)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+type NotificationTapHandler = (data: Record<string, any>) => void;
+
+let _tapHandler: NotificationTapHandler | null = null;
+let _cleanupListeners: (() => void) | null = null;
+let _initialized = false;
+
+/**
+ * Initialize the notification system. Call this ONCE at app startup.
+ *
+ * This does three things:
+ *   1. Creates the Android notification channel (background notifications won't
+ *      appear on Android 8+ without a channel)
+ *   2. Registers foreground + background tap listeners
+ *   3. Checks for a cold-start notification (app opened from killed state)
+ *
+ * @param onNotificationTap — called when user taps a notification
+ */
+export async function initNotifications(onNotificationTap: NotificationTapHandler): Promise<void> {
+  if (_initialized) return;
+  _initialized = true;
+
+  console.log('[Push] Initializing notification system...');
+
+  // 1. Create Android notification channel FIRST — this is critical for
+  //    background/killed notifications to appear on Android 8+
+  await ensureAndroidChannel();
+
+  // 2. Set up notification listeners
+  _tapHandler = onNotificationTap;
+
+  // Foreground notification received (app is open)
+  Notifications.addNotificationReceivedListener(notification => {
+    console.log('[Push] Foreground notification:', notification.request.content.title);
+  });
+
+  // Notification tapped (foreground or background) — this is what routes
+  // the user to the correct screen when they tap a notification
+  Notifications.addNotificationResponseReceivedListener(response => {
+    const data = response.notification.request.content.data || {};
+    console.log('[Push] Notification tapped:', JSON.stringify(data));
+    if (_tapHandler) {
+      _tapHandler(data);
+    }
+  });
+
+  // 3. Check for cold-start notification (app was killed, opened from notification)
+  try {
+    const lastResponse = await Notifications.getLastNotificationResponseAsync();
+    if (lastResponse?.notification) {
+      const data = lastResponse.notification.request.content.data || {};
+      console.log('[Push] Cold-start notification detected:', JSON.stringify(data));
+      // Defer the tap handling slightly so navigation is ready
+      setTimeout(() => {
+        if (_tapHandler) _tapHandler(data);
+      }, 500);
+    }
+  } catch (e) {
+    console.warn('[Push] Cold-start notification check failed:', e);
+  }
+
+  console.log('[Push] Notification system initialized');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    PERMISSIONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export async function requestNotificationPermissions(): Promise<boolean> {
   try {
+    // Ensure Android channel exists before requesting permissions
+    await ensureAndroidChannel();
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     if (existingStatus !== 'granted') {
+      // On Android 13+, this prompts for POST_NOTIFICATIONS runtime permission
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
@@ -139,6 +244,7 @@ export interface PushPayload {
   sound?: 'default' | 'null';
   badge?: number;
   priority?: 'default' | 'high';
+  channelId?: string; // Android notification channel
 }
 
 /**
@@ -149,7 +255,7 @@ export interface PushPayload {
  */
 export async function sendPushNotification(payload: PushPayload): Promise<boolean> {
   try {
-    const message = {
+    const message: Record<string, any> = {
       to: payload.to,
       sound: payload.sound || 'default',
       title: payload.title,
@@ -158,6 +264,13 @@ export async function sendPushNotification(payload: PushPayload): Promise<boolea
       badge: payload.badge,
       priority: payload.priority || 'high',
     };
+
+    // CRITICAL: On Android, specify the notification channel ID.
+    // Without this, the notification will NOT appear when the app is
+    // in the background on Android 8+.
+    if (Platform.OS === 'android') {
+      message.channelId = payload.channelId || CHANNEL_ID;
+    }
 
     const resp = await fetch(EXPO_PUSH_URL, {
       method: 'POST',
@@ -177,6 +290,16 @@ export async function sendPushNotification(payload: PushPayload): Promise<boolea
       if (data.errors) {
         console.warn('[Push] Send errors:', JSON.stringify(data.errors));
       }
+      // Log receipt details for debugging
+      if (data.data) {
+        for (const receipt of data.data) {
+          if (receipt.status === 'error') {
+            console.warn('[Push] Receipt error:', receipt.id, receipt.message, receipt.details);
+          }
+        }
+      }
+    } else {
+      console.log('[Push] Notification sent successfully to:', payload.to.slice(-8));
     }
 
     return success;
@@ -234,61 +357,6 @@ export async function sendPushToUser(
   } catch (e) {
     console.error('[Push] sendPushToUser failed:', e);
     return false;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   NOTIFICATION LISTENERS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-type NotificationTapHandler = (data: Record<string, any>) => void;
-
-let _tapHandler: NotificationTapHandler | null = null;
-
-/**
- * Set up notification listeners for foreground, background, and quit state.
- * Call this once at app startup.
- *
- * @param onNotificationTap — called when user taps a notification
- */
-export function setupNotificationListeners(onNotificationTap: NotificationTapHandler): () => void {
-  _tapHandler = onNotificationTap;
-
-  // 1. Foreground notification received
-  const foregroundSub = Notifications.addNotificationReceivedListener(notification => {
-    console.log('[Push] Foreground notification:', notification.request.content.title);
-  });
-
-  // 2. Notification tapped (foreground or background)
-  const responseSub = Notifications.addNotificationResponseReceivedListener(response => {
-    const data = response.notification.request.content.data || {};
-    console.log('[Push] Notification tapped:', JSON.stringify(data));
-    if (_tapHandler) {
-      _tapHandler(data);
-    }
-  });
-
-  // Return cleanup function
-  return () => {
-    foregroundSub.remove();
-    responseSub.remove();
-  };
-}
-
-/**
- * Get the initial notification that opened the app (cold start from notification).
- * Must be called while the app is loading to catch the initial notification.
- */
-export async function getInitialNotification(): Promise<Record<string, any> | null> {
-  try {
-    const response = await Notifications.getLastNotificationResponseAsync();
-    if (response && response.notification) {
-      return response.notification.request.content.data || {};
-    }
-    return null;
-  } catch (e) {
-    console.error('[Push] getInitialNotification error:', e);
-    return null;
   }
 }
 

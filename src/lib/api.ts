@@ -166,6 +166,17 @@ function currentUser(): any {
  * the old write.update bug), falls back to the Zustand store which has the
  * user's last known correct profile data. Also repairs the corrupted doc.
  */
+// ── Actor Data Cache ────────────────────────────────────────────────────────
+// Caches the sender's own profile data to avoid a Firestore read on every
+// message send / like / follow.  Invalidated on logout.
+const _actorCache = new Map<string, { data: any; ts: number }>();
+const ACTOR_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function invalidateActorCache(userId?: string): void {
+  if (userId) _actorCache.delete(userId);
+  else _actorCache.clear();
+}
+
 async function getActorData(userId: string): Promise<{
   actorDisplayName: string;
   actorUsername: string;
@@ -173,6 +184,12 @@ async function getActorData(userId: string): Promise<{
   actorIsVerified: boolean;
   actorBadge: string;
 }> {
+  // Check cache first — avoids Firestore read for the current user's own data
+  const cached = _actorCache.get(userId);
+  if (cached && Date.now() - cached.ts < ACTOR_CACHE_TTL) {
+    return cached.data;
+  }
+
   let myData: any = null;
   try {
     const myDoc = await firestore().collection('users').doc(userId).get();
@@ -199,13 +216,18 @@ async function getActorData(userId: string): Promise<{
     } catch {}
   }
 
-  return {
+  const result = {
     actorDisplayName: myData?.displayName || '',
     actorUsername: myData?.username || '',
     actorProfileImage: myData?.profileImage || null,
     actorIsVerified: myData?.isVerified || false,
     actorBadge: myData?.badge || '',
   };
+
+  // Cache the result
+  _actorCache.set(userId, { data: result, ts: Date.now() });
+
+  return result;
 }
 
 /* ── Auth ─────────────────────────────────────────────────────────────────── */
@@ -1106,6 +1128,7 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     }
   }
 
+  // STEP 1: Write the message to Firestore (core operation — must be awaited)
   await firestore().collection('chats').doc(chatId).collection('messages').add({
     chatId,
     senderId: userId,
@@ -1119,29 +1142,45 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     clientCreatedAt: Date.now(), // Ensures correct ordering before server timestamp resolves
   });
 
-  // Increment unread count for receiver, reset sender's unread to 0
-  // lastMessage: ALWAYS use privacy-safe placeholder — NEVER plaintext
+  // STEP 2: Read chat doc to determine unread fields (needed for update)
   const chatDoc = await firestore().collection('chats').doc(chatId).get();
   const chatData = chatDoc.exists ? chatDoc.data() : null;
 
-  // Guard against null/malformed chat doc — skip unread update if structure unknown
+  // STEP 3: Update unread counts + lastMessage in parallel with notification
+  // Both are fire-and-forget — the message is already sent, these are side effects
+
+  // Build notification data from Zustand store (in-memory, no network call!)
+  // This is MUCH faster than calling getActorData which does a Firestore read
+  const buildNotifFromStore = () => {
+    try {
+      const { useAppStore } = require('../stores/app');
+      const storeUser = useAppStore.getState().user;
+      return {
+        actorDisplayName: storeUser?.displayName || '',
+        actorUsername: storeUser?.username || '',
+        actorProfileImage: storeUser?.profileImage || null,
+        actorIsVerified: storeUser?.isVerified || false,
+        actorBadge: storeUser?.badge || '',
+      };
+    } catch {
+      return {};
+    }
+  };
+
+  const actorFromStore = buildNotifFromStore();
+
   if (!chatData?.user1Id || !chatData?.user2Id) {
     console.warn('[Messages] Chat doc missing user IDs, skipping unread update');
-    // ── Notification: tell receiver they got a new DM ──
-    try {
-      const actor = await getActorData(userId);
-      dispatchEngagementNotification({
-        recipientId: receiverId,
-        type: 'chat',
-        actorId: userId,
-        ...actor,
-        priority: 'high',
-      }).catch(() => {});
-      // Track activity for engagement scoring
-      trackUserActivity(userId).catch(() => {});
-    } catch (e) {
-      console.warn('[Messages] Notification fire-and-forget failed:', e);
-    }
+    // Fire notification from store data (zero network latency)
+    dispatchEngagementNotification({
+      recipientId: receiverId,
+      type: 'chat',
+      actorId: userId,
+      ...actorFromStore,
+      chatId,
+      priority: 'high',
+    }).catch(() => {});
+    trackUserActivity(userId).catch(() => {});
     return { sent: true };
   }
 
@@ -1149,29 +1188,25 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   const senderUnreadField = senderIsUser1 ? 'unreadUser1' : 'unreadUser2';
   const receiverUnreadField = senderIsUser1 ? 'unreadUser2' : 'unreadUser1';
 
-  // Preview text for chat list
-  const previewText = msgType === 'image' ? '\u{1F4F7} Photo' : msgType === 'gif' ? 'GIF' : content;
-  await firestore().collection('chats').doc(chatId).update({
+  // Run unread update and notification dispatch in parallel (both non-blocking)
+  // The message is already written, so the user sees it instantly via optimistic UI
+  firestore().collection('chats').doc(chatId).update({
     lastMessage: encryptedPreviewText(),
     lastMessageTime: firestore.FieldValue.serverTimestamp(),
     [receiverUnreadField]: firestore.FieldValue.increment(1),
     [senderUnreadField]: 0,
-  });
+  }).catch(() => {});
 
-  // ── Notification: tell receiver they got a new DM ──
-  try {
-    const actor = await getActorData(userId);
-    dispatchEngagementNotification({
-      recipientId: receiverId,
-      type: 'chat',
-      actorId: userId,
-      ...actor,
-      priority: 'high',
-    }).catch(() => {});
-    trackUserActivity(userId).catch(() => {});
-  } catch (e) {
-    console.warn('[Messages] Notification fire-and-forget failed:', e);
-  }
+  // Dispatch notification from Zustand store data — no Firestore read needed
+  dispatchEngagementNotification({
+    recipientId: receiverId,
+    type: 'chat',
+    actorId: userId,
+    ...actorFromStore,
+    chatId,
+    priority: 'high',
+  }).catch(() => {});
+  trackUserActivity(userId).catch(() => {});
 
   return { sent: true };
 }

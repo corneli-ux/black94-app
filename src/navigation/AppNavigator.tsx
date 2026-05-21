@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect, useRef } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
@@ -414,9 +414,62 @@ function AppStack() {
   );
 }
 
-export default function AppNavigator() {
+export default React.forwardRef(function AppNavigator(_props, ref) {
   const user = useAppStore(s => s.user);
   const isReady = useAppStore(s => s.isReady);
+  const pendingNotificationTap = useAppStore(s => s.pendingNotificationTap);
+  const setPendingNotificationTap = useAppStore(s => s.setPendingNotificationTap);
+  const navRef = useRef(null);
+
+  // Expose navigation ref to parent (App.js)
+  React.useImperativeHandle(ref, () => navRef.current, []);
+
+  // ── Handle notification taps ──
+  // When a user taps a push notification, route them to the correct screen
+  useEffect(() => {
+    if (!pendingNotificationTap || !navRef.current) return;
+    const data = pendingNotificationTap;
+    setPendingNotificationTap(null); // Clear immediately
+
+    const nav = navRef.current;
+    console.log('[Navigator] Routing notification tap:', JSON.stringify(data));
+
+    try {
+      const type = data.type;
+
+      if (type === 'chat') {
+        // Chat notification — navigate directly to the chat room if chatId is available
+        if (data.chatId) {
+          nav.navigate('ChatRoom', { chatId: data.chatId });
+        } else {
+          nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages' } });
+        }
+      } else if (type === 'like' || type === 'comment' || type === 'repost') {
+        // Post interaction — navigate to post (if postId available) or notifications tab
+        if (data.postId) {
+          // Navigate to notifications tab which shows the post context
+          nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Notifications' } });
+        } else {
+          nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Notifications' } });
+        }
+      } else if (type === 'follow') {
+        // Follow notification — navigate to follower's profile
+        if (data.actorId) {
+          nav.navigate('UserProfile', { userId: data.actorId });
+        } else {
+          nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Notifications' } });
+        }
+      } else if (type === 'call') {
+        // Call notification — go to messages
+        nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages' } });
+      } else {
+        // Default: go to notifications tab
+        nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Notifications' } });
+      }
+    } catch (e) {
+      console.warn('[Navigator] Failed to route notification tap:', e);
+    }
+  }, [pendingNotificationTap]);
 
   // While not ready, show dark splash-like screen
   if (!isReady) {
@@ -431,7 +484,7 @@ export default function AppNavigator() {
   const showApp = Platform.OS === 'web' || user;
 
   return (
-    <NavigationContainer theme={DarkTheme}>
+    <NavigationContainer theme={DarkTheme} ref={navRef}>
       {showApp ? (
         <AppStack />
       ) : (

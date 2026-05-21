@@ -35,6 +35,7 @@ export interface EngagementNotification {
   postId?: string;
   postCaption?: string;
   commentContent?: string;
+  chatId?: string;
   pushTitle?: string;
   pushBody?: string;
   pushData?: Record<string, string>;
@@ -309,6 +310,7 @@ function buildPushData(params: EngagementNotification): Record<string, string> {
   };
   if (params.postId) data.postId = params.postId;
   if (params.actorUsername) data.actorUsername = params.actorUsername;
+  if (params.chatId) data.chatId = params.chatId;
   return data;
 }
 

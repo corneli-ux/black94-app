@@ -47,7 +47,7 @@ module.exports = function () {
         package: 'com.black94.app',
         googleServicesFile: './google-services.json',
         versionCode: 13,
-        permissions: ['CAMERA'],
+        permissions: ['CAMERA', 'POST_NOTIFICATIONS'],
         softwareKeyboardLayoutMode: 'resize',
         splash: {
           backgroundColor: '#000000',
@@ -89,6 +89,8 @@ module.exports = function () {
           {
             icon: './assets/icon.png',
             color: '#FFFFFF',
+            defaultChannelId: 'black94-messages',
+            channelName: 'Messages & Notifications',
           },
         ],
       ],
