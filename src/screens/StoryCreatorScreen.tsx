@@ -252,6 +252,39 @@ export default function StoryCreatorScreen({ navigation }: any) {
         likeCount: 0,
       });
 
+      // Fire mention notifications for @mentioned users in story text
+      try {
+        const mentionMatches = content.match(/@[\w]+/g);
+        if (mentionMatches && currentUid) {
+          for (const mention of mentionMatches) {
+            const username = mention.slice(1);
+            try {
+              const snap = await firestore()
+                .collection('users')
+                .where('usernameLower', '==', username.toLowerCase())
+                .limit(1)
+                .get();
+              if (!snap.empty) {
+                const mentionedId = snap.docs[0].id;
+                if (mentionedId !== currentUid) {
+                  await firestore().collection('notifications').add({
+                    recipientId: mentionedId,
+                    type: 'mention',
+                    actorId: currentUid,
+                    actorDisplayName: authorDisplayName,
+                    actorUsername: authorUsername,
+                    actorProfileImage: authorProfileImage,
+                    message: `mentioned you in a story`,
+                    read: false,
+                    createdAt: firestore.FieldValue.serverTimestamp(),
+                  });
+                }
+              }
+            } catch { /* skip failed mention */ }
+          }
+        }
+      } catch { /* non-critical */ }
+
       Alert.alert('Success', 'Story posted!', [
         { text: 'OK', onPress: () => navigation.navigate('Stories') },
       ]);
