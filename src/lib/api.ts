@@ -54,6 +54,8 @@ export interface Post {
   likeCount: number;
   commentCount: number;
   repostCount: number;
+  viewCount: number;
+  visibility?: string;
   liked: boolean;
   bookmarked: boolean;
   reposted: boolean;
@@ -563,6 +565,7 @@ export async function createPost(
   mediaUrls: string[] = [],
   pollData?: PollData,
   quotePostId?: string,
+  visibility?: string,
 ): Promise<string> {
   const userId = currentUser()?.uid;
   if (!userId) throw new Error('Not authenticated');
@@ -625,6 +628,7 @@ export async function createPost(
     repostCount: 0,
     createdAt: firestore.FieldValue.serverTimestamp(),
     updatedAt: firestore.FieldValue.serverTimestamp(),
+    visibility: visibility || 'public',
   };
 
   // Persist poll data to Firestore so feed readers can render it
@@ -648,6 +652,36 @@ export async function createPost(
   }
 
   const docRef = await firestore().collection('posts').add(docData);
+
+  // Fire mention notifications for any @mentioned users
+  try {
+    const mentions = caption.match(/@[\w]+/g);
+    if (mentions && mentions.length > 0) {
+      const { createNotification } = await import('../services/notificationEngine');
+      for (const mention of mentions) {
+        const username = mention.slice(1);
+        try {
+          const userSnap = await firestore()
+            .collection('users')
+            .where('usernameLower', '==', username.toLowerCase())
+            .limit(1)
+            .get();
+          if (userSnap.docs.length > 0 && userSnap.docs[0].id !== userId) {
+            await createNotification({
+              recipientId: userSnap.docs[0].id,
+              type: 'mention',
+              actorId: userId,
+              actorUsername: docData.authorUsername,
+              actorDisplayName: docData.authorDisplayName,
+              actorProfileImage: docData.authorProfileImage,
+              postId: docRef.id,
+              message: `mentioned you in a post`,
+            });
+          }
+        } catch {}
+      }
+    }
+  } catch {}
 
   return docRef.id;
 }

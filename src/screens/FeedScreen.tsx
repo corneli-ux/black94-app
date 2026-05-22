@@ -221,6 +221,79 @@ function InlinePoll({ post }: { post: Post }) {
   );
 }
 
+/* ── Multi-Image Carousel — horizontal paging between images ──────────── */
+
+function MultiImageCarousel({ mediaUrls, refreshedUrls, onMediaError }: {
+  mediaUrls: string[];
+  refreshedUrls: Record<string, string>;
+  onMediaError: (url: string) => void;
+}) {
+  const [currentIndex, setCurrentIndex] = React.useState(0);
+  const scrollViewRef = React.useRef<ScrollView>(null);
+
+  return (
+    <View>
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(e) => {
+          const offset = e.nativeEvent.contentOffset.x;
+          const index = Math.round(offset / SCREEN_W);
+          setCurrentIndex(index);
+        }}
+      >
+        {mediaUrls.map((url, i) => (
+          <View key={i} style={{ width: SCREEN_W }}>
+            <FeedMedia
+              uri={refreshedUrls[url] || url}
+              onRefreshUrl={() => onMediaError(url)}
+            />
+          </View>
+        ))}
+      </ScrollView>
+      {/* Page dots */}
+      {mediaUrls.length > 1 && (
+        <View style={carouselStyles.dotsContainer}>
+          {mediaUrls.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                carouselStyles.dot,
+                i === currentIndex && carouselStyles.dotActive,
+              ]}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const carouselStyles = StyleSheet.create({
+  dotsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  dotActive: {
+    backgroundColor: '#FFFFFF',
+    width: 18,
+  },
+});
+
 /* ── PostCard ─────────────────────────────────────────────────────────────── */
 
 const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
@@ -238,6 +311,17 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   const [refreshedUrls, setRefreshedUrls] = useState<Record<string, string>>({});
   const refreshAttemptedRef = React.useRef(false);
   const lastTapRef = useRef(0);
+
+  // Auto-track view once when post becomes visible (debounced)
+  const viewTrackedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (viewTrackedRef.current || !post.id) return;
+    viewTrackedRef.current = true;
+    // Fire-and-forget: increment viewCount in Firestore
+    firestore().collection('posts').doc(post.id).update({
+      viewCount: firestore.FieldValue.increment(1),
+    }).catch(() => {});
+  }, [post.id]);
 
   const CAPTION_LIMIT = 150;
   const isLongCaption = post.caption && post.caption.length > CAPTION_LIMIT;
@@ -459,10 +543,18 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {/* Media — FeedMedia handles aspect-ratio-aware sizing & errors */}
           {post.mediaUrls?.length > 0 && (
             <TouchableOpacity activeOpacity={0.95} onPress={handleDoubleTap}>
-              <FeedMedia
-                uri={refreshedUrls[post.mediaUrls[0]] || post.mediaUrls[0]}
-                onRefreshUrl={() => handleMediaError(post.mediaUrls[0])}
-              />
+              {post.mediaUrls.length === 1 ? (
+                <FeedMedia
+                  uri={refreshedUrls[post.mediaUrls[0]] || post.mediaUrls[0]}
+                  onRefreshUrl={() => handleMediaError(post.mediaUrls[0])}
+                />
+              ) : (
+                <MultiImageCarousel
+                  mediaUrls={post.mediaUrls}
+                  refreshedUrls={refreshedUrls}
+                  onMediaError={handleMediaError}
+                />
+              )}
             </TouchableOpacity>
           )}
 
@@ -545,6 +637,9 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <View style={styles.actionIconWrap}>
                 <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
               </View>
+              {formatCount(post.viewCount) ? (
+                <Text style={styles.actionCount}>{formatCount(post.viewCount)}</Text>
+              ) : null}
             </TouchableOpacity>
 
             {/* Bookmark + Share */}
@@ -635,6 +730,7 @@ function docToPost(docSnap: any): Post {
     likeCount: data.likeCount || 0,
     commentCount: data.commentCount || 0,
     repostCount: data.repostCount || 0,
+    viewCount: data.viewCount || 0,
     liked: false,
     bookmarked: false,
     reposted: false,
@@ -643,6 +739,7 @@ function docToPost(docSnap: any): Post {
     repostedByUid: data.repostedByUid || undefined,
     repostedByUsername: data.repostedByUsername || undefined,
     repostedByDisplayName: data.repostedByDisplayName || undefined,
+    visibility: data.visibility || 'public',
   };
 }
 
@@ -1528,6 +1625,8 @@ const styles = StyleSheet.create({
     fontSize: fs(12),
     lineHeight: vs(16),
   },
+
+  /* ── Multi-image badge removed — replaced by MultiImageCarousel ── */
 
   /* ── Heart overlay ── */
   heartOverlay: {

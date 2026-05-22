@@ -188,6 +188,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
   const [pollOptionText, setPollOptionText] = useState('');
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollDuration, setPollDuration] = useState(24);
+  const [visibility, setVisibility] = useState<'public' | 'followers'>('public');
 
   // Abort controller to cancel uploads if user navigates away
   const abortRef = useRef<AbortController | null>(null);
@@ -350,7 +351,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
       const allMediaUrls = [...uploadedUrls, ...selectedGifUrls];
 
       setUploadProgress('Posting...');
-      await createPost(caption.trim(), allMediaUrls, pollData || undefined, quotePostId || undefined);
+      await createPost(caption.trim(), allMediaUrls, pollData || undefined, quotePostId || undefined, visibility);
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err: any) {
@@ -370,7 +371,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
       setImageProgress([]);
       abortRef.current = null;
     }
-  }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh, pollData]);
+  }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh, pollData, visibility]);
 
   // ── Poll actions ────────────────────────────────────────────────────
   const addPollOption = useCallback(() => {
@@ -644,6 +645,31 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               disabled={posting}
             >
               <Ionicons name="poll-outline" size={22} color={posting ? COLORS.textMuted : (pollData ? COLORS.gold : '#94a3b8')} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
+              onPress={() => {
+                if (posting) return;
+                Alert.alert('Post Visibility', 'Who can see this post?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: visibility === 'public' ? '✓ Public' : 'Public',
+                    onPress: () => setVisibility('public'),
+                  },
+                  {
+                    text: visibility === 'followers' ? '✓ Followers Only' : 'Followers Only',
+                    onPress: () => setVisibility('followers'),
+                  },
+                ]);
+              }}
+              activeOpacity={0.7}
+              disabled={posting}
+            >
+              <Ionicons
+                name={visibility === 'public' ? 'globe-outline' : 'people-outline'}
+                size={22}
+                color={posting ? COLORS.textMuted : (visibility === 'public' ? '#22c55e' : COLORS.gold)}
+              />
             </TouchableOpacity>
           </View>
         </View>
