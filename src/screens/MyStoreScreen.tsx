@@ -126,7 +126,20 @@ export default function MyStoreScreen({ route, navigation }: any) {
         <View style={styles.productMeta}>
           <Text style={styles.metaText}>{item.soldCount} sold</Text>
           <Text style={styles.metaSep}>•</Text>
-          <Text style={styles.metaText}>{item.stock} in stock</Text>
+          <Text style={[styles.metaText, item.stock > 0 && item.stock <= 5 && styles.lowStockText]}>{item.stock} in stock</Text>
+        </View>
+        {item.stock > 0 && item.stock <= 5 && (
+          <View style={styles.lowStockBadge}>
+            <Ionicons name="alert-circle" size={12} color="#f59e0b" />
+            <Text style={styles.lowStockBadgeText}>Low Stock</Text>
+          </View>
+        )}
+        {item.stock === 0 && (
+          <View style={styles.outOfStockBadge}>
+            <Ionicons name="close-circle" size={12} color="#f43f5e" />
+            <Text style={styles.outOfStockBadgeText}>Out of Stock</Text>
+          </View>
+        )}
         </View>
         {item.featured && (
           <View style={styles.featuredBadge}>
@@ -245,6 +258,11 @@ const styles = StyleSheet.create({
   metaSep: { color: colors.textMuted, fontSize: 10 },
   featuredBadge: { marginTop: 4, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(245, 158, 11, 0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   featuredText: { color: colors.accentGold, fontSize: 11, fontWeight: '600' },
+  lowStockText: { color: '#f59e0b', fontWeight: '500' },
+  lowStockBadge: { marginTop: 4, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(245, 158, 11, 0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  lowStockBadgeText: { color: '#f59e0b', fontSize: 11, fontWeight: '600' },
+  outOfStockBadge: { marginTop: 4, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(244, 63, 94, 0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  outOfStockBadgeText: { color: '#f43f5e', fontSize: 11, fontWeight: '600' },
   productActions: { alignItems: 'flex-end', gap: 6 },
   actionBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
   activeBtn: { borderColor: colors.accentGreen },

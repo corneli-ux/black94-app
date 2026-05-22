@@ -131,6 +131,7 @@ export default function StoreDashboardScreen() {
   const [weeklyRevenue, setWeeklyRevenue] = useState<DailyRevenue[]>([]);
   const [totalOrders, setTotalOrders] = useState(0);
   const [hasNoProducts, setHasNoProducts] = useState(false);
+  const [lowStockProducts, setLowStockProducts] = useState<Array<{ id: string; name: string; stock: number; price: number; image?: string | null }>>([]);
 
   // ── Data loading ───────────────────────────────────────────────────────
 
@@ -317,6 +318,34 @@ export default function StoreDashboardScreen() {
           setTopProducts([]);
           setHasNoProducts(true);
         }
+      }
+
+      // ── Low-stock products (stock <= 5) ─────────────────────────────────
+      try {
+        const lowStockSnap = await firestore()
+          .collection('products')
+          .where('ownerId', '==', userId)
+          .where('stock', '<=', 5)
+          .limit(10)
+          .get();
+        if (lowStockSnap && lowStockSnap.docs && lowStockSnap.docs.length > 0) {
+          setLowStockProducts(
+            lowStockSnap.docs.map((d: any) => {
+              const data = d.data();
+              return {
+                id: d.id,
+                name: data.name || 'Product',
+                stock: data.stock ?? data.stockQuantity ?? 0,
+                price: data.price || 0,
+                image: data.images?.[0] || data.imageUrl || null,
+              };
+            }).filter(p => p.stock > 0), // exclude truly out-of-stock
+          );
+        } else {
+          setLowStockProducts([]);
+        }
+      } catch {
+        setLowStockProducts([]);
       }
     } catch (err) {
       console.error('[StoreDashboardScreen] loadData error:', err);
@@ -549,6 +578,35 @@ export default function StoreDashboardScreen() {
             </View>
           )}
         </View>
+
+        {/* ── Low Stock Alerts ─────────────────────────────────────────────── */}
+        {lowStockProducts.length > 0 && (
+          <View style={styles.lowStockCard}>
+            <View style={styles.lowStockHeader}>
+              <View style={styles.lowStockTitleRow}>
+                <Ionicons name="alert-circle" size={18} color="#f59e0b" />
+                <Text style={styles.lowStockTitle}>Low Stock Alerts</Text>
+              </View>
+              <Text style={styles.lowStockCount}>{lowStockProducts.length} item{lowStockProducts.length !== 1 ? 's' : ''}</Text>
+            </View>
+            {lowStockProducts.map(product => (
+              <View key={product.id} style={styles.lowStockItem}>
+                <View style={styles.lowStockItemInfo}>
+                  <Ionicons name="cube-outline" size={14} color="#f59e0b" />
+                  <Text style={styles.lowStockItemName} numberOfLines={1}>{product.name}</Text>
+                </View>
+                <Text style={styles.lowStockItemStock}>{product.stock} left</Text>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={styles.lowStockAction}
+              onPress={() => navigation.navigate('MyStore' as never)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.lowStockActionText}>Manage Inventory</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── Recent orders ───────────────────────────────────────────────── */}
         <View style={styles.card}>
@@ -1076,5 +1134,74 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+  /* ── Low Stock Alerts ─────────────────────────────────────────────────── */
+  lowStockCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+  },
+  lowStockHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  lowStockTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  lowStockTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#f59e0b',
+  },
+  lowStockCount: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    fontWeight: '500',
+  },
+  lowStockItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  lowStockItemInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  lowStockItemName: {
+    fontSize: 14,
+    color: colors.text,
+    flex: 1,
+  },
+  lowStockItemStock: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#f59e0b',
+  },
+  lowStockAction: {
+    marginTop: 12,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  lowStockActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f59e0b',
   },
 });
