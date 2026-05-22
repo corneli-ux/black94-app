@@ -2624,3 +2624,59 @@ export async function fetchPostFactChecks(postId: string): Promise<FactCheckClai
     return [];
   }
 }
+
+/* ── Product Reviews ─────────────────────────────────────────────────────── */
+
+export async function submitProductReview(
+  productId: string,
+  rating: number,
+  text: string,
+): Promise<void> {
+  const userId = currentUser()?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  const userDoc = await firestore().collection('users').doc(userId).get();
+  const userData = userDoc.exists ? userDoc.data() : null;
+
+  await firestore().collection('product_reviews').add({
+    productId,
+    userId,
+    username: userData?.username || '',
+    displayName: userData?.displayName || 'User',
+    profileImage: userData?.profileImage || null,
+    rating,
+    text: text.trim(),
+    createdAt: firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Update product's average rating
+  const reviewsSnap = await firestore()
+    .collection('product_reviews')
+    .where('productId', '==', productId)
+    .get();
+
+  const reviews = reviewsSnap.docs.map(d => d.data());
+  const avgRating = reviews.length > 0
+    ? reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / reviews.length
+    : 0;
+
+  await firestore().collection('products').doc(productId).update({
+    averageRating: Math.round(avgRating * 10) / 10,
+    reviewCount: reviews.length,
+  });
+}
+
+export async function fetchProductReviews(productId: string): Promise<any[]> {
+  try {
+    const snap = await firestore()
+      .collection('product_reviews')
+      .where('productId', '==', productId)
+      .orderBy('createdAt', 'desc')
+      .limit(20)
+      .get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error('[Reviews] Failed to fetch:', e);
+    return [];
+  }
+}

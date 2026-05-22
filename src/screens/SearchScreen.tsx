@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { searchWeb, WebSearchResult } from '../lib/websearch';
 import { Linking } from 'react-native';
@@ -12,6 +13,7 @@ import { useAppStore } from '../stores/app';
 
 export default function SearchScreen({ route, navigation }: any) {
   const [query, setQuery] = useState('');
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [webResults, setWebResults] = useState<WebSearchResult[]>([]);
@@ -24,6 +26,16 @@ export default function SearchScreen({ route, navigation }: any) {
   const pendingSearchQuery = useAppStore(s => s.searchQuery);
   const clearSearchQuery = useAppStore(s => s.setSearchQuery);
 
+  // Load search history on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem('@black94/search_history');
+        if (saved) setSearchHistory(JSON.parse(saved));
+      } catch {}
+    })();
+  }, []);
+
   // Pick up search query from Zustand store (set by hashtag taps in feed)
   useEffect(() => {
     if (pendingSearchQuery) {
@@ -33,10 +45,35 @@ export default function SearchScreen({ route, navigation }: any) {
     }
   }, []);
 
+  const saveToHistory = async (term: string) => {
+    if (!term.trim()) return;
+    const cleaned = term.trim().toLowerCase();
+    setSearchHistory(prev => {
+      const filtered = prev.filter(h => h !== cleaned);
+      const updated = [cleaned, ...filtered].slice(0, 20);
+      AsyncStorage.setItem('@black94/search_history', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  };
+
+  const removeHistoryItem = (term: string) => {
+    setSearchHistory(prev => {
+      const updated = prev.filter(h => h !== term);
+      AsyncStorage.setItem('@black94/search_history', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  };
+
+  const clearHistory = () => {
+    setSearchHistory([]);
+    AsyncStorage.removeItem('@black94/search_history').catch(() => {});
+  };
+
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setUsers([]); setPosts([]); setWebResults([]); setSearched(false); return; }
     setLoading(true);
     setSearched(true);
+    saveToHistory(q);
     try {
       const lower = q.toLowerCase();
       const [uSnap, pSnap] = await Promise.all([
@@ -96,7 +133,7 @@ export default function SearchScreen({ route, navigation }: any) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search
   useEffect(() => {
@@ -265,14 +302,44 @@ export default function SearchScreen({ route, navigation }: any) {
           )}
         </View>
       ) : (
-        /* Empty state */
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Ionicons name="search" size={32} color="#64748b" />
+        /* Empty state / Search history */
+        !query.trim() && searchHistory.length > 0 ? (
+          <View style={styles.historySection}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>Recent Searches</Text>
+              <TouchableOpacity onPress={clearHistory} hitSlop={8}>
+                <Text style={styles.historyClear}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+            {searchHistory.map((term, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.historyItem}
+                onPress={() => {
+                  setQuery(term);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="time-outline" size={18} color="#71767b" />
+                <Text style={styles.historyText}>{term}</Text>
+                <TouchableOpacity
+                  onPress={() => removeHistoryItem(term)}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close" size={16} color="#536471" />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
           </View>
-          <Text style={styles.emptyTitle}>Search for people and posts</Text>
-          <Text style={styles.emptySubtitle}>Find users, posts, and topics across Black94.</Text>
-        </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="search" size={32} color="#64748b" />
+            </View>
+            <Text style={styles.emptyTitle}>Search for people and posts</Text>
+            <Text style={styles.emptySubtitle}>Find users, posts, and topics across Black94.</Text>
+          </View>
+        )
       )}
     </KeyboardAvoidingView>
   );
@@ -360,4 +427,38 @@ const styles = StyleSheet.create({
   webResultName: { color: '#1d9bf0', fontSize: 15, fontWeight: '600', lineHeight: 20, marginBottom: 2 },
   webResultHost: { color: '#94a3b8', fontSize: 12, marginBottom: 4 },
   webResultSnippet: { color: '#e7e9ea', fontSize: 14, lineHeight: 20 },
+  historySection: {
+    marginTop: 12,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  historyTitle: {
+    color: '#e7e9ea',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  historyClear: {
+    color: '#1d9bf0',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  historyText: {
+    flex: 1,
+    color: '#e7e9ea',
+    fontSize: 15,
+  },
 });
