@@ -803,7 +803,10 @@ export async function toggleBookmark(postId: string, currentlyBookmarked: boolea
 }
 
 export interface ToggleRepostResult {
+  /** true if the operation completed successfully (both new repost and unrepost) */
   success: boolean;
+  /** true if this was an unrepost (undo) — false/undefined for new reposts */
+  undone?: boolean;
   /** Present only on new repost success — the doc data of the created repost wrapper */
   repostDoc?: {
     id: string;
@@ -844,7 +847,7 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
       try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
       // Delete the visible repost entry from the posts collection
       try { await firestore().collection('posts').doc(repostPostId).delete(); } catch {}
-      return { success: false };
+      return { success: true, undone: true };
     } else {
       await repostRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
       try { await postRef.update({ repostCount: firestore.FieldValue.increment(1) }); } catch {}

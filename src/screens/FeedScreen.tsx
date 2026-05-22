@@ -1330,7 +1330,7 @@ export default function FeedScreen({ navigation }: any) {
       const result = await toggleRepost(postId, reposted);
 
       if (!result.success) {
-        // toggleRepost returned success:false — the write failed
+        // toggleRepost returned success:false — the write FAILED
         // Revert optimistic state
         setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
           ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
@@ -1339,7 +1339,14 @@ export default function FeedScreen({ navigation }: any) {
         return;
       }
 
-      if (!reposted) {
+      if (result.undone) {
+        // ── Unrepost succeeded: remove the repost card from the feed ──
+        const removedRepostId = `repost_${postId}_${currentUser?.uid}`;
+        setPosts(prev => prev.filter(p => p.id !== removedRepostId));
+        // Reset pagination cursor so next page load doesn't have duplicates
+        lastDocRef.current = null;
+        setAllLoaded(false);
+      } else if (!reposted) {
         // ── New repost: use the doc data returned by toggleRepost directly ──
         // This eliminates the read-after-write race condition entirely.
         // No .get() call needed — no 600ms delay needed.
@@ -1381,18 +1388,8 @@ export default function FeedScreen({ navigation }: any) {
           // Re-anchor the real-time listener to include the new repost
           attachRealtimeListener(Date.now());
         }
-        // BUG FIX #2: Increment feedRefreshKey as a fallback safety net.
-        // If the direct injection above succeeds, this is harmless.
-        // If it somehow fails, the next mount will re-fetch and show the repost.
+        // Trigger feed refresh as a fallback safety net.
         useAppStore.getState().triggerFeedRefresh();
-      } else {
-        // ── Unrepost: remove the repost card from the feed immediately ──
-        const removedRepostId = `repost_${postId}_${currentUser?.uid}`;
-        setPosts(prev => prev.filter(p => p.id !== removedRepostId));
-        // BUG FIX #6: Reset pagination cursor after un-repost so the next
-        // page load doesn't skip over posts or show duplicates.
-        lastDocRef.current = null;
-        setAllLoaded(false);
       }
     } catch (e) {
       // Revert optimistic update on failure
