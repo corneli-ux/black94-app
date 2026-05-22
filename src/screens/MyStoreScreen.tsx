@@ -140,7 +140,6 @@ export default function MyStoreScreen({ route, navigation }: any) {
             <Text style={styles.outOfStockBadgeText}>Out of Stock</Text>
           </View>
         )}
-        </View>
         {item.featured && (
           <View style={styles.featuredBadge}>
             <Ionicons name="ribbon-outline" size={12} color={colors.accentGold} />
