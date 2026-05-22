@@ -779,23 +779,25 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const handleRepost = async (postId: string, reposted: boolean) => {
-    // Optimistic update — match both original post and any repost wrappers of it
+    // Optimistic: update repost count on all posts matching this postId
     setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
       : p));
+
     try {
-      const newRepostId = `repost_${postId}_${currentUser?.uid}`;
       await toggleRepost(postId, reposted);
+
       if (!reposted) {
-        // New repost created — wait for Firestore to commit before reading back.
-        // Without this delay, the .get() races against the write and repostSnap.exists
-        // returns false even though the doc was successfully created.
-        await new Promise(resolve => setTimeout(resolve, 500));
-        // Fetch the new repost doc and insert at top
+        // ── New repost: add the repost card to the top of the feed ──
+        // Wait for Firestore to commit the write before reading back.
+        // Without this delay, the .get() races the write and returns exists=false.
+        await new Promise(resolve => setTimeout(resolve, 600));
+
+        const newRepostId = `repost_${postId}_${currentUser?.uid}`;
         try {
           const repostSnap = await firestore().collection('posts').doc(newRepostId).get();
           if (repostSnap.exists) {
-            const data = repostSnap.data();
+            const data = repostSnap.data()!;
             const newPost: Post = {
               id: repostSnap.id,
               authorId: data.authorId || '',
@@ -815,24 +817,30 @@ export default function FeedScreen({ navigation }: any) {
               liked: false,
               bookmarked: false,
               reposted: true,
-              createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+              createdAt: Date.now(), // use client time so it sorts to top immediately
               repostOf: data.repostOf || undefined,
               repostedByUid: data.repostedByUid || undefined,
               repostedByUsername: data.repostedByUsername || undefined,
               repostedByDisplayName: data.repostedByDisplayName || undefined,
             };
-            setPosts(prev => [newPost, ...prev]);
+            // Prepend only if not already present (guard against double-tap races)
+            setPosts(prev =>
+              prev.some(p => p.id === newPost.id) ? prev : [newPost, ...prev]
+            );
           } else {
-            // Doc still not readable after delay — do a full feed reload via Zustand key
-            console.warn('[Feed] Repost doc not found after delay, triggering full reload');
+            // Doc still not readable after delay — trigger a full feed reload
+            if (__DEV__) console.warn('[Feed] Repost doc not found after delay, triggering full reload');
             useAppStore.getState().triggerFeedRefresh();
           }
-        } catch (e) {
-          console.warn('[Feed] Failed to fetch new repost, triggering full reload:', e);
+        } catch (fetchErr) {
+          if (__DEV__) console.warn('[Feed] Failed to fetch new repost, triggering full reload:', fetchErr);
           useAppStore.getState().triggerFeedRefresh();
         }
+      } else {
+        // ── Unrepost: remove the repost card from the feed immediately ──
+        const removedRepostId = `repost_${postId}_${currentUser?.uid}`;
+        setPosts(prev => prev.filter(p => p.id !== removedRepostId));
       }
-      // For unrepost: optimistic removal is sufficient — the repost doc was deleted
     } catch (e) {
       // Revert optimistic update on failure
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
@@ -844,7 +852,8 @@ export default function FeedScreen({ navigation }: any) {
   const handleDelete = async (postId: string) => {
     try {
       await firestore().collection('posts').doc(postId).delete();
-      setPosts(prev => prev.filter(p => p.id !== postId));
+      // Remove the original post AND any repost wrappers pointing to it
+      setPosts(prev => prev.filter(p => p.id !== postId && p.repostOf !== postId));
     } catch {
       Alert.alert('Error', 'Failed to delete post');
     }
@@ -1296,54 +1305,33 @@ const styles = StyleSheet.create({
   },
   adCtaBtn: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.accent,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 20,
+    backgroundColor: colors.accentGold,
+    borderRadius: scale(16),
+    paddingHorizontal: scale(16),
+    paddingVertical: scale(8),
+    marginTop: scale(10),
   },
   adCtaText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#000000',
+    fontSize: fs(14),
+    fontWeight: '700',
   },
   adSponsored: {
     color: '#71767b',
-    fontSize: 11,
-    marginTop: 4,
+    fontSize: fs(11),
+    marginTop: scale(6),
   },
 
   /* ── Inline Poll ── */
   pollCard: {
-    marginTop: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: scale(16),
+    padding: scale(16),
+    marginTop: scale(12),
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 14,
-    padding: 14,
-    backgroundColor: 'rgba(212,175,55,0.04)',
+    borderColor: 'rgba(255,255,255,0.06)',
   },
-  pollQuestion: { color: '#e7e9ea', fontSize: fs(15), fontWeight: '600' },
-  pollOptionBtn: {
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: scale(20), paddingVertical: scale(12), paddingHorizontal: scale(16),
-    backgroundColor: 'rgba(255,255,255,0.04)', marginBottom: scale(8), overflow: 'hidden', position: 'relative', minHeight: scale(44), justifyContent: 'center',
-  },
-  pollOptionVoted: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  pollOptionFill: { position: 'absolute', top: 0, left: 0, bottom: 0, backgroundColor: 'rgba(42,127,255,0.35)', borderRadius: scale(20) },
-  pollOptionFillSelected: { backgroundColor: 'rgba(42,127,255,0.5)' },
-  pollOptionContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 },
-  pollOptionText: { color: '#e7e9ea', fontSize: fs(15), lineHeight: vs(20) },
-  pollOptionTextSelected: { color: '#ffffff', fontWeight: '600' },
-  pollOptionPercent: { color: '#71767b', fontSize: fs(13) },
-  pollTotalVotes: { color: '#71767b', fontSize: fs(13), marginTop: scale(8) },
-  pollCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: scale(16), padding: scale(16), marginTop: scale(12), borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-  adCtaBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.accentGold, borderRadius: scale(16),
-    paddingHorizontal: scale(16), paddingVertical: scale(8), marginTop: scale(10),
-  },
-  adCtaText: { color: '#000000', fontSize: fs(14), fontWeight: '700' },
-  adSponsored: { color: '#71767b', fontSize: fs(11), marginTop: scale(6) },
-  pollQuestionOriginal: {
+  pollQuestion: {
     color: colors.text,
     fontSize: 15,
     fontWeight: '700',
