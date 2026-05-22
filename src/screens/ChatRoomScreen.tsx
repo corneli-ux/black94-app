@@ -32,6 +32,10 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [blocking, setBlocking] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [reactionMsg, setReactionMsg] = useState<Message | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -168,7 +172,14 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     setMessages(prev => [...prev, tempMsg]);
     setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
     try {
-      await sendMessage(chat.id, chat.otherUser?.id || '', content);
+      await sendMessage(chat.id, chat.otherUser?.id || '', content, {
+        replyToId: replyTo?.id || undefined,
+        replyToContent: replyTo?.content || undefined,
+        replyToSenderName: replyTo?.senderId === currentUser?.uid
+          ? 'You'
+          : (chat?.otherUser?.displayName || 'User'),
+      });
+      setReplyTo(null);
       // Don't reload — polling (2s) picks up the server message.
       // Optimistic temp message is already visible for instant feel.
     } catch (e) {
@@ -289,6 +300,42 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     });
   };
 
+  // ── Voice recording (stub — actual recording needs expo-av) ────────────────
+
+  const handleStartVoiceRecord = () => {
+    setShowAttachMenu(false);
+    setIsRecording(true);
+    setRecordingDuration(0);
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingDuration(prev => prev + 1);
+    }, 1000);
+  };
+
+  const handleStopVoiceRecord = async () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    const duration = recordingDuration;
+    setIsRecording(false);
+    setRecordingDuration(0);
+
+    if (duration < 1) return; // Too short
+
+    // Send a voice message placeholder
+    // In production, this would upload actual audio and send the URL
+    try {
+      await sendMessage(chat.id, chat.otherUser?.id || '', '', {
+        messageType: 'voice',
+        mediaUrl: '',
+        voiceDuration: duration,
+      });
+      await load(true);
+    } catch (e) {
+      console.error('[ChatRoom] Voice send failed:', e);
+    }
+  };
+
   // ── Nuclear Block ─────────────────────────────────────────────────────────
 
   const handleNuclearBlock = async () => {
@@ -337,6 +384,9 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
         <TouchableOpacity
           onLongPress={() => setReactionMsg(item)}
+          onPress={() => {
+            if (msgType === 'text') setReplyTo(item);
+          }}
           activeOpacity={1}
           style={{ maxWidth: '80%' }}
         >
@@ -367,6 +417,23 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             />
           ) : null}
 
+          {/* Voice message */}
+          {msgType === 'voice' && (
+            <View style={styles.voiceBubble}>
+              <Ionicons name="play-circle" size={36} color={isMine ? '#000000' : '#e7e9ea'} />
+              <View style={styles.voiceWaveform}>
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.3)' } : { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.5)' } : { backgroundColor: 'rgba(255,255,255,0.5)' }]} />
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.3)' } : { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.6)' } : { backgroundColor: 'rgba(255,255,255,0.6)' }]} />
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.2)' } : { backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+              </View>
+              <Text style={[styles.voiceDuration, isMine ? { color: 'rgba(0,0,0,0.6)' } : { color: '#94a3b8' }]}>
+                {item.voiceDuration || 0}s
+              </Text>
+            </View>
+          )}
+
           {/* Text content (for text messages or captions) */}
           {item.content && msgType === 'text' ? (
             <Text style={[styles.bubbleText, isMine && { color: '#000000' }]}>{item.content}</Text>
@@ -380,6 +447,13 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           {reactionEntries.length > 0 && (
             <View style={styles.reactionBadge}>
               <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
+            </View>
+          )}
+          {/* Reply indicator */}
+          {item.replyToContent && (
+            <View style={styles.replyIndicator}>
+              <Text style={styles.replyIndicatorName}>{item.replyToSenderName || 'Reply'}</Text>
+              <Text style={styles.replyIndicatorText} numberOfLines={1}>{item.replyToContent}</Text>
             </View>
           )}
         </View>
@@ -494,6 +568,24 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         />
       )}
 
+      {/* Reply preview */}
+      {replyTo && (
+        <View style={styles.replyPreview}>
+          <View style={styles.replyPreviewLine} />
+          <View style={styles.replyPreviewContent}>
+            <Text style={styles.replyPreviewName}>
+              {replyTo.senderId === currentUser?.uid ? 'You' : (chat?.otherUser?.displayName || 'User')}
+            </Text>
+            <Text style={styles.replyPreviewText} numberOfLines={1}>
+              {replyTo.content || (replyTo.messageType === 'voice' ? 'Voice message' : replyTo.messageType === 'image' ? 'Photo' : 'GIF')}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setReplyTo(null)} hitSlop={8}>
+            <Ionicons name="close" size={16} color="#94a3b8" />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Input bar */}
       <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
         {/* Attachment button */}
@@ -558,6 +650,12 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 <Ionicons name="film-outline" size={22} color="#A855F7" />
               </View>
               <Text style={styles.attachLabel}>GIF</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.attachItem} onPress={handleStartVoiceRecord} activeOpacity={0.7}>
+              <View style={[styles.attachIcon, { backgroundColor: 'rgba(239,68,68,0.15)' }]}>
+                <Ionicons name="mic-outline" size={22} color="#EF4444" />
+              </View>
+              <Text style={styles.attachLabel}>Voice</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -625,6 +723,24 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           </View>
         </TouchableOpacity>
       </Modal>
+      {/* Recording overlay */}
+      {isRecording && (
+        <View style={styles.recordingOverlay}>
+          <View style={styles.recordingContent}>
+            <View style={styles.recordingDot} />
+            <Text style={styles.recordingText}>Recording...</Text>
+            <Text style={styles.recordingDuration}>{recordingDuration}s</Text>
+            <TouchableOpacity
+              style={styles.recordingStopBtn}
+              onPress={handleStopVoiceRecord}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="stop-circle" size={48} color="#f43f5e" />
+            </TouchableOpacity>
+            <Text style={styles.recordingHint}>Tap to stop</Text>
+          </View>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -930,5 +1046,118 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
+  },
+  // ── Voice message ──
+  voiceBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 4,
+  },
+  voiceWaveform: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    height: 28,
+  },
+  voiceBar: {
+    width: 3,
+    height: '100%',
+    borderRadius: 2,
+  },
+  voiceDuration: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  // ── Recording overlay ──
+  recordingOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 200,
+  },
+  recordingContent: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#f43f5e',
+  },
+  recordingText: {
+    color: '#e7e9ea',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  recordingDuration: {
+    color: '#94a3b8',
+    fontSize: 28,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+  },
+  recordingStopBtn: {
+    marginTop: 12,
+  },
+  recordingHint: {
+    color: '#64748b',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  // ── Reply preview ──
+  replyPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.accent,
+    marginHorizontal: 10,
+  },
+  replyPreviewLine: {
+    width: 2,
+    height: '100%',
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.accent,
+  },
+  replyPreviewContent: {
+    flex: 1,
+    marginLeft: 4,
+    gap: 2,
+  },
+  replyPreviewName: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  replyPreviewText: {
+    color: '#94a3b8',
+    fontSize: 13,
+  },
+  replyIndicator: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderLeftWidth: 2,
+    borderLeftColor: colors.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  replyIndicatorName: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  replyIndicatorText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginTop: 2,
   },
 });
