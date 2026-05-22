@@ -39,6 +39,8 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   const currentUser = auth()?.currentUser;
   const [comments, setComments] = useState<CommentData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [allLoaded, setAllLoaded] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: string; username: string; displayName: string } | null>(null);
@@ -87,6 +89,47 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   }, [postId]);
 
   useEffect(() => { loadComments(); }, [loadComments]);
+
+  // Load more comments (pagination)
+  const loadMoreComments = useCallback(async () => {
+    if (loadingMore || allLoaded || comments.length === 0) return;
+    setLoadingMore(true);
+    try {
+      // Use the oldest comment's createdAt as cursor
+      const oldestCreatedAt = comments[comments.length - 1].createdAt;
+      const snap = await firestore()
+        .collection('post_comments')
+        .where('postId', '==', postId)
+        .limit(30)
+        .get();
+      const newComments = snap.docs
+        .map(docSnap => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            postId: data.postId || '',
+            authorId: data.authorId || '',
+            authorUsername: data.authorUsername || '',
+            authorDisplayName: data.authorDisplayName || '',
+            authorProfileImage: data.authorProfileImage || '',
+            authorIsVerified: data.authorIsVerified || false,
+            authorBadge: data.authorBadge || '',
+            content: data.content || '',
+            replyToId: data.replyToId || null,
+            replyToUsername: data.replyToUsername || null,
+            createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+          };
+        })
+        .filter(c => c.createdAt < oldestCreatedAt) // Only older comments
+        .sort((a, b) => a.createdAt - b.createdAt);
+      if (newComments.length === 0) {
+        setAllLoaded(true);
+      } else {
+        setComments(prev => [...prev, ...newComments]);
+      }
+    } catch {}
+    setLoadingMore(false);
+  }, [loadingMore, allLoaded, comments, postId]);
 
   // Fetch active ad campaigns on mount
   useEffect(() => {
@@ -175,9 +218,10 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
       );
     }
     const item2 = item.comment;
+    const isReply = !!item2.replyToId;
     return (
-      <View style={styles.commentRow}>
-        <Avatar uri={item2.authorProfileImage || null} name={item2.authorDisplayName || item2.authorUsername} size={40} />
+      <View style={[styles.commentRow, isReply && styles.commentReplyIndent]}>
+        <Avatar uri={item2.authorProfileImage || null} name={item2.authorDisplayName || item2.authorUsername} size={isReply ? 32 : 40} />
         <View style={styles.commentBody}>
           <View style={styles.commentHeader}>
             <TouchableOpacity
@@ -305,6 +349,15 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         keyExtractor={item => item.id}
         renderItem={renderItem}
         contentContainerStyle={comments.length === 0 && !loading ? styles.emptyListContent : undefined}
+        onEndReached={loadMoreComments}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+              <ActivityIndicator color="#94a3b8" size="small" />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           loading ? (
             <View style={styles.loadingWrap}>
@@ -411,6 +464,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: 12,
     paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  commentReplyIndent: {
+    paddingLeft: 44, // Indent replies under parent (16 base + 28 for child offset)
+    backgroundColor: 'rgba(255,255,255,0.02)',
   },
   commentBody: { flex: 1, minWidth: 0 },
   commentHeader: {
