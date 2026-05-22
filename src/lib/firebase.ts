@@ -644,6 +644,26 @@ interface Constraint {
   cursorValues?: any[];
 }
 
+interface DocChange {
+  type: 'added' | 'modified' | 'removed';
+  doc: any;
+  oldIndex: number;
+  newIndex: number;
+}
+
+interface DocSnapshot {
+  id: string;
+  ref: any;
+  data: () => any;
+  exists: boolean;
+}
+
+interface ListenSnapshot {
+  docs: DocSnapshot[];
+  docChanges: DocChange[];
+  empty: boolean;
+}
+
 class CompatCollectionRef {
   _path: string;
   _constraints: Constraint[];
@@ -879,6 +899,84 @@ class CompatCollectionRef {
       if (__DEV__) console.error('[Firestore] add error:', e?.message);
       throw e;
     }
+  }
+
+  /**
+   * Emulates Firebase's onSnapshot using optimized polling.
+   * Only calls the callback when the query results actually change
+   * (added/modified/removed docs), avoiding unnecessary re-renders.
+   *
+   * Returns an unsubscribe function.
+   */
+  listen(
+    callback: (snapshot: ListenSnapshot) => void,
+    options?: { pollInterval?: number },
+  ): () => void {
+    let previousDocs = new Map<string, { id: string; data: any; exists: boolean }>();
+    let active = true;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const interval = options?.pollInterval || 5000;
+    const isFirstCall = { value: true };
+
+    const poll = async () => {
+      if (!active) return;
+      try {
+        const result = await this.get();
+        const currentDocs = new Map<string, { id: string; data: any; exists: boolean }>();
+        const changes: DocChange[] = [];
+
+        // Detect added/modified docs
+        for (const doc of result.docs) {
+          const prev = previousDocs.get(doc.id);
+          const data = doc.data();
+          currentDocs.set(doc.id, { id: doc.id, data, exists: doc.exists });
+
+          if (!prev) {
+            changes.push({ type: 'added', doc, oldIndex: -1, newIndex: -1 });
+          } else if (JSON.stringify(data) !== JSON.stringify(prev.data)) {
+            changes.push({ type: 'modified', doc, oldIndex: -1, newIndex: -1 });
+          }
+        }
+
+        // Detect removed docs
+        for (const [id] of previousDocs) {
+          if (!currentDocs.has(id)) {
+            const doc = previousDocs.get(id)!;
+            changes.push({ type: 'removed', doc, oldIndex: -1, newIndex: -1 });
+          }
+        }
+
+        previousDocs = currentDocs;
+
+        // Call callback on first call (even if empty) or when there are changes
+        if (isFirstCall.value || changes.length > 0) {
+          isFirstCall.value = false;
+          callback({
+            docs: result.docs,
+            docChanges: changes,
+            empty: result.empty,
+          });
+        }
+      } catch (e) {
+        // Log but don't throw — polling should be resilient
+        if (__DEV__) console.warn('[Firestore] listen poll error:', e);
+      }
+    };
+
+    // Initial fetch
+    poll();
+
+    // Start polling
+    timer = setInterval(poll, interval);
+
+    // Return unsubscribe function
+    return () => {
+      active = false;
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
   }
 }
 

@@ -82,7 +82,7 @@ export function useChatRoom({
   const recordingRef = useRef<Audio.Recording | null>(null);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const unsubRef = useRef<(() => void) | null>(null);
 
   // ── GIF callback ref ──────────────────────────────────────────────────────
   const gifCallbackRef = useRef<((url: string) => void) | null>(null);
@@ -235,8 +235,30 @@ export function useChatRoom({
     };
     resetUnread();
     load();
-    pollRef.current = setInterval(() => loadRef.current(true), 2000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    // Use listen() for change-based updates instead of polling every 2s.
+    // This eliminates stale closures, scroll yanking, and reduces Firestore reads
+    // by only triggering re-renders when messages actually change.
+    const colRef = firestore().collection('chats').doc(chat.id).collection('messages')
+      .orderBy('createdAt', 'asc');
+    unsubRef.current = colRef.listen(
+      ({ docs }) => {
+        // Merge: keep temp messages that haven't appeared in server results yet
+        const serverIds = new Set(docs.map(m => m.id));
+        const stillPending = messagesRef.current.filter(
+          m => m.id.startsWith('tmp-') && !serverIds.has(m.id)
+        );
+        const merged = [...stillPending, ...docs.map(d => ({
+          id: d.id,
+          ...d.data(),
+          chatId: chat.id,
+        }))];
+        setMessages(merged);
+      },
+      { pollInterval: 3000 }, // Chat: poll every 3 seconds
+    );
+    return () => {
+      if (unsubRef.current) unsubRef.current();
+    };
   }, [chat?.id]);
 
   // ── Keyboard scroll to bottom ─────────────────────────────────────────────

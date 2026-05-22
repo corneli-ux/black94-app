@@ -16,14 +16,15 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { firestore, auth } from '../lib/firebase';
 
 const POLL_INTERVAL = 5000; // 5 seconds (faster for better UX)
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-let initialPollTimer: ReturnType<typeof setTimeout> | null = null;
+let listenUnsub: (() => void) | null = null;
+let initialDefer: ReturnType<typeof setTimeout> | null = null;
 let appStateSubscription: { remove: () => void } | null = null;
 
 // ── Polling ─────────────────────────────────────────────────────────────────
 
 /**
- * Start polling Firestore for unread notifications for the given user.
+ * Start listening for unread notifications for the given user.
+ * Uses listen() for change-based updates instead of fixed-interval polling.
  * Calls `onNewNotification(count)` whenever the unread count changes.
  */
 export function startNotificationPolling(
@@ -34,60 +35,75 @@ export function startNotificationPolling(
 
   let lastKnownCount = -1;
 
-  // Defer first poll by 2 seconds to avoid competing with feed load at startup
-  initialPollTimer = setTimeout(() => {
-    initialPollTimer = null;
-    pollUnread(userId).then((count) => {
-      lastKnownCount = count;
-      onNewNotification(count);
-    }).catch((e) => {
-      // CRITICAL FIX: If the initial poll fails (index missing, network error, etc.),
-      // set lastKnownCount to 0 instead of leaving it at -1.
-      // Without this, the interval guard (lastKnownCount === -1) permanently
-      // kills ALL future polling, and the badge never updates.
-      console.warn('[NotificationEngine] Initial poll failed, using 0:', e?.message || e);
-      lastKnownCount = 0;
-      onNewNotification(0);
-    });
+  // Defer listener setup by 2 seconds to avoid competing with feed load at startup
+  initialDefer = setTimeout(() => {
+    initialDefer = null;
+    listenUnsub = firestore()
+      .collection('notifications')
+      .where('recipientId', '==', userId)
+      .where('read', '==', false)
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .listen(
+        ({ docs }) => {
+          // Filter: only count actually unread (read === false OR undefined)
+          const unread = docs.filter(d => {
+            const data = d.data();
+            return data.read === false || data.read === undefined;
+          }).length;
+          if (unread !== lastKnownCount) {
+            lastKnownCount = unread;
+            onNewNotification(unread);
+          }
+        },
+        { pollInterval: POLL_INTERVAL },
+      );
+    console.log('[NotificationEngine] listen() started for user:', userId);
   }, 2000);
 
-  pollTimer = setInterval(async () => {
-    try {
-      if (lastKnownCount === -1) return;
-      const count = await pollUnread(userId);
-      if (count !== lastKnownCount) {
-        lastKnownCount = count;
-        onNewNotification(count);
-      }
-    } catch (e) {
-      console.warn('[NotificationEngine] Poll error:', e);
-    }
-  }, POLL_INTERVAL);
+  // Pause/resume the listener when the app goes to background/foreground.
+  // This saves Firestore reads and battery when the user isn't looking at the app.
+  let paused = false;
+  let pausedLastCount = -1;
 
-  // Pause polling when app goes to background, resume when foregrounded
-  // This saves Firestore reads and battery when the user isn't looking at the app
   appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
     if (nextState === 'background' || nextState === 'inactive') {
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-        console.log('[NotificationEngine] Polling paused (app backgrounded)');
+      if (listenUnsub && !paused) {
+        paused = true;
+        pausedLastCount = lastKnownCount;
+        listenUnsub();
+        listenUnsub = null;
+        console.log('[NotificationEngine] listen() paused (app backgrounded)');
       }
     } else if (nextState === 'active') {
-      if (!pollTimer) {
-        pollTimer = setInterval(async () => {
-          try {
-            if (lastKnownCount === -1) return;
-            const count = await pollUnread(userId);
-            if (count !== lastKnownCount) {
-              lastKnownCount = count;
-              onNewNotification(count);
-            }
-          } catch (e) {
-            console.warn('[NotificationEngine] Poll error:', e);
-          }
-        }, POLL_INTERVAL);
-        console.log('[NotificationEngine] Polling resumed (app foregrounded)');
+      if (paused) {
+        paused = false;
+        lastKnownCount = pausedLastCount;
+        // Clear any pending defer timer and restart immediately
+        if (initialDefer) {
+          clearTimeout(initialDefer);
+          initialDefer = null;
+        }
+        listenUnsub = firestore()
+          .collection('notifications')
+          .where('recipientId', '==', userId)
+          .where('read', '==', false)
+          .orderBy('createdAt', 'desc')
+          .limit(50)
+          .listen(
+            ({ docs }) => {
+              const unread = docs.filter(d => {
+                const data = d.data();
+                return data.read === false || data.read === undefined;
+              }).length;
+              if (unread !== lastKnownCount) {
+                lastKnownCount = unread;
+                onNewNotification(unread);
+              }
+            },
+            { pollInterval: POLL_INTERVAL },
+          );
+        console.log('[NotificationEngine] listen() resumed (app foregrounded)');
       }
     }
   });
@@ -96,17 +112,17 @@ export function startNotificationPolling(
 }
 
 /**
- * Stop the notification polling timer.
+ * Stop the notification listener.
  */
 export function stopNotificationPolling(): void {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-    console.log('[NotificationEngine] Polling stopped');
+  if (listenUnsub) {
+    listenUnsub();
+    listenUnsub = null;
+    console.log('[NotificationEngine] listen() stopped');
   }
-  if (initialPollTimer) {
-    clearTimeout(initialPollTimer);
-    initialPollTimer = null;
+  if (initialDefer) {
+    clearTimeout(initialDefer);
+    initialDefer = null;
   }
   if (appStateSubscription) {
     appStateSubscription.remove();
