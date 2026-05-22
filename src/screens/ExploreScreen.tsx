@@ -73,47 +73,113 @@ export default function ExploreScreen() {
   const loadRecommendedUsers = useCallback(async () => {
     try {
       if (__DEV__) console.log('[Explore] Loading recommended users...');
-      const snap = await firestore()
-        .collection('users')
-        .orderBy('createdAt', 'desc')
-        .limit(10)
-        .get();
-
-      if (__DEV__) console.log(`[Explore] Got ${snap.docs.length} users from Firestore`);
-
       const currentUserId = auth()?.currentUser?.uid;
 
       // Get users the current user already follows
+      const followingIds = new Set<string>();
       if (currentUserId) {
         try {
           const followsSnap = await firestore()
             .collection('follows')
             .where('followerId', '==', currentUserId)
             .get();
-          const followingIds = new Set<string>(followsSnap.docs.map(d => d.data().followingId as string));
+          followsSnap.docs.forEach(d => followingIds.add(d.data().followingId as string));
           setFollowedUsers(followingIds);
         } catch { /* skip */ }
       }
 
-      const users: User[] = snap.docs
-        .filter(d => d.id !== currentUserId)
-        .map(d => {
-          const data = d.data();
-          return {
-            id: d.id,
-            email: data.email || '',
-            username: data.username || '',
-            displayName: data.displayName || '',
-            bio: data.bio || '',
-            profileImage: data.profileImage || null,
-            coverImage: data.coverImage || null,
-            role: data.role || 'personal',
-            badge: data.badge || '',
-            subscription: data.subscription || 'free',
-            isVerified: data.isVerified || false,
-            createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-          };
-        });
+      // Step 1: Find mutual connections — users followed by people you follow
+      // This produces better recommendations than "newest users"
+      const mutualCandidateIds = new Map<string, number>(); // uid → mutual count
+      try {
+        if (followingIds.size > 0) {
+          // Sample up to 20 of the users you follow (to limit queries)
+          const myFollowingArr = Array.from(followingIds).slice(0, 20);
+          const followingFollowsSnaps = await Promise.all(
+            myFollowingArr.map(uid =>
+              firestore()
+                .collection('follows')
+                .where('followerId', '==', uid)
+                .limit(30)
+                .get()
+                .catch(() => ({ docs: [], empty: true } as any))
+            )
+          );
+
+          for (const snap of followingFollowsSnaps) {
+            for (const doc of snap.docs) {
+              const targetId = doc.data()?.followingId;
+              if (targetId && targetId !== currentUserId && !followingIds.has(targetId)) {
+                mutualCandidateIds.set(targetId, (mutualCandidateIds.get(targetId) || 0) + 1);
+              }
+            }
+          }
+        }
+      } catch { /* skip — fall back to newest users below */ }
+
+      let users: User[];
+
+      if (mutualCandidateIds.size >= 3) {
+        // Sort by mutual connection count (most mutuals first)
+        const sorted = Array.from(mutualCandidateIds.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .map(([uid]) => uid);
+
+        // Fetch user profiles for top candidates
+        const userDocs = await Promise.all(
+          sorted.map(uid =>
+            firestore().collection('users').doc(uid).get().catch(() => null)
+          )
+        );
+
+        users = userDocs
+          .filter((doc: any) => doc && doc.exists)
+          .map((doc: any) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              email: data.email || '',
+              username: data.username || '',
+              displayName: data.displayName || '',
+              bio: data.bio || '',
+              profileImage: data.profileImage || null,
+              coverImage: data.coverImage || null,
+              role: data.role || 'personal',
+              badge: data.badge || '',
+              subscription: data.subscription || 'free',
+              isVerified: data.isVerified || false,
+              createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+            };
+          });
+      } else {
+        // Fallback: newest users (when not enough follow data for mutuals)
+        const snap = await firestore()
+          .collection('users')
+          .orderBy('createdAt', 'desc')
+          .limit(10)
+          .get();
+
+        users = snap.docs
+          .filter(d => d.id !== currentUserId && !followingIds.has(d.id))
+          .map(d => {
+            const data = d.data();
+            return {
+              id: d.id,
+              email: data.email || '',
+              username: data.username || '',
+              displayName: data.displayName || '',
+              bio: data.bio || '',
+              profileImage: data.profileImage || null,
+              coverImage: data.coverImage || null,
+              role: data.role || 'personal',
+              badge: data.badge || '',
+              subscription: data.subscription || 'free',
+              isVerified: data.isVerified || false,
+              createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+            };
+          });
+      }
 
       setRecommendedUsers(users);
     } catch (e: any) {
