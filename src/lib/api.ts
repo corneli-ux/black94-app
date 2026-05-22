@@ -826,50 +826,53 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
       // This is what makes the repost actually appear in the feed.
       // We copy the original post's content and author info so the feed
       // can render the repost without an extra read.
-      try {
-        const postDoc = await postRef.get();
-        const postData = postDoc.exists ? postDoc.data() : null;
+      const postDoc = await postRef.get();
+      const postData = postDoc.exists ? postDoc.data() : null;
 
-        if (postData) {
-          // Fetch reposting user's profile for the "reposted by" header
-          const repostingUserDoc = await firestore().collection('users').doc(userId).get();
-          const repostingUser = repostingUserDoc.exists ? repostingUserDoc.data() : null;
-
-          await firestore().collection('posts').doc(repostPostId).set({
-            // Repost metadata
-            repostOf: postId,
-            repostedByUid: userId,
-            repostedByUsername: repostingUser?.username || '',
-            repostedByDisplayName: repostingUser?.displayName || 'User',
-            // Copy original post content & author info for display
-            authorId: postData.authorId || '',
-            authorUsername: postData.authorUsername || '',
-            authorDisplayName: postData.authorDisplayName || '',
-            authorProfileImage: postData.authorProfileImage || null,
-            authorBadge: postData.authorBadge || '',
-            authorIsVerified: postData.authorIsVerified || false,
-            caption: postData.caption || '',
-            mediaUrls: postData.mediaUrls || [],
-            pollData: postData.pollData || null,
-            // Copy counts (will be slightly stale but avoids extra reads)
-            likeCount: postData.likeCount || 0,
-            commentCount: postData.commentCount || 0,
-            repostCount: postData.repostCount || 0,
-            factCheckVerified: postData.factCheckVerified || 0,
-            factCheckDebunked: postData.factCheckDebunked || 0,
-            createdAt: firestore.FieldValue.serverTimestamp(),
-            updatedAt: firestore.FieldValue.serverTimestamp(),
-          });
-        }
-      } catch (e) {
-        console.warn('[Repost] Failed to create visible repost post:', e);
+      if (!postData) {
+        console.warn('[Repost] Original post not found, aborting repost creation');
+        // Undo the repostRef set above
+        await repostRef.delete().catch(() => {});
+        try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
+        return false;
       }
 
+      // Fetch reposting user's profile for the "reposted by" header
+      const repostingUserDoc = await firestore().collection('users').doc(userId).get();
+      const repostingUser = repostingUserDoc.exists ? repostingUserDoc.data() : null;
+
+      // Write the visible repost wrapper — this MUST succeed for the repost to work.
+      // If it fails, we propagate the error so handleRepost knows the doc was never written.
+      await firestore().collection('posts').doc(repostPostId).set({
+        // Repost metadata
+        repostOf: postId,
+        repostedByUid: userId,
+        repostedByUsername: repostingUser?.username || '',
+        repostedByDisplayName: repostingUser?.displayName || 'User',
+        // Copy original post content & author info for display
+        authorId: postData.authorId || '',
+        authorUsername: postData.authorUsername || '',
+        authorDisplayName: postData.authorDisplayName || '',
+        authorProfileImage: postData.authorProfileImage || null,
+        authorBadge: postData.authorBadge || '',
+        authorIsVerified: postData.authorIsVerified || false,
+        caption: postData.caption || '',
+        mediaUrls: postData.mediaUrls || [],
+        pollData: postData.pollData || null,
+        // Copy counts (will be slightly stale but avoids extra reads)
+        likeCount: postData.likeCount || 0,
+        commentCount: postData.commentCount || 0,
+        repostCount: postData.repostCount || 0,
+        factCheckVerified: postData.factCheckVerified || 0,
+        factCheckDebunked: postData.factCheckDebunked || 0,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      });
+
       // ── Notification: tell post author someone reposted their post ──
+      // Reuse postData from READ #1 — no second .get() needed
       try {
-        const postDoc = await postRef.get();
-        const postData = postDoc.exists ? postDoc.data() : null;
-        const postAuthorId = postData?.authorId;
+        const postAuthorId = postData.authorId;
         if (postAuthorId && postAuthorId !== userId) {
           const actor = await getActorData(userId);
           dispatchEngagementNotification({
@@ -2432,6 +2435,54 @@ export async function searchUsers(query: string): Promise<User[]> {
   }
 
   return results;
+}
+
+export async function searchByHashtag(tag: string): Promise<Post[]> {
+  if (!tag.trim()) return [];
+  const cleanTag = tag.trim().toLowerCase().replace(/^#/, '');
+  if (!cleanTag) return [];
+
+  try {
+    // Fetch recent posts and filter by hashtag in caption
+    const snap = await firestore()
+      .collection('posts')
+      .orderBy('createdAt', 'desc')
+      .limit(100)
+      .get();
+
+    return snap.docs
+      .filter(d => {
+        const caption = (d.data().caption || '').toLowerCase();
+        // Match word boundary to avoid partial matches (e.g., #cat should not match #catalog)
+        const regex = new RegExp(`#${cleanTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        return regex.test(caption);
+      })
+      .slice(0, 20)
+      .map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          authorId: data.authorId || '',
+          authorUsername: data.authorUsername || '',
+          authorDisplayName: data.authorDisplayName || '',
+          authorProfileImage: data.authorProfileImage || null,
+          authorBadge: data.authorBadge || '',
+          authorIsVerified: data.authorIsVerified || false,
+          caption: data.caption || '',
+          mediaUrls: parseMediaUrls(data.mediaUrls),
+          likeCount: data.likeCount || 0,
+          commentCount: data.commentCount || 0,
+          repostCount: data.repostCount || 0,
+          bookmarked: false,
+          liked: false,
+          reposted: false,
+          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+        };
+      });
+  } catch (e) {
+    console.error('[Search] searchByHashtag error:', e);
+    return [];
+  }
 }
 
 /* ── Cart ───────────────────────────────────────────────────────────────────── */

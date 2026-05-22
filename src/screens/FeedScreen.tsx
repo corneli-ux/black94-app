@@ -7,6 +7,7 @@ import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '../theme/colors';
 import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive';
 import { toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
+import * as ExpoLinking from 'expo-linking';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -438,6 +439,9 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   const handleShare = async () => {
     const author = `@${post.authorUsername || 'user'}`;
     const caption = post.caption ? `\n\n"${post.caption.slice(0, 120)}${post.caption.length > 120 ? '...' : ''}"` : '';
+    // Generate a proper deep link URL using expo-linking
+    const deepLink = ExpoLinking.createURL('post', { postId: interactionId });
+    const webUrl = `https://black94.app/post/${interactionId}`;
     Alert.alert('Share', '', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -445,7 +449,8 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
         onPress: async () => {
           try {
             await Share.share({
-              message: `${author} posted on Black94${caption}\n\nhttps://black94.app/post/${interactionId}`,
+              message: `${author} posted on Black94${caption}\n\n${webUrl}`,
+              url: deepLink,
             });
           } catch {}
         },
@@ -1268,8 +1273,9 @@ export default function FeedScreen({ navigation }: any) {
       : p));
     try { await toggleLike(postId, liked); } catch (e) {
       // Revert optimistic update on failure — prevents ghost likes
+      // FIX: undo the count change by reversing the direction
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-        ? { ...p, liked, likeCount: p.likeCount }
+        ? { ...p, liked, likeCount: p.likeCount + (liked ? 1 : -1) }
         : p));
     }
   };
@@ -1288,7 +1294,19 @@ export default function FeedScreen({ navigation }: any) {
       : p));
 
     try {
-      await toggleRepost(postId, reposted);
+      const result = await toggleRepost(postId, reposted);
+
+      if (!result) {
+        // toggleRepost returned false — the repost write failed
+        // Revert optimistic state (the catch block below won't fire since
+        // toggleRepost didn't throw)
+        // FIX: undo the count change by reversing the direction
+        setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
+          ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
+          : p));
+        if (__DEV__) console.warn('[Feed] Repost write failed (toggleRepost returned false)');
+        return;
+      }
 
       if (!reposted) {
         // ── New repost: add the repost card to the top of the feed ──
@@ -1303,10 +1321,15 @@ export default function FeedScreen({ navigation }: any) {
             const newPost = docToPost(repostSnap);
             newPost.reposted = true;
             newPost.createdAt = Date.now(); // sort to top immediately
+            // Mark this post so enrichment won't race to undo the reposted flag
+            newPost._justReposted = true;
             // Prepend only if not already present (guard against double-tap races)
             setPosts(prev =>
               prev.some(p => p.id === newPost.id) ? prev : [newPost, ...prev]
             );
+
+            // Bug 4 fix: re-anchor the real-time listener to include the new repost
+            attachRealtimeListener(Date.now());
           } else {
             // Doc still not readable after delay — trigger a full feed reload
             if (__DEV__) console.warn('[Feed] Repost doc not found after delay, triggering full reload');
@@ -1323,8 +1346,9 @@ export default function FeedScreen({ navigation }: any) {
       }
     } catch (e) {
       // Revert optimistic update on failure
+      // FIX: undo the count change by reversing the direction
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-        ? { ...p, reposted, repostCount: p.repostCount }
+        ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
         : p));
     }
   };

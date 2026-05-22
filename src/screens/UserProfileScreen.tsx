@@ -385,6 +385,51 @@ function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, o
   );
 }
 
+function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
+  const mediaPosts = React.useMemo(
+    () => posts.filter(p => p.mediaUrls && p.mediaUrls.length > 0),
+    [posts],
+  );
+  const gap = 2;
+  const colCount = 3;
+  const size = (SCREEN_WIDTH - gap * (colCount - 1)) / colCount;
+
+  if (mediaPosts.length === 0) return (
+    <View style={{ alignItems: 'center', paddingTop: 60 }}>
+      <Ionicons name="images-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
+      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No media yet</Text>
+    </View>
+  );
+
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap, padding: gap }}>
+      {mediaPosts.map((post, idx) => (
+        <TouchableOpacity
+          key={post.id + '_' + idx}
+          style={{ width: size, height: size, backgroundColor: '#1e1e1e' }}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
+        >
+          <Image
+            source={{ uri: post.mediaUrls![0] }}
+            style={{ width: size, height: size }}
+            resizeMode="cover"
+          />
+          {post.mediaUrls!.length > 1 && (
+            <View style={{
+              position: 'absolute', top: 6, right: 6,
+              backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4,
+              paddingHorizontal: 5, paddingVertical: 2,
+            }}>
+              <Ionicons name="copy-outline" size={10} color="#fff" />
+            </View>
+          )}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
 function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: any }) {
   const [likeMap, setLikeMap] = useState<Record<string, boolean>>({});
   const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
@@ -490,7 +535,7 @@ function LikedPostsGrid({ posts, navigation, onLike, onBookmark, onDelete, onRep
   return <PostGrid posts={posts} navigation={navigation} onLike={onLike} onBookmark={onBookmark} onDelete={onDelete} onRepost={onRepost} onComment={onComment} />;
 }
 
-type ProfileTab = 'posts' | 'replies' | 'likes';
+type ProfileTab = 'posts' | 'media' | 'replies' | 'likes';
 
 export default function UserProfileScreen({ navigation, route }: any) {
   const { userId } = route.params || {};
@@ -963,7 +1008,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
 
   const isOwnProfile = currentUid === userId;
 
-  const tabs: ProfileTab[] = ['posts', 'replies', 'likes'];
+  const tabs: ProfileTab[] = ['posts', 'media', 'replies', 'likes'];
 
   return (
     <View style={styles.container}>
@@ -1179,6 +1224,9 @@ export default function UserProfileScreen({ navigation, route }: any) {
           </View>
         ) : tab === 'posts' && (
           <PostGrid posts={posts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />
+        )}
+        {tab === 'media' && (
+          <MediaGrid posts={posts} navigation={navigation} />
         )}
         {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
         {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}

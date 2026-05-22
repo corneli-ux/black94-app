@@ -7,7 +7,7 @@ import { colors } from '../theme/colors';
 import { searchWeb, WebSearchResult } from '../lib/websearch';
 import { Linking } from 'react-native';
 import { auth, firestore } from '../lib/firebase';
-import { User, Post, tsToMillis, parseMediaUrls } from '../lib/api';
+import { User, Post, tsToMillis, parseMediaUrls, searchByHashtag } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { useAppStore } from '../stores/app';
 
@@ -76,15 +76,23 @@ export default function SearchScreen({ route, navigation }: any) {
     saveToHistory(q);
     try {
       const lower = q.toLowerCase();
-      const [uSnap, pSnap] = await Promise.all([
-        firestore().collection('users')
-          .where('usernameLower', '>=', lower)
-          .where('usernameLower', '<=', lower + '\uf8ff')
-          .limit(10).get(),
-        firestore().collection('posts')
-          .orderBy('createdAt', 'desc')
-          .limit(50).get(),
-      ]);
+      const isHashtagSearch = lower.startsWith('#');
+
+      if (isHashtagSearch) {
+        // Dedicated hashtag search — returns up to 20 matching posts
+        const hashPosts = await searchByHashtag(lower);
+        setUsers([]);
+        setPosts(hashPosts);
+      } else {
+        const [uSnap, pSnap] = await Promise.all([
+          firestore().collection('users')
+            .where('usernameLower', '>=', lower)
+            .where('usernameLower', '<=', lower + '\uf8ff')
+            .limit(10).get(),
+          firestore().collection('posts')
+            .orderBy('createdAt', 'desc')
+            .limit(50).get(),
+        ]);
 
       const foundUsers: User[] = uSnap.docs.map(d => {
         const data = d.data();
@@ -128,6 +136,7 @@ export default function SearchScreen({ route, navigation }: any) {
       searchWeb(q, 10).then(results => {
         setWebResults(results);
       }).catch(() => {});
+      } // end else (non-hashtag search)
     } catch (e) {
       console.error(e);
     } finally {

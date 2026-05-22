@@ -91,7 +91,7 @@ const IS_TABLET = SCREEN_WIDTH >= 768;
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export default function DualPaneChatScreen({ navigation }: any) {
+export default function DualPaneChatScreen({ navigation, route }: any) {
   const currentUserId = auth().currentUser?.uid ?? '';
 
   const [chats, setChats] = useState<ChatItem[]>([]);
@@ -377,6 +377,41 @@ export default function DualPaneChatScreen({ navigation }: any) {
     }
   }, [selectedChat, currentUserId, navigation]);
 
+  // ── GIF callback from GifPickerScreen ──────────────────────────────────
+  useEffect(() => {
+    if (!selectedChat) return;
+    const gifUrl = route.params?.selectedGifUrl;
+    if (gifUrl && typeof gifUrl === 'string' && gifUrl.startsWith('http')) {
+      navigation.setParams({ selectedGifUrl: undefined });
+      // Send the GIF as a message
+      const otherId =
+        selectedChat.user1Id === currentUserId
+          ? selectedChat.user2Id
+          : selectedChat.user1Id;
+      const tempMsg: ChatMessage = {
+        id: `tmp-${Date.now()}`,
+        chatId: selectedChat.id,
+        senderId: currentUserId,
+        receiverId: otherId,
+        content: 'GIF',
+        messageType: 'gif',
+        mediaUrl: gifUrl,
+        status: 'sent',
+        createdAt: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, tempMsg]);
+      sendMessage(selectedChat.id, otherId, 'GIF', 'gif', gifUrl).catch((err: any) => {
+        console.error('[DualPaneChat] GIF send error:', err?.message || err);
+        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      });
+      setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 50);
+    }
+  }, [route.params?.selectedGifUrl, selectedChat?.id]);
+
+  const handleOpenGifPicker = () => {
+    navigation.navigate('GifPicker');
+  };
+
   // ── Render chat list item ──────────────────────────────────────────────
   const renderChatItem = ({ item }: { item: ChatItem }) => {
     const isSelected = item.id === selectedChatId;
@@ -468,11 +503,20 @@ export default function DualPaneChatScreen({ navigation }: any) {
             style={styles.callBtn}
             onPress={() => {
               if (!selectedChat.otherUser) return;
-              navigation.navigate('AudioCall', {
-                userId: selectedChat.otherUser.uid,
-                userName: selectedChat.otherUser.displayName || selectedChat.otherUser.username || 'User',
-                userProfileImage: selectedChat.otherUser.profileImage,
-              });
+              Alert.alert(
+                'Audio Call (Beta)',
+                'Audio streaming is coming soon. You can ring the other user, but audio will not be heard until the VoIP integration is complete.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Ring Anyway', style: 'default', onPress: () => {
+                    navigation.navigate('AudioCall', {
+                      userId: selectedChat.otherUser.uid,
+                      userName: selectedChat.otherUser.displayName || selectedChat.otherUser.username || 'User',
+                      userProfileImage: selectedChat.otherUser.profileImage,
+                    });
+                  }},
+                ],
+              );
             }}
             hitSlop={8}
           >
@@ -555,6 +599,9 @@ export default function DualPaneChatScreen({ navigation }: any) {
 
         {/* Input bar */}
         <View style={styles.inputRow}>
+          <TouchableOpacity onPress={handleOpenGifPicker} hitSlop={8} style={{ marginRight: 6 }}>
+            <Ionicons name="happy-outline" size={24} color={colors.textMuted} />
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             placeholder="Type a message..."
