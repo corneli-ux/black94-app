@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, Share, Image,
+  RefreshControl, ActivityIndicator, Alert, Share, Image, Linking,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -409,6 +409,24 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             <InlinePoll post={post} />
           )}
 
+          {/* Fact Check Indicator */}
+          {(post.factCheckVerified || 0) > 0 && (
+            <View style={styles.factCheckBadge}>
+              <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
+              <Text style={styles.factCheckText}>
+                Fact-checked · {post.factCheckVerified} verified
+              </Text>
+            </View>
+          )}
+          {(post.factCheckDebunked || 0) > 0 && (
+            <View style={styles.factCheckBadge}>
+              <Ionicons name="close-circle" size={14} color="#ef4444" />
+              <Text style={[styles.factCheckText, { color: '#ef4444' }]}>
+                Debunked · {post.factCheckDebunked} flagged
+              </Text>
+            </View>
+          )}
+
           {/* Action bar */}
           <View style={styles.actions}>
             {/* Comment */}
@@ -453,7 +471,15 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </TouchableOpacity>
 
             {/* Views */}
-            <TouchableOpacity style={styles.actionBtn} disabled>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={async () => {
+                // Increment view count in Firestore and update local state
+                firestore().collection('posts').doc(interactionId).update({
+                  viewCount: firestore.FieldValue.increment(1),
+                }).catch(() => {});
+              }}
+            >
               <View style={styles.actionIconWrap}>
                 <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
               </View>
@@ -497,7 +523,22 @@ function AdCard({ ad }: { ad: any }) {
         <Text style={styles.adHeadline} numberOfLines={1}>{ad.headline || 'Ad'}</Text>
         {ad.description ? <Text style={styles.adDescription} numberOfLines={2}>{ad.description}</Text> : null}
         {ad.ctaText ? (
-          <TouchableOpacity style={styles.adCtaBtn} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.adCtaBtn}
+            activeOpacity={0.7}
+            onPress={() => {
+              // Track ad click in Firestore, then open link
+              if (ad.id) {
+                firestore().collection('ads').doc(ad.id).update({
+                  clicks: firestore.FieldValue.increment(1),
+                }).catch(() => {});
+              }
+              const url = ad.link || ad.url || ad.destinationUrl;
+              if (url) {
+                Linking.openURL(url).catch(() => {});
+              }
+            }}
+          >
             <Text style={styles.adCtaText}>{ad.ctaText}</Text>
           </TouchableOpacity>
         ) : null}
@@ -971,10 +1012,17 @@ export default function FeedScreen({ navigation }: any) {
 
   // Build interleaved feed: posts with ads inserted after every 5th post
   // Network tab shows only posts from followed users
+  // When user follows nobody, Network tab shows empty state instead of all posts
   const feedItems: FeedItem[] = (() => {
-    const displayPosts = activeTab === 'Network' && followedUserIds.size > 0
-      ? posts.filter(p => followedUserIds.has(p.authorId))
-      : posts;
+    let displayPosts: Post[];
+    if (activeTab === 'Network') {
+      if (followedUserIds.size === 0) {
+        return []; // Empty state — user follows nobody
+      }
+      displayPosts = posts.filter(p => followedUserIds.has(p.authorId));
+    } else {
+      displayPosts = posts;
+    }
     if (displayPosts.length === 0) return displayPosts.map(p => ({ type: 'post' as const, id: p.id, post: p }));
     const items: FeedItem[] = [];
     let adIndex = 0;
@@ -1278,6 +1326,24 @@ const styles = StyleSheet.create({
     fontSize: fs(13),
     lineHeight: vs(16),
     marginLeft: scale(1),
+  },
+
+  /* ── Fact check badge ── */
+  factCheckBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(34,197,94,0.1)',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  factCheckText: {
+    color: '#22c55e',
+    fontSize: fs(12),
+    lineHeight: vs(16),
   },
 
   /* ── Heart overlay ── */
