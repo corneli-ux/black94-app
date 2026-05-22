@@ -8,6 +8,7 @@ import { Linking } from 'react-native';
 import { auth, firestore } from '../lib/firebase';
 import { User, Post, tsToMillis, parseMediaUrls } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
+import { useAppStore } from '../stores/app';
 
 export default function SearchScreen({ route, navigation }: any) {
   const [query, setQuery] = useState('');
@@ -20,6 +21,17 @@ export default function SearchScreen({ route, navigation }: any) {
   const [focused, setFocused] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const insets = useSafeAreaInsets();
+  const pendingSearchQuery = useAppStore(s => s.searchQuery);
+  const clearSearchQuery = useAppStore(s => s.setSearchQuery);
+
+  // Pick up search query from Zustand store (set by hashtag taps in feed)
+  useEffect(() => {
+    if (pendingSearchQuery) {
+      setQuery(pendingSearchQuery);
+      clearSearchQuery('');
+      doSearch(pendingSearchQuery);
+    }
+  }, []);
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setUsers([]); setPosts([]); setWebResults([]); setSearched(false); return; }

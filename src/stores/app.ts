@@ -27,6 +27,9 @@ interface AppState {
   feedRefreshKey: number;
   triggerFeedRefresh: () => void;
   logout: () => void;
+  // Search query passed from hashtag taps
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
   // Push notification handling
   pendingNotificationTap: NotificationTapData | null;
   setPendingNotificationTap: (data: NotificationTapData | null) => void;
@@ -90,6 +93,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setUnreadNotificationCount: (count) => set({ unreadNotificationCount: count }),
   feedRefreshKey: 0,
   triggerFeedRefresh: () => set((s) => ({ feedRefreshKey: s.feedRefreshKey + 1 })),
+  searchQuery: '',
+  setSearchQuery: (query) => set({ searchQuery: query }),
   pendingNotificationTap: null,
   setPendingNotificationTap: (data) => set({ pendingNotificationTap: data }),
   logout: () => {

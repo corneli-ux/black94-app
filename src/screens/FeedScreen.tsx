@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, Share, Image, Linking,
+  RefreshControl, ActivityIndicator, Alert, Share, Image, Linking, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -9,6 +9,7 @@ import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive
 import { toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -35,29 +36,46 @@ function HighlightedCaption({ text, style, navigation }: { text: string; style: 
     <Text style={style}>
       {parts.map((part, i) => {
         if (/^#[\w]+$/.test(part)) {
-          return navigation ? (
+          return (
             <Text
               key={i}
-              style={{ color: '#FFFFFF' }}
-              onPress={() => navigation.navigate('HashtagFeed', { hashtag: part.slice(1) })}
+              style={{ color: '#1d9bf0' }}
+              onPress={() => {
+                if (navigation) {
+                  // Store hashtag in Zustand and navigate to Search, which will pick it up
+                  useAppStore.getState().setSearchQuery(part.slice(1));
+                  navigation.navigate('Search');
+                }
+              }}
             >
               {part}
             </Text>
-          ) : (
-            <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
           );
         }
         if (/^@[\w]+$/.test(part)) {
-          return navigation ? (
+          return (
             <Text
               key={i}
-              style={{ color: '#FFFFFF' }}
-              onPress={() => navigation.navigate('UsernameProfile', { username: part.slice(1) })}
+              style={{ color: '#1d9bf0' }}
+              onPress={async () => {
+                if (!navigation) return;
+                const username = part.slice(1);
+                // Look up user by username in Firestore, then navigate to their profile
+                try {
+                  const snap = await firestore()
+                    .collection('users')
+                    .where('usernameLower', '==', username.toLowerCase())
+                    .limit(1)
+                    .get();
+                  if (snap.docs.length > 0) {
+                    const uid = snap.docs[0].id;
+                    navigation.navigate('UserProfile', { userId: uid });
+                  }
+                } catch {}
+              }}
             >
               {part}
             </Text>
-          ) : (
-            <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
           );
         }
         return <Text key={i}>{part}</Text>;
@@ -285,15 +303,45 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   };
 
   const handleRepostPress = () => {
-    const next = !isReposted;
-    setIsReposted(next);
-    setLocalRepostCount(prev => prev + (next ? 1 : -1));
-    onRepost(interactionId, isReposted);
+    if (isReposted) {
+      // Already reposted — undo it
+      setIsReposted(false);
+      setLocalRepostCount(prev => prev - 1);
+      onRepost(interactionId, true);
+      return;
+    }
+    // Show options: Repost or Quote Repost
+    Alert.alert('Repost', 'How would you like to repost?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Repost',
+        onPress: () => {
+          setIsReposted(true);
+          setLocalRepostCount(prev => prev + 1);
+          onRepost(interactionId, false);
+        },
+      },
+      {
+        text: 'Quote Repost',
+        onPress: () => {
+          // Navigate to CreatePost with the quoted post context
+          navigation.navigate('CreatePost', {
+            quotePostId: interactionId,
+            quoteAuthor: `@${post.authorUsername || 'user'}`,
+            quoteCaption: (post.caption || '').slice(0, 100),
+          });
+        },
+      },
+    ]);
   };
 
   const handleShare = async () => {
     try {
-      await Share.share({ message: 'Check out this post on Black94!' });
+      const author = `@${post.authorUsername || 'user'}`;
+      const caption = post.caption ? `\n\n"${post.caption.slice(0, 120)}${post.caption.length > 120 ? '...' : ''}"` : '';
+      await Share.share({
+        message: `${author} posted on Black94${caption}\n\nhttps://black94.app/post/${interactionId}`,
+      });
     } catch {}
   };
 
@@ -583,6 +631,126 @@ function docToPost(docSnap: any): Post {
     repostedByDisplayName: data.repostedByDisplayName || undefined,
   };
 }
+
+/* ── Stories Row — embedded at top of feed (Instagram-style) ──────────────── */
+
+const STORY_CIRCLE_SIZE = 48;
+const STORY_RING_PAD = 3;
+
+interface StoryBubble {
+  authorId: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  authorProfileImage: string | null;
+}
+
+function StoriesRow({ navigation }: { navigation: any }) {
+  const [bubbles, setBubbles] = useState<StoryBubble[]>([]);
+  const currentUser = auth()?.currentUser;
+  const storeUser = useAppStore(s => s.user);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await firestore()
+          .collection('stories')
+          .orderBy('createdAt', 'desc')
+          .limit(50)
+          .get();
+        const now = Date.now();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        const seen = new Set<string>();
+        const result: StoryBubble[] = [];
+        for (const doc of snap.docs) {
+          const d = doc.data();
+          const created = (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })();
+          if (now - created > twentyFourHours) continue;
+          const aid = d.authorId || '';
+          if (aid === currentUser?.uid) continue;
+          if (seen.has(aid)) continue;
+          seen.add(aid);
+          result.push({
+            authorId: aid,
+            authorUsername: d.authorUsername || '',
+            authorDisplayName: d.authorDisplayName || '',
+            authorProfileImage: d.authorProfileImage || null,
+          });
+        }
+        setBubbles(result);
+      } catch {}
+    })();
+  }, [currentUser?.uid]);
+
+  if (bubbles.length === 0) return null;
+
+  return (
+    <View style={storiesRowStyles.container}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={storiesRowStyles.scrollContent}
+      >
+        {bubbles.map((b) => (
+          <TouchableOpacity
+            key={b.authorId}
+            style={storiesRowStyles.bubble}
+            onPress={() => navigation.navigate('Stories')}
+          >
+            <LinearGradient
+              colors={['#f09433', '#e6683c', '#dc2743', '#cc2366', '#bc1888', '#8a3ab9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={storiesRowStyles.gradientRing}
+            >
+              <View style={storiesRowStyles.avatarContainer}>
+                <Avatar uri={b.authorProfileImage} name={b.authorDisplayName} size={STORY_CIRCLE_SIZE} />
+              </View>
+            </LinearGradient>
+            <Text style={storiesRowStyles.label} numberOfLines={1}>
+              {b.authorUsername || b.authorDisplayName}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+const storiesRowStyles = StyleSheet.create({
+  container: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    gap: 14,
+    alignItems: 'flex-start',
+  },
+  bubble: {
+    alignItems: 'center',
+    width: STORY_CIRCLE_SIZE + 20,
+  },
+  gradientRing: {
+    width: STORY_CIRCLE_SIZE + STORY_RING_PAD * 2 + 2,
+    height: STORY_CIRCLE_SIZE + STORY_RING_PAD * 2 + 2,
+    borderRadius: (STORY_CIRCLE_SIZE + STORY_RING_PAD * 2 + 2) / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarContainer: {
+    borderRadius: STORY_CIRCLE_SIZE / 2,
+    borderWidth: 2,
+    borderColor: '#0f0f0f',
+    overflow: 'hidden',
+  },
+  label: {
+    color: colors.textSecondary,
+    fontSize: fs(11),
+    marginTop: 4,
+    textAlign: 'center',
+  },
+});
 
 /* ── FeedScreen ───────────────────────────────────────────────────────────── */
 
@@ -1080,6 +1248,7 @@ export default function FeedScreen({ navigation }: any) {
         ref={flatListRef}
         data={feedItems}
         keyExtractor={item => item.id}
+        ListHeaderComponent={activeTab === 'Black94' ? <StoriesRow navigation={navigation} /> : null}
         renderItem={({ item }) => {
           if (item.type === 'ad') {
             return <AdCard ad={item.ad} />;

@@ -154,11 +154,17 @@ async function openCamera(): Promise<ImagePicker.ImagePickerAsset | null> {
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
-const CreatePostScreen: React.FC = () => {
+const CreatePostScreen: React.FC = ({ route }: any) => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const rawUser = useAppStore((s) => s.user);
   const triggerFeedRefresh = useAppStore((s) => s.triggerFeedRefresh);
+
+  // Quote repost context (passed from FeedScreen)
+  const quotePostId = route?.params?.quotePostId || null;
+  const quoteAuthor = route?.params?.quoteAuthor || '';
+  const quoteCaption = route?.params?.quoteCaption || '';
+
   const user = rawUser
     ? {
         id: rawUser.id ?? '',
@@ -344,7 +350,7 @@ const CreatePostScreen: React.FC = () => {
       const allMediaUrls = [...uploadedUrls, ...selectedGifUrls];
 
       setUploadProgress('Posting...');
-      await createPost(caption.trim(), allMediaUrls, pollData || undefined);
+      await createPost(caption.trim(), allMediaUrls, pollData || undefined, quotePostId || undefined);
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err: any) {
@@ -459,6 +465,15 @@ const CreatePostScreen: React.FC = () => {
             scrollEnabled={false}
             editable={!posting}
           />
+
+          {/* Quote post preview */}
+          {quotePostId && (
+            <View style={styles.quotePreview}>
+              <View style={styles.quotePreviewLine} />
+              <Text style={styles.quotePreviewAuthor}>{quoteAuthor}</Text>
+              <Text style={styles.quotePreviewCaption} numberOfLines={2}>{quoteCaption}</Text>
+            </View>
+          )}
 
           {/* Character count */}
           <Text style={[styles.charCount, captionLength > MAX_CAPTION_LENGTH * 0.9 && styles.charCountWarn]}>
@@ -730,6 +745,33 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 4,
     marginBottom: 12,
+  },
+  quotePreview: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.accent || '#1d9bf0',
+  },
+  quotePreviewLine: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: COLORS.accent || '#1d9bf0',
+  },
+  quotePreviewAuthor: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  quotePreviewCaption: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
   },
   charCountWarn: {
     color: COLORS.red,

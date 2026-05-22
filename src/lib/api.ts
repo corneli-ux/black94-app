@@ -562,6 +562,7 @@ export async function createPost(
   caption: string,
   mediaUrls: string[] = [],
   pollData?: PollData,
+  quotePostId?: string,
 ): Promise<string> {
   const userId = currentUser()?.uid;
   if (!userId) throw new Error('Not authenticated');
@@ -639,6 +640,11 @@ export async function createPost(
       totalVotes: 0,
       createdAt: firestore.FieldValue.serverTimestamp(),
     };
+  }
+
+  // Quote repost: reference the original post
+  if (quotePostId) {
+    docData.quotePostId = quotePostId;
   }
 
   const docRef = await firestore().collection('posts').add(docData);
