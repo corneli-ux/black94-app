@@ -787,7 +787,11 @@ export default function FeedScreen({ navigation }: any) {
       const newRepostId = `repost_${postId}_${currentUser?.uid}`;
       await toggleRepost(postId, reposted);
       if (!reposted) {
-        // New repost created — fetch the new repost doc and insert at top
+        // New repost created — wait for Firestore to commit before reading back.
+        // Without this delay, the .get() races against the write and repostSnap.exists
+        // returns false even though the doc was successfully created.
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Fetch the new repost doc and insert at top
         try {
           const repostSnap = await firestore().collection('posts').doc(newRepostId).get();
           if (repostSnap.exists) {
@@ -818,12 +822,14 @@ export default function FeedScreen({ navigation }: any) {
               repostedByDisplayName: data.repostedByDisplayName || undefined,
             };
             setPosts(prev => [newPost, ...prev]);
+          } else {
+            // Doc still not readable after delay — do a full feed reload via Zustand key
+            console.warn('[Feed] Repost doc not found after delay, triggering full reload');
+            useAppStore.getState().triggerFeedRefresh();
           }
         } catch (e) {
-          console.warn('[Feed] Failed to fetch new repost, doing full reload:', e);
-          lastDocRef.current = null;
-          setAllLoaded(false);
-          loadFeed(false);
+          console.warn('[Feed] Failed to fetch new repost, triggering full reload:', e);
+          useAppStore.getState().triggerFeedRefresh();
         }
       }
       // For unrepost: optimistic removal is sufficient — the repost doc was deleted
