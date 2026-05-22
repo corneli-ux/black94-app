@@ -98,6 +98,9 @@ export interface Message {
   replyToId?: string;
   replyToContent?: string;
   replyToSenderName?: string;
+  // Delete tracking
+  deleted?: boolean;
+  deletedFor?: Record<string, boolean>;
 }
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
@@ -1360,6 +1363,41 @@ export async function fetchGroupMembers(chatId: string): Promise<any[]> {
   } catch (e) {
     console.error('[GroupChat] Failed to fetch members:', e);
     return [];
+  }
+}
+
+/* ── Delete Message ────────────────────────────────────────────────────────── */
+
+/**
+ * Deletes a message for the current user only ('me') or for all participants ('everyone').
+ * - 'me':    sets deletedFor[userId] = true on the message doc
+ * - 'everyone': sets deleted = true (wipes content for all)
+ */
+export async function deleteMessage(
+  chatId: string,
+  messageId: string,
+  mode: 'me' | 'everyone',
+): Promise<void> {
+  const userId = currentUser()?.uid;
+  if (!userId) throw new Error('Not authenticated');
+  const msgRef = firestore().collection('chats').doc(chatId).collection('messages').doc(messageId);
+
+  if (mode === 'everyone') {
+    await msgRef.update({
+      deleted: true,
+      content: '',
+      mediaUrl: null,
+      messageType: 'text',
+      reactions: {},
+      voiceDuration: 0,
+      replyToId: null,
+      replyToContent: null,
+      replyToSenderName: null,
+    });
+  } else {
+    await msgRef.update({
+      [`deletedFor.${userId}`]: true,
+    });
   }
 }
 

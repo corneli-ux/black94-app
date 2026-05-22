@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal, Keyboard } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchMessages, sendMessage, blockUser, Message } from '../lib/api';
+import { fetchMessages, sendMessage, blockUser, deleteMessage, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -32,6 +32,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [blocking, setBlocking] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [reactionMsg, setReactionMsg] = useState<Message | null>(null);
+  const [contextMsg, setContextMsg] = useState<Message | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -373,17 +374,61 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     setReactionMsg(null);
   };
 
+  // ── Delete message handler ──────────────────────────────────────────────
+  const handleDeleteMessage = useCallback(async (mode: 'me' | 'everyone') => {
+    if (!contextMsg || !chat?.id) return;
+    try {
+      await deleteMessage(chat.id, contextMsg.id, mode);
+      if (mode === 'me') {
+        setMessages(prev => prev.filter(m => m.id !== contextMsg.id));
+      } else {
+        setMessages(prev => prev.map(m =>
+          m.id === contextMsg.id ? { ...m, deleted: true, content: '', mediaUrl: null, messageType: 'text', reactions: {} } : m
+        ));
+      }
+    } catch (e: any) {
+      Alert.alert('Error', 'Failed to delete message');
+    }
+    setContextMsg(null);
+  }, [contextMsg, chat?.id]);
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isMine = item.senderId === currentUser?.uid;
     const msgType = item.messageType || 'text';
     const myReaction = item.reactions?.[currentUser?.uid || ''] || null;
     const reactionEntries = item.reactions ? Object.values(item.reactions) as string[] : [];
 
+    // Deleted message placeholder
+    if (item.deleted) {
+      return (
+        <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
+          {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
+          <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs, styles.deletedBubble]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="ban-outline" size={14} color={isMine ? 'rgba(0,0,0,0.35)' : '#4a5568'} />
+              <Text style={[styles.bubbleText, isMine ? { color: 'rgba(0,0,0,0.35)' } : { color: '#4a5568' }, { fontStyle: 'italic' }]}>
+                This message was deleted
+              </Text>
+            </View>
+            <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.3)' } : { color: '#4a5568' }]}>
+              {formatTime(item.createdAt)}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
         {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
         <TouchableOpacity
-          onLongPress={() => setReactionMsg(item)}
+          onLongPress={() => {
+            if (isMine) {
+              setContextMsg(item);
+            } else {
+              setReactionMsg(item);
+            }
+          }}
           onPress={() => {
             if (msgType === 'text') setReplyTo(item);
           }}
@@ -711,6 +756,60 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         </View>
       </Modal>
 
+      {/* Message Context Menu (delete for me / everyone) — own messages only */}
+      <Modal visible={!!contextMsg} transparent animationType="fade" onRequestClose={() => setContextMsg(null)}>
+        <TouchableOpacity style={styles.reactionModalOverlay} activeOpacity={1} onPress={() => setContextMsg(null)}>
+          <View style={styles.contextMenu}>
+            <TouchableOpacity
+              style={styles.contextMenuItem}
+              onPress={() => {
+                setContextMsg(null);
+                setReactionMsg(contextMsg!);
+              }}
+            >
+              <Ionicons name="happy-outline" size={20} color="#e7e9ea" />
+              <Text style={styles.contextMenuText}>React</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.contextMenuItem}
+              onPress={() => {
+                if (contextMsg) {
+                  setReplyTo(contextMsg);
+                  setContextMsg(null);
+                }
+              }}
+            >
+              <Ionicons name="return-down-left" size={20} color="#e7e9ea" />
+              <Text style={styles.contextMenuText}>Reply</Text>
+            </TouchableOpacity>
+            <View style={styles.contextMenuDivider} />
+            <TouchableOpacity
+              style={[styles.contextMenuItem, { opacity: 0.7 }]}
+              onPress={() => handleDeleteMessage('me')}
+            >
+              <Ionicons name="trash-outline" size={20} color="#e7e9ea" />
+              <Text style={styles.contextMenuText}>Delete for Me</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.contextMenuItem, { opacity: 0.9 }]}
+              onPress={() => {
+                Alert.alert(
+                  'Delete for Everyone',
+                  'This message will be deleted for all participants. This cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel', onPress: () => setContextMsg(null) },
+                    { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMessage('everyone') },
+                  ],
+                );
+              }}
+            >
+              <Ionicons name="trash" size={20} color="#f43f5e" />
+              <Text style={[styles.contextMenuText, { color: '#f43f5e' }]}>Delete for Everyone</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Emoji Reaction Picker Modal */}
       <Modal visible={!!reactionMsg} transparent animationType="fade" onRequestClose={() => setReactionMsg(null)}>
         <TouchableOpacity style={styles.reactionModalOverlay} activeOpacity={1} onPress={() => setReactionMsg(null)}>
@@ -856,6 +955,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reactionEmoji: { fontSize: 28 },
+  // ── Context Menu (delete) ──
+  contextMenu: {
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    paddingVertical: 8,
+    width: 220,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  contextMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  contextMenuText: {
+    fontSize: 15,
+    color: '#e7e9ea',
+  },
+  contextMenuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginHorizontal: 12,
+    marginVertical: 4,
+  },
+  deletedBubble: {
+    opacity: 0.6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
   // ── Image in bubble ──
   bubbleImage: {
     width: 220,
