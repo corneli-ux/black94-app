@@ -247,7 +247,15 @@ export default function DualPaneChatScreen({ navigation }: any) {
         );
 
         msgs.reverse();
-        setMessages(msgs);
+        // Preserve temp messages that haven't appeared in server results yet
+        const serverIds = new Set(msgs.map(m => m.id));
+        const serverContents = new Set(msgs.map(m => m.content));
+        setMessages(prev => {
+          const pendingTemps = prev.filter(
+            m => m.id.startsWith('tmp-') && !serverIds.has(m.id) && !serverContents.has(m.content)
+          );
+          return [...pendingTemps, ...msgs];
+        });
       } catch (err) {
         console.warn('[DualPaneChatScreen] msg poll error:', err);
       } finally {

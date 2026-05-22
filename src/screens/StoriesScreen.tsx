@@ -42,7 +42,7 @@ const STORY_CATEGORIES = [
   { id: 'voice', label: 'Voice', icon: 'mic' },
   { id: 'polls', label: 'Polls', icon: 'stats-chart' },
   { id: 'cricket', label: 'Cricket', icon: 'fitness' },
-  { id: 'festival', label: 'Festival', icon: 'happy' },
+  { id: 'festival', label: 'Festival', icon: 'flower' },
 ];
 
 
@@ -236,6 +236,31 @@ export default function StoriesScreen({ navigation }: any) {
   const storeUser = useAppStore((s) => s.user);
   const userProfileImage = storeUser?.profileImage || currentUser?.photoURL || null;
   const userDisplayName = storeUser?.displayName || currentUser?.displayName || 'Anonymous';
+
+  /* ── Story Comment Handler — saves comment to Firestore ─────────────── */
+  const handleStoryComment = useCallback(async () => {
+    const text = commentText.trim();
+    if (!text || !viewingStory || !currentUser) return;
+    const storyId = viewingStory.id;
+    setCommentText('');
+    setShowCommentInput(false);
+    try {
+      await firestore()
+        .collection('story_comments')
+        .doc(`${storyId}_${currentUser.uid}_${Date.now()}`)
+        .set({
+          storyId,
+          authorId: currentUser.uid,
+          authorDisplayName: userDisplayName,
+          authorUsername: storeUser?.username || '',
+          authorProfileImage: userProfileImage,
+          content: text,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    } catch (e) {
+      console.warn('[Stories] Failed to save comment:', e);
+    }
+  }, [commentText, viewingStory, currentUser, userDisplayName, storeUser, userProfileImage]);
 
   /* ── Load stories from Firestore ──────────────────────────────────────── */
   const loadStories = useCallback(async () => {
@@ -964,21 +989,13 @@ export default function StoriesScreen({ navigation }: any) {
                         autoFocus
                         returnKeyType="send"
                         onSubmitEditing={() => {
-                          if (commentText.trim()) {
-                            Alert.alert('Comment', `Comment posted: "${commentText.trim()}"`);
-                            setCommentText('');
-                            setShowCommentInput(false);
-                          }
+                          handleStoryComment();
                         }}
                       />
                     </View>
                     <TouchableOpacity
                       onPress={() => {
-                        if (commentText.trim()) {
-                          Alert.alert('Comment', `Comment posted: "${commentText.trim()}"`);
-                          setCommentText('');
-                          setShowCommentInput(false);
-                        }
+                        handleStoryComment();
                       }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >

@@ -130,8 +130,20 @@ export default function NotificationsScreen({ navigation }: any) {
     <TouchableOpacity
       style={[styles.row, !item.read && styles.rowUnread]}
       onPress={() => {
+        // Mark individual notification as read
+        if (!item.read && currentUser) {
+          firestore()
+            .collection('notifications')
+            .doc(item.id)
+            .update({ read: true })
+            .catch(() => {});
+          setNotifs(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+        }
+        // Navigate based on type
         if (item.type === 'follow') {
           navigation.navigate('UserProfile', { userId: item.actorId });
+        } else if (item.type === 'chat') {
+          navigation.navigate('DualPaneChat', { otherUserId: item.actorId });
         } else if (item.postId) {
           navigation.navigate('PostComments', { postId: item.postId });
         } else {
@@ -158,8 +170,8 @@ export default function NotificationsScreen({ navigation }: any) {
             {item.type === 'mention' && ' mentioned you'}
             {item.type === 'chat' && ' sent you a message'}
             {item.type === 'story_view' && ' viewed your story'}
-            {item.type === 'milestone' && ''}
-            {item.type === 'suggestion' && ''}
+            {item.type === 'milestone' && ' reached a milestone'}
+            {item.type === 'suggestion' && ' suggested for you'}
           </Text>
         </Text>
         {item.postCaption ? (

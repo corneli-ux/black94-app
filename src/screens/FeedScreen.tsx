@@ -501,6 +501,7 @@ export default function FeedScreen({ navigation }: any) {
   const [allLoaded, setAllLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('Black94');
   const [ads, setAds] = useState<any[]>([]);
+  const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(new Set());
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
@@ -706,6 +707,25 @@ export default function FeedScreen({ navigation }: any) {
     return () => clearTimeout(timer);
   }, []);
 
+  // Load followed user IDs for Network tab
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    (async () => {
+      try {
+        const snap = await firestore()
+          .collection('user_following')
+          .doc(currentUser.uid)
+          .collection('following')
+          .get();
+        const ids = new Set(snap.docs.map(d => d.id));
+        setFollowedUserIds(ids);
+        if (__DEV__) console.log(`[Feed] Loaded ${ids.size} followed users for Network tab`);
+      } catch (e) {
+        console.warn('[Feed] Failed to load followed users:', e);
+      }
+    })();
+  }, [currentUser?.uid]);
+
   // Load feed on mount
   const hasMountedRef = useRef(false);
   useEffect(() => {
@@ -764,11 +784,49 @@ export default function FeedScreen({ navigation }: any) {
       ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
       : p));
     try {
+      const newRepostId = `repost_${postId}_${currentUser?.uid}`;
       await toggleRepost(postId, reposted);
-      // Reload feed so the new repost post appears at the top
-      lastDocRef.current = null;
-      setAllLoaded(false);
-      loadFeed(false);
+      if (!reposted) {
+        // New repost created — fetch the new repost doc and insert at top
+        try {
+          const repostSnap = await firestore().collection('posts').doc(newRepostId).get();
+          if (repostSnap.exists) {
+            const data = repostSnap.data();
+            const newPost: Post = {
+              id: repostSnap.id,
+              authorId: data.authorId || '',
+              authorUsername: data.authorUsername || '',
+              authorDisplayName: data.authorDisplayName || '',
+              authorProfileImage: data.authorProfileImage || null,
+              authorBadge: data.authorBadge || '',
+              authorIsVerified: data.authorIsVerified || false,
+              factCheckVerified: data.factCheckVerified || 0,
+              factCheckDebunked: data.factCheckDebunked || 0,
+              caption: data.caption || '',
+              mediaUrls: parseMediaUrls(data.mediaUrls),
+              pollData: data.pollData || undefined,
+              likeCount: data.likeCount || 0,
+              commentCount: data.commentCount || 0,
+              repostCount: data.repostCount || 0,
+              liked: false,
+              bookmarked: false,
+              reposted: true,
+              createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+              repostOf: data.repostOf || undefined,
+              repostedByUid: data.repostedByUid || undefined,
+              repostedByUsername: data.repostedByUsername || undefined,
+              repostedByDisplayName: data.repostedByDisplayName || undefined,
+            };
+            setPosts(prev => [newPost, ...prev]);
+          }
+        } catch (e) {
+          console.warn('[Feed] Failed to fetch new repost, doing full reload:', e);
+          lastDocRef.current = null;
+          setAllLoaded(false);
+          loadFeed(false);
+        }
+      }
+      // For unrepost: optimistic removal is sufficient — the repost doc was deleted
     } catch (e) {
       // Revert optimistic update on failure
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
@@ -829,11 +887,15 @@ export default function FeedScreen({ navigation }: any) {
   }
 
   // Build interleaved feed: posts with ads inserted after every 5th post
+  // Network tab shows only posts from followed users
   const feedItems: FeedItem[] = (() => {
-    if (ads.length === 0) return posts.map(p => ({ type: 'post' as const, id: p.id, post: p }));
+    const displayPosts = activeTab === 'Network' && followedUserIds.size > 0
+      ? posts.filter(p => followedUserIds.has(p.authorId))
+      : posts;
+    if (displayPosts.length === 0) return displayPosts.map(p => ({ type: 'post' as const, id: p.id, post: p }));
     const items: FeedItem[] = [];
     let adIndex = 0;
-    posts.forEach((post, idx) => {
+    displayPosts.forEach((post, idx) => {
       items.push({ type: 'post', id: post.id, post });
       if ((idx + 1) % 5 === 0 && adIndex < ads.length) {
         items.push({ type: 'ad', id: `ad_${ads[adIndex].id}_${idx}`, ad: ads[adIndex] });

@@ -104,14 +104,24 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     if (!chat) return;
     try {
       const msgs = await fetchMessages(chat.id);
-      setMessages(msgs);
-      if (!silent) setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
+      if (silent) {
+        // Merge: keep temp messages that haven't appeared in server results yet
+        const serverIds = new Set(msgs.map(m => m.id));
+        const pendingTemps = messages.filter(m => m.id.startsWith('tmp-') && !serverIds.has(m.id));
+        // Also remove temp messages whose content now appears in a server message
+        const serverContents = new Set(msgs.map(m => m.content));
+        const stillPending = pendingTemps.filter(tmp => !serverContents.has(tmp.content));
+        setMessages([...stillPending, ...msgs]);
+      } else {
+        setMessages(msgs);
+        setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 100);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [chat?.id]);
+  }, [chat?.id, messages]);
 
   useEffect(() => {
     if (!chat) return;

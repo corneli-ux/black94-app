@@ -546,6 +546,8 @@ export async function signOutUser(): Promise<void> {
   try {
     await AsyncStorage.removeItem('@black94/user_cache');
   } catch {}
+  // Clear actor data cache — stale data could leak between users
+  invalidateActorCache();
 }
 
 /* ── Posts ────────────────────────────────────────────────────────────────── */

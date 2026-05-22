@@ -12,11 +12,13 @@
  *   - createdAt: server timestamp
  */
 
+import { AppState, type AppStateStatus } from 'react-native';
 import { firestore, auth } from '../lib/firebase';
 
 const POLL_INTERVAL = 5000; // 5 seconds (faster for better UX)
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let initialPollTimer: ReturnType<typeof setTimeout> | null = null;
+let appStateSubscription: { remove: () => void } | null = null;
 
 // ── Polling ─────────────────────────────────────────────────────────────────
 
@@ -62,6 +64,34 @@ export function startNotificationPolling(
     }
   }, POLL_INTERVAL);
 
+  // Pause polling when app goes to background, resume when foregrounded
+  // This saves Firestore reads and battery when the user isn't looking at the app
+  appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+    if (nextState === 'background' || nextState === 'inactive') {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        console.log('[NotificationEngine] Polling paused (app backgrounded)');
+      }
+    } else if (nextState === 'active') {
+      if (!pollTimer) {
+        pollTimer = setInterval(async () => {
+          try {
+            if (lastKnownCount === -1) return;
+            const count = await pollUnread(userId);
+            if (count !== lastKnownCount) {
+              lastKnownCount = count;
+              onNewNotification(count);
+            }
+          } catch (e) {
+            console.warn('[NotificationEngine] Poll error:', e);
+          }
+        }, POLL_INTERVAL);
+        console.log('[NotificationEngine] Polling resumed (app foregrounded)');
+      }
+    }
+  });
+
   console.log('[NotificationEngine] Polling started for user:', userId);
 }
 
@@ -77,6 +107,10 @@ export function stopNotificationPolling(): void {
   if (initialPollTimer) {
     clearTimeout(initialPollTimer);
     initialPollTimer = null;
+  }
+  if (appStateSubscription) {
+    appStateSubscription.remove();
+    appStateSubscription = null;
   }
 }
 

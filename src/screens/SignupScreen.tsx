@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, StatusBar, Alert, Linking, } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, StatusBar, Alert, Linking, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
@@ -19,7 +19,9 @@ export default function SignupScreen() {
         webClientId: '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
         scopes: ['profile', 'email'],
       });
-      await GoogleSignin.hasPlayServices();
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices();
+      }
       await GoogleSignin.signIn();
 
       let idToken: string | null = null;
@@ -44,7 +46,8 @@ export default function SignupScreen() {
     } catch (error: any) {
       console.error('Sign up error:', error);
       if (error.code !== '12501') {
-        Alert.alert('Sign Up Failed', error.message || 'Please try again');
+        const msg = error.message || 'Please try again';
+        Alert.alert('Sign Up Failed', msg.length > 100 ? 'Something went wrong. Please try again.' : msg);
       }
     } finally {
       setBusy(false);

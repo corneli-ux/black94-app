@@ -97,7 +97,7 @@ function isRateLimited(recipientId: string, type: string): boolean {
 // Only the PUSH notification is batched (delayed to combine e.g. "5 people liked").
 // Old code batched BOTH doc+push via setTimeout — if the sender closed the app
 // within 3 seconds, the notification was lost entirely (no doc, no push).
-const _pushBatch = new Map<string, { count: number; latestData: EngagementNotification; timer: any }>();
+const _pushBatch = new Map<string, { count: number; latestData: EngagementNotification; latestPushData: Record<string, string>; timer: any }>();
 const BATCH_DELAY = 3000; // Wait 3 seconds to batch pushes
 
 function getBatchKey(recipientId: string, type: string, postId?: string): string {
@@ -118,6 +118,7 @@ function batchPush(params: EngagementNotification, title: string, body: string, 
     const entry = _pushBatch.get(key)!;
     entry.count++;
     entry.latestData = params;
+    entry.latestPushData = data;
 
     // Reset timer
     clearTimeout(entry.timer);
@@ -125,22 +126,28 @@ function batchPush(params: EngagementNotification, title: string, body: string, 
       _pushBatch.delete(key);
       const count = entry.count;
       const latest = entry.latestData;
+      const pushData = entry.latestPushData;
       const batchTitle = count > 1 ? buildBatchTitle(latest, count) : title;
       const batchBody = count > 1 ? buildBatchBody(latest, count) : body;
-      sendPushToUser(latest.recipientId, batchTitle, batchBody, data).catch(() => {});
+      sendPushToUser(latest.recipientId, batchTitle, batchBody, pushData).catch(() => {});
     }, BATCH_DELAY);
   } else {
     // First notification of this type — buffer the push
     const capturedTitle = title;
     const capturedBody = body;
+    const capturedData = data;
     const timer = setTimeout(() => {
+      const entry = _pushBatch.get(key);
       _pushBatch.delete(key);
-      sendPushToUser(params.recipientId, capturedTitle, capturedBody, data).catch(() => {});
+      // Use latestPushData if batch was updated, otherwise use captured
+      const pushData = entry?.latestPushData || capturedData;
+      sendPushToUser(params.recipientId, capturedTitle, capturedBody, pushData).catch(() => {});
     }, BATCH_DELAY);
 
     _pushBatch.set(key, {
       count: 1,
       latestData: params,
+      latestPushData: data,
       timer,
     });
   }
