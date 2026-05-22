@@ -20,9 +20,10 @@ function formatTime(timestamp?: number | string): string {
 export default function ChatRoomScreen({ route, navigation }: any) {
   const routeChat = route.params?.chat;
   const routeChatId = route.params?.chatId;
+  const shareMessage = route.params?.shareMessage || null;
   const [chat, setChat] = useState(routeChat || null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(shareMessage || '');
   const [loading, setLoading] = useState(!routeChat);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -30,6 +31,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [showNuclearConfirm, setShowNuclearConfirm] = useState(false);
   const [blocking, setBlocking] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [reactionMsg, setReactionMsg] = useState<Message | null>(null);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -311,13 +313,33 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
   // ── Render message bubble ─────────────────────────────────────────────────
 
+  const handleReaction = async (emoji: string) => {
+    if (!reactionMsg) return;
+    try {
+      await firestore()
+        .collection('chats').doc(chat.id)
+        .collection('messages').doc(reactionMsg.id)
+        .update({
+          [`reactions.${currentUser?.uid}`]: emoji,
+        });
+    } catch {}
+    setReactionMsg(null);
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isMine = item.senderId === currentUser?.uid;
     const msgType = item.messageType || 'text';
+    const myReaction = item.reactions?.[currentUser?.uid || ''] || null;
+    const reactionEntries = item.reactions ? Object.values(item.reactions) as string[] : [];
 
     return (
       <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
         {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
+        <TouchableOpacity
+          onLongPress={() => setReactionMsg(item)}
+          activeOpacity={1}
+          style={{ maxWidth: '80%' }}
+        >
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
           {/* Image message */}
           {msgType === 'image' && item.mediaUrl ? (
@@ -354,7 +376,14 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }]}>
             {formatTime(item.createdAt)}
           </Text>
+          {/* Reactions display */}
+          {reactionEntries.length > 0 && (
+            <View style={styles.reactionBadge}>
+              <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
+            </View>
+          )}
         </View>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -583,6 +612,19 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           </View>
         </View>
       </Modal>
+
+      {/* Emoji Reaction Picker Modal */}
+      <Modal visible={!!reactionMsg} transparent animationType="fade" onRequestClose={() => setReactionMsg(null)}>
+        <TouchableOpacity style={styles.reactionModalOverlay} activeOpacity={1} onPress={() => setReactionMsg(null)}>
+          <View style={styles.reactionPicker}>
+            {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+              <TouchableOpacity key={emoji} style={styles.reactionEmojiBtn} onPress={() => handleReaction(emoji)}>
+                <Text style={styles.reactionEmoji}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -663,6 +705,41 @@ const styles = StyleSheet.create({
   },
   bubbleText: { color: '#e7e9ea', fontSize: 14, lineHeight: 22 },
   bubbleTime: { fontSize: 11, marginTop: 4 },
+  reactionBadge: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  reactionText: { fontSize: 14 },
+  reactionModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reactionPicker: {
+    flexDirection: 'row',
+    backgroundColor: '#1e293b',
+    borderRadius: 24,
+    padding: 8,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  reactionEmojiBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reactionEmoji: { fontSize: 28 },
   // ── Image in bubble ──
   bubbleImage: {
     width: 220,

@@ -11,7 +11,10 @@ import { Ionicons } from '@expo/vector-icons';
 
 type TabType = 'chat' | 'ads';
 
-export default function ChatListScreen({ navigation }: any) {
+export default function ChatListScreen({ navigation, route }: any) {
+  const sharePostId = route?.params?.sharePostId || null;
+  const shareCaption = route?.params?.shareCaption || '';
+  const shareAuthor = route?.params?.shareAuthor || '';
   const [chats, setChats] = useState<Chat[]>([]);
   const [filtered, setFiltered] = useState<Chat[]>([]);
   const [search, setSearch] = useState('');
@@ -487,7 +490,7 @@ export default function ChatListScreen({ navigation }: any) {
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Messages</Text>
+          <Text style={styles.headerTitle}>{sharePostId ? 'Share to...' : 'Messages'}</Text>
           <TouchableOpacity
             style={styles.newMsgBtn}
             onPress={handleCompose}
@@ -540,7 +543,15 @@ export default function ChatListScreen({ navigation }: any) {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.chatRow}
-                  onPress={() => navigation.navigate('ChatRoom', { chat: item })}
+                  onPress={() => {
+                    if (sharePostId) {
+                      // In share mode: send the post as a message to this chat
+                      const shareMessage = `📎 @${shareAuthor} posted:\n${shareCaption.slice(0, 100)}${shareCaption.length > 100 ? '...' : ''}\n\nhttps://black94.app/post/${sharePostId}`;
+                      navigation.navigate('ChatRoom', { chat: item, shareMessage });
+                    } else {
+                      navigation.navigate('ChatRoom', { chat: item });
+                    }
+                  }}
                   onLongPress={() => {
                     const name = item.otherUser?.displayName || item.otherUser?.username || 'this user';
                     confirmDeleteChat(item.id, name);
