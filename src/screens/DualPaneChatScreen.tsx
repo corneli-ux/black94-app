@@ -498,30 +498,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           <Text style={styles.roomName}>
             {selectedChat.otherUser?.displayName ?? 'Chat'}
           </Text>
-          {/* Call button */}
-          <TouchableOpacity
-            style={styles.callBtn}
-            onPress={() => {
-              if (!selectedChat.otherUser) return;
-              Alert.alert(
-                'Audio Call (Beta)',
-                'Audio streaming is coming soon. You can ring the other user, but audio will not be heard until the VoIP integration is complete.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Ring Anyway', style: 'default', onPress: () => {
-                    navigation.navigate('AudioCall', {
-                      userId: selectedChat.otherUser.uid,
-                      userName: selectedChat.otherUser.displayName || selectedChat.otherUser.username || 'User',
-                      userProfileImage: selectedChat.otherUser.profileImage,
-                    });
-                  }},
-                ],
-              );
-            }}
-            hitSlop={8}
-          >
-            <Ionicons name="call" size={20} color="#e7e9ea" />
-          </TouchableOpacity>
+          {/* Call button — hidden until VoIP SDK integration is complete */}
           <TouchableOpacity
             style={styles.blockBtn}
             onPress={() => setShowNuclearConfirm(true)}

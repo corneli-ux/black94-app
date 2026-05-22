@@ -663,30 +663,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: 10 }} />
         )}
 
-        {/* Call button */}
-        <TouchableOpacity
-          style={styles.headerActionBtn}
-          onPress={() => {
-            if (!chat?.otherUser) return;
-            Alert.alert(
-              'Audio Call (Beta)',
-              'Audio streaming is coming soon. You can ring the other user, but audio will not be heard until the VoIP integration is complete.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Ring Anyway', style: 'default', onPress: () => {
-                  navigation.navigate('AudioCall', {
-                    userId: chat.otherUser.id,
-                    userName: chat.otherUser.displayName || chat.otherUser.username || 'User',
-                    userProfileImage: chat.otherUser.profileImage,
-                  });
-                }},
-              ],
-            );
-          }}
-          hitSlop={8}
-        >
-          <Ionicons name="call" size={20} color="#e7e9ea" />
-        </TouchableOpacity>
+        {/* Call button — hidden until VoIP SDK integration is complete */}
 
         {/* More menu button */}
         <View style={{ position: 'relative' }}>
