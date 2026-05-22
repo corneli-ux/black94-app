@@ -12,7 +12,7 @@ import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
 import { checkPlanLimit } from '../lib/payments';
 import { uploadOptimizedImage } from '../utils/imageUpload';
-import { auth } from '../lib/firebase';
+import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -189,12 +189,61 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollDuration, setPollDuration] = useState(24);
   const [visibility, setVisibility] = useState<'public' | 'followers'>('public');
+  const [scheduleMode, setScheduleMode] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [locationTag, setLocationTag] = useState('');
+  const [showLocationInput, setShowLocationInput] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionResults, setMentionResults] = useState<any[]>([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionSearchTimeout, setMentionSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   // Abort controller to cancel uploads if user navigates away
   const abortRef = useRef<AbortController | null>(null);
 
   const captionLength = caption.length;
   const canPost = (caption.trim().length > 0 || selectedImages.length > 0 || selectedGifUrls.length > 0 || pollData) && !posting;
+
+  // ── Mention autocomplete ───────────────────────────────────────────
+  const handleCaptionChange = useCallback((text: string) => {
+    setCaption(text);
+
+    // Detect @mention at cursor position
+    const lastAtIndex = text.lastIndexOf('@');
+    if (lastAtIndex >= 0) {
+      const afterAt = text.slice(lastAtIndex + 1);
+      if (afterAt.length > 0 && !afterAt.includes(' ') && !afterAt.includes('\n')) {
+        setMentionQuery(afterAt.toLowerCase());
+        setShowMentionDropdown(true);
+        // Debounced search
+        if (mentionSearchTimeout) clearTimeout(mentionSearchTimeout);
+        setMentionSearchTimeout(
+          setTimeout(() => searchUsers(afterAt.toLowerCase()), 300)
+        );
+        return;
+      }
+    }
+    setShowMentionDropdown(false);
+    setMentionQuery('');
+  }, [mentionSearchTimeout]);
+
+  const searchUsers = useCallback(async (query: string) => {
+    if (query.length < 1) {
+      setMentionResults([]);
+      return;
+    }
+    try {
+      const snap = await firestore()
+        .collection('users')
+        .where('usernameLower', '>=', query)
+        .where('usernameLower', '<=', query + '\uf8ff')
+        .limit(5)
+        .get();
+      setMentionResults(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch {
+      setMentionResults([]);
+    }
+  }, []);
 
   // ── Image actions ─────────────────────────────────────────────────────
 
@@ -351,7 +400,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
       const allMediaUrls = [...uploadedUrls, ...selectedGifUrls];
 
       setUploadProgress('Posting...');
-      await createPost(caption.trim(), allMediaUrls, pollData || undefined, quotePostId || undefined, visibility);
+      await createPost(caption.trim(), allMediaUrls, pollData || undefined, quotePostId || undefined, visibility, scheduledDate || undefined, locationTag || undefined);
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err: any) {
@@ -371,7 +420,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
       setImageProgress([]);
       abortRef.current = null;
     }
-  }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh, pollData, visibility]);
+  }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh, pollData, visibility, scheduledDate, locationTag]);
 
   // ── Poll actions ────────────────────────────────────────────────────
   const addPollOption = useCallback(() => {
@@ -456,7 +505,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
           <TextInput
             style={styles.captionInput}
             value={caption}
-            onChangeText={setCaption}
+            onChangeText={handleCaptionChange}
             placeholder="What's happening?"
             placeholderTextColor={COLORS.textMuted}
             multiline
@@ -609,7 +658,79 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               }}><Text style={styles.pollCreateBtnText}>Done</Text></TouchableOpacity>
             </View>
           )}
+
+          {/* Schedule Post Section */}
+          {scheduleMode && (
+            <View style={styles.scheduleSection}>
+              <View style={styles.scheduleHeader}>
+                <Ionicons name="time-outline" size={18} color={COLORS.gold} />
+                <Text style={styles.scheduleTitle}>Schedule Post</Text>
+                <TouchableOpacity onPress={() => setScheduleMode(false)} hitSlop={8}>
+                  <Ionicons name="close" size={16} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.scheduleHint}>
+                Post will be published at the selected date and time.
+              </Text>
+              <TextInput
+                style={styles.scheduleInput}
+                value={scheduledDate}
+                onChangeText={setScheduledDate}
+                placeholder="e.g. 2025-01-15 14:00"
+                placeholderTextColor={COLORS.textMuted}
+              />
+              <Text style={styles.scheduleFormat}>Format: YYYY-MM-DD HH:MM</Text>
+            </View>
+          )}
+
+          {/* Location Tag Section */}
+          {showLocationInput && (
+            <View style={styles.locationSection}>
+              <View style={styles.locationHeader}>
+                <Ionicons name="location-outline" size={18} color={COLORS.green} />
+                <Text style={styles.locationTitle}>Add Location</Text>
+                <TouchableOpacity onPress={() => { setShowLocationInput(false); setLocationTag(''); }} hitSlop={8}>
+                  <Ionicons name="close" size={16} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                style={styles.locationInput}
+                value={locationTag}
+                onChangeText={setLocationTag}
+                placeholder="Enter a place name..."
+                placeholderTextColor={COLORS.textMuted}
+                maxLength={100}
+                returnKeyType="done"
+              />
+            </View>
+          )}
         </ScrollView>
+
+        {/* Mention autocomplete dropdown */}
+        {showMentionDropdown && mentionResults.length > 0 && (
+          <View style={styles.mentionDropdown}>
+            {mentionResults.map(user => (
+              <TouchableOpacity
+                key={user.id}
+                style={styles.mentionItem}
+                onPress={() => {
+                  const lastAtIndex = caption.lastIndexOf('@');
+                  const newCaption = caption.slice(0, lastAtIndex + 1) + (user.username || '') + ' ';
+                  setCaption(newCaption);
+                  setShowMentionDropdown(false);
+                  setMentionResults([]);
+                }}
+                activeOpacity={0.7}
+              >
+                <Avatar uri={user.profileImage} name={user.displayName} size={32} />
+                <View style={styles.mentionUserInfo}>
+                  <Text style={styles.mentionName}>{user.displayName || user.username}</Text>
+                  <Text style={styles.mentionHandle}>@{user.username}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Bottom toolbar */}
         <View style={[styles.toolbar, { paddingBottom: Math.max(8, insets.bottom) }]}>
@@ -645,6 +766,38 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               disabled={posting}
             >
               <Ionicons name="poll-outline" size={22} color={posting ? COLORS.textMuted : (pollData ? COLORS.gold : '#94a3b8')} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
+              onPress={() => {
+                if (posting) return;
+                setScheduleMode(!scheduleMode);
+                if (scheduleMode) setScheduledDate('');
+              }}
+              activeOpacity={0.7}
+              disabled={posting}
+            >
+              <Ionicons
+                name="time-outline"
+                size={22}
+                color={posting ? COLORS.textMuted : (scheduleMode ? COLORS.gold : '#94a3b8')}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
+              onPress={() => {
+                if (posting) return;
+                setShowLocationInput(!showLocationInput);
+                if (showLocationInput) setLocationTag('');
+              }}
+              activeOpacity={0.7}
+              disabled={posting}
+            >
+              <Ionicons
+                name="location-outline"
+                size={22}
+                color={posting ? COLORS.textMuted : (locationTag ? COLORS.green : '#94a3b8')}
+              />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -944,6 +1097,114 @@ const styles = StyleSheet.create({
   },
   toolBtnDisabled: {
     opacity: 0.4,
+  },
+  scheduleSection: {
+    margin: 16,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  scheduleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  scheduleTitle: {
+    color: COLORS.gold,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  scheduleHint: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  scheduleInput: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: COLORS.textPrimary,
+    fontSize: 15,
+  },
+  scheduleFormat: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  locationSection: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  locationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  locationTitle: {
+    color: COLORS.green,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  locationInput: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: COLORS.textPrimary,
+    fontSize: 15,
+  },
+  mentionDropdown: {
+    position: 'absolute',
+    bottom: 70,
+    left: 16,
+    right: 16,
+    maxHeight: 200,
+    backgroundColor: '#16181c',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
+    zIndex: 50,
+    overflow: 'hidden',
+  },
+  mentionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  mentionUserInfo: {
+    flex: 1,
+  },
+  mentionName: {
+    color: '#e7e9ea',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  mentionHandle: {
+    color: '#71767b',
+    fontSize: 12,
   },
 });
 

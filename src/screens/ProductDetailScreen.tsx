@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { Avatar } from '../components/Avatar';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis, parseMediaUrls } from '../lib/api';
+import { tsToMillis, parseMediaUrls, submitProductReview, fetchProductReviews } from '../lib/api';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -70,6 +70,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [avgRating, setAvgRating] = useState(0);
 
   // BUG FIX: Early return AFTER all hooks to avoid "Rendered fewer hooks
   // than expected" crash. Guard against missing productId (navigation bug).
@@ -149,6 +151,50 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   // BUG FIX: load() depends on productId — empty dep array means navigating
   // to a different product reuses the stale initial load result.
   useEffect(() => { load(); }, [load]);
+
+  // Load reviews when product loads
+  useEffect(() => {
+    if (!productId) return;
+    fetchProductReviews(productId).then(setReviews).catch(() => {});
+    firestore().collection('products').doc(productId).get().then(docSnap => {
+      if (docSnap.exists) {
+        const d = docSnap.data();
+        setAvgRating(d.averageRating || 0);
+      }
+    }).catch(() => {});
+  }, [productId]);
+
+  const handleReview = async (rating: number) => {
+    Alert.alert(
+      'Your Review',
+      'Add a comment (optional):',
+      [
+        {
+          text: 'Skip',
+          onPress: () => submitReview(rating, ''),
+        },
+        {
+          text: 'Submit',
+          onPress: async () => {
+            await submitReview(rating, '');
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const submitReview = async (rating: number, text: string) => {
+    if (!product?.id) return;
+    try {
+      await submitProductReview(product.id, rating, text);
+      const updated = await fetchProductReviews(product.id);
+      setReviews(updated);
+      Alert.alert('Thanks!', 'Your review has been submitted.');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to submit review.');
+    }
+  };
 
   const handleAddToCart = async () => {
     const currentUser = auth()?.currentUser;
@@ -359,6 +405,59 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             </View>
           </View>
 
+          {/* Reviews Section */}
+          <View style={styles.reviewsSection}>
+            <View style={styles.reviewsHeader}>
+              <Text style={styles.reviewsTitle}>Reviews</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  Alert.alert(
+                    'Write a Review',
+                    'Tap a star rating:',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: '⭐', onPress: () => handleReview(1) },
+                      { text: '⭐⭐', onPress: () => handleReview(2) },
+                      { text: '⭐⭐⭐', onPress: () => handleReview(3) },
+                      { text: '⭐⭐⭐⭐', onPress: () => handleReview(4) },
+                      { text: '⭐⭐⭐⭐⭐', onPress: () => handleReview(5) },
+                    ]
+                  );
+                }}
+                style={styles.writeReviewBtn}
+              >
+                <Text style={styles.writeReviewText}>Write Review</Text>
+              </TouchableOpacity>
+            </View>
+
+            {avgRating > 0 && (
+              <View style={styles.avgRatingRow}>
+                <Text style={styles.avgRatingNum}>{avgRating.toFixed(1)}</Text>
+                <Text style={styles.avgRatingStars}>
+                  {'★'.repeat(Math.round(avgRating))}{'☆'.repeat(5 - Math.round(avgRating))}
+                </Text>
+                <Text style={styles.reviewCount}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</Text>
+              </View>
+            )}
+
+            {reviews.map((review) => (
+              <View key={review.id} style={styles.reviewItem}>
+                <View style={styles.reviewHeader}>
+                  <Avatar uri={review.profileImage} name={review.displayName} size={32} />
+                  <View style={styles.reviewAuthorInfo}>
+                    <Text style={styles.reviewAuthor}>{review.displayName}</Text>
+                    <Text style={styles.reviewStars}>{'★'.repeat(review.rating || 0)}{'☆'.repeat(5 - (review.rating || 0))}</Text>
+                  </View>
+                </View>
+                {review.text ? <Text style={styles.reviewText}>{review.text}</Text> : null}
+              </View>
+            ))}
+
+            {reviews.length === 0 && (
+              <Text style={styles.noReviews}>No reviews yet. Be the first!</Text>
+            )}
+          </View>
+
           {/* Quantity Selector */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Quantity</Text>
@@ -489,4 +588,89 @@ const styles = StyleSheet.create({
     borderRadius: 24, alignItems: 'center', justifyContent: 'center',
   },
   addToCartText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  reviewsSection: {
+    marginTop: 24,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingTop: 16,
+  },
+  reviewsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  reviewsTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  writeReviewBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.accentGold,
+  },
+  writeReviewText: {
+    color: colors.accentGold,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  avgRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  avgRatingNum: {
+    color: colors.text,
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  avgRatingStars: {
+    color: colors.accentGold,
+    fontSize: 18,
+  },
+  reviewCount: {
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
+  reviewItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 6,
+  },
+  reviewAuthorInfo: {
+    flex: 1,
+  },
+  reviewAuthor: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  reviewStars: {
+    color: colors.accentGold,
+    fontSize: 12,
+  },
+  reviewText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  noReviews: {
+    color: colors.textMuted,
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
 });

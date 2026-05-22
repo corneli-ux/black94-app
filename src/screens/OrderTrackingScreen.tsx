@@ -15,6 +15,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -90,6 +91,9 @@ export default function OrderTrackingScreen() {
 
   const [order, setOrder] = useState<ShopOrder | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
 
   useEffect(() => {
     const loadOrder = async () => {
@@ -202,6 +206,26 @@ export default function OrderTrackingScreen() {
       Alert.alert('Error', 'Failed to open chat with seller.');
     }
   }, [order, navigation]);
+
+  const handleSubmitRefund = async () => {
+    if (!refundReason || !orderId) return;
+    setRefundSubmitting(true);
+    try {
+      await firestore().collection('orders').doc(orderId).update({
+        refundRequested: true,
+        refundReason,
+        refundStatus: 'pending',
+        refundRequestedAt: firestore.FieldValue.serverTimestamp(),
+      });
+      setShowRefundModal(false);
+      setRefundReason('');
+      Alert.alert('Refund Requested', 'Your refund request has been submitted. We\'ll review it within 3-5 business days.');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to submit refund request. Please try again.');
+    } finally {
+      setRefundSubmitting(false);
+    }
+  };
 
   // ── Loading ────────────────────────────────────────────────────────────
   if (loading) {
@@ -409,6 +433,16 @@ export default function OrderTrackingScreen() {
           </View>
         </View>
 
+        {/* Refund / Return button */}
+        {(order.status === 'delivered' || order.status === 'shipped') && (
+          <TouchableOpacity
+            style={styles.refundBtn}
+            onPress={() => setShowRefundModal(true)}
+            activeOpacity={0.7}>
+            <Text style={styles.refundBtnText}>Request Refund / Return</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Contact seller */}
         <TouchableOpacity
           style={styles.contactBtn}
@@ -418,6 +452,41 @@ export default function OrderTrackingScreen() {
           <Text style={styles.contactBtnText}>Contact Seller</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Refund Modal */}
+      <Modal visible={showRefundModal} transparent animationType="fade" onRequestClose={() => setShowRefundModal(false)}>
+        <View style={styles.refundOverlay}>
+          <View style={styles.refundDialog}>
+            <Text style={styles.refundTitle}>Request Refund</Text>
+            <Text style={styles.refundMessage}>Please select a reason:</Text>
+            {['Wrong item received', 'Item damaged', 'Not as described', 'Changed my mind', 'Other'].map(reason => (
+              <TouchableOpacity
+                key={reason}
+                style={[styles.refundReasonOption, refundReason === reason && styles.refundReasonSelected]}
+                onPress={() => setRefundReason(reason)}
+                activeOpacity={0.7}>
+                <Text style={[styles.refundReasonText, refundReason === reason && styles.refundReasonTextSelected]}>
+                  {refundReason === reason ? '✓ ' : ''}{reason}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <View style={styles.refundActions}>
+              <TouchableOpacity style={styles.refundCancelBtn} onPress={() => { setShowRefundModal(false); setRefundReason(''); }}>
+                <Text style={styles.refundCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.refundSubmitBtn, (!refundReason || refundSubmitting) && styles.refundSubmitBtnDisabled]}
+                onPress={handleSubmitRefund}
+                disabled={!refundReason || refundSubmitting}>
+                {refundSubmitting
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.refundSubmitText}>Submit</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -694,5 +763,100 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.white,
+  },
+  // Refund button
+  refundBtn: {
+    marginHorizontal: 0,
+    marginVertical: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.error,
+    alignItems: 'center',
+  },
+  refundBtnText: {
+    color: colors.error,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  refundOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  refundDialog: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+  },
+  refundTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  refundMessage: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  refundReasonOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 8,
+  },
+  refundReasonSelected: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  refundReasonText: {
+    color: colors.text,
+    fontSize: 14,
+  },
+  refundReasonTextSelected: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  refundActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  refundCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  refundCancelText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  refundSubmitBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refundSubmitBtnDisabled: {
+    opacity: 0.4,
+  },
+  refundSubmitText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
