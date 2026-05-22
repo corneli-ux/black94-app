@@ -161,8 +161,20 @@ function InlinePoll({ post }: { post: Post }) {
 
   const totalVotes = localPoll?.totalVotes || 0;
 
+  // Check if poll has expired (duration is in hours)
+  const pollExpired = React.useMemo(() => {
+    if (!localPoll?.createdAt || !localPoll?.duration) return false;
+    try {
+      const created = typeof localPoll.createdAt === 'number'
+        ? localPoll.createdAt
+        : new Date(localPoll.createdAt).getTime();
+      const endsAt = created + (localPoll.duration * 60 * 60 * 1000);
+      return Date.now() > endsAt;
+    } catch { return false; }
+  }, [localPoll?.createdAt, localPoll?.duration]);
+
   const handleVote = async (optionId: string) => {
-    if (voted || !currentUser || voting) return;
+    if (voted || !currentUser || voting || pollExpired) return;
     setVoting(true);
     try {
       // For reposts, vote on the ORIGINAL post's poll
@@ -183,7 +195,10 @@ function InlinePoll({ post }: { post: Post }) {
 
   return (
     <View style={styles.pollCard}>
-      <Text style={styles.pollQuestion}>{localPoll.question}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <Text style={styles.pollQuestion}>{localPoll.question}</Text>
+        {pollExpired && <Text style={styles.pollExpiredText}>Poll ended</Text>}
+      </View>
       {localPoll.options.map((option) => {
         const votePercent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0;
         const isSelected = voted && localPoll.options.some(o => o.id === option.id && o.votes > 0);
@@ -191,10 +206,10 @@ function InlinePoll({ post }: { post: Post }) {
         return (
           <TouchableOpacity
             key={option.id}
-            style={[styles.pollOptionBtn, voted && styles.pollOptionVoted]}
+            style={[styles.pollOptionBtn, (voted || pollExpired) && styles.pollOptionVoted]}
             onPress={() => handleVote(option.id)}
             activeOpacity={0.7}
-            disabled={voted || voting}
+            disabled={voted || voting || pollExpired}
           >
             {voted && (
               <View
@@ -1848,6 +1863,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 12,
+    flex: 1,
+  },
+  pollExpiredText: {
+    color: '#f43f5e',
+    fontSize: 12,
+    fontWeight: '600',
   },
   pollOptionBtn: {
     borderWidth: 1,

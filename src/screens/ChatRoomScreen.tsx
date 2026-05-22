@@ -34,6 +34,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [reactionMsg, setReactionMsg] = useState<Message | null>(null);
   const [contextMsg, setContextMsg] = useState<Message | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -440,15 +441,12 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           {msgType === 'image' && item.mediaUrl ? (
             <TouchableOpacity
               activeOpacity={0.9}
-              onPress={() => {
-                // Could open full-screen image viewer here
-              }}
+              onPress={() => setFullscreenImage(item.mediaUrl)}
             >
               <Image
                 source={{ uri: item.mediaUrl }}
                 style={styles.bubbleImage}
                 resizeMode="cover"
-                resizeMode="contain"
               />
             </TouchableOpacity>
           ) : null}
@@ -822,6 +820,29 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Full-screen image viewer */}
+      <Modal visible={!!fullscreenImage} transparent animationType="fade" onRequestClose={() => setFullscreenImage(null)}>
+        <TouchableOpacity
+          style={styles.imageViewerOverlay}
+          activeOpacity={1}
+          onPress={() => setFullscreenImage(null)}
+        >
+          <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            {fullscreenImage ? (
+              <Image
+                source={{ uri: fullscreenImage }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+              />
+            ) : null}
+            <TouchableOpacity style={styles.imageViewerClose} onPress={() => setFullscreenImage(null)} hitSlop={16}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </SafeAreaView>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Recording overlay */}
       {isRecording && (
         <View style={styles.recordingOverlay}>
@@ -987,6 +1008,26 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     paddingVertical: 8,
     paddingHorizontal: 14,
+  },
+  // ── Full-screen image viewer ──
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageViewerClose: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // ── Image in bubble ──
   bubbleImage: {
