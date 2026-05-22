@@ -1147,24 +1147,34 @@ export default function UserProfileScreen({ navigation, route }: any) {
                     {
                       text: 'Report User',
                       onPress: () => {
-                        Alert.alert('Report', `Report @${user?.username || 'this user'}?`, [
+                        const reasons = [
+                          'Harassment or bullying',
+                          'Hate speech',
+                          'Spam or fake account',
+                          'Inappropriate content',
+                          'Impersonation',
+                          'Other',
+                        ];
+                        Alert.alert('Report User', `Why are you reporting @${user?.username || 'this user'}?`, [
                           { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Report',
-                            style: 'destructive',
+                          ...reasons.map(reason => ({
+                            text: reason,
+                            style: 'default' as const,
                             onPress: async () => {
                               try {
                                 await firestore().collection('reports').add({
                                   type: 'user',
                                   targetId: userId,
+                                  targetUsername: user?.username || '',
                                   reporterId: currentUid,
-                                  reason: 'user_report',
+                                  reason,
+                                  status: 'pending',
                                   createdAt: firestore.FieldValue.serverTimestamp(),
                                 });
-                                Alert.alert('Reported', 'Thank you for your report. We will review this user.');
+                                Alert.alert('Reported', 'Thank you for your report. Our team will review this within 48 hours.');
                               } catch {}
                             },
-                          },
+                          })),
                         ]);
                       },
                     },

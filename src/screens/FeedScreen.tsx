@@ -528,16 +528,49 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <Text style={styles.time}>{timeAgo(post.createdAt)}</Text>
             </TouchableOpacity>
 
-            {/* More button — only show for own posts, not reposts */}
-            {!post.repostOf && post.authorId === currentUser?.uid && (
+            {/* More button — Edit/Delete for own posts, Report for others */}
+            {!post.repostOf && (
               <TouchableOpacity
                 style={styles.moreBtn}
                 onPress={() => {
-                  Alert.alert('Post', 'Choose an action', [
-                    { text: 'Edit', onPress: () => onEdit(post) },
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
-                  ]);
+                  if (post.authorId === currentUser?.uid) {
+                    Alert.alert('Post', 'Choose an action', [
+                      { text: 'Edit', onPress: () => onEdit(post) },
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+                    ]);
+                  } else {
+                    // Report flow for other users' posts
+                    const reasons = [
+                      'Spam or misleading',
+                      'Harassment or bullying',
+                      'Hate speech',
+                      'Inappropriate content',
+                      'Other',
+                    ];
+                    Alert.alert('Report Post', 'Why are you reporting this post?', [
+                      { text: 'Cancel', style: 'cancel' },
+                      ...reasons.map(reason => ({
+                        text: reason,
+                        style: 'default' as const,
+                        onPress: async () => {
+                          try {
+                            const interactionId = post.repostOf || post.id;
+                            await firestore().collection('reports').add({
+                              type: 'post',
+                              targetId: interactionId,
+                              targetAuthorId: post.authorId,
+                              reporterId: currentUser?.uid,
+                              reason,
+                              status: 'pending',
+                              createdAt: firestore.FieldValue.serverTimestamp(),
+                            });
+                            Alert.alert('Reported', 'Thank you. Our team will review this post.');
+                          } catch {}
+                        },
+                      })),
+                    ]);
+                  }
                 }}
               >
                 <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />

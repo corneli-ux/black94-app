@@ -36,6 +36,7 @@ import { firestore, auth } from '../lib/firebase';
 import { encryptMessage, decryptMessage, initE2EE } from '../lib/e2ee';
 import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '../stores/app';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -598,6 +599,27 @@ export default function AnonymousChatScreen() {
   const handleFindStranger = useCallback(async () => {
     if (!myUserId) {
       setError('You must be signed in to use anonymous chat.');
+      return;
+    }
+
+    // Age verification gate — compliance requirement
+    const ageVerified = await AsyncStorage.getItem('@black94/age_verified');
+    if (ageVerified !== 'true') {
+      Alert.alert(
+        'Age Verification Required',
+        'Anonymous chat is only available for users aged 18 and over. Please confirm your age to continue.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'I am 18 or older',
+            style: 'default',
+            onPress: async () => {
+              await AsyncStorage.setItem('@black94/age_verified', 'true').catch(() => {});
+              handleFindStranger();
+            },
+          },
+        ],
+      );
       return;
     }
 
