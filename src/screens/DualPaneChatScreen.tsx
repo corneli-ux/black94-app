@@ -487,10 +487,8 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
     }
 
     return (
-      <KeyboardAvoidingView
-        style={styles.roomContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {/* Room header */}
+      <View style={styles.roomContainer}>
+        {/* Room header — stays fixed above KAV */}
         <View style={styles.roomHeader}>
           <TouchableOpacity onPress={() => !IS_TABLET && setPhoneTab('list')}>
             {!IS_TABLET && <Ionicons name="arrow-back" size={22} color={colors.text} />}
@@ -507,6 +505,59 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
             <Ionicons name="alert-circle-outline" size={22} color="#f43f5e" />
           </TouchableOpacity>
         </View>
+
+        {/* Messages + Input — wrapped in KAV so keyboard pushes input bar up */}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          {/* Messages */}
+          {loadingMessages ? (
+            <View style={styles.msgLoading}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : (
+            <FlatList
+              ref={messagesEndRef}
+              style={{ flex: 1 }}
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={(m) => m.id}
+              contentContainerStyle={styles.msgList}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={() => messagesEndRef.current?.scrollToEnd({ animated: false })}
+              ListFooterComponent={<View style={{ height: 60 }} />}
+              ListEmptyComponent={
+                <View style={styles.emptyMsg}>
+                  <Text style={styles.emptyMsgText}>No messages yet. Say hi!</Text>
+                </View>
+              }
+            />
+          )}
+
+          {/* Input bar */}
+          <View style={styles.inputRow}>
+            <TouchableOpacity onPress={handleOpenGifPicker} hitSlop={8} style={{ marginRight: 6 }}>
+              <Ionicons name="happy-outline" size={24} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TextInput
+              style={styles.input}
+              placeholder="Type a message..."
+              placeholderTextColor={colors.textMuted}
+              value={messageText}
+              onChangeText={setMessageText}
+              multiline
+              maxLength={2000}
+            />
+            <TouchableOpacity
+              style={[
+                styles.sendBtn,
+                (!messageText.trim() || sending) && styles.sendBtnDisabled,
+              ]}
+              onPress={handleSend}
+              disabled={!messageText.trim() || sending}>
+              <Ionicons name="send" size={20} color={colors.white} />
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
 
         {/* Nuclear Block Confirmation Modal */}
         <Modal
@@ -549,56 +600,8 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
             </View>
           </View>
         </Modal>
-
-        {/* Messages */}
-        {loadingMessages ? (
-          <View style={styles.msgLoading}>
-            <ActivityIndicator color={colors.primary} />
-          </View>
-        ) : (
-          <FlatList
-            ref={messagesEndRef}
-            data={messages}
-            renderItem={renderMessage}
-            keyExtractor={(m) => m.id}
-            contentContainerStyle={styles.msgList}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => messagesEndRef.current?.scrollToEnd({ animated: false })}
-            ListFooterComponent={<View style={{ height: 60 }} />}
-            ListEmptyComponent={
-              <View style={styles.emptyMsg}>
-                <Text style={styles.emptyMsgText}>No messages yet. Say hi!</Text>
-              </View>
-            }
-          />
-        )}
-
-        {/* Input bar */}
-        <View style={styles.inputRow}>
-          <TouchableOpacity onPress={handleOpenGifPicker} hitSlop={8} style={{ marginRight: 6 }}>
-            <Ionicons name="happy-outline" size={24} color={colors.textMuted} />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.input}
-            placeholder="Type a message..."
-            placeholderTextColor={colors.textMuted}
-            value={messageText}
-            onChangeText={setMessageText}
-            multiline
-            maxLength={2000}
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              (!messageText.trim() || sending) && styles.sendBtnDisabled,
-            ]}
-            onPress={handleSend}
-            disabled={!messageText.trim() || sending}>
-            <Ionicons name="send" size={20} color={colors.white} />
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+      </View>
+    );
     );
   };
 

@@ -642,7 +642,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.safeArea]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+    <View style={[styles.safeArea]}>
       {/* Header with SafeAreaView for notch */}
       <SafeAreaView edges={['top']}>
       <View style={[styles.header]}>
@@ -702,84 +702,88 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       </View>
       </SafeAreaView>
 
-      {/* Messages */}
-      {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.accent} />
-        </View>
-      ) : (
-        <FlatList
-          ref={flatRef}
-          data={messages}
-          keyExtractor={item => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={{ padding: 16, gap: 4, paddingTop: 8 }}
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', paddingTop: 80 }}>
-              <Text style={{ color: '#94a3b8', fontSize: 15 }}>No messages yet. Say hello!</Text>
-            </View>
-          }
-          onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
-          ListFooterComponent={<View style={{ height: 80 }} />}
-          keyboardShouldPersistTaps="handled"
-        />
-      )}
-
-      {/* Reply preview */}
-      {replyTo && (
-        <View style={styles.replyPreview}>
-          <View style={styles.replyPreviewLine} />
-          <View style={styles.replyPreviewContent}>
-            <Text style={styles.replyPreviewName}>
-              {replyTo.senderId === currentUser?.uid ? 'You' : (chat?.otherUser?.displayName || 'User')}
-            </Text>
-            <Text style={styles.replyPreviewText} numberOfLines={1}>
-              {replyTo.content || (replyTo.messageType === 'voice' ? 'Voice message' : replyTo.messageType === 'image' ? 'Photo' : 'GIF')}
-            </Text>
+      {/* Messages + Input — wrapped in KAV so keyboard pushes input bar up */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {/* Messages */}
+        {loading ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator color={colors.accent} />
           </View>
-          <TouchableOpacity onPress={() => setReplyTo(null)} hitSlop={8}>
-            <Ionicons name="close" size={16} color="#94a3b8" />
+        ) : (
+          <FlatList
+            ref={flatRef}
+            style={{ flex: 1 }}
+            data={messages}
+            keyExtractor={item => item.id}
+            renderItem={renderMessage}
+            contentContainerStyle={{ padding: 16, gap: 4, paddingTop: 8 }}
+            ListEmptyComponent={
+              <View style={{ alignItems: 'center', paddingTop: 80 }}>
+                <Text style={{ color: '#94a3b8', fontSize: 15 }}>No messages yet. Say hello!</Text>
+              </View>
+            }
+            onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
+            ListFooterComponent={<View style={{ height: 80 }} />}
+            keyboardShouldPersistTaps="handled"
+          />
+        )}
+
+        {/* Reply preview */}
+        {replyTo && (
+          <View style={styles.replyPreview}>
+            <View style={styles.replyPreviewLine} />
+            <View style={styles.replyPreviewContent}>
+              <Text style={styles.replyPreviewName}>
+                {replyTo.senderId === currentUser?.uid ? 'You' : (chat?.otherUser?.displayName || 'User')}
+              </Text>
+              <Text style={styles.replyPreviewText} numberOfLines={1}>
+                {replyTo.content || (replyTo.messageType === 'voice' ? 'Voice message' : replyTo.messageType === 'image' ? 'Photo' : 'GIF')}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setReplyTo(null)} hitSlop={8}>
+              <Ionicons name="close" size={16} color="#94a3b8" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Input bar */}
+        <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
+          {/* Attachment button */}
+          <TouchableOpacity
+            style={styles.inputActionBtn}
+            onPress={() => setShowAttachMenu(!showAttachMenu)}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="add-circle-outline" size={22} color={showAttachMenu ? colors.accent : '#71767b'} />
+          </TouchableOpacity>
+
+          <View style={styles.inputPill}>
+            <TextInput
+              style={styles.pillInput}
+              placeholder="Start a message"
+              placeholderTextColor="#71767b"
+              value={text}
+              onChangeText={setText}
+              multiline
+              onFocus={() => setShowAttachMenu(false)}
+            />
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.sendBtn,
+              (text.trim() || sending) && styles.sendBtnActive,
+            ]}
+            onPress={handleSend}
+            disabled={!text.trim() || sending}
+            activeOpacity={0.7}
+          >
+            {sending || uploading
+              ? <ActivityIndicator color={colors.accent} size="small" />
+              : <Ionicons name="send" size={18} color={text.trim() ? '#FFFFFF' : '#374151'} />
+            }
           </TouchableOpacity>
         </View>
-      )}
-
-      {/* Input bar */}
-      <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
-        {/* Attachment button */}
-        <TouchableOpacity
-          style={styles.inputActionBtn}
-          onPress={() => setShowAttachMenu(!showAttachMenu)}
-          activeOpacity={0.6}
-        >
-          <Ionicons name="add-circle-outline" size={22} color={showAttachMenu ? colors.accent : '#71767b'} />
-        </TouchableOpacity>
-
-        <View style={styles.inputPill}>
-          <TextInput
-            style={styles.pillInput}
-            placeholder="Start a message"
-            placeholderTextColor="#71767b"
-            value={text}
-            onChangeText={setText}
-            multiline
-            onFocus={() => setShowAttachMenu(false)}
-          />
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.sendBtn,
-            (text.trim() || sending) && styles.sendBtnActive,
-          ]}
-          onPress={handleSend}
-          disabled={!text.trim() || sending}
-          activeOpacity={0.7}
-        >
-          {sending || uploading
-            ? <ActivityIndicator color={colors.accent} size="small" />
-            : <Ionicons name="send" size={18} color={text.trim() ? '#FFFFFF' : '#374151'} />
-          }
-        </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Attachment menu popup */}
       {showAttachMenu && (
@@ -975,7 +979,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           </View>
         </View>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
