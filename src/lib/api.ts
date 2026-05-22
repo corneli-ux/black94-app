@@ -90,6 +90,14 @@ export interface Message {
   mediaUrl?: string | null;
   status?: string;
   createdAt: number;
+  // Reactions (keyed by userId → emoji)
+  reactions?: Record<string, string>;
+  // Voice message duration in seconds
+  voiceDuration?: number;
+  // Reply threading
+  replyToId?: string;
+  replyToContent?: string;
+  replyToSenderName?: string;
 }
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
@@ -1113,6 +1121,11 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
           mediaUrl: data.mediaUrl || null,
           status: data.status || 'sent',
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+          reactions: data.reactions || undefined,
+          voiceDuration: data.voiceDuration || undefined,
+          replyToId: data.replyToId || undefined,
+          replyToContent: data.replyToContent || undefined,
+          replyToSenderName: data.replyToSenderName || undefined,
         };
       }),
     );
@@ -1124,11 +1137,22 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
   }
 }
 
-export async function sendMessage(chatId: string, receiverId: string, content: string, options?: { messageType?: string; mediaUrl?: string }): Promise<{ sent: boolean; reason?: string }> {
+export async function sendMessage(chatId: string, receiverId: string, content: string, options?: {
+  messageType?: string;
+  mediaUrl?: string;
+  voiceDuration?: number;
+  replyToId?: string;
+  replyToContent?: string;
+  replyToSenderName?: string;
+}): Promise<{ sent: boolean; reason?: string }> {
   const userId = currentUser()?.uid;
   if (!userId) return { sent: false, reason: 'not_authenticated' };
   const msgType = options?.messageType || 'text';
   const mediaUrl = options?.mediaUrl || null;
+  const voiceDuration = options?.voiceDuration || undefined;
+  const replyToId = options?.replyToId || undefined;
+  const replyToContent = options?.replyToContent || undefined;
+  const replyToSenderName = options?.replyToSenderName || undefined;
 
   // ── Nuclear Block Check: prevent messaging if either user blocked the other ──
   try {
@@ -1146,11 +1170,11 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   }
 
   // ── E2E Encryption: encrypt content before storing ──
-  // Skip encryption for media messages (image/gif) — the payload is the mediaUrl, not text.
+  // Skip encryption for media messages (image/gif/voice) — the payload is not plain text.
   // If encryption fails (no key, error, etc.), send as plaintext with encrypted: false.
   let storedContent: string;
   let isEncrypted = true;
-  if (msgType === 'image' || msgType === 'gif') {
+  if (msgType === 'image' || msgType === 'gif' || msgType === 'voice') {
     isEncrypted = false;
     storedContent = content; // empty or placeholder for media messages
   } else {
@@ -1182,6 +1206,10 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     encrypted: isEncrypted,
     createdAt: firestore.FieldValue.serverTimestamp(),
     clientCreatedAt: Date.now(), // Ensures correct ordering before server timestamp resolves
+    ...(voiceDuration ? { voiceDuration } : {}),
+    ...(replyToId ? { replyToId } : {}),
+    ...(replyToContent ? { replyToContent } : {}),
+    ...(replyToSenderName ? { replyToSenderName } : {}),
   });
 
   // STEP 2: Read chat doc to determine unread fields (needed for update)
@@ -1251,6 +1279,75 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   trackUserActivity(userId).catch(() => {});
 
   return { sent: true };
+}
+
+/* ── Group Chat ────────────────────────────────────────────────────────────── */
+
+/**
+ * Creates a new group chat with the given members.
+ * Returns the chat ID.
+ */
+export async function createGroupChat(
+  memberIds: string[],
+  groupName: string,
+): Promise<string> {
+  const userId = currentUser()?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  // All member IDs including the current user
+  const allMembers = [userId, ...memberIds.filter(id => id !== userId)];
+
+  const chatData: Record<string, any> = {
+    isGroup: true,
+    groupName,
+    members: allMembers,
+    memberCount: allMembers.length,
+    createdBy: userId,
+    createdAt: firestore.FieldValue.serverTimestamp(),
+    updatedAt: firestore.FieldValue.serverTimestamp(),
+    lastMessage: '',
+    lastMessageTime: firestore.FieldValue.serverTimestamp(),
+    unreadUser1: 0,
+    unreadUser2: 0,
+    // Store member-specific unread counts as a map
+    unreadCounts: Object.fromEntries(allMembers.map(id => [id, 0])),
+  };
+
+  const docRef = await firestore().collection('chats').add(chatData);
+
+  // Set user1Id/user2Id for backward compatibility with existing chat list queries
+  // Use first two members as user1/user2
+  await firestore().collection('chats').doc(docRef.id).update({
+    user1Id: allMembers[0] || userId,
+    user2Id: allMembers[1] || userId,
+  });
+
+  return docRef.id;
+}
+
+/**
+ * Fetches group chat members for a given chat ID.
+ */
+export async function fetchGroupMembers(chatId: string): Promise<any[]> {
+  try {
+    const chatDoc = await firestore().collection('chats').doc(chatId).get();
+    if (!chatDoc.exists) return [];
+    const data = chatDoc.data();
+    if (!data.members) return [];
+
+    const memberDocs = await Promise.all(
+      data.members.map((uid: string) =>
+        firestore().collection('users').doc(uid).get().catch(() => null)
+      )
+    );
+
+    return memberDocs
+      .filter((doc: any) => doc && doc.exists)
+      .map((doc: any) => ({ id: doc.id, ...doc.data() }));
+  } catch (e) {
+    console.error('[GroupChat] Failed to fetch members:', e);
+    return [];
+  }
 }
 
 /* ── Nuclear Block ─────────────────────────────────────────────────────────── */

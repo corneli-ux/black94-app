@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { fetchChatList, Chat, fetchUserPrivacySettings, checkFollowing, searchUsers, User, tsToMillis } from '../lib/api';
+import { fetchChatList, Chat, fetchUserPrivacySettings, checkFollowing, searchUsers, User, tsToMillis, createGroupChat, fetchGroupMembers } from '../lib/api';
 import { auth, firestore, getValidToken } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -30,6 +30,12 @@ export default function ChatListScreen({ navigation, route }: any) {
   const [composeResults, setComposeResults] = useState<User[]>([]);
   const [composeSearching, setComposeSearching] = useState(false);
   const [composeChecking, setComposeChecking] = useState<string | null>(null);
+
+  // Group chat creation state
+  const [showGroupCreate, setShowGroupCreate] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -69,6 +75,42 @@ export default function ChatListScreen({ navigation, route }: any) {
     pollRef.current = setInterval(load, 5000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [load]);
+
+  // Group chat creation handler
+  const handleCreateGroup = async () => {
+    if (!groupName.trim() || selectedMembers.length === 0) return;
+    try {
+      const chatId = await createGroupChat(selectedMembers, groupName.trim());
+      setShowGroupCreate(false);
+      setGroupName('');
+      setSelectedMembers([]);
+      navigation.navigate('ChatRoom', { chatId });
+    } catch (e: any) {
+      console.error('[ChatList] Group creation failed:', e);
+      Alert.alert('Error', 'Failed to create group chat. Please try again.');
+    }
+  };
+
+  // Load available users when group create modal opens
+  useEffect(() => {
+    if (!showGroupCreate) return;
+    (async () => {
+      try {
+        const currentUser = auth()?.currentUser;
+        const snap = await firestore()
+          .collection('users')
+          .orderBy('createdAt', 'desc')
+          .limit(50)
+          .get();
+        const users = snap.docs
+          .filter(d => d.id !== currentUser?.uid)
+          .map(d => ({ id: d.id, ...d.data() }));
+        setAvailableUsers(users);
+      } catch (e) {
+        console.error('[ChatList] Failed to load users:', e);
+      }
+    })();
+  }, [showGroupCreate]);
 
   const handleCompose = useCallback(() => {
     setComposeModalVisible(true);
@@ -491,13 +533,23 @@ export default function ChatListScreen({ navigation, route }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{sharePostId ? 'Share to...' : 'Messages'}</Text>
-          <TouchableOpacity
-            style={styles.newMsgBtn}
-            onPress={handleCompose}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="create-outline" size={22} color="#D4AF37" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity
+              style={styles.createGroupBtn}
+              onPress={() => setShowGroupCreate(true)}
+              activeOpacity={0.7}
+              hitSlop={8}
+            >
+              <Ionicons name="people-outline" size={22} color="#e7e9ea" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.newMsgBtn}
+              onPress={handleCompose}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="create-outline" size={22} color="#D4AF37" />
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -601,6 +653,89 @@ export default function ChatListScreen({ navigation, route }: any) {
 
       {/* Compose Modal */}
       {renderComposeModal()}
+
+      {/* Group Chat Creation Modal */}
+      <Modal visible={showGroupCreate} transparent animationType="slide" onRequestClose={() => setShowGroupCreate(false)}>
+        <View style={styles.groupModalOverlay}>
+          <View style={styles.groupModal}>
+            {/* Header */}
+            <View style={styles.groupModalHeader}>
+              <TouchableOpacity onPress={() => setShowGroupCreate(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color="#e7e9ea" />
+              </TouchableOpacity>
+              <Text style={styles.groupModalTitle}>New Group</Text>
+              <View style={{ width: 22 }} />
+            </View>
+
+            {/* Group name input */}
+            <View style={styles.groupNameInput}>
+              <Ionicons name="chatbubbles-outline" size={20} color="#94a3b8" />
+              <TextInput
+                style={styles.groupNameText}
+                value={groupName}
+                onChangeText={setGroupName}
+                placeholder="Group name"
+                placeholderTextColor="#64748b"
+                maxLength={40}
+              />
+            </View>
+
+            {/* Selected members */}
+            {selectedMembers.length > 0 && (
+              <View style={styles.selectedMembersRow}>
+                <Text style={styles.selectedMembersLabel}>{selectedMembers.length} member{selectedMembers.length !== 1 ? 's' : ''} selected</Text>
+              </View>
+            )}
+
+            {/* User list */}
+            <FlatList
+              data={availableUsers}
+              keyExtractor={item => item.id}
+              renderItem={({ item }) => {
+                const isSelected = selectedMembers.includes(item.id);
+                return (
+                  <TouchableOpacity
+                    style={styles.groupUserRow}
+                    onPress={() => {
+                      setSelectedMembers(prev =>
+                        isSelected
+                          ? prev.filter(id => id !== item.id)
+                          : [...prev, item.id]
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Avatar uri={item.profileImage} name={item.displayName} size={40} />
+                    <View style={styles.groupUserInfo}>
+                      <Text style={styles.groupUserName} numberOfLines={1}>
+                        {item.displayName || item.username}
+                      </Text>
+                      <Text style={styles.groupUserHandle}>@{item.username}</Text>
+                    </View>
+                    <View style={[styles.groupCheckbox, isSelected && styles.groupCheckboxSelected]}>
+                      {isSelected && <Ionicons name="checkmark" size={16} color="#000" />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+              style={{ flex: 1, marginHorizontal: 16 }}
+            />
+
+            {/* Create button */}
+            <TouchableOpacity
+              style={[
+                styles.groupCreateBtn,
+                (!groupName.trim() || selectedMembers.length === 0) && styles.groupCreateBtnDisabled,
+              ]}
+              onPress={handleCreateGroup}
+              disabled={!groupName.trim() || selectedMembers.length === 0}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.groupCreateBtnText}>Create Group</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -907,5 +1042,116 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontSize: 12,
     marginTop: 4,
+  },
+
+  /* ── Group Chat ── */
+  createGroupBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  groupModal: {
+    backgroundColor: '#16181c',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: '85%',
+    paddingBottom: 20,
+  },
+  groupModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  groupModalTitle: {
+    color: '#e7e9ea',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  groupNameInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  groupNameText: {
+    flex: 1,
+    color: '#e7e9ea',
+    fontSize: 15,
+  },
+  selectedMembersRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  selectedMembersLabel: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  groupUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 0,
+    paddingVertical: 10,
+    gap: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  groupUserInfo: {
+    flex: 1,
+  },
+  groupUserName: {
+    color: '#e7e9ea',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  groupUserHandle: {
+    color: '#94a3b8',
+    fontSize: 13,
+  },
+  groupCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#64748b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupCheckboxSelected: {
+    backgroundColor: '#e7e9ea',
+    borderColor: '#e7e9ea',
+  },
+  groupCreateBtn: {
+    marginHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: '#e7e9ea',
+    alignItems: 'center',
+  },
+  groupCreateBtnDisabled: {
+    opacity: 0.4,
+  },
+  groupCreateBtnText: {
+    color: '#000000',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
