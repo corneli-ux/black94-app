@@ -28,18 +28,40 @@ function RepostIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: s
   );
 }
 
-/* ── Hashtag/Mention Highlighted Text ────────────────────────────────── */
-function HighlightedCaption({ text, style }: { text: string; style: any }) {
-  const parts = text.split(/(#\w+|@\w+)/g);
+/* ── Hashtag/Mention Highlighted Text — tappable ────────────────────────── */
+function HighlightedCaption({ text, style, navigation }: { text: string; style: any; navigation?: any }) {
+  const parts = text.split(/(#[\w]+|@[\w]+)/g);
   return (
     <Text style={style}>
-      {parts.map((part, i) =>
-        /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
-          <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
-        ) : (
-          <Text key={i}>{part}</Text>
-        )
-      )}
+      {parts.map((part, i) => {
+        if (/^#[\w]+$/.test(part)) {
+          return navigation ? (
+            <Text
+              key={i}
+              style={{ color: '#FFFFFF' }}
+              onPress={() => navigation.navigate('HashtagFeed', { hashtag: part.slice(1) })}
+            >
+              {part}
+            </Text>
+          ) : (
+            <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+          );
+        }
+        if (/^@[\w]+$/.test(part)) {
+          return navigation ? (
+            <Text
+              key={i}
+              style={{ color: '#FFFFFF' }}
+              onPress={() => navigation.navigate('UsernameProfile', { username: part.slice(1) })}
+            >
+              {part}
+            </Text>
+          ) : (
+            <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+          );
+        }
+        return <Text key={i}>{part}</Text>;
+      })}
     </Text>
   );
 }
@@ -355,20 +377,20 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             )}
           </View>
 
-          {/* Caption */}
+          {/* Caption — with tappable hashtags and mentions */}
           {post.caption ? (
             isLongCaption && !expanded ? (
               <TouchableOpacity onPress={() => setExpanded(true)} activeOpacity={0.7}>
-                <HighlightedCaption text={post.caption.slice(0, CAPTION_LIMIT)} style={styles.caption} />
+                <HighlightedCaption text={post.caption.slice(0, CAPTION_LIMIT)} style={styles.caption} navigation={navigation} />
                 <Text style={styles.seeMoreText}> See more</Text>
               </TouchableOpacity>
             ) : isLongCaption && expanded ? (
               <TouchableOpacity onPress={() => setExpanded(false)} activeOpacity={0.7}>
-                <HighlightedCaption text={post.caption} style={styles.caption} />
+                <HighlightedCaption text={post.caption} style={styles.caption} navigation={navigation} />
                 <Text style={styles.seeMoreText}> See less</Text>
               </TouchableOpacity>
             ) : (
-              <HighlightedCaption text={post.caption} style={styles.caption} />
+              <HighlightedCaption text={post.caption} style={styles.caption} navigation={navigation} />
             )
           ) : null}
 
@@ -491,6 +513,36 @@ type FeedItem =
   | { type: 'post'; id: string; post: Post }
   | { type: 'ad'; id: string; ad: any };
 
+/* ── Map a Firestore doc → Post ──────────────────────────────────────────── */
+function docToPost(docSnap: any): Post {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    authorId: data.authorId || '',
+    authorUsername: data.authorUsername || '',
+    authorDisplayName: data.authorDisplayName || '',
+    authorProfileImage: data.authorProfileImage || null,
+    authorBadge: data.authorBadge || '',
+    authorIsVerified: data.authorIsVerified || false,
+    factCheckVerified: data.factCheckVerified || 0,
+    factCheckDebunked: data.factCheckDebunked || 0,
+    caption: data.caption || '',
+    mediaUrls: parseMediaUrls(data.mediaUrls),
+    pollData: data.pollData || undefined,
+    likeCount: data.likeCount || 0,
+    commentCount: data.commentCount || 0,
+    repostCount: data.repostCount || 0,
+    liked: false,
+    bookmarked: false,
+    reposted: false,
+    createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+    repostOf: data.repostOf || undefined,
+    repostedByUid: data.repostedByUid || undefined,
+    repostedByUsername: data.repostedByUsername || undefined,
+    repostedByDisplayName: data.repostedByDisplayName || undefined,
+  };
+}
+
 /* ── FeedScreen ───────────────────────────────────────────────────────────── */
 
 export default function FeedScreen({ navigation }: any) {
@@ -506,6 +558,8 @@ export default function FeedScreen({ navigation }: any) {
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
   const lastDocRef = useRef<any>(null);
+  // Holds the Firestore real-time unsubscribe fn for the top-of-feed listener
+  const realtimeUnsubRef = useRef<(() => void) | null>(null);
 
   const PAGE_SIZE = 10;
 
@@ -594,6 +648,56 @@ export default function FeedScreen({ navigation }: any) {
     });
   }, []);
 
+  /* ── Real-time listener: watches for NEW posts arriving at the top ────── */
+  // We attach a live onSnapshot query limited to posts newer than the newest
+  // post we already have. When it fires with a new doc, we prepend it and
+  // run enrichment in the background — no pull-to-refresh required.
+  const attachRealtimeListener = useCallback((newestCreatedAt: number) => {
+    // Tear down any existing listener first
+    if (realtimeUnsubRef.current) {
+      realtimeUnsubRef.current();
+      realtimeUnsubRef.current = null;
+    }
+
+    const userId = auth()?.currentUser?.uid;
+
+    const unsub = firestore()
+      .collection('posts')
+      .orderBy('createdAt', 'desc')
+      // Only listen for posts strictly newer than what we already have.
+      // We use a Firestore Timestamp approximation from the millis value.
+      .where('createdAt', '>', new Date(newestCreatedAt))
+      .onSnapshot(
+        snapshot => {
+          if (snapshot.empty) return;
+          // docChanges gives us only the delta (added/modified/removed)
+          const added = snapshot.docChanges()
+            .filter(ch => ch.type === 'added')
+            .map(ch => docToPost(ch.doc));
+
+          if (added.length === 0) return;
+
+          if (__DEV__) console.log(`[Feed] Real-time: ${added.length} new post(s) arrived`);
+
+          setPosts(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const fresh = added.filter(p => !existingIds.has(p.id));
+            if (fresh.length === 0) return prev;
+            return [...fresh, ...prev];
+          });
+
+          // Enrich in background (author profiles + interaction state)
+          enrichPostsInBackground(added, userId);
+        },
+        err => {
+          // Non-fatal — live listener failing just means no auto-refresh
+          console.warn('[Feed] Real-time listener error:', err?.message);
+        }
+      );
+
+    realtimeUnsubRef.current = unsub;
+  }, [enrichPostsInBackground]);
+
   const loadFeed = useCallback(async (append = false) => {
     try {
       if (append && (loadingMore || allLoaded)) return;
@@ -621,34 +725,7 @@ export default function FeedScreen({ navigation }: any) {
       lastDocRef.current = snapshot.docs[snapshot.docs.length - 1];
 
       const userId = currentUser?.uid;
-      const newPosts: Post[] = snapshot.docs.map(docSnap => {
-        const data = docSnap.data();
-        return {
-          id: docSnap.id,
-          authorId: data.authorId || '',
-          authorUsername: data.authorUsername || '',
-          authorDisplayName: data.authorDisplayName || '',
-          authorProfileImage: data.authorProfileImage || null,
-          authorBadge: data.authorBadge || '',
-          authorIsVerified: data.authorIsVerified || false,
-          factCheckVerified: data.factCheckVerified || 0,
-          factCheckDebunked: data.factCheckDebunked || 0,
-          caption: data.caption || '',
-          mediaUrls: parseMediaUrls(data.mediaUrls),
-          pollData: data.pollData || undefined,
-          likeCount: data.likeCount || 0,
-          commentCount: data.commentCount || 0,
-          repostCount: data.repostCount || 0,
-          liked: false,
-          bookmarked: false,
-          reposted: false,
-          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-          repostOf: data.repostOf || undefined,
-          repostedByUid: data.repostedByUid || undefined,
-          repostedByUsername: data.repostedByUsername || undefined,
-          repostedByDisplayName: data.repostedByDisplayName || undefined,
-        };
-      });
+      const newPosts: Post[] = snapshot.docs.map(docToPost);
 
       if (newPosts.length === 0) {
         setAllLoaded(true);
@@ -668,6 +745,10 @@ export default function FeedScreen({ navigation }: any) {
         setPosts(prev => [...prev, ...newPosts]);
       } else {
         setPosts(newPosts);
+        // Attach the real-time listener anchored to the newest post's createdAt
+        if (newPosts.length > 0) {
+          attachRealtimeListener(newPosts[0].createdAt);
+        }
       }
       setLoading(false);
       setRefreshing(false);
@@ -684,7 +765,7 @@ export default function FeedScreen({ navigation }: any) {
       setRefreshing(false);
       setLoadingMore(false);
     }
-  }, [currentUser?.uid, loadingMore, allLoaded]);
+  }, [currentUser?.uid, loadingMore, allLoaded, attachRealtimeListener]);
 
   // Fetch active ad campaigns (deferred 2s so feed loads first)
   useEffect(() => {
@@ -734,6 +815,16 @@ export default function FeedScreen({ navigation }: any) {
       loadFeed();
     }
   }, [loadFeed]);
+
+  // Tear down real-time listener on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (realtimeUnsubRef.current) {
+        realtimeUnsubRef.current();
+        realtimeUnsubRef.current = null;
+      }
+    };
+  }, []);
 
   // Reload feed when screen regains focus ONLY if explicitly requested
   // (e.g. after creating a post). Avoids unnecessary full re-fetch on every tab switch.
@@ -797,32 +888,9 @@ export default function FeedScreen({ navigation }: any) {
         try {
           const repostSnap = await firestore().collection('posts').doc(newRepostId).get();
           if (repostSnap.exists) {
-            const data = repostSnap.data()!;
-            const newPost: Post = {
-              id: repostSnap.id,
-              authorId: data.authorId || '',
-              authorUsername: data.authorUsername || '',
-              authorDisplayName: data.authorDisplayName || '',
-              authorProfileImage: data.authorProfileImage || null,
-              authorBadge: data.authorBadge || '',
-              authorIsVerified: data.authorIsVerified || false,
-              factCheckVerified: data.factCheckVerified || 0,
-              factCheckDebunked: data.factCheckDebunked || 0,
-              caption: data.caption || '',
-              mediaUrls: parseMediaUrls(data.mediaUrls),
-              pollData: data.pollData || undefined,
-              likeCount: data.likeCount || 0,
-              commentCount: data.commentCount || 0,
-              repostCount: data.repostCount || 0,
-              liked: false,
-              bookmarked: false,
-              reposted: true,
-              createdAt: Date.now(), // use client time so it sorts to top immediately
-              repostOf: data.repostOf || undefined,
-              repostedByUid: data.repostedByUid || undefined,
-              repostedByUsername: data.repostedByUsername || undefined,
-              repostedByDisplayName: data.repostedByDisplayName || undefined,
-            };
+            const newPost = docToPost(repostSnap);
+            newPost.reposted = true;
+            newPost.createdAt = Date.now(); // sort to top immediately
             // Prepend only if not already present (guard against double-tap races)
             setPosts(prev =>
               prev.some(p => p.id === newPost.id) ? prev : [newPost, ...prev]
