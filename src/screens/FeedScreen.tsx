@@ -669,7 +669,24 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
 
 /* ── AdCard ──────────────────────────────────────────────────────────────── */
 
+// Track which ad IDs have already been impression-counted this session
+const _impressionTracker = new Set<string>();
+
 function AdCard({ ad }: { ad: any }) {
+  // Fire-and-forget impression tracking on first render
+  React.useEffect(() => {
+    if (ad.id && !_impressionTracker.has(ad.id)) {
+      _impressionTracker.add(ad.id);
+      // Small delay to avoid counting during fast scrolls
+      const timer = setTimeout(() => {
+        firestore().collection('ads').doc(ad.id).update({
+          impressions: firestore.FieldValue.increment(1),
+        }).catch(() => {});
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [ad.id]);
+
   return (
     <View style={styles.adCard}>
       <View style={styles.adBadgeRow}>
