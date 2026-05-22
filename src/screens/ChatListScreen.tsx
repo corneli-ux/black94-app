@@ -46,7 +46,11 @@ export default function ChatListScreen({ navigation, route }: any) {
       const data = await fetchChatList();
       if (__DEV__) console.log('[ChatListScreen] Loaded', data.length, 'chats');
       setChats(data);
-      setFiltered(data);
+      setFiltered(search.trim() ? data.filter((c: any) =>
+        (c.otherUser?.displayName || '').toLowerCase().includes(search.trim().toLowerCase()) ||
+        (c.otherUser?.username || '').toLowerCase().includes(search.trim().toLowerCase()) ||
+        (c.lastMessage || '').toLowerCase().includes(search.trim().toLowerCase())
+      ) : data);
     } catch (e: any) {
       console.error('[ChatListScreen] Chat load error:', e?.message);
       console.error('[ChatListScreen] Error stack:', e?.stack);

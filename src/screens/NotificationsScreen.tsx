@@ -138,6 +138,8 @@ export default function NotificationsScreen({ navigation }: any) {
             .update({ read: true })
             .catch(() => {});
           setNotifs(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+          // BUG FIX: Decrement the unread badge count so the tab icon updates
+          useAppStore.getState().setUnreadNotificationCount(prev => Math.max(0, (prev || 0) - 1));
         }
         // Navigate based on type
         if (item.type === 'follow') {

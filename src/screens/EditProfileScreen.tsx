@@ -253,12 +253,14 @@ export default function EditProfileScreen({ navigation }: any) {
         // Update username if changed
         if (username !== user?.username) {
           const oldUsername = user?.username?.toLowerCase();
-          if (oldUsername) {
-            try { await firestore().collection('usernames').doc(oldUsername).delete(); } catch {}
-          }
+          // Write new username FIRST, then delete old — if crash happens
+          // between the two, the new name is claimed (harmless duplicate).
           try {
             await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: currentUid });
           } catch {}
+          if (oldUsername) {
+            try { await firestore().collection('usernames').doc(oldUsername).delete(); } catch {}
+          }
         }
 
         // Update user profile

@@ -155,11 +155,11 @@ export async function initNotifications(onNotificationTap: NotificationTapHandle
 let _pushPermissionRequested = false;
 
 export async function requestNotificationPermissions(): Promise<boolean> {
-  // Only request once per app session — subsequent calls are no-ops
-  if (_pushPermissionRequested) {
-    console.log('[Push] Permission already requested this session, skipping');
-    return true;
-  }
+  // BUG FIX: Removed the early-return guard on _pushPermissionRequested.
+  // Previously, if permissions were requested before login (no user yet),
+  // the token registration was skipped because the user wasn't authenticated.
+  // After login, this function was a no-op due to the flag, so the push token
+  // was never registered. Now we always proceed to ensure the token is stored.
   _pushPermissionRequested = true;
 
   try {

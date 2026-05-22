@@ -118,13 +118,21 @@ export function stopNotificationPolling(): void {
  * Get the count of unread notifications for a user.
  */
 async function pollUnread(userId: string): Promise<number> {
-  const snapshot = await firestore()
+  // Fetch all notifications and filter unread client-side to avoid requiring
+  // a composite index on (recipientId, read) that may not exist.
+  const snap = await firestore()
     .collection('notifications')
     .where('recipientId', '==', userId)
-    .where('read', '==', false)
+    .orderBy('createdAt', 'desc')
+    .limit(50)
     .get();
 
-  return snapshot.size;
+  const unread = snap.docs.filter(d => {
+    const data = d.data();
+    return data.read === false || data.read === undefined;
+  }).length;
+
+  return unread;
 }
 
 // ── Create Notification ─────────────────────────────────────────────────────

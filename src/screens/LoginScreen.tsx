@@ -49,7 +49,7 @@ export default function LoginScreen() {
       console.error('Sign in error:', error);
       if (error.code !== '12501') {
         const msg = error.message || 'Please try again';
-        Alert.alert('Sign In Failed', msg.length > 100 ? 'Something went wrong. Please try again.' : msg);
+        Alert.alert('Sign In Failed', msg.length > 100 ? 'Sign in failed. Please try again.' : msg);
       }
     } finally {
       setBusy(false);

@@ -416,7 +416,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
         setSelectedImages([]);
         setSelectedGifUrls([]);
         setPollData(null);
-        setQuotePostId(null);
+        // quotePostId is a const from route.params — just clear local thread state
         setUploadProgress('');
         return; // don't navigate back, stay in composer
       }

@@ -42,13 +42,12 @@ export default function BookmarksScreen() {
         .get();
 
       const bookmarkEntries = snap.docs.map(d => ({ id: d.id, postId: d.data().postId })).filter(e => !!e.postId);
-      const posts: Post[] = [];
-      for (const entry of bookmarkEntries) {
+      const postPromises = bookmarkEntries.map(async (entry: any) => {
         try {
           const postSnap = await firestore().collection('posts').doc(entry.postId).get();
           if (postSnap.exists) {
             const data = postSnap.data();
-            posts.push({
+            return {
               id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
               authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
               authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
@@ -58,10 +57,13 @@ export default function BookmarksScreen() {
               repostOf: data.repostOf || undefined, repostedByUid: data.repostedByUid || undefined,
               repostedByUsername: data.repostedByUsername || undefined, repostedByDisplayName: data.repostedByDisplayName || undefined,
               createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-            });
+            };
           }
         } catch { /* skip */ }
-      }
+        return null;
+      });
+      const results = await Promise.all(postPromises);
+      const posts: Post[] = results.filter(Boolean);
 
       const uniqueAuthorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean))];
       const authorMap: Record<string, any> = {};

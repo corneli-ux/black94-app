@@ -36,12 +36,15 @@ export default function SearchScreen({ route, navigation }: any) {
     })();
   }, []);
 
-  // Pick up search query from Zustand store (set by hashtag taps in feed)
+  // Pre-fill from explore navigation (merged with Zustand store pickup to avoid double search on mount)
   useEffect(() => {
+    const q = route?.params?.q;
     if (pendingSearchQuery) {
       setQuery(pendingSearchQuery);
       clearSearchQuery('');
       doSearch(pendingSearchQuery);
+    } else if (q) {
+      setQuery(q);
     }
   }, []);
 
@@ -161,14 +164,6 @@ export default function SearchScreen({ route, navigation }: any) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query, doSearch]);
-
-  // Pre-fill from explore navigation
-  useEffect(() => {
-    const q = route?.params?.q;
-    if (q) {
-      setQuery(q);
-    }
-  }, []);
 
   const renderUserItem = ({ item }: { item: User }) => (
     <TouchableOpacity

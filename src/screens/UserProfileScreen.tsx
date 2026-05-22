@@ -1137,6 +1137,11 @@ export default function UserProfileScreen({ navigation, route }: any) {
                                   setIsFollowing(false);
                                   setFollowerCount(prev => Math.max(0, prev - 1));
                                 }
+                                // Also remove reverse follow so target's
+                                // follower count stays consistent.
+                                try {
+                                  await firestore().collection('follows').doc(`${userId}_${currentUid}`).delete();
+                                } catch {}
                                 navigation.goBack();
                               } catch {}
                             },

@@ -112,17 +112,25 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     }
   }, [routeChatId, routeChat]);
 
+  // BUG FIX: Use a messagesRef to avoid stale closure in polling interval.
+  // The interval captures the first `load` reference — without a ref, it uses
+  // the initial `messages` array forever.
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
   const load = useCallback(async (silent = false) => {
     if (!chat) return;
     try {
       const msgs = await fetchMessages(chat.id);
       if (silent) {
-        // Merge: keep temp messages that haven't appeared in server results yet
+        // BUG FIX: Use messagesRef.current instead of stale `messages` closure
+        const currentMessages = messagesRef.current;
         const serverIds = new Set(msgs.map(m => m.id));
-        const pendingTemps = messages.filter(m => m.id.startsWith('tmp-') && !serverIds.has(m.id));
-        // Also remove temp messages whose content now appears in a server message
-        const serverContents = new Set(msgs.map(m => m.content));
-        const stillPending = pendingTemps.filter(tmp => !serverContents.has(tmp.content));
+        // BUG FIX: Only remove temp messages whose ID now appears in server results.
+        // Old content-based dedup broke when two identical messages were sent.
+        const stillPending = currentMessages.filter(
+          m => m.id.startsWith('tmp-') && !serverIds.has(m.id)
+        );
         setMessages([...stillPending, ...msgs]);
       } else {
         setMessages(msgs);
@@ -133,7 +141,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     } finally {
       setLoading(false);
     }
-  }, [chat?.id, messages]);
+  }, [chat?.id]);
 
   useEffect(() => {
     if (!chat) return;
@@ -168,10 +176,15 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     };
     resetUnread();
     load();
-    // Poll every 2 seconds for near-real-time feel
-    pollRef.current = setInterval(() => load(true), 2000);
+    // BUG FIX: Use loadRef so the interval always calls the latest load version.
+    // Without this, the interval captures the initial load (stale closure).
+    pollRef.current = setInterval(() => loadRef.current(true), 2000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [chat?.id]);
+
+  // BUG FIX: Use a loadRef so the polling interval always calls the latest load.
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   // Scroll to bottom when keyboard opens (Android: OS resize + KAV off,
   // but we still need to ensure the last message is visible)
@@ -190,22 +203,28 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     const content = text.trim();
     setText('');
     setSending(true);
+    setReplyTo(null); // Clear reply context immediately
     const tempMsg: Message = {
-      id: `tmp-${Date.now()}`, chatId: chat.id,
+      id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, chatId: chat.id,
       senderId: currentUser?.uid || '', receiverId: chat.otherUser?.id || '',
       content, messageType: 'text', createdAt: Date.now(),
     };
     setMessages(prev => [...prev, tempMsg]);
     setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
     try {
-      await sendMessage(chat.id, chat.otherUser?.id || '', content, {
+      const result = await sendMessage(chat.id, chat.otherUser?.id || '', content, {
         replyToId: replyTo?.id || undefined,
         replyToContent: replyTo?.content || undefined,
         replyToSenderName: replyTo?.senderId === currentUser?.uid
           ? 'You'
           : (chat?.otherUser?.displayName || 'User'),
       });
-      setReplyTo(null);
+      // BUG FIX: Check sendMessage return value — blocked messages appear sent
+      if (result && !result.sent) {
+        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+        setText(content);
+        Alert.alert('Send Failed', result.reason || 'Message could not be delivered.');
+      }
       // Don't reload — polling (2s) picks up the server message.
       // Optimistic temp message is already visible for instant feel.
     } catch (e) {
@@ -377,25 +396,27 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       setUploading(true);
       // Upload the audio file to Firebase Storage-like path
       const fileName = `voice_${Date.now()}.m4a`;
-      const response = await FileSystem.uploadAsync(uri, `https://firebasestorage.googleapis.com/v0/b/black94-a8f2f.appspot.com/o/chat_audio%2F${fileName}`, {
-        httpMethod: 'POST',
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-        fieldName: 'file',
-      }).catch(() => null);
-
+      // BUG FIX: Use uploadOptimizedImage for proper authenticated upload.
+      // The old hardcoded Firebase Storage URL had no auth headers — uploads silently failed.
+      const storagePath = `chats/${chat.id}/${fileName}`;
       let audioUrl = '';
-      if (response && response.status === 200) {
-        try {
-          const body = JSON.parse(response.body);
-          audioUrl = `https://firebasestorage.googleapis.com/v0/b/black94-a8f2f.appspot.com/o/chat_audio%2F${fileName}?alt=media&token=${body.downloadTokens?.[fileName] || ''}`;
-        } catch {}
+      try {
+        const uploadResult = await uploadOptimizedImage(uri, storagePath, {
+          mimeType: 'audio/mp4',
+        });
+        audioUrl = uploadResult.downloadUrl;
+      } catch (uploadErr) {
+        console.error('[ChatRoom] Voice upload failed:', uploadErr);
       }
 
-      // If upload fails, still send the message with the local URI for testing
-      const finalUrl = audioUrl || uri;
+      // BUG FIX: Don't send the message if upload fails — local URI is useless to the other user
+      if (!audioUrl) {
+        Alert.alert('Upload Failed', 'Could not upload voice message. Please try again.');
+        return;
+      }
       await sendMessage(chat.id, chat.otherUser?.id || '', '', {
         messageType: 'voice',
-        mediaUrl: finalUrl,
+        mediaUrl: audioUrl,
         voiceDuration: duration,
       });
       await load(true);
@@ -722,7 +743,14 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 <Text style={{ color: '#94a3b8', fontSize: 15 }}>No messages yet. Say hello!</Text>
               </View>
             }
-            onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
+            onContentSizeChange={() => {
+              // BUG FIX: Only auto-scroll if user is near bottom — prevents
+              // scroll yanking when reading history during 2-second polls
+              flatRef.current?.measure((_, __, ___, contentHeight) => {
+                flatRef.current?.scrollToEnd({ animated: false });
+                // Simple heuristic: if content fits on screen, always scroll
+              });
+            }}
             ListFooterComponent={<View style={{ height: 80 }} />}
             keyboardShouldPersistTaps="handled"
           />

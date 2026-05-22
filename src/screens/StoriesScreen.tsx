@@ -230,7 +230,12 @@ export default function StoriesScreen({ navigation }: any) {
   const startTimeRef = useRef<number>(0);
   const pausedElapsedRef = useRef<number>(0);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const storyNavTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressingRef = useRef(false);
+
+  useEffect(() => {
+    return () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
+  }, []);
   const viewedStoriesRef = useRef<Set<string>>(new Set());
   const currentUser = auth()?.currentUser;
 
@@ -491,6 +496,7 @@ export default function StoriesScreen({ navigation }: any) {
         .collection('stories')
         .doc(viewingStory.id)
         .update({ likeCount: firestore.FieldValue.increment(1) });
+      setLiked(true);
     } catch (e) {
       console.warn('[StoriesScreen] Failed to like story:', e);
     }
@@ -647,6 +653,7 @@ export default function StoriesScreen({ navigation }: any) {
       if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
         // Double tap — show heart animation + like
         lastTapRef.current = 0; // BUG FIX: Set BEFORE setTimeout to prevent navigation
+        if (storyNavTimerRef.current) clearTimeout(storyNavTimerRef.current);
         setHeartPos({ x, y });
         setHeartVisible(false);
         setTimeout(() => setHeartVisible(true), 10);
@@ -655,7 +662,7 @@ export default function StoriesScreen({ navigation }: any) {
         lastTapRef.current = now;
 
         // After delay, if no second tap → navigate
-        setTimeout(() => {
+        storyNavTimerRef.current = setTimeout(() => {
           if (Date.now() - lastTapRef.current >= DOUBLE_TAP_DELAY - 50) {
             const third = SCREEN_W / 3;
             if (x < third) {

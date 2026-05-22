@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import { CommentData, fetchPostComments, addPostComment, fetchActiveAdCampaigns, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark } from '../lib/api';
+import { CommentData, fetchPostComments, addPostComment, fetchActiveAdCampaigns, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark, tsToMillis } from '../lib/api';
 import FactCheckBottomSheet from './FactCheckBottomSheet';
 import { useAppStore } from '../stores/app';
 import { auth, firestore } from '../lib/firebase';
@@ -162,6 +162,8 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
       authorIsVerified: user?.isVerified || false,
       authorBadge: user?.badge || '',
       content: text.trim(),
+      replyToId: replyingTo?.id || null,
+      replyToUsername: replyingTo?.username || null,
       createdAt: Date.now(),
     };
     setComments(prev => [...prev, optimistic]);

@@ -55,6 +55,19 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
     try {
       const data = await fetchPostComments(postId);
       setComments(data);
+      // BUG FIX: Populate like/repost/bookmark maps from API data so existing
+      // engagement state is reflected when the sheet opens (not always empty).
+      const likeM: Record<string, boolean> = {};
+      const repostM: Record<string, boolean> = {};
+      const bookmarkM: Record<string, boolean> = {};
+      (data || []).forEach(c => {
+        likeM[c.id] = !!c.isLiked;
+        repostM[c.id] = !!c.isReposted;
+        bookmarkM[c.id] = !!c.isBookmarked;
+      });
+      setLikeMap(likeM);
+      setRepostMap(repostM);
+      setBookmarkMap(bookmarkM);
     } catch (e: any) {
       console.error('[CommentSheet] loadComments error:', e?.message);
       setCommentsError(e?.message || 'Failed to load comments');

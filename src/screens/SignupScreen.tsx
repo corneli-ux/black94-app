@@ -47,7 +47,7 @@ export default function SignupScreen() {
       console.error('Sign up error:', error);
       if (error.code !== '12501') {
         const msg = error.message || 'Please try again';
-        Alert.alert('Sign Up Failed', msg.length > 100 ? 'Something went wrong. Please try again.' : msg);
+        Alert.alert('Sign Up Failed', msg.length > 100 ? 'Sign up failed. Please try again.' : msg);
       }
     } finally {
       setBusy(false);

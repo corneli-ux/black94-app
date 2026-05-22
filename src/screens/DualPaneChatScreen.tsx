@@ -181,15 +181,15 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
       setChats(enriched);
 
       // Auto-select first chat on tablet
-      if (IS_TABLET && enriched.length > 0 && !selectedChatId) {
-        setSelectedChatId(enriched[0].id);
+      if (IS_TABLET && enriched.length > 0) {
+        setSelectedChatId(prev => prev ?? enriched[0].id);
       }
     } catch (err) {
       console.error('[DualPaneChatScreen] loadChats error:', err);
     } finally {
       setLoadingChats(false);
     }
-  }, [currentUserId, selectedChatId]);
+  }, [currentUserId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -249,10 +249,9 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
         msgs.reverse();
         // Preserve temp messages that haven't appeared in server results yet
         const serverIds = new Set(msgs.map(m => m.id));
-        const serverContents = new Set(msgs.map(m => m.content));
         setMessages(prev => {
           const pendingTemps = prev.filter(
-            m => m.id.startsWith('tmp-') && !serverIds.has(m.id) && !serverContents.has(m.content)
+            m => m.id.startsWith('tmp-') && !serverIds.has(m.id)
           );
           return [...pendingTemps, ...msgs];
         });
@@ -263,11 +262,14 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
       }
     };
 
+    const loadRef = useRef(loadMessages);
+    loadRef.current = loadMessages;
+
     setLoadingMessages(true);
     loadMessages();
 
     // Poll every 2 seconds for near-real-time chat
-    msgPollRef.current = setInterval(loadMessages, 2000);
+    msgPollRef.current = setInterval(() => loadRef.current(), 2000);
 
     return () => {
       if (msgPollRef.current) {
@@ -309,7 +311,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
 
     // Optimistic: add temp message immediately for instant feel
     const tempMsg: ChatMessage = {
-      id: `tmp-${Date.now()}`,
+      id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       chatId: selectedChat.id,
       senderId: currentUserId,
       receiverId: otherId,
@@ -323,7 +325,12 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
     setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 50);
 
     try {
-      await sendMessage(selectedChat.id, otherId, content);
+      const result = await sendMessage(selectedChat.id, otherId, content);
+      if (result && !result.sent) {
+        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+        setMessageText(content);
+        Alert.alert('Send Failed', result.reason || 'Message could not be delivered.');
+      }
       // Don't reload — polling (2s) will pick up the server message.
       // The optimistic temp message is already visible.
     } catch (err: any) {
@@ -389,7 +396,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           ? selectedChat.user2Id
           : selectedChat.user1Id;
       const tempMsg: ChatMessage = {
-        id: `tmp-${Date.now()}`,
+        id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         chatId: selectedChat.id,
         senderId: currentUserId,
         receiverId: otherId,
@@ -400,7 +407,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
         createdAt: new Date().toISOString(),
       };
       setMessages(prev => [...prev, tempMsg]);
-      sendMessage(selectedChat.id, otherId, 'GIF', 'gif', gifUrl).catch((err: any) => {
+      sendMessage(selectedChat.id, otherId, 'GIF', { messageType: 'gif', mediaUrl: gifUrl }).catch((err: any) => {
         console.error('[DualPaneChat] GIF send error:', err?.message || err);
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       });
@@ -490,7 +497,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
       <View style={styles.roomContainer}>
         {/* Room header — stays fixed above KAV */}
         <View style={styles.roomHeader}>
-          <TouchableOpacity onPress={() => !IS_TABLET && setPhoneTab('list')}>
+          <TouchableOpacity onPress={() => { if (!IS_TABLET) { setSelectedChatId(null); setPhoneTab('list'); } }}>
             {!IS_TABLET && <Ionicons name="arrow-back" size={22} color={colors.text} />}
           </TouchableOpacity>
           <Text style={styles.roomName}>

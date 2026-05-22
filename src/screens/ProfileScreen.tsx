@@ -762,7 +762,7 @@ export default function ProfileScreen({ route, navigation }: any) {
     try {
       const newState = await toggleFollow(targetUserId, following);
       setFollowing(newState);
-      setFollowersCount(c => c + (newState ? 1 : -1));
+      setFollowersCount(c => newState ? c + 1 : Math.max(0, c - 1));
     } catch (e) {
       console.warn('[ProfileScreen] follow error:', e);
     }

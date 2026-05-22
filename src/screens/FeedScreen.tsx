@@ -786,6 +786,7 @@ type FeedItem =
 /* ── Map a Firestore doc → Post ──────────────────────────────────────────── */
 function docToPost(docSnap: any): Post {
   const data = docSnap.data();
+  if (!data) return null as any;
   return {
     id: docSnap.id,
     authorId: data.authorId || '',
@@ -1090,10 +1091,17 @@ export default function FeedScreen({ navigation }: any) {
     realtimeUnsubRef.current = unsub;
   }, [enrichPostsInBackground]);
 
+  // BUG FIX: Use a ref guard to prevent double-fire from onEndReached.
+  // React state updates are async — two rapid onEndReached calls both pass
+  // the loadingMore check before the first setLoadingMore(true) commits.
+  const fetchingRef = useRef(false);
   const loadFeed = useCallback(async (append = false) => {
     try {
-      if (append && (loadingMore || allLoaded)) return;
-      if (append) setLoadingMore(true);
+      if (append && (loadingMore || allLoaded || fetchingRef.current)) return;
+      if (append) {
+        fetchingRef.current = true;
+        setLoadingMore(true);
+      }
 
       // For "For You" tab: fetch recent posts and sort by engagement score
       if (activeTab === 'For You') {
@@ -1203,8 +1211,7 @@ export default function FeedScreen({ navigation }: any) {
       setLoading(false);
       setRefreshing(false);
       setLoadingMore(false);
-
-      // Fire-and-forget enrichment (author profiles + interactions + poll votes)
+      fetchingRef.current = false;
       enrichPostsInBackground(newPosts, userId);
     } catch (e: any) {
       console.error('[FeedScreen] Feed load error:', e?.message);
@@ -1214,6 +1221,7 @@ export default function FeedScreen({ navigation }: any) {
       setLoading(false);
       setRefreshing(false);
       setLoadingMore(false);
+      fetchingRef.current = false;
     }
   }, [currentUser?.uid, loadingMore, allLoaded, attachRealtimeListener, activeTab]);
 
@@ -1343,9 +1351,8 @@ export default function FeedScreen({ navigation }: any) {
         // ── Unrepost succeeded: remove the repost card from the feed ──
         const removedRepostId = `repost_${postId}_${currentUser?.uid}`;
         setPosts(prev => prev.filter(p => p.id !== removedRepostId));
-        // Reset pagination cursor so next page load doesn't have duplicates
-        lastDocRef.current = null;
-        setAllLoaded(false);
+        // BUG FIX: Do NOT reset pagination cursor — it causes duplicate posts on scroll.
+        // The card was removed in-place; no need to re-fetch.
       } else if (!reposted) {
         // ── New repost: use the doc data returned by toggleRepost directly ──
         // This eliminates the read-after-write race condition entirely.
@@ -1377,7 +1384,7 @@ export default function FeedScreen({ navigation }: any) {
             repostedByUid: rd.repostedByUid,
             repostedByUsername: rd.repostedByUsername,
             repostedByDisplayName: rd.repostedByDisplayName,
-            visibility: 'public',
+            visibility: rd.visibility || 'public',
           };
 
           // Prepend only if not already present (guard against double-tap races)
@@ -1388,8 +1395,9 @@ export default function FeedScreen({ navigation }: any) {
           // Re-anchor the real-time listener to include the new repost
           attachRealtimeListener(Date.now());
         }
-        // Trigger feed refresh as a fallback safety net.
-        useAppStore.getState().triggerFeedRefresh();
+        // BUG FIX: Removed triggerFeedRefresh() — it causes a jarring full reload
+        // that scrolls the user to the top. The prepended card + realtime listener
+        // are sufficient.
       }
     } catch (e) {
       // Revert optimistic update on failure
