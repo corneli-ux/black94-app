@@ -1060,6 +1060,74 @@ export default function UserProfileScreen({ navigation, route }: any) {
                   <Text style={styles.messageBtnText}>Message</Text>
                 )}
               </TouchableOpacity>
+              {/* More options — Block, Mute, Report */}
+              <TouchableOpacity
+                style={[styles.moreOptionsBtn]}
+                onPress={() => {
+                  Alert.alert('Options', '', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: isFollowing ? 'Unfollow' : 'Follow',
+                      onPress: () => handleToggleFollow(),
+                    },
+                    {
+                      text: 'Block User',
+                      style: 'destructive',
+                      onPress: () => {
+                        Alert.alert('Block User', `Block @${user?.username || 'this user'}? They won't be able to see your posts or profile.`, [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Block',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await firestore().collection('user_blocks').doc(`${currentUid}_${userId}`).set({
+                                  blockerId: currentUid,
+                                  blockedId: userId,
+                                  createdAt: firestore.FieldValue.serverTimestamp(),
+                                });
+                                // Unfollow them if we were following
+                                if (isFollowing) {
+                                  await toggleFollow(userId, true);
+                                  setIsFollowing(false);
+                                  setFollowerCount(prev => Math.max(0, prev - 1));
+                                }
+                                navigation.goBack();
+                              } catch {}
+                            },
+                          },
+                        ]);
+                      },
+                    },
+                    {
+                      text: 'Report User',
+                      onPress: () => {
+                        Alert.alert('Report', `Report @${user?.username || 'this user'}?`, [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Report',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await firestore().collection('reports').add({
+                                  type: 'user',
+                                  targetId: userId,
+                                  reporterId: currentUid,
+                                  reason: 'user_report',
+                                  createdAt: firestore.FieldValue.serverTimestamp(),
+                                });
+                                Alert.alert('Reported', 'Thank you for your report. We will review this user.');
+                              } catch {}
+                            },
+                          },
+                        ]);
+                      },
+                    },
+                  ]);
+                }}
+              >
+                <Ionicons name="ellipsis-horizontal" size={18} color="#94a3b8" />
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -1259,6 +1327,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.4)',
+  },
+  moreOptionsBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    marginLeft: 8,
   },
   messageBtnText: {
     fontSize: 14,

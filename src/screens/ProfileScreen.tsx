@@ -402,6 +402,41 @@ function LikedPostsGrid({ posts, navigation, onLike, onBookmark, onDelete, onRep
   return <PostGrid posts={posts} navigation={navigation} onLike={onLike} onBookmark={onBookmark} onDelete={onDelete} onRepost={onRepost} onComment={onComment} />;
 }
 
+/* ── Media Grid — shows only posts with images in a 3-column grid ────────── */
+function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
+  const postsWithMedia = posts.filter(p => p.mediaUrls && p.mediaUrls.length > 0);
+  if (postsWithMedia.length === 0) {
+    return (
+      <View style={{ alignItems: 'center', paddingTop: 60 }}>
+        <Ionicons name="images-outline" size={48} color="#94a3b8" style={{ marginBottom: 12 }} />
+        <Text style={{ color: '#94a3b8', fontSize: 15 }}>No media yet</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 1 }}>
+      {postsWithMedia.map(post => (
+        <TouchableOpacity
+          key={post.id}
+          style={{ width: '33.333%', aspectRatio: 1, padding: 1 }}
+          onPress={() => navigation.navigate('PostComments', { postId: post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}
+        >
+          <Image
+            source={{ uri: post.mediaUrls[0] }}
+            style={{ width: '100%', height: '100%', borderRadius: 4 }}
+            resizeMode="cover"
+          />
+          {post.mediaUrls.length > 1 && (
+            <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+              <Ionicons name="copy-outline" size={12} color="#fff" />
+            </View>
+          )}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
 export default function ProfileScreen({ route, navigation }: any) {
   const currentUser = auth()?.currentUser;
   const targetUserId = route?.params?.userId || currentUser?.uid;
@@ -415,8 +450,9 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [following, setFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
-  const [tab, setTab] = useState<'posts' | 'replies' | 'likes' | 'store'>('posts');
+  const [tab, setTab] = useState<'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'store'>('posts');
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
+  const [repostPosts, setRepostPosts] = useState<Post[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
   const [messaging, setMessaging] = useState(false);
@@ -427,9 +463,9 @@ export default function ProfileScreen({ route, navigation }: any) {
   const isBusinessAccount = user?.role === 'business';
   const showStoreTab = isBusinessAccount;
 
-  const tabs: Array<'posts' | 'replies' | 'likes' | 'store'> = showStoreTab
-    ? ['posts', 'store', 'likes']
-    : ['posts', 'replies', 'likes'];
+  const tabs: Array<'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'store'> = showStoreTab
+    ? ['posts', 'media', 'store', 'likes', 'reposts']
+    : ['posts', 'media', 'replies', 'likes', 'reposts'];
 
   const load = useCallback(async () => {
     try {
@@ -454,14 +490,14 @@ export default function ProfileScreen({ route, navigation }: any) {
       // BUG FIX: Also fetch repost posts for this user. Repost posts have the
       // original author's authorId, not the reposting user's ID. Without this
       // query, reposts would never appear on the user's profile page.
-      let repostPosts: Post[] = [];
+      let fetchedRepostPosts: Post[] = [];
       try {
         const repostSnap = await firestore()
           .collection('posts')
           .where('repostedByUid', '==', targetUserId)
           .limit(50)
           .get();
-        repostPosts = repostSnap.docs.map(d => {
+        fetchedRepostPosts = repostSnap.docs.map(d => {
           const data = d.data();
           return {
             id: d.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
@@ -498,8 +534,11 @@ export default function ProfileScreen({ route, navigation }: any) {
         };
       });
 
+      // Store repost posts separately for the Reposts tab
+      setRepostPosts(fetchedRepostPosts);
+
       // Merge own posts + repost posts, sort by createdAt descending
-      const allPosts = [...ps, ...repostPosts];
+      const allPosts = [...ps, ...fetchedRepostPosts];
       allPosts.sort((a, b) => b.createdAt - a.createdAt);
       setPosts(allPosts);
 
@@ -962,8 +1001,12 @@ export default function ProfileScreen({ route, navigation }: any) {
           <ActivityIndicator color={colors.accent} />
         </View>
       ) : tab === 'posts' && <PostGrid posts={posts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
+      {tab === 'media' && (
+        <MediaGrid posts={posts} navigation={navigation} />
+      )}
       {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
       {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
+      {tab === 'reposts' && <PostGrid posts={repostPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'store' && (
         <View style={{ alignItems: 'center', paddingTop: 60 }}>
           <Ionicons name="storefront-outline" size={48} color="#94a3b8" style={{ marginBottom: 12 }} />
