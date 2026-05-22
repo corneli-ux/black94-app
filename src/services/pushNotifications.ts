@@ -129,10 +129,13 @@ export async function initNotifications(onNotificationTap: NotificationTapHandle
     if (lastResponse?.notification) {
       const data = lastResponse.notification.request.content.data || {};
       console.log('[Push] Cold-start notification detected:', JSON.stringify(data));
-      // Defer the tap handling slightly so navigation is ready
+      // BUG FIX: Increased from 500ms to 1500ms.
+      // 500ms was too short on slow/mid-range devices — the navigator hadn't
+      // mounted yet (navRef.current was still null), so the tap was silently
+      // dropped and the user was never routed to the correct screen.
       setTimeout(() => {
         if (_tapHandler) _tapHandler(data);
-      }, 500);
+      }, 1500);
     }
   } catch (e) {
     console.warn('[Push] Cold-start notification check failed:', e);
@@ -145,7 +148,20 @@ export async function initNotifications(onNotificationTap: NotificationTapHandle
    PERMISSIONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
+// BUG FIX: Module-level flag prevents requestNotificationPermissions() from
+// showing the OS permission dialog more than once per app session.
+// Previously this was called from setUser() in app.ts, which fires on every
+// profile update — meaning the permission prompt could reappear unexpectedly.
+let _pushPermissionRequested = false;
+
 export async function requestNotificationPermissions(): Promise<boolean> {
+  // Only request once per app session — subsequent calls are no-ops
+  if (_pushPermissionRequested) {
+    console.log('[Push] Permission already requested this session, skipping');
+    return true;
+  }
+  _pushPermissionRequested = true;
+
   try {
     // Ensure Android channel exists before requesting permissions
     await ensureAndroidChannel();
@@ -283,20 +299,25 @@ export async function sendPushNotification(payload: PushPayload): Promise<boolea
       body: JSON.stringify(message),
     });
 
-    const data = await resp.json();
-    const success = data.status === 'ok';
+    const responseJson = await resp.json();
+
+    // BUG FIX: Expo Push API returns { data: [{ id, status, message?, details? }] }
+    // — an array of per-message receipts, NOT a top-level { status: 'ok' }.
+    // The old check (data.status === 'ok') always evaluated to false because
+    // data.status is undefined — pushes appeared to fail even when delivered.
+    const receipts: Array<{ status: string; id?: string; message?: string; details?: any }> =
+      responseJson?.data || [];
+    const success = receipts.length > 0 && receipts.every(r => r.status === 'ok');
 
     if (!success) {
-      // Log individual errors for each receipt
-      if (data.errors) {
-        console.warn('[Push] Send errors:', JSON.stringify(data.errors));
+      // Log top-level API errors (auth failures, malformed request, etc.)
+      if (responseJson?.errors) {
+        console.warn('[Push] Send errors:', JSON.stringify(responseJson.errors));
       }
-      // Log receipt details for debugging
-      if (data.data) {
-        for (const receipt of data.data) {
-          if (receipt.status === 'error') {
-            console.warn('[Push] Receipt error:', receipt.id, receipt.message, receipt.details);
-          }
+      // Log per-receipt errors (invalid token, device unregistered, etc.)
+      for (const receipt of receipts) {
+        if (receipt.status === 'error') {
+          console.warn('[Push] Receipt error:', receipt.id, receipt.message, receipt.details);
         }
       }
     } else {
@@ -392,6 +413,7 @@ export async function sendPushToUser(
 
 /**
  * Remove push token on logout to prevent sending to a logged-out device.
+ * Also resets the session permission flag so the next login can re-request.
  */
 export async function clearPushToken(): Promise<void> {
   try {
@@ -410,6 +432,9 @@ export async function clearPushToken(): Promise<void> {
       .collection('tokens')
       .doc(tokenId)
       .delete();
+
+    // Reset permission flag so next login session can request again if needed
+    _pushPermissionRequested = false;
 
     console.log('[Push] Token cleared on logout');
   } catch (e) {
