@@ -198,6 +198,11 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionSearchTimeout, setMentionSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
+  // Thread state
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [threadPosition, setThreadPosition] = useState(0);
+  const [threadMode, setThreadMode] = useState(false);
+
   // Abort controller to cancel uploads if user navigates away
   const abortRef = useRef<AbortController | null>(null);
 
@@ -400,7 +405,22 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
       const allMediaUrls = [...uploadedUrls, ...selectedGifUrls];
 
       setUploadProgress('Posting...');
-      await createPost(caption.trim(), allMediaUrls, pollData || undefined, quotePostId || undefined, visibility, scheduledDate || undefined, locationTag || undefined);
+      const postId = await createPost(caption.trim(), allMediaUrls, pollData || undefined, quotePostId || undefined, visibility, scheduledDate || undefined, locationTag || undefined, threadId || undefined, threadPosition || undefined);
+
+      // If thread mode is active, reset caption/media for next post in thread
+      if (threadMode) {
+        const newThreadId = threadId || postId; // first post establishes the thread ID
+        setThreadId(newThreadId);
+        setThreadPosition(threadPosition + 1);
+        setCaption('');
+        setSelectedImages([]);
+        setSelectedGifUrls([]);
+        setPollData(null);
+        setQuotePostId(null);
+        setUploadProgress('');
+        return; // don't navigate back, stay in composer
+      }
+
       triggerFeedRefresh();
       navigation.goBack();
     } catch (err: any) {
@@ -704,6 +724,26 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               />
             </View>
           )}
+
+          {/* Thread Mode Indicator */}
+          {threadMode && (
+            <View style={styles.threadSection}>
+              <View style={styles.threadHeader}>
+                <Ionicons name="git-branch-outline" size={18} color={COLORS.accent} />
+                <Text style={styles.threadTitle}>
+                  {threadId ? `Thread — Post ${threadPosition + 1}` : 'Thread Mode'}
+                </Text>
+                <TouchableOpacity onPress={() => setThreadMode(false)} hitSlop={8}>
+                  <Ionicons name="close" size={16} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.threadHint}>
+                {threadId
+                  ? 'Publish to add the next post in your thread. Each post is added sequentially.'
+                  : 'Your first post will start the thread. Keep posting to add more.'}
+              </Text>
+            </View>
+          )}
         </ScrollView>
 
         {/* Mention autocomplete dropdown */}
@@ -797,6 +837,27 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                 name="location-outline"
                 size={22}
                 color={posting ? COLORS.textMuted : (locationTag ? COLORS.green : '#94a3b8')}
+              />
+            </TouchableOpacity>
+            {/* Thread toggle */}
+            <TouchableOpacity
+              style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
+              onPress={() => {
+                if (posting) return;
+                setThreadMode(!threadMode);
+                if (!threadMode) {
+                  // Starting a new thread
+                  setThreadId(null);
+                  setThreadPosition(0);
+                }
+              }}
+              activeOpacity={0.7}
+              disabled={posting}
+            >
+              <Ionicons
+                name="git-branch-outline"
+                size={22}
+                color={posting ? COLORS.textMuted : (threadMode ? COLORS.accent : '#94a3b8')}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -1166,6 +1227,33 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: COLORS.textPrimary,
     fontSize: 15,
+  },
+  /* ── Thread Section ──────────────────────────────────────────────────── */
+  threadSection: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: 'rgba(56, 189, 248, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.2)',
+  },
+  threadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  threadTitle: {
+    color: COLORS.accent,
+    fontSize: 15,
+    fontWeight: '700',
+    flex: 1,
+  },
+  threadHint: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
   },
   mentionDropdown: {
     position: 'absolute',

@@ -579,6 +579,8 @@ export async function createPost(
   visibility?: string,
   scheduledDate?: string,
   locationTag?: string,
+  threadId?: string,
+  positionInThread?: number,
 ): Promise<string> {
   const userId = currentUser()?.uid;
   if (!userId) throw new Error('Not authenticated');
@@ -675,6 +677,12 @@ export async function createPost(
     docData.location = locationTag;
   }
 
+  // Thread support: link posts together
+  if (threadId) {
+    docData.threadId = threadId;
+    docData.positionInThread = positionInThread ?? 0;
+  }
+
   const docRef = await firestore().collection('posts').add(docData);
 
   // Fire mention notifications for any @mentioned users
@@ -708,6 +716,23 @@ export async function createPost(
   } catch {}
 
   return docRef.id;
+}
+
+/**
+ * Fetches all posts in a thread (ordered by positionInThread).
+ */
+export async function fetchThreadPosts(threadId: string): Promise<any[]> {
+  try {
+    const snap = await firestore()
+      .collection('posts')
+      .where('threadId', '==', threadId)
+      .orderBy('positionInThread', 'asc')
+      .get();
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (e) {
+    console.error('[Thread] Failed to fetch thread posts:', e);
+    return [];
+  }
 }
 
 export async function toggleLike(postId: string, currentlyLiked: boolean): Promise<boolean> {
