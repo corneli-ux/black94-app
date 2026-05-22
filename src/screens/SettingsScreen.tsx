@@ -7,7 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { signOutUser } from '../lib/api';
-import { auth, firestore, updateAuthUser } from '../lib/firebase';
+import { auth, updateAuthUser } from '../lib/firebase';
+import { deleteAccountServer } from '../lib/cloudFunctions';
 import { Avatar } from '../components/Avatar';
 import { PLANS, formatAmount } from '../lib/payments';
 
@@ -88,23 +89,8 @@ export default function SettingsScreen() {
           onPress: async () => {
             setDeleting(true);
             try {
-              const uid = auth()?.currentUser?.uid;
-              if (!uid) return;
-
-              // Delete user doc
-              await firestore().collection('users').doc(uid).delete().catch(() => {});
-
-              // Delete user's posts
-              const postsSnap = await firestore().collection('posts').where('authorId', '==', uid).limit(100).get();
-              const batch1 = firestore().batch();
-              postsSnap.docs.forEach(d => batch1.delete(d.ref));
-              await batch1.commit().catch(() => {});
-
-              // Delete user's stories
-              const storiesSnap = await firestore().collection('stories').where('authorId', '==', uid).limit(50).get();
-              const batch2 = firestore().batch();
-              storiesSnap.docs.forEach(d => batch2.delete(d.ref));
-              await batch2.commit().catch(() => {});
+              // Delete account server-side (Auth user + all Firestore data)
+              await deleteAccountServer();
 
               // Sign out and clear local state
               await signOutUser().catch(() => {});

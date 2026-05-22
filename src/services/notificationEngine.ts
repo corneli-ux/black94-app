@@ -118,8 +118,37 @@ export function stopNotificationPolling(): void {
  * Get the count of unread notifications for a user.
  */
 async function pollUnread(userId: string): Promise<number> {
-  // Fetch all notifications and filter unread client-side to avoid requiring
-  // a composite index on (recipientId, read) that may not exist.
+  // Use the (recipientId ASC, read ASC, createdAt DESC) composite index
+  // to efficiently fetch only unread notifications, sorted by recency.
+  // Falls back to fetching all and filtering client-side if the index
+  // is not yet available (index error returns empty array with _missingIndex flag).
+  try {
+    const snap = await firestore()
+      .collection('notifications')
+      .where('recipientId', '==', userId)
+      .where('read', '==', false)
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
+
+    // Guard: if the result has _missingIndex flag, fall back to client-side filter
+    if ((snap as any)._missingIndex) {
+      return _pollUnreadFallback(userId);
+    }
+
+    return snap.docs.length;
+  } catch (e) {
+    // On any query error (missing index, permission, etc.), fall back
+    console.warn('[NotificationEngine] Composite query failed, using fallback:', e?.message || e);
+    return _pollUnreadFallback(userId);
+  }
+}
+
+/**
+ * Fallback: fetches all notifications for the user and filters unread client-side.
+ * Used when the composite index for (recipientId, read, createdAt) is not available.
+ */
+async function _pollUnreadFallback(userId: string): Promise<number> {
   const snap = await firestore()
     .collection('notifications')
     .where('recipientId', '==', userId)
@@ -127,12 +156,10 @@ async function pollUnread(userId: string): Promise<number> {
     .limit(50)
     .get();
 
-  const unread = snap.docs.filter(d => {
+  return snap.docs.filter(d => {
     const data = d.data();
     return data.read === false || data.read === undefined;
   }).length;
-
-  return unread;
 }
 
 // ── Create Notification ─────────────────────────────────────────────────────

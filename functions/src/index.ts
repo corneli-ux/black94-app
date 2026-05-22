@@ -497,3 +497,125 @@ webhookRawApp.post('/webhook', async (req: any, res) => {
 });
 
 export const razorpayWebhook = functions.https.onRequest(webhookRawApp);
+
+// ── HTTP: deleteAccount ───────────────────────────────────────────────────
+
+/**
+ * Deletes a user's account and all associated data.
+ *
+ * Steps:
+ *  1. Authenticate the request (same authenticateRequest middleware).
+ *  2. Delete the Firebase Auth user via admin.auth().deleteUser(uid).
+ *  3. Delete the Firestore user doc.
+ *  4. Batch-delete all user data:
+ *     - posts where authorId == uid
+ *     - stories where authorId == uid
+ *     - user_push_tokens/{uid} (entire doc + subcollection)
+ *  5. Return { deleted: true }.
+ *
+ * Request: POST with Authorization: Bearer <token>, empty body.
+ * Response (200): { deleted: true }
+ * Errors: 401 — not authenticated, 500 — server error.
+ */
+const deleteApp = express();
+deleteApp.use(cors({ origin: true }));
+deleteApp.use(express.json());
+deleteApp.post('/', authenticateRequest, async (req: any, res) => {
+  const uid = req.uid;
+  console.log(`[DeleteAccount] Starting account deletion for uid=${uid}`);
+
+  try {
+    // ── 1. Delete Firebase Auth user ──
+    try {
+      await admin.auth().deleteUser(uid);
+      console.log(`[DeleteAccount] Firebase Auth user deleted: ${uid}`);
+    } catch (authErr: any) {
+      // If the auth user doesn't exist, continue with Firestore cleanup
+      if (authErr.code === 'auth/user-not-found') {
+        console.warn(`[DeleteAccount] Auth user not found (already deleted?): ${uid}`);
+      } else {
+        throw authErr;
+      }
+    }
+
+    // ── 2. Delete Firestore user doc ──
+    try {
+      await db.collection('users').doc(uid).delete();
+      console.log(`[DeleteAccount] User doc deleted: ${uid}`);
+    } catch (err) {
+      console.warn(`[DeleteAccount] Failed to delete user doc:`, err);
+    }
+
+    // ── 3. Delete user's posts ──
+    try {
+      const postsSnap = await db.collection('posts').where('authorId', '==', uid).get();
+      let postsDeleted = 0;
+      for (const batch of _chunkArray(postsSnap.docs, 500)) {
+        const batchWrite = db.batch();
+        batch.forEach((doc: any) => batchWrite.delete(doc.ref));
+        await batchWrite.commit();
+        postsDeleted += batch.length;
+      }
+      console.log(`[DeleteAccount] Deleted ${postsDeleted} posts for ${uid}`);
+    } catch (err) {
+      console.warn(`[DeleteAccount] Failed to delete posts:`, err);
+    }
+
+    // ── 4. Delete user's stories ──
+    try {
+      const storiesSnap = await db.collection('stories').where('authorId', '==', uid).get();
+      let storiesDeleted = 0;
+      for (const batch of _chunkArray(storiesSnap.docs, 500)) {
+        const batchWrite = db.batch();
+        batch.forEach((doc: any) => batchWrite.delete(doc.ref));
+        await batchWrite.commit();
+        storiesDeleted += batch.length;
+      }
+      console.log(`[DeleteAccount] Deleted ${storiesDeleted} stories for ${uid}`);
+    } catch (err) {
+      console.warn(`[DeleteAccount] Failed to delete stories:`, err);
+    }
+
+    // ── 5. Delete user push token doc + subcollection ──
+    try {
+      const pushTokenDoc = db.collection('user_push_tokens').doc(uid);
+      // Delete subcollection docs first
+      const tokensSnap = await pushTokenDoc.collection('tokens').get();
+      for (const batch of _chunkArray(tokensSnap.docs, 500)) {
+        const batchWrite = db.batch();
+        batch.forEach((doc: any) => batchWrite.delete(doc.ref));
+        await batchWrite.commit();
+      }
+      await pushTokenDoc.delete();
+      console.log(`[DeleteAccount] Push token doc deleted for ${uid}`);
+    } catch (err) {
+      console.warn(`[DeleteAccount] Failed to delete push tokens:`, err);
+    }
+
+    console.log(`[DeleteAccount] Account deletion complete for uid=${uid}`);
+    return res.status(200).json({ deleted: true });
+  } catch (error: any) {
+    console.error(`[DeleteAccount] Error deleting account for ${uid}:`, error);
+    return res.status(500).json({
+      error: {
+        code: 500,
+        message: 'Failed to delete account. Please try again or contact support.',
+        status: 'INTERNAL',
+      },
+    });
+  }
+});
+
+/**
+ * Chunk an array into batches of the given size.
+ * Firestore batch writes support up to 500 operations.
+ */
+function _chunkArray<T>(array: T[], batchSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += batchSize) {
+    chunks.push(array.slice(i, i + batchSize));
+  }
+  return chunks;
+}
+
+export const deleteAccount = functions.https.onRequest(deleteApp);

@@ -42,39 +42,90 @@ export default function BookmarksScreen() {
         .get();
 
       const bookmarkEntries = snap.docs.map(d => ({ id: d.id, postId: d.data().postId })).filter(e => !!e.postId);
-      const postPromises = bookmarkEntries.map(async (entry: any) => {
-        try {
-          const postSnap = await firestore().collection('posts').doc(entry.postId).get();
-          if (postSnap.exists) {
-            const data = postSnap.data();
-            return {
-              id: postSnap.id, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
-              authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
-              authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
-              caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
-              likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
-              repostCount: data.repostCount || 0, liked: false, bookmarked: true, reposted: false,
-              repostOf: data.repostOf || undefined, repostedByUid: data.repostedByUid || undefined,
-              repostedByUsername: data.repostedByUsername || undefined, repostedByDisplayName: data.repostedByDisplayName || undefined,
-              createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
-            };
-          }
-        } catch { /* skip */ }
-        return null;
-      });
-      const results = await Promise.all(postPromises);
-      const posts: Post[] = results.filter(Boolean);
 
+      // Batch-read post docs: use `in` query with __name__ for efficiency.
+      // Falls back to parallel individual reads if the batch query fails.
+      const POST_DB = 'projects/black94/databases/(default)/documents/posts';
+      const BATCH_SIZE = 30;
+      const postMap: Record<string, any> = {};
+
+      try {
+        // Build reference values for __name__ filter
+        for (let i = 0; i < bookmarkEntries.length; i += BATCH_SIZE) {
+          const batch = bookmarkEntries.slice(i, i + BATCH_SIZE);
+          const refValues = batch.map(e => `${POST_DB}/${e.postId}`);
+          // Use where('__name__', 'in', [...]) with full reference paths
+          const postSnap = await firestore()
+            .collection('posts')
+            .where('__name__', 'in', refValues)
+            .get();
+          for (const doc of postSnap.docs) {
+            postMap[doc.id] = doc.data();
+          }
+        }
+      } catch {
+        // Fallback: parallel individual reads via Promise.all
+        console.warn('[Bookmarks] Batch query failed, falling back to individual reads');
+        const results = await Promise.all(
+          bookmarkEntries.map(async (entry) => {
+            try {
+              const postSnap = await firestore().collection('posts').doc(entry.postId).get();
+              if (postSnap.exists) return { id: entry.postId, data: postSnap.data() };
+            } catch { /* skip */ }
+            return null;
+          }),
+        );
+        for (const r of results) {
+          if (r) postMap[r.id] = r.data;
+        }
+      }
+
+      // Build post objects from fetched data
+      const posts: Post[] = [];
+      for (const entry of bookmarkEntries) {
+        const data = postMap[entry.postId];
+        if (!data) continue;
+        posts.push({
+          id: entry.postId, authorId: data.authorId || '', authorUsername: data.authorUsername || '',
+          authorDisplayName: data.authorDisplayName || '', authorProfileImage: data.authorProfileImage || null,
+          authorBadge: data.authorBadge || '', authorIsVerified: data.authorIsVerified || false,
+          caption: data.caption || '', mediaUrls: parseMediaUrls(data.mediaUrls),
+          likeCount: data.likeCount || 0, commentCount: data.commentCount || 0,
+          repostCount: data.repostCount || 0, liked: false, bookmarked: true, reposted: false,
+          repostOf: data.repostOf || undefined, repostedByUid: data.repostedByUid || undefined,
+          repostedByUsername: data.repostedByUsername || undefined, repostedByDisplayName: data.repostedByDisplayName || undefined,
+          createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+        });
+      }
+
+      // Batch-read unique authors using `__name__` + `in` (with fallback)
       const uniqueAuthorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean))];
       const authorMap: Record<string, any> = {};
       try {
-        const userDocs = await Promise.all(uniqueAuthorIds.map(uid => firestore().collection('users').doc(uid).get().catch(() => null)));
-        for (const docSnap of userDocs) { if (docSnap && docSnap.exists) authorMap[docSnap.id] = docSnap.data(); }
-      } catch {}
+        const USER_DB = 'projects/black94/databases/(default)/documents/users';
+        for (let i = 0; i < uniqueAuthorIds.length; i += BATCH_SIZE) {
+          const batch = uniqueAuthorIds.slice(i, i + BATCH_SIZE);
+          const refValues = batch.map(uid => `${USER_DB}/${uid}`);
+          const userSnap = await firestore()
+            .collection('users')
+            .where('__name__', 'in', refValues)
+            .get();
+          for (const doc of userSnap.docs) {
+            authorMap[doc.id] = doc.data();
+          }
+        }
+      } catch {
+        // Fallback: parallel individual reads
+        const results = await Promise.all(
+          uniqueAuthorIds.map(uid => firestore().collection('users').doc(uid).get().catch(() => null)),
+        );
+        for (const docSnap of results) {
+          if (docSnap && docSnap.exists) authorMap[docSnap.id] = docSnap.data();
+        }
+      }
       for (const post of posts) {
         const fresh = authorMap[post.authorId];
         if (fresh) {
-          // Only enrich visual properties — preserve stamped authorDisplayName/authorUsername
           post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
           post.authorBadge = fresh.badge || post.authorBadge;
           post.authorIsVerified = fresh.isVerified || post.authorIsVerified;

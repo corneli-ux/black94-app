@@ -9,11 +9,13 @@
  *  - Until payment gateway credentials are provided, the checkout is gated
  *    with a clear message.
  *
- * Post-payment: verifyAndActivateSubscription() writes to Firestore.
+ * Post-payment: verifyAndActivateSubscription() calls the Cloud Function for
+ * server-side payment verification before activating the subscription.
  */
 
 import { firestore, auth } from './firebase';
 import { fetchUserProfile } from './api';
+import { verifyPayment } from './cloudFunctions';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -199,76 +201,45 @@ export function getRazorpayCheckoutConfig(options: InitiatePaymentOptions) {
 // ── Post-payment verification & activation ────────────────────────────────
 
 /**
- * Verifies a successful payment and activates the subscription in Firestore.
+ * Verifies a payment and activates the subscription via the Cloud Function.
  *
- * Steps:
- *  1. Updates `users/{uid}` with subscription, badge, and role (business).
- *  2. Creates a `subscriptions/{paymentId}` document for record keeping.
- *  3. Returns the fully updated user object from Firestore.
+ * SECURITY FIX: The old implementation wrote directly to Firestore with zero
+ * server verification — anyone could call it with a fake paymentId and get
+ * premium for free. Now it delegates to the verifyRazorpayPayment Cloud
+ * Function which verifies the HMAC signature server-side, fetches payment
+ * details from Razorpay API, and activates the subscription atomically.
+ *
+ * @param params - Razorpay payment details from the checkout callback.
+ * @returns The updated user profile, or null on failure.
  */
 export async function verifyAndActivateSubscription(
-  userId: string,
-  planId: string,
-  paymentId: string,
+  params: {
+    razorpayOrderId: string;
+    razorpayPaymentId: string;
+    razorpaySignature: string;
+    planId?: string;
+  },
 ): Promise<import('./api').User | null> {
   const currentUid = auth()?.currentUser?.uid;
   if (!currentUid) throw new Error('Not authenticated');
 
-  // BUG FIX (SECURITY): Validate planId before activating.
-  // Without this, any caller could pass planId='free' and get isVerified:true
-  // for free, or pass arbitrary strings to corrupt the subscription field.
-  const validPlanIds = PLANS.map((p) => p.id);
-  if (!validPlanIds.includes(planId)) {
-    throw new Error(`Invalid plan ID: ${planId}. Must be one of: ${validPlanIds.join(', ')}`);
+  // Call the server-side verification function
+  const result = await verifyPayment({
+    razorpayOrderId: params.razorpayOrderId,
+    razorpayPaymentId: params.razorpayPaymentId,
+    razorpaySignature: params.razorpaySignature,
+    type: 'subscription',
+    planId: params.planId,
+  });
+
+  if (!result.verified) {
+    throw new Error('Payment verification failed on server');
   }
 
-  // ── Determine badge and role based on plan ──
-  const badge = planId === 'business' ? 'gold' : planId === 'premium' ? 'blue' : '';
-  const role = planId === 'business' ? 'business' : undefined;
+  console.log(`[Payments] Server verified payment: ${params.razorpayPaymentId}`);
 
-  // ── 1. Update the user document ──
-  const userUpdate: Record<string, any> = {
-    subscription: planId,
-    badge,
-    isVerified: true,
-    updatedAt: firestore.FieldValue.serverTimestamp(),
-  };
-
-  if (role) {
-    userUpdate.role = role;
-  }
-
-  await firestore()
-    .collection('users')
-    .doc(userId)
-    .update(userUpdate);
-
-  console.log(`[Payments] Updated user ${userId}: subscription=${planId}`);
-
-  // ── 2. Create subscription record ──
-  const plan = PLANS.find((p) => p.id === planId);
-
-  const subscriptionData: Record<string, any> = {
-    userId,
-    planId,
-    planName: plan?.name || planId,
-    amount: plan?.amount || 0,
-    currency: plan?.currency || 'INR',
-    paymentId,
-    status: 'active',
-    activatedAt: firestore.FieldValue.serverTimestamp(),
-    duration: plan?.duration || 'monthly',
-  };
-
-  await firestore()
-    .collection('subscriptions')
-    .doc(paymentId)
-    .set(subscriptionData);
-
-  console.log(`[Payments] Created subscription record: ${paymentId}`);
-
-  // ── 3. Fetch and return the updated user profile ──
-  const updatedUser = await fetchUserProfile(userId);
+  // Fetch and return the updated user profile (server already activated subscription)
+  const updatedUser = await fetchUserProfile(currentUid);
   return updatedUser;
 }
 
