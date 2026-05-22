@@ -138,6 +138,26 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         const isUser1 = chat.user1Id === currentUser?.uid;
         const field = isUser1 ? 'unreadUser1' : 'unreadUser2';
         await firestore().collection('chats').doc(chat.id).update({ [field]: 0 });
+
+        // Mark messages from the other user as 'delivered' and 'read'
+        try {
+          const otherSenderId = isUser1 ? chat.user2Id : chat.user1Id;
+          if (otherSenderId) {
+            const msgSnap = await firestore()
+              .collection('chats').doc(chat.id).collection('messages')
+              .where('senderId', '==', otherSenderId)
+              .where('status', 'in', ['sent', 'delivered'])
+              .limit(100)
+              .get();
+            if (!msgSnap.empty) {
+              const batch = firestore().batch();
+              msgSnap.docs.forEach(doc => {
+                batch.update(doc.ref, { status: 'read' });
+              });
+              await batch.commit();
+            }
+          }
+        } catch { /* non-critical */ }
       } catch (e) {
         console.warn('Failed to reset unread:', e);
       }
@@ -486,6 +506,18 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }]}>
             {formatTime(item.createdAt)}
           </Text>
+          {/* Read receipt indicators — own messages only */}
+          {isMine && (
+            <View style={styles.receiptRow}>
+              {item.status === 'read' ? (
+                <Ionicons name="checkmark-done" size={14} color="#38bdf8" />
+              ) : item.status === 'delivered' ? (
+                <Ionicons name="checkmark-done" size={14} color="rgba(0,0,0,0.3)" />
+              ) : (
+                <Ionicons name="checkmark" size={14} color="rgba(0,0,0,0.3)" />
+              )}
+            </View>
+          )}
           {/* Reactions display */}
           {reactionEntries.length > 0 && (
             <View style={styles.reactionBadge}>
@@ -940,7 +972,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   bubbleText: { color: '#e7e9ea', fontSize: 14, lineHeight: 22 },
-  bubbleTime: { fontSize: 11, marginTop: 4 },
+  bubbleTime: { fontSize: 11, marginTop: 4, marginRight: 2 },
+  receiptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 2,
+  },
   reactionBadge: {
     flexDirection: 'row',
     alignSelf: 'flex-start',

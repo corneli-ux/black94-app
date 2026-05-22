@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { signOutUser } from '../lib/api';
-import { firestore, updateAuthUser } from '../lib/firebase';
+import { auth, firestore, updateAuthUser } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { PLANS, formatAmount } from '../lib/payments';
 
@@ -72,6 +72,54 @@ export default function SettingsScreen() {
         },
       },
     ]);
+  };
+
+  const [deleting, setDeleting] = React.useState(false);
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account, all your posts, comments, messages, and profile data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Forever',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const uid = auth()?.currentUser?.uid;
+              if (!uid) return;
+
+              // Delete user doc
+              await firestore().collection('users').doc(uid).delete().catch(() => {});
+
+              // Delete user's posts
+              const postsSnap = await firestore().collection('posts').where('authorId', '==', uid).limit(100).get();
+              const batch1 = firestore().batch();
+              postsSnap.docs.forEach(d => batch1.delete(d.ref));
+              await batch1.commit().catch(() => {});
+
+              // Delete user's stories
+              const storiesSnap = await firestore().collection('stories').where('authorId', '==', uid).limit(50).get();
+              const batch2 = firestore().batch();
+              storiesSnap.docs.forEach(d => batch2.delete(d.ref));
+              await batch2.commit().catch(() => {});
+
+              // Sign out and clear local state
+              await signOutUser().catch(() => {});
+              useAppStore.getState().logout();
+              await AsyncStorage.clear().catch(() => {});
+            } catch (err) {
+              console.error('[Settings] Delete account error:', err);
+              Alert.alert('Error', 'Failed to delete account. Please try again.');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -227,6 +275,27 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Delete Account */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={[styles.deleteAccountBtn]}
+            onPress={handleDeleteAccount}
+            disabled={deleting}
+          >
+            {deleting ? (
+              <Text style={styles.deleteAccountText}>Deleting...</Text>
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={18} color="#f43f5e" />
+                <Text style={styles.deleteAccountText}>Delete Account</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.deleteAccountHint}>
+            Permanently removes your profile, posts, stories, and messages.
+          </Text>
+        </View>
+
         <View style={styles.legalRow}>
           <Text style={styles.legalText}>Black94 v1.8.3</Text>
         </View>
@@ -326,4 +395,17 @@ const styles = StyleSheet.create({
     paddingVertical: 16, gap: 12,
   },
   legalText: { color: colors.textMuted, fontSize: 12 },
+  deleteAccountBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(244, 63, 94, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.2)',
+  },
+  deleteAccountText: { color: '#f43f5e', fontSize: 15, fontWeight: '600' },
+  deleteAccountHint: { color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 },
 });
