@@ -86,7 +86,7 @@ function HighlightedCaption({ text, style, navigation }: { text: string; style: 
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
-const TABS = ['Black94', 'Network'] as const;
+const TABS = ['For You', 'Black94', 'Network'] as const;
 type Tab = typeof TABS[number];
 
 function formatCount(n: number | undefined): string {
@@ -1023,6 +1023,64 @@ export default function FeedScreen({ navigation }: any) {
       if (append && (loadingMore || allLoaded)) return;
       if (append) setLoadingMore(true);
 
+      // For "For You" tab: fetch recent posts and sort by engagement score
+      if (activeTab === 'For You') {
+        try {
+          const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const snapshot = append
+            ? await firestore()
+                .collection('posts')
+                .orderBy('createdAt', 'desc')
+                .startAfter(lastDocRef.current)
+                .limit(PAGE_SIZE)
+                .get()
+            : await firestore()
+                .collection('posts')
+                .where('createdAt', '>', twentyFourHoursAgo)
+                .orderBy('createdAt', 'desc')
+                .limit(PAGE_SIZE * 3) // Fetch more to sort from
+                .get();
+
+          const userId = currentUser?.uid;
+          let scoredPosts: Post[] = snapshot.docs.map(docToPost);
+
+          // Sort by engagement score: 3*likes + 2*reposts + comments
+          scoredPosts.sort((a, b) => {
+            const scoreA = (a.likeCount || 0) * 3 + (a.repostCount || 0) * 2 + (a.commentCount || 0);
+            const scoreB = (b.likeCount || 0) * 3 + (b.repostCount || 0) * 2 + (b.commentCount || 0);
+            return scoreB - scoreA;
+          });
+
+          // Take top PAGE_SIZE after sorting
+          const newPosts = scoredPosts.slice(0, PAGE_SIZE);
+
+          if (newPosts.length === 0) {
+            setAllLoaded(true);
+            if (append) { setLoadingMore(false); return; }
+          }
+
+          if (!append) {
+            lastDocRef.current = snapshot.docs[Math.min(snapshot.docs.length - 1, PAGE_SIZE - 1)];
+          }
+
+          if (append) {
+            setPosts(prev => [...prev, ...newPosts]);
+          } else {
+            setPosts(newPosts);
+          }
+          setLoading(false);
+          setRefreshing(false);
+          setLoadingMore(false);
+          enrichPostsInBackground(newPosts, userId);
+          return;
+        } catch (e: any) {
+          console.error('[FeedScreen] For You feed error:', e?.message);
+          setLoading(false);
+          setRefreshing(false);
+          setLoadingMore(false);
+        }
+      }
+
       const snapshot = lastDocRef.current
         ? await firestore()
             .collection('posts')
@@ -1085,7 +1143,7 @@ export default function FeedScreen({ navigation }: any) {
       setRefreshing(false);
       setLoadingMore(false);
     }
-  }, [currentUser?.uid, loadingMore, allLoaded, attachRealtimeListener]);
+  }, [currentUser?.uid, loadingMore, allLoaded, attachRealtimeListener, activeTab]);
 
   // Fetch active ad campaigns (deferred 2s so feed loads first)
   useEffect(() => {
@@ -1281,7 +1339,7 @@ export default function FeedScreen({ navigation }: any) {
               </Text>
             </TouchableOpacity>
           ))}
-          <View style={[styles.tabUnderline, { left: SCREEN_W / 2 - 80, right: SCREEN_W / 2 - 80 }]} />
+          <View style={[styles.tabUnderline, { left: SCREEN_W / 3 - 24, right: SCREEN_W * 2 / 3 - 24 }]} />
         </View>
 
         <SkeletonFeed />
@@ -1344,7 +1402,16 @@ export default function FeedScreen({ navigation }: any) {
           <TouchableOpacity
             key={tab}
             style={styles.tabItem}
-            onPress={() => setActiveTab(tab)}
+            onPress={() => {
+              if (activeTab !== tab) {
+                setActiveTab(tab);
+                lastDocRef.current = null;
+                setAllLoaded(false);
+                setPosts([]);
+                setLoading(true);
+                loadFeed(false);
+              }
+            }}
           >
             <Text style={[styles.tabText, activeTab === tab ? styles.tabTextActive : styles.tabTextInactive]}>
               {tab}
@@ -1359,7 +1426,7 @@ export default function FeedScreen({ navigation }: any) {
         ref={flatListRef}
         data={feedItems}
         keyExtractor={item => item.id}
-        ListHeaderComponent={activeTab === 'Black94' ? <StoriesRow navigation={navigation} /> : null}
+        ListHeaderComponent={(activeTab === 'For You' || activeTab === 'Black94') ? <StoriesRow navigation={navigation} /> : null}
         renderItem={({ item }) => {
           if (item.type === 'ad') {
             return <AdCard ad={item.ad} />;

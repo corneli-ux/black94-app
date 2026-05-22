@@ -574,6 +574,8 @@ export async function createPost(
   pollData?: PollData,
   quotePostId?: string,
   visibility?: string,
+  scheduledDate?: string,
+  locationTag?: string,
 ): Promise<string> {
   const userId = currentUser()?.uid;
   if (!userId) throw new Error('Not authenticated');
@@ -657,6 +659,17 @@ export async function createPost(
   // Quote repost: reference the original post
   if (quotePostId) {
     docData.quotePostId = quotePostId;
+  }
+
+  // Scheduled post: store scheduled date and mark status
+  if (scheduledDate) {
+    docData.scheduledFor = new Date(scheduledDate);
+    docData.status = 'scheduled';
+  }
+
+  // Location tag
+  if (locationTag) {
+    docData.location = locationTag;
   }
 
   const docRef = await firestore().collection('posts').add(docData);
