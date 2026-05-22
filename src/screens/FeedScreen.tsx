@@ -759,6 +759,7 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const handleRepost = async (postId: string, reposted: boolean) => {
+    // Optimistic update — match both original post and any repost wrappers of it
     setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
       : p));
