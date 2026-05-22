@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive';
-import { toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, tsToMillis, parseMediaUrls } from '../lib/api';
+import { toggleLike, toggleBookmark, toggleRepost, votePostPoll, Post, PostPollData, ToggleRepostResult, tsToMillis, parseMediaUrls } from '../lib/api';
 import * as ExpoLinking from 'expo-linking';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import { Ionicons } from '@expo/vector-icons';
@@ -1329,57 +1329,73 @@ export default function FeedScreen({ navigation }: any) {
     try {
       const result = await toggleRepost(postId, reposted);
 
-      if (!result) {
-        // toggleRepost returned false — the repost write failed
-        // Revert optimistic state (the catch block below won't fire since
-        // toggleRepost didn't throw)
-        // FIX: undo the count change by reversing the direction
+      if (!result.success) {
+        // toggleRepost returned success:false — the write failed
+        // Revert optimistic state
         setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
           ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
           : p));
-        if (__DEV__) console.warn('[Feed] Repost write failed (toggleRepost returned false)');
+        if (__DEV__) console.warn('[Feed] Repost write failed (toggleRepost returned success:false)');
         return;
       }
 
       if (!reposted) {
-        // ── New repost: add the repost card to the top of the feed ──
-        // Wait for Firestore to commit the write before reading back.
-        // Without this delay, the .get() races the write and returns exists=false.
-        await new Promise(resolve => setTimeout(resolve, 600));
+        // ── New repost: use the doc data returned by toggleRepost directly ──
+        // This eliminates the read-after-write race condition entirely.
+        // No .get() call needed — no 600ms delay needed.
+        if (result.repostDoc) {
+          const rd = result.repostDoc;
+          const newPost: Post = {
+            id: rd.id,
+            authorId: rd.authorId,
+            authorUsername: rd.authorUsername,
+            authorDisplayName: rd.authorDisplayName,
+            authorProfileImage: rd.authorProfileImage,
+            authorBadge: rd.authorBadge,
+            authorIsVerified: rd.authorIsVerified,
+            factCheckVerified: rd.factCheckVerified,
+            factCheckDebunked: rd.factCheckDebunked,
+            caption: rd.caption,
+            mediaUrls: parseMediaUrls(rd.mediaUrls),
+            pollData: rd.pollData || undefined,
+            likeCount: rd.likeCount,
+            commentCount: rd.commentCount,
+            repostCount: rd.repostCount,
+            viewCount: rd.viewCount,
+            liked: false,
+            bookmarked: false,
+            reposted: true,
+            createdAt: Date.now(), // sort to top immediately
+            repostOf: rd.repostOf,
+            repostedByUid: rd.repostedByUid,
+            repostedByUsername: rd.repostedByUsername,
+            repostedByDisplayName: rd.repostedByDisplayName,
+            visibility: 'public',
+          };
 
-        const newRepostId = `repost_${postId}_${currentUser?.uid}`;
-        try {
-          const repostSnap = await firestore().collection('posts').doc(newRepostId).get();
-          if (repostSnap.exists) {
-            const newPost = docToPost(repostSnap);
-            newPost.reposted = true;
-            newPost.createdAt = Date.now(); // sort to top immediately
-            // Mark this post so enrichment won't race to undo the reposted flag
-            newPost._justReposted = true;
-            // Prepend only if not already present (guard against double-tap races)
-            setPosts(prev =>
-              prev.some(p => p.id === newPost.id) ? prev : [newPost, ...prev]
-            );
+          // Prepend only if not already present (guard against double-tap races)
+          setPosts(prev =>
+            prev.some(p => p.id === newPost.id) ? prev : [newPost, ...prev]
+          );
 
-            // Bug 4 fix: re-anchor the real-time listener to include the new repost
-            attachRealtimeListener(Date.now());
-          } else {
-            // Doc still not readable after delay — trigger a full feed reload
-            if (__DEV__) console.warn('[Feed] Repost doc not found after delay, triggering full reload');
-            useAppStore.getState().triggerFeedRefresh();
-          }
-        } catch (fetchErr) {
-          if (__DEV__) console.warn('[Feed] Failed to fetch new repost, triggering full reload:', fetchErr);
-          useAppStore.getState().triggerFeedRefresh();
+          // Re-anchor the real-time listener to include the new repost
+          attachRealtimeListener(Date.now());
         }
+        // BUG FIX #2: Increment feedRefreshKey as a fallback safety net.
+        // If the direct injection above succeeds, this is harmless.
+        // If it somehow fails, the next mount will re-fetch and show the repost.
+        useAppStore.getState().triggerFeedRefresh();
       } else {
         // ── Unrepost: remove the repost card from the feed immediately ──
         const removedRepostId = `repost_${postId}_${currentUser?.uid}`;
         setPosts(prev => prev.filter(p => p.id !== removedRepostId));
+        // BUG FIX #6: Reset pagination cursor after un-repost so the next
+        // page load doesn't skip over posts or show duplicates.
+        lastDocRef.current = null;
+        setAllLoaded(false);
       }
     } catch (e) {
       // Revert optimistic update on failure
-      // FIX: undo the count change by reversing the direction
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
         ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
         : p));

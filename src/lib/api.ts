@@ -802,9 +802,36 @@ export async function toggleBookmark(postId: string, currentlyBookmarked: boolea
   }
 }
 
-export async function toggleRepost(postId: string, currentlyReposted: boolean): Promise<boolean> {
+export interface ToggleRepostResult {
+  success: boolean;
+  /** Present only on new repost success — the doc data of the created repost wrapper */
+  repostDoc?: {
+    id: string;
+    repostOf: string;
+    repostedByUid: string;
+    repostedByUsername: string;
+    repostedByDisplayName: string;
+    authorId: string;
+    authorUsername: string;
+    authorDisplayName: string;
+    authorProfileImage: string | null;
+    authorBadge: string;
+    authorIsVerified: boolean;
+    caption: string;
+    mediaUrls: string[];
+    pollData: any;
+    likeCount: number;
+    commentCount: number;
+    repostCount: number;
+    viewCount: number;
+    factCheckVerified: number;
+    factCheckDebunked: number;
+  };
+}
+
+export async function toggleRepost(postId: string, currentlyReposted: boolean): Promise<ToggleRepostResult> {
   const userId = currentUser()?.uid;
-  if (!userId) return false;
+  if (!userId) return { success: false };
 
   const repostRef = firestore().collection('post_reposts').doc(`${postId}_${userId}`);
   const postRef = firestore().collection('posts').doc(postId);
@@ -817,7 +844,7 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
       try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
       // Delete the visible repost entry from the posts collection
       try { await firestore().collection('posts').doc(repostPostId).delete(); } catch {}
-      return false;
+      return { success: false };
     } else {
       await repostRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
       try { await postRef.update({ repostCount: firestore.FieldValue.increment(1) }); } catch {}
@@ -834,16 +861,20 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
         // Undo the repostRef set above
         await repostRef.delete().catch(() => {});
         try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
-        return false;
+        return { success: false };
       }
 
       // Fetch reposting user's profile for the "reposted by" header
       const repostingUserDoc = await firestore().collection('users').doc(userId).get();
       const repostingUser = repostingUserDoc.exists ? repostingUserDoc.data() : null;
 
-      // Write the visible repost wrapper — this MUST succeed for the repost to work.
-      // If it fails, we propagate the error so handleRepost knows the doc was never written.
-      await firestore().collection('posts').doc(repostPostId).set({
+      // BUG FIX #3: The repostCount on postData was read BEFORE the increment(1) above.
+      // Add +1 so the wrapper doc shows the correct count immediately.
+      const currentRepostCount = (postData.repostCount || 0) + 1;
+
+      // BUG FIX #7: Include viewCount:0 in the wrapper doc so the feed
+      // doesn't render undefined/NaN for the views counter.
+      const docData = {
         // Repost metadata
         repostOf: postId,
         repostedByUid: userId,
@@ -859,18 +890,20 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
         caption: postData.caption || '',
         mediaUrls: postData.mediaUrls || [],
         pollData: postData.pollData || null,
-        // Copy counts (will be slightly stale but avoids extra reads)
         likeCount: postData.likeCount || 0,
         commentCount: postData.commentCount || 0,
-        repostCount: postData.repostCount || 0,
+        repostCount: currentRepostCount, // Fixed: +1 for our own repost
+        viewCount: 0, // Fixed: explicit 0 instead of undefined
         factCheckVerified: postData.factCheckVerified || 0,
         factCheckDebunked: postData.factCheckDebunked || 0,
         createdAt: firestore.FieldValue.serverTimestamp(),
         updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
+      };
+
+      // Write the visible repost wrapper — this MUST succeed for the repost to work.
+      await firestore().collection('posts').doc(repostPostId).set(docData);
 
       // ── Notification: tell post author someone reposted their post ──
-      // Reuse postData from READ #1 — no second .get() needed
       try {
         const postAuthorId = postData.authorId;
         if (postAuthorId && postAuthorId !== userId) {
@@ -888,11 +921,22 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
         console.warn('[Repost] Notification fire-and-forget failed:', e);
       }
 
-      return true;
+      // BUG FIX #1: Return the doc data directly so FeedScreen never needs
+      // a second read-after-write (which was the root cause of the race).
+      return {
+        success: true,
+        repostDoc: {
+          id: repostPostId,
+          ...docData,
+        },
+      };
     }
   } catch (e) {
     console.warn('[Repost] toggleRepost error:', e);
-    return currentlyReposted;
+    // BUG FIX #4: Return success:false on error so FeedScreen knows to
+    // revert optimistic state. Previously returned currentlyReposted (a boolean),
+    // which made FeedScreen think the toggle succeeded.
+    return { success: false };
   }
 }
 
