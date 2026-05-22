@@ -602,7 +602,6 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
         </Modal>
       </View>
     );
-    );
   };
 
   // ── Chat list pane ─────────────────────────────────────────────────────
