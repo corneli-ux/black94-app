@@ -1350,6 +1350,16 @@ export default function FeedScreen({ navigation }: any) {
   // Build interleaved feed: posts with ads inserted after every 5th post
   // Network tab shows only posts from followed users
   // When user follows nobody, Network tab shows empty state instead of all posts
+  // Visibility filter: followers-only posts only shown to followers or the author
+  const currentUserId = currentUser?.uid;
+  const filterByVisibility = (list: Post[]): Post[] =>
+    list.filter(p => {
+      if (p.authorId === currentUserId) return true; // always show own posts
+      if (p.visibility === 'public' || !p.visibility) return true; // public or legacy posts
+      if (p.visibility === 'followers') return followedUserIds.has(p.authorId);
+      return true;
+    });
+
   const feedItems: FeedItem[] = (() => {
     let displayPosts: Post[];
     if (activeTab === 'Network') {
@@ -1360,6 +1370,8 @@ export default function FeedScreen({ navigation }: any) {
     } else {
       displayPosts = posts;
     }
+    // Enforce visibility on ALL tabs
+    displayPosts = filterByVisibility(displayPosts);
     if (displayPosts.length === 0) return displayPosts.map(p => ({ type: 'post' as const, id: p.id, post: p }));
     const items: FeedItem[] = [];
     let adIndex = 0;
