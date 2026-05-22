@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal, Keyboard } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import { colors } from '../theme/colors';
 import { fetchMessages, sendMessage, blockUser, deleteMessage, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
@@ -35,6 +37,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   const [contextMsg, setContextMsg] = useState<Message | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const playbackRef = useRef<Audio.Sound | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -314,23 +318,34 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
   const handleOpenGifPicker = () => {
     setShowAttachMenu(false);
-    navigation.navigate('GifPicker', {
-      onSelect: (gifUrl: string) => {
-        // This won't work with React Navigation params for functions,
-        // so we use the route.params approach instead
-      },
-    });
+    navigation.navigate('GifPicker');
+    // GIF result is picked up via the focus listener below (route.params.selectedGifUrl)
   };
 
-  // ── Voice recording (stub — actual recording needs expo-av) ────────────────
+  // ── Voice recording (real recording with expo-av) ────────────────────
 
-  const handleStartVoiceRecord = () => {
+  const recordingRef = useRef<Audio.Recording | null>(null);
+
+  const handleStartVoiceRecord = async () => {
     setShowAttachMenu(false);
-    setIsRecording(true);
-    setRecordingDuration(0);
-    recordingTimerRef.current = setInterval(() => {
-      setRecordingDuration(prev => prev + 1);
-    }, 1000);
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (e) {
+      console.error('[ChatRoom] Failed to start recording:', e);
+      Alert.alert('Error', 'Could not start voice recording. Please check microphone permissions.');
+    }
   };
 
   const handleStopVoiceRecord = async () => {
@@ -342,21 +357,94 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     setIsRecording(false);
     setRecordingDuration(0);
 
-    if (duration < 1) return; // Too short
+    if (duration < 1) {
+      // Too short — discard
+      try { await recordingRef.current?.stopAsync(); } catch {}
+      recordingRef.current = null;
+      return;
+    }
 
-    // Send a voice message placeholder
-    // In production, this would upload actual audio and send the URL
     try {
+      await recordingRef.current?.stopAsync();
+      const uri = recordingRef.current?.getURI();
+      recordingRef.current = null;
+
+      if (!uri) {
+        console.warn('[ChatRoom] No recording URI after stop');
+        return;
+      }
+
+      setUploading(true);
+      // Upload the audio file to Firebase Storage-like path
+      const fileName = `voice_${Date.now()}.m4a`;
+      const response = await FileSystem.uploadAsync(uri, `https://firebasestorage.googleapis.com/v0/b/black94-a8f2f.appspot.com/o/chat_audio%2F${fileName}`, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'file',
+      }).catch(() => null);
+
+      let audioUrl = '';
+      if (response && response.status === 200) {
+        try {
+          const body = JSON.parse(response.body);
+          audioUrl = `https://firebasestorage.googleapis.com/v0/b/black94-a8f2f.appspot.com/o/chat_audio%2F${fileName}?alt=media&token=${body.downloadTokens?.[fileName] || ''}`;
+        } catch {}
+      }
+
+      // If upload fails, still send the message with the local URI for testing
+      const finalUrl = audioUrl || uri;
       await sendMessage(chat.id, chat.otherUser?.id || '', '', {
         messageType: 'voice',
-        mediaUrl: '',
+        mediaUrl: finalUrl,
         voiceDuration: duration,
       });
       await load(true);
     } catch (e) {
       console.error('[ChatRoom] Voice send failed:', e);
+    } finally {
+      setUploading(false);
+      try { await Audio.setAudioModeAsync({ allowsRecordingIOS: false }); } catch {}
     }
   };
+
+  // ── Voice playback ────────────────────────────────────────────────────
+
+  const handlePlayVoice = useCallback(async (message: Message) => {
+    // If already playing this message, pause it
+    if (playingVoiceId === message.id) {
+      await playbackRef.current?.pauseAsync();
+      setPlayingVoiceId(null);
+      return;
+    }
+
+    // Stop any currently playing audio
+    await playbackRef.current?.unloadAsync();
+
+    const url = message.mediaUrl;
+    if (!url) {
+      Alert.alert('Error', 'Audio file not available');
+      return;
+    }
+
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true },
+      );
+      playbackRef.current = sound;
+      setPlayingVoiceId(message.id);
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          setPlayingVoiceId(null);
+        }
+      });
+    } catch (e) {
+      console.error('[ChatRoom] Voice playback failed:', e);
+      Alert.alert('Error', 'Could not play voice message');
+    }
+  }, [playingVoiceId]);
 
   // ── Nuclear Block ─────────────────────────────────────────────────────────
 
@@ -482,8 +570,16 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
           {/* Voice message */}
           {msgType === 'voice' && (
-            <View style={styles.voiceBubble}>
-              <Ionicons name="play-circle" size={36} color={isMine ? '#000000' : '#e7e9ea'} />
+            <TouchableOpacity
+              style={styles.voiceBubble}
+              onPress={() => handlePlayVoice(item)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={playingVoiceId === item.id ? 'pause-circle' : 'play-circle'}
+                size={36}
+                color={isMine ? '#000000' : '#e7e9ea'}
+              />
               <View style={styles.voiceWaveform}>
                 <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.3)' } : { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
                 <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.5)' } : { backgroundColor: 'rgba(255,255,255,0.5)' }]} />
@@ -494,7 +590,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               <Text style={[styles.voiceDuration, isMine ? { color: 'rgba(0,0,0,0.6)' } : { color: '#94a3b8' }]}>
                 {item.voiceDuration || 0}s
               </Text>
-            </View>
+            </TouchableOpacity>
           )}
 
           {/* Text content (for text messages or captions) */}

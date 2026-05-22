@@ -179,8 +179,10 @@ export default function GifPickerScreen() {
     (gifUrl: string) => {
       if (onSelect) {
         onSelect(gifUrl);
+      } else {
+        // Fallback: pass via route params so the previous screen can pick it up
+        navigation.navigate('ChatRoom', { selectedGifUrl: gifUrl });
       }
-      navigation.goBack();
     },
     [onSelect, navigation],
   );

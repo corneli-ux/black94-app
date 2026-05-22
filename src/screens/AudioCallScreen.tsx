@@ -286,6 +286,12 @@ export default function AudioCallScreen({ route, navigation }: any) {
       {/* Red flash overlay on end call */}
       {showRedFlash && <View style={styles.redFlash} />}
 
+      {/* Audio streaming notice */}
+      <View style={styles.audioNotice}>
+        <Ionicons name="information-circle" size={14} color="rgba(255,255,255,0.5)" />
+        <Text style={styles.audioNoticeText}>Audio streaming coming soon — call signaling is active</Text>
+      </View>
+
       {/* Top area — back hint (for caller initiating) */}
       <View style={[styles.topArea, { paddingTop: insets.top || 12 }]}>
         <Text style={styles.topHint}>
@@ -448,6 +454,18 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(239, 68, 68, 0.25)',
     zIndex: 100,
+  },
+  audioNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  audioNoticeText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
   },
   topArea: {
     width: '100%',

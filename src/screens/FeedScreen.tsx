@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, Share, Image, Linking, ScrollView,
+  RefreshControl, ActivityIndicator, Alert, Share, Image, Linking, ScrollView, Modal, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -311,11 +311,12 @@ const carouselStyles = StyleSheet.create({
 
 /* ── PostCard ─────────────────────────────────────────────────────────────── */
 
-const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, navigation }: {
+const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDelete, onRepost, onComment, onEdit, navigation }: {
   post: Post;
   onLike: (id: string, liked: boolean) => void;
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
+  onEdit: (post: any) => void;
   onRepost: (id: string, reposted: boolean) => void;
   onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
   navigation: any;
@@ -527,7 +528,8 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <TouchableOpacity
                 style={styles.moreBtn}
                 onPress={() => {
-                  Alert.alert('Post', 'Delete this post?', [
+                  Alert.alert('Post', 'Choose an action', [
+                    { text: 'Edit', onPress: () => onEdit(post) },
                     { text: 'Cancel', style: 'cancel' },
                     { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
                   ]);
@@ -1337,6 +1339,38 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
+  // ── Edit post ──────────────────────────────────────────────────────────
+  const [editingPost, setEditingPost] = useState<{ id: string; caption: string } | null>(null);
+  const [editCaption, setEditCaption] = useState('');
+
+  const handleStartEdit = (post: any) => {
+    setEditingPost({ id: post.id, caption: post.caption || '' });
+    setEditCaption(post.caption || '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPost || editCaption.trim().length === 0) {
+      Alert.alert('Error', 'Caption cannot be empty');
+      return;
+    }
+    if (editCaption.length > 500) {
+      Alert.alert('Error', 'Caption exceeds 500 character limit');
+      return;
+    }
+    try {
+      await firestore().collection('posts').doc(editingPost.id).update({
+        caption: editCaption.trim(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      });
+      setPosts(prev => prev.map(p =>
+        p.id === editingPost.id ? { ...p, caption: editCaption.trim() } : p
+      ));
+      setEditingPost(null);
+    } catch {
+      Alert.alert('Error', 'Failed to update post');
+    }
+  };
+
   const handleComment = (postId: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => {
     navigation.navigate('PostComments', { postId, postCaption: caption || '', postAuthorUsername: authorUsername || '', postAuthorDisplayName: authorDisplayName || '' });
   };
@@ -1481,6 +1515,7 @@ export default function FeedScreen({ navigation }: any) {
               onLike={handleLike}
               onBookmark={handleBookmark}
               onDelete={handleDelete}
+              onEdit={handleStartEdit}
               onRepost={handleRepost}
               onComment={handleComment}
               navigation={navigation}
@@ -1532,6 +1567,34 @@ export default function FeedScreen({ navigation }: any) {
       >
         <Ionicons name="add" size={24} color="#000000" />
       </TouchableOpacity>
+
+      {/* Edit post modal */}
+      <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setEditingPost(null)}>
+          <View style={styles.editModal}>
+            <Text style={styles.editModalTitle}>Edit Post</Text>
+            <TextInput
+              style={styles.editModalInput}
+              multiline
+              value={editCaption}
+              onChangeText={setEditCaption}
+              maxLength={500}
+              placeholder="What's happening?"
+              placeholderTextColor="#64748b"
+              autoFocus
+            />
+            <Text style={styles.editCharCount}>{editCaption.length}/500</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+              <TouchableOpacity style={[styles.editModalBtn, { backgroundColor: colors.surface }]} onPress={() => setEditingPost(null)}>
+                <Text style={[styles.editModalBtnText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.editModalBtn, { backgroundColor: colors.accent }]} onPress={handleSaveEdit}>
+                <Text style={[styles.editModalBtnText, { color: '#000' }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -1868,6 +1931,50 @@ const styles = StyleSheet.create({
   pollExpiredText: {
     color: '#f43f5e',
     fontSize: 12,
+    fontWeight: '600',
+  },
+  /* ── Edit post modal ──────────────────────────────────────────────── */
+  editModal: {
+    position: 'absolute',
+    bottom: 100,
+    left: 16,
+    right: 16,
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 20,
+  },
+  editModalTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  editModalInput: {
+    color: colors.text,
+    fontSize: 15,
+    minHeight: 100,
+    maxHeight: 200,
+    textAlignVertical: 'top',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  editCharCount: {
+    color: colors.textMuted,
+    fontSize: 12,
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  editModalBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  editModalBtnText: {
+    fontSize: 15,
     fontWeight: '600',
   },
   pollOptionBtn: {
