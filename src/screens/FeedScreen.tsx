@@ -347,15 +347,9 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   // target the ORIGINAL post, not the repost wrapper.
   const interactionId = post.repostOf || post.id;
 
-  // Per-post optimistic repost state
-  const [isReposted, setIsReposted] = useState(post.reposted);
-  const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
-
-  // Sync when post prop changes
-  React.useEffect(() => {
-    setIsReposted(post.reposted);
-    setLocalRepostCount(post.repostCount);
-  }, [post.reposted, post.repostCount]);
+  // Single-layer repost state: all optimistic updates flow through the
+  // useFeed hook. The PostCard reads directly from the post prop.
+  // Previous dual-layer state (hook + local) caused flickering races.
 
   // BUG FIX: Reset refreshedUrls when post changes (FlatList recycling).
   // Without this, a recycled PostCard may use a stale refreshed URL
@@ -404,10 +398,8 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   };
 
   const handleRepostPress = () => {
-    if (isReposted) {
-      // Already reposted — undo it
-      setIsReposted(false);
-      setLocalRepostCount(prev => prev - 1);
+    if (post.reposted) {
+      // Already reposted — undo it (hook handles optimistic update)
       onRepost(interactionId, true);
       return;
     }
@@ -417,15 +409,12 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
       {
         text: 'Repost',
         onPress: () => {
-          setIsReposted(true);
-          setLocalRepostCount(prev => prev + 1);
           onRepost(interactionId, false);
         },
       },
       {
         text: 'Quote Repost',
         onPress: () => {
-          // Navigate to CreatePost with the quoted post context
           navigation.navigate('CreatePost', {
             quotePostId: interactionId,
             quoteAuthor: `@${post.authorUsername || 'user'}`,
@@ -653,12 +642,12 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <View style={styles.actionIconWrap}>
                 <RepostIcon
                   size={18}
-                  color={isReposted ? colors.repost : colors.textSecondary}
+                  color={post.reposted ? colors.repost : colors.textSecondary}
                 />
               </View>
-              {formatCount(localRepostCount) ? (
-                <Text style={[styles.actionCount, isReposted && { color: colors.repost }]}>
-                  {formatCount(localRepostCount)}
+              {formatCount(post.repostCount) ? (
+                <Text style={[styles.actionCount, post.reposted && { color: colors.repost }]}>
+                  {formatCount(post.repostCount)}
                 </Text>
               ) : null}
             </TouchableOpacity>

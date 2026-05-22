@@ -41,6 +41,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [isPaused, setIsPaused] = useState(false);
   const [selectedPollOption, setSelectedPollOption] = useState<string | null>(null);
+  const votingRef = useRef(false); // Prevents poll vote double-tap race
   const [pollOptions, setPollOptions] = useState<StoryItem['pollOptions']>(undefined);
   const [userVote, setUserVote] = useState<number | null>(null);
 
@@ -217,14 +218,17 @@ export default function StoryViewerScreen({ navigation, route }: any) {
   }, []);
 
   const handlePollVote = useCallback((optionId: string) => {
-    if (selectedPollOption || !currentUser) return;
+    // Guard against double-tap race: use a ref instead of state to avoid
+    // stale closure issues when two taps fire before re-render.
+    if (votingRef.current || selectedPollOption || !currentUser) return;
+    votingRef.current = true;
 
     const currentStory = stories[currentIndex];
-    if (!currentStory) return;
+    if (!currentStory) { votingRef.current = false; return; }
 
     // Find the option index
     const optionIndex = currentStory.pollOptions?.findIndex(o => o.id === optionId) ?? -1;
-    if (optionIndex < 0) return;
+    if (optionIndex < 0) { votingRef.current = false; return; }
 
     // Save vote to Firestore
     const doVote = async () => {
@@ -262,6 +266,8 @@ export default function StoryViewerScreen({ navigation, route }: any) {
         setPollOptions(pollOpts);
       } catch (e) {
         console.error('[StoryViewerScreen] Vote failed:', e);
+      } finally {
+        votingRef.current = false;
       }
     };
 

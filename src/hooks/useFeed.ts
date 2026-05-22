@@ -3,6 +3,7 @@ import { FlatList, Alert } from 'react-native';
 import { toggleLike, toggleBookmark, toggleRepost, Post, tsToMillis, parseMediaUrls } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { useAppStore } from '../stores/app';
+import { useOptimisticAction } from './useOptimisticAction';
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 
@@ -500,31 +501,43 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
     }
   }, [activeTab, loadFeed]);
 
+  // ── In-flight guards prevent double-tap race conditions ──────────────
+  const { guard: inflight, release: releaseInflight } = useOptimisticAction();
+
   // ── Interaction: Like (optimistic + API call) ─────────────────────────
   const handleLike = async (postId: string, liked: boolean) => {
+    const key = `like_${postId}`;
+    if (!inflight(key)) return; // drop double-tap
     // Match both the repost wrapper (p.id) and original post (p.repostOf)
     setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
       : p));
     try { await toggleLike(postId, liked); } catch (e) {
       // Revert optimistic update on failure — prevents ghost likes
-      // FIX: undo the count change by reversing the direction
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
         ? { ...p, liked, likeCount: p.likeCount + (liked ? 1 : -1) }
         : p));
+    } finally {
+      releaseInflight(key);
     }
   };
 
   // ── Interaction: Bookmark (optimistic + API call) ──────────────────────
   const handleBookmark = async (postId: string, bookmarked: boolean) => {
+    const key = `bm_${postId}`;
+    if (!inflight(key)) return; // drop double-tap
     setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId) ? { ...p, bookmarked: !bookmarked } : p));
     try { await toggleBookmark(postId, bookmarked); } catch (e) {
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId) ? { ...p, bookmarked } : p));
+    } finally {
+      releaseInflight(key);
     }
   };
 
   // ── Interaction: Repost (optimistic + API call, including undo logic) ──
   const handleRepost = async (postId: string, reposted: boolean) => {
+    const key = `rp_${postId}`;
+    if (!inflight(key)) return; // drop double-tap
     // Optimistic: update repost count on all posts matching this postId
     setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
@@ -547,12 +560,8 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
         // ── Unrepost succeeded: remove the repost card from the feed ──
         const removedRepostId = `repost_${postId}_${currentUser?.uid}`;
         setPosts(prev => prev.filter(p => p.id !== removedRepostId));
-        // BUG FIX: Do NOT reset pagination cursor — it causes duplicate posts on scroll.
-        // The card was removed in-place; no need to re-fetch.
       } else if (!reposted) {
         // ── New repost: use the doc data returned by toggleRepost directly ──
-        // This eliminates the read-after-write race condition entirely.
-        // No .get() call needed — no 600ms delay needed.
         if (result.repostDoc) {
           const rd = result.repostDoc;
           const newPost: Post = {
@@ -575,7 +584,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
             liked: false,
             bookmarked: false,
             reposted: true,
-            createdAt: Date.now(), // sort to top immediately
+            createdAt: Date.now(),
             repostOf: rd.repostOf,
             repostedByUid: rd.repostedByUid,
             repostedByUsername: rd.repostedByUsername,
@@ -591,15 +600,14 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
           // Re-anchor the real-time listener to include the new repost
           attachRealtimeListener(Date.now());
         }
-        // BUG FIX: Removed triggerFeedRefresh() — it causes a jarring full reload
-        // that scrolls the user to the top. The prepended card + realtime listener
-        // are sufficient.
       }
     } catch (e) {
       // Revert optimistic update on failure
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
         ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
         : p));
+    } finally {
+      releaseInflight(key);
     }
   };
 

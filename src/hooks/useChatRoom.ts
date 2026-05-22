@@ -531,6 +531,7 @@ export function useChatRoom({
 
   const handleReaction = async (emoji: string) => {
     if (!reactionMsg) return;
+    const targetMsg = reactionMsg; // capture for rollback
     try {
       await firestore()
         .collection('chats').doc(chat.id)
@@ -538,7 +539,16 @@ export function useChatRoom({
         .update({
           [`reactions.${currentUser?.uid}`]: emoji,
         });
-    } catch {}
+      // Optimistically update local state
+      setMessages(prev => prev.map(m =>
+        m.id === targetMsg.id
+          ? { ...m, reactions: { ...m.reactions, [currentUser?.uid || '']: emoji } }
+          : m
+      ));
+    } catch (e) {
+      console.warn('[Chat] Reaction failed:', e?.message || e);
+      // No rollback needed — the UI shows picker state, not a local reaction
+    }
     setReactionMsg(null);
   };
 

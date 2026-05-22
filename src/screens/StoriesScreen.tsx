@@ -215,6 +215,10 @@ export default function StoriesScreen({ navigation }: any) {
   const [storyIndex, setStoryIndex] = useState(0);
   const [storyProgress, setStoryProgress] = useState(0);
   const [liked, setLiked] = useState(false);
+  const likedRef = useRef(false); // Synced ref for toggleLike to avoid stale closure
+  const likingRef = useRef(false); // In-flight guard for toggleLike
+  // Keep likedRef in sync with liked state (useEffect fires synchronously after render)
+  useEffect(() => { likedRef.current = liked; }, [liked]);
   const [paused, setPaused] = useState(false);
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -503,8 +507,11 @@ export default function StoriesScreen({ navigation }: any) {
   }, [viewingStory, currentUser]);
 
   const toggleLike = useCallback(async () => {
-    if (!viewingStory || !currentUser) return;
-    const newLiked = !liked;
+    if (!viewingStory || !currentUser || likingRef.current) return;
+    likingRef.current = true;
+    // Read latest value from ref to avoid stale closure
+    const currentLiked = likedRef.current;
+    const newLiked = !currentLiked;
     setLiked(newLiked);
     try {
       await firestore()
@@ -513,8 +520,11 @@ export default function StoriesScreen({ navigation }: any) {
         .update({ likeCount: firestore.FieldValue.increment(newLiked ? 1 : -1) });
     } catch (e) {
       console.warn('[StoriesScreen] Failed to like story:', e);
+      setLiked(currentLiked); // rollback on failure
+    } finally {
+      likingRef.current = false;
     }
-  }, [viewingStory, currentUser, liked]);
+  }, [viewingStory, currentUser]);
 
   /* ── Story viewer: open, navigation, timer ───────────────────────────── */
   const openStoryViewer = useCallback(
