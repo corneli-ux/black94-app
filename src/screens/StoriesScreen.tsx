@@ -218,6 +218,8 @@ export default function StoriesScreen({ navigation }: any) {
   const [paused, setPaused] = useState(false);
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentText, setCommentText] = useState('');
+  const [showViewers, setShowViewers] = useState(false);
+  const [viewers, setViewers] = useState<Array<{ uid: string; displayName: string; username: string; profileImage: string | null; viewedAt: number }>>([]);
 
   // Double-tap heart
   const [heartVisible, setHeartVisible] = useState(false);
@@ -437,12 +439,47 @@ export default function StoriesScreen({ navigation }: any) {
     // BUG FIX: Update local story state so highlight ring turns gray after viewing
     setStories(prev => prev.map(s => s.id === storyId ? { ...s, viewed: true } : s));
     try {
+      const userId = currentUser?.uid;
+      const displayName = storeUser?.displayName || currentUser?.displayName || 'Anonymous';
+      const username = storeUser?.username || '';
+      const profileImage = storeUser?.profileImage || currentUser?.photoURL || null;
       await firestore()
         .collection('stories')
         .doc(storyId)
         .update({ viewCount: firestore.FieldValue.increment(1) });
+      // Record viewer identity for viewer list
+      if (userId) {
+        await firestore()
+          .collection('stories')
+          .doc(storyId)
+          .collection('views')
+          .doc(userId)
+          .set({
+            uid: userId,
+            displayName,
+            username,
+            profileImage,
+            viewedAt: Date.now(),
+          }, { merge: true });
+      }
     } catch (e) {
       console.warn('[StoriesScreen] Failed to increment view count:', e);
+    }
+  }, [currentUser, storeUser]);
+
+  /* ── Load story viewers list ───────────────────────────────────────────── */
+  const loadViewers = useCallback(async (storyId: string) => {
+    try {
+      const snap = await firestore()
+        .collection('stories')
+        .doc(storyId)
+        .collection('views')
+        .orderBy('viewedAt', 'desc')
+        .limit(50)
+        .get();
+      setViewers(snap.docs.map(d => d.data() as any));
+    } catch (e) {
+      console.warn('[StoriesScreen] Failed to load viewers:', e);
     }
   }, []);
 
@@ -961,10 +998,21 @@ export default function StoriesScreen({ navigation }: any) {
                     {viewingStory.likeCount + (liked ? 1 : 0)}
                   </Text>
                   <View style={{ width: 16 }} />
-                  <Ionicons name="eye" size={14} color="rgba(255,255,255,0.6)" />
-                  <Text style={styles.reactionStatTextMuted}>
-                    {viewingStory.viewCount}
-                  </Text>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (viewingStory) {
+                        loadViewers(viewingStory.id);
+                        setShowViewers(true);
+                      }
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center' }}
+                  >
+                    <Ionicons name="eye" size={14} color="rgba(255,255,255,0.6)" />
+                    <Text style={styles.reactionStatTextMuted}>
+                      {viewingStory.viewCount}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </SafeAreaView>
             </View>
@@ -1011,6 +1059,43 @@ export default function StoriesScreen({ navigation }: any) {
             )}
           </View>
         )}
+      </Modal>
+
+      {/* ── Story Viewers Modal ──────────────────────────────────────────── */}
+      <Modal visible={showViewers} transparent animationType="slide" onRequestClose={() => setShowViewers(false)}>
+        <View style={styles.viewersOverlay}>
+          <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
+            <View style={styles.viewersContainer}>
+              <View style={styles.viewersHeader}>
+                <Text style={styles.viewersTitle}>Story Views</Text>
+                <TouchableOpacity onPress={() => setShowViewers(false)}>
+                  <Ionicons name="close" size={24} color="#e7e9ea" />
+                </TouchableOpacity>
+              </View>
+              {viewers.length === 0 ? (
+                <View style={styles.viewersEmpty}>
+                  <Ionicons name="eye-outline" size={40} color="#4a5568" />
+                  <Text style={styles.viewersEmptyText}>No views yet</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={viewers}
+                  keyExtractor={(item) => item.uid}
+                  renderItem={({ item }) => (
+                    <View style={styles.viewerItem}>
+                      <Avatar uri={item.profileImage} name={item.displayName} size={40} />
+                      <View style={styles.viewerInfo}>
+                        <Text style={styles.viewerName}>{item.displayName}</Text>
+                        <Text style={styles.viewerHandle}>@{item.username || 'user'}</Text>
+                      </View>
+                      <Text style={styles.viewerTime}>{timeAgo(item.viewedAt)}</Text>
+                    </View>
+                  )}
+                />
+              )}
+            </View>
+          </SafeAreaView>
+        </View>
       </Modal>
     </View>
   );
@@ -1528,5 +1613,67 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     padding: 0,
+  },
+  /* ── Viewers Modal ──────────────────────────────────────────────────── */
+  viewersOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  viewersContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    marginTop: 80,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 8,
+  },
+  viewersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  viewersTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  viewersEmpty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  viewersEmptyText: {
+    fontSize: 15,
+    color: '#4a5568',
+  },
+  viewerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  viewerInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  viewerName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  viewerHandle: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  viewerTime: {
+    fontSize: 12,
+    color: '#4a5568',
   },
 });
