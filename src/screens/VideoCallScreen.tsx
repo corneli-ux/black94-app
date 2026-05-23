@@ -24,6 +24,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
 
 const MAX_FREE_DURATION = 60 * 60; // 60 minutes in seconds
 
@@ -41,11 +42,25 @@ export default function VideoCallScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [callActive, setCallActive] = useState(true);
   const [endedEarly, setEndedEarly] = useState(false);
+  const [permissionShown, setPermissionShown] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasEndedRef = useRef(false);
 
   const isPremium = user?.subscription === 'premium' || user?.subscription === 'business';
+
+  // ── Permission rationale dialog (Indus App Store compliance) ──────────
+  useEffect(() => {
+    if (Platform.OS === 'android' && !permissionShown) {
+      Alert.alert(
+        'Camera & Microphone Access',
+        'Black94 needs access to your camera and microphone for video calls. You can manage these permissions in your device settings at any time.',
+        [
+          { text: 'OK', onPress: () => setPermissionShown(true) },
+        ],
+      );
+    }
+  }, [permissionShown]);
 
   // ── Timer ─────────────────────────────────────────────────────────────
   useEffect(() => {

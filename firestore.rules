@@ -135,7 +135,7 @@ service cloud.firestore {
     match /anonRooms/{roomId} {
       allow read: if true;
       allow create: if isAuthenticated();
-      allow update: if false;
+      allow update: if isAuthenticated();
       allow delete: if false;
     }
     match /anonRooms/{roomId}/anonMessages/{msgId} {
@@ -387,11 +387,11 @@ service cloud.firestore {
       allow delete: if isAuthenticated();
     }
 
-    // ── Affiliates ───────────────────────────────────────────────────────
+    // ── Affiliates (admin-only write for badge assignment) ────────────
     match /affiliates/{affiliateId} {
       allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
+      allow create: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow update: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
       allow delete: if false;
     }
 

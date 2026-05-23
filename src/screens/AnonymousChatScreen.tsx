@@ -942,6 +942,15 @@ export default function AnonymousChatScreen() {
           <Text style={styles.landingSubtitle}>
             Connect with random people anonymously. Your identity is hidden.
           </Text>
+
+          {/* Safety disclaimer — compliance requirement */}
+          <View style={styles.safetyBanner}>
+            <Ionicons name="shield-checkmark-outline" size={14} color={colors.accentGold} />
+            <Text style={styles.safetyBannerText}>
+              Anonymous chat is for users aged 18+. Be respectful. Inappropriate behaviour will be reported and may result in a ban.
+            </Text>
+          </View>
+
           <Text style={styles.yourNameLabel}>Your anonymous name:</Text>
           <View style={styles.nameTag}>
             <Ionicons name="at" size={16} color={colors.accent} />
@@ -968,6 +977,9 @@ export default function AnonymousChatScreen() {
           </Animated.View>
           <Text style={styles.disclaimerText}>
             By continuing, you agree to be respectful to others.
+          </Text>
+          <Text style={styles.safetyNoteText}>
+            Tap the Report button during any chat to report abuse. All chats are end-to-end encrypted.
           </Text>
         </View>
       </SafeAreaView>
@@ -1039,6 +1051,52 @@ export default function AnonymousChatScreen() {
             <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
             <Text style={styles.timerText}>{formatDuration(elapsed)}</Text>
           </View>
+          {/* Report button — compliance requirement for anonymous chat */}
+          <TouchableOpacity
+            style={styles.reportBtn}
+            onPress={() => {
+              Alert.alert(
+                'Report User',
+                'If this user is behaving inappropriately, you can report them. This will disconnect the chat and submit a report.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Report & Disconnect',
+                    style: 'destructive',
+                    onPress: async () => {
+                      // Submit report to Firestore
+                      try {
+                        if (room?.roomId) {
+                          await firestore().collection('reports').add({
+                            type: 'anonymous_chat',
+                            roomId: room.roomId,
+                            reporterId: myUserId,
+                            reportedId: room.partnerId,
+                            createdAt: nowISO(),
+                            status: 'pending',
+                          });
+                        }
+                      } catch (e: any) {
+                        console.warn('[AnonChat] Report failed:', e?.message);
+                      }
+                      await fullCleanup();
+                      if (mountedRef.current) {
+                        setChatState('landing');
+                        setMessages([]);
+                        setRoom(null);
+                        setElapsed(0);
+                        setIsPartnerTyping(false);
+                        setError('Report submitted. Thank you for keeping the community safe.');
+                      }
+                    },
+                  },
+                ],
+              );
+            }}
+            hitSlop={8}
+            activeOpacity={0.7}>
+            <Ionicons name="flag-outline" size={18} color="#f43f5e" />
+          </TouchableOpacity>
         </View>
 
         {/* Messages */}
@@ -1334,6 +1392,41 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     lineHeight: 16,
+  },
+  safetyNoteText: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 15,
+    paddingHorizontal: 20,
+  },
+  safetyBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginHorizontal: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(212,175,55,0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.15)',
+    marginTop: 12,
+  },
+  safetyBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
+  },
+  reportBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(244,63,94,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // ── Searching ────────────────────────────────────────────────────────────

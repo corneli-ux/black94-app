@@ -488,8 +488,8 @@ export default function AppNavigator() {
     );
   }
 
-  // On web: always show AppStack (login is hidden for payment gateway review)
-  const showApp = Platform.OS === 'web' || user;
+  // Require login on all platforms — no bypass
+  const showApp = !!user;
 
   return (
     <NavigationContainer theme={DarkTheme} ref={navRef}>

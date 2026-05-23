@@ -52,6 +52,37 @@ export default function AssignBadgeScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [canRefresh, setCanRefresh] = useState(true);
 
+  // ── Admin role guard (client-side) — server-side rule also enforced ──
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const checkAdmin = async () => {
+      try {
+        const doc = await firestore().collection('users').doc(currentUser.uid).get();
+        if (doc.exists) {
+          setIsAdmin(doc.data()?.isAdmin === true);
+        } else {
+          setIsAdmin(false);
+        }
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+    checkAdmin();
+  }, [currentUser]);
+
+  // Redirect non-admin users
+  useEffect(() => {
+    if (isAdmin === false) {
+      Alert.alert(
+        'Access Denied',
+        'Badge assignment is only available for admin users.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }],
+      );
+    }
+  }, [isAdmin, navigation]);
+
   // Badge assignment state
   const [assigningBadge, setAssigningBadge] = useState<string | null>(null); // affiliate doc id
 
@@ -417,6 +448,48 @@ export default function AssignBadgeScreen({ navigation }: any) {
       </View>
     </Modal>
   );
+
+  // Show loading while checking admin status
+  if (isAdmin === null) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
+              <Ionicons name="arrow-back" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Assign Badges</Text>
+            <View style={{ width: 32 }} />
+          </View>
+        </SafeAreaView>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={colors.accent} size="large" />
+        </View>
+      </View>
+    );
+  }
+
+  // Block non-admin users
+  if (!isAdmin) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
+              <Ionicons name="arrow-back" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Assign Badges</Text>
+            <View style={{ width: 32 }} />
+          </View>
+        </SafeAreaView>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+          <Ionicons name="lock-closed-outline" size={48} color={colors.textMuted} />
+          <Text style={styles.emptyTitle}>Admin Only</Text>
+          <Text style={styles.emptyText}>This feature is restricted to admin users only.</Text>
+        </View>
+      </View>
+    );
+  }
 
   if (loading) {
     return (

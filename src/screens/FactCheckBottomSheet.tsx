@@ -148,6 +148,14 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
             <View style={{ width: 24 }} />
           </View>
 
+          {/* AI Disclosure Banner */}
+          <View style={styles.aiDisclosureBanner}>
+            <Ionicons name="sparkles-outline" size={14} color={colors.accent} />
+            <Text style={styles.aiDisclosureText}>
+              AI-Generated Analysis — This is an automated analysis and may not be accurate.
+            </Text>
+          </View>
+
           {/* Summary */}
           <View style={styles.summaryRow}>
             <View style={[styles.summaryChip, { backgroundColor: '#22c55e20' }]}>
@@ -185,6 +193,14 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
               showsVerticalScrollIndicator={false}
             />
           )}
+
+          {/* AI Disclaimer Footer */}
+          <View style={styles.aiDisclaimerFooter}>
+            <Ionicons name="information-circle-outline" size={12} color={colors.textMuted} />
+            <Text style={styles.aiDisclaimerFooterText}>
+              Fact-checks are AI-analyzed. Always verify claims independently before sharing.
+            </Text>
+          </View>
 
           {/* Submit form */}
           <View style={styles.formSection}>
@@ -436,5 +452,40 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  aiDisclosureBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(42,127,255,0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(42,127,255,0.15)',
+  },
+  aiDisclosureText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  aiDisclaimerFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(148,163,184,0.08)',
+    borderRadius: 8,
+  },
+  aiDisclaimerFooterText: {
+    flex: 1,
+    fontSize: 11,
+    color: colors.textMuted,
+    lineHeight: 15,
   },
 });

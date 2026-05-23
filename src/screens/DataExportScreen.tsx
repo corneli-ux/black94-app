@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
-  Alert, ActivityIndicator,
+  Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,8 @@ const STATUS_CONFIG: Record<string, { label: string; icon: string; iconColor: st
   ready:      { label: 'Ready',        icon: 'checkmark-circle', iconColor: colors.accentGreen },
 };
 
+const POLL_INTERVAL = 8000; // Poll every 8 seconds while export is pending/processing
+
 export default function DataExportScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAppStore();
@@ -25,29 +27,65 @@ export default function DataExportScreen() {
   const [requesting, setRequesting] = useState(false);
   const [exportDocId, setExportDocId] = useState<string | null>(null);
   const [status, setStatus] = useState<ExportStatus>('none');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const pollExportStatus = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const snap = await firestore()
+        .collection('data_exports')
+        .where('userId', '==', user.id)
+        .orderBy('requestedAt', 'desc')
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        setStatus('none');
+        setExportDocId(null);
+      } else {
+        const doc = snap.docs[0];
+        setExportDocId(doc.id);
+        setStatus(doc.data().status || 'pending');
+      }
+      setLoading(false);
+    } catch {
+      setLoading(false);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
 
-    const unsub = firestore()
-      .collection('data_exports')
-      .where('userId', '==', user.id)
-      .orderBy('requestedAt', 'desc')
-      .limit(1)
-      .onSnapshot((snap) => {
-        if (snap.empty) {
-          setStatus('none');
-          setExportDocId(null);
-        } else {
-          const doc = snap.docs[0];
-          setExportDocId(doc.id);
-          setStatus(doc.data().status || 'pending');
-        }
-        setLoading(false);
-      }, () => setLoading(false));
+    // Initial fetch
+    pollExportStatus();
 
-    return () => unsub();
-  }, [user?.id]);
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [user?.id, pollExportStatus]);
+
+  // Start/stop polling based on status — only poll while pending or processing
+  useEffect(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+
+    if (status === 'pending' || status === 'processing') {
+      pollRef.current = setInterval(pollExportStatus, POLL_INTERVAL);
+    }
+    // When status is 'none' or 'ready', no need to poll
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [status, pollExportStatus]);
 
   const handleRequest = async () => {
     if (!user?.id) return;
@@ -67,6 +105,8 @@ export default function DataExportScreen() {
                 status: 'pending',
                 requestedAt: firestore.FieldValue.serverTimestamp(),
               });
+              // Immediately poll to pick up the new export request
+              pollExportStatus();
             } catch {
               Alert.alert('Error', 'Could not request data export. Please try again.');
             } finally {
@@ -142,6 +182,16 @@ export default function DataExportScreen() {
           <InfoItem icon="mail-outline" text="Message metadata (timestamps, participants)" />
           <View style={styles.infoSeparator} />
           <InfoItem icon="images-outline" text="Media uploads and attachments" />
+          <View style={styles.infoSeparator} />
+          <InfoItem icon="chatbubbles-outline" text="Direct messages (metadata: timestamps, participants)" />
+          <View style={styles.infoSeparator} />
+          <InfoItem icon="call-outline" text="Call history (timestamps, duration, participants)" />
+          <View style={styles.infoSeparator} />
+          <InfoItem icon="phone-portrait-outline" text="Device session history" />
+          <View style={styles.infoSeparator} />
+          <InfoItem icon="heart-outline" text="Liked posts and bookmarks" />
+          <View style={styles.infoSeparator} />
+          <InfoItem icon="stats-chart-outline" text="Engagement data" />
         </View>
 
         {/* Status section */}
@@ -211,6 +261,27 @@ export default function DataExportScreen() {
           </View>
         )}
 
+        {/* Grievance Officer */}
+        <Text style={styles.sectionTitle}>Grievance Officer</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="gavel-outline" size={20} color={colors.accent} />
+            <Text style={styles.cardTitle}>Grievance Officer</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            Under the Digital Personal Data Protection (DPDP) Act 2023, you have the right to lodge a
+            grievance regarding your personal data. Our Grievance Officer will respond within 30 days.
+          </Text>
+          <TouchableOpacity
+            style={styles.grievanceEmailRow}
+            onPress={() => Linking.openURL('mailto:grievance@black94.com')}
+          >
+            <Ionicons name="mail-outline" size={16} color={colors.accent} />
+            <Text style={styles.grievanceEmail}>grievance@black94.com</Text>
+            <Ionicons name="open-outline" size={14} color={colors.textMuted} style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -276,4 +347,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border,
   },
   waitingText: { flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+  grievanceEmailRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 16, paddingTop: 0, gap: 8,
+  },
+  grievanceEmail: {
+    fontSize: 14, fontWeight: '600', color: colors.accent,
+  },
 });

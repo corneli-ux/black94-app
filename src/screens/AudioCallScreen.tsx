@@ -29,6 +29,7 @@ import { initiateCall, answerCall, endCall as endCallApi, pollCallStatus, CallDa
 import { auth } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
 
 type CallRole = 'caller' | 'receiver';
 type CallStatus = 'initiating' | 'ringing' | 'connected' | 'ended';
@@ -50,6 +51,20 @@ export default function AudioCallScreen({ route, navigation }: any) {
   const [elapsed, setElapsed] = useState(0);
   const [showRedFlash, setShowRedFlash] = useState(false);
   const [callData, setCallData] = useState<CallData | null>(null);
+  const [permissionShown, setPermissionShown] = useState(false);
+
+  // ── Permission rationale dialog (Indus App Store compliance) ──────────
+  useEffect(() => {
+    if (Platform.OS === 'android' && !permissionShown) {
+      Alert.alert(
+        'Microphone Access',
+        'Black94 needs access to your microphone for voice calls. You can manage this permission in your device settings at any time.',
+        [
+          { text: 'OK', onPress: () => setPermissionShown(true) },
+        ],
+      );
+    }
+  }, [permissionShown]);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
