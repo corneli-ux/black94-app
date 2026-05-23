@@ -1,0 +1,26 @@
+name: Deploy Firestore Rules
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Decode Service Account
+        run: |
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > /tmp/service-account.json
+
+      - name: Deploy Firestore Rules
+        uses: w9jds/firebase-action@v13.9.0
+        with:
+          projectId: black94
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/service-account.json
