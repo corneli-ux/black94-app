@@ -751,8 +751,9 @@ export default function ProfileScreen({ route, navigation }: any) {
     try {
       await firestore().collection('posts').doc(postId).delete();
       setPosts(prev => prev.filter(p => p.id !== postId));
-    } catch {
-      Alert.alert('Error', 'Failed to delete post');
+    } catch (e: any) {
+      console.error('[ProfileScreen] Delete post error:', e?.message, e?.code, e?.status);
+      Alert.alert('Error', `Failed to delete post: ${e?.message || 'Unknown error'}`);
     }
   };
 

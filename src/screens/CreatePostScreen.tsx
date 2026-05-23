@@ -440,7 +440,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
       setImageProgress([]);
       abortRef.current = null;
     }
-  }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh, pollData, visibility, scheduledDate, locationTag]);
+  }, [canPost, user, caption, selectedImages, selectedGifUrls, navigation, triggerFeedRefresh, pollData, visibility, scheduledDate, locationTag, threadMode, threadId, threadPosition]);
 
   // ── Poll actions ────────────────────────────────────────────────────
   const addPollOption = useCallback(() => {

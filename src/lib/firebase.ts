@@ -978,6 +978,21 @@ class CompatCollectionRef {
       }
     };
   }
+
+  // Alias: onSnapshot → listen (Firebase SDK compatibility)
+  onSnapshot(
+    callback: (snapshot: ListenSnapshot) => void,
+    options?: { pollInterval?: number } | ((err: any) => void),
+  ): () => void {
+    // Support Firebase SDK signature: onSnapshot(callback, onError)
+    if (typeof options === 'function') {
+      const onError = options;
+      return this.listen((snapshot) => {
+        try { callback(snapshot); } catch (e) { onError(e); }
+      });
+    }
+    return this.listen(callback, options);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

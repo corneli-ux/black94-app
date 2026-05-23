@@ -203,15 +203,14 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
       .collection('posts')
       .orderBy('createdAt', 'desc')
       // Only listen for posts strictly newer than what we already have.
-      // We use a Firestore Timestamp approximation from the millis value.
       .where('createdAt', '>', new Date(newestCreatedAt))
       .onSnapshot(
         snapshot => {
           if (snapshot.empty) return;
-          // docChanges gives us only the delta (added/modified/removed)
-          const added = snapshot.docChanges()
-            .filter(ch => ch.type === 'added')
-            .map(ch => snapshotToPost(ch.doc));
+          // docChanges is an array in the REST compat layer (not a method)
+          const added = (snapshot.docChanges || [])
+            .filter((ch: any) => ch.type === 'added')
+            .map((ch: any) => snapshotToPost(ch.doc));
 
           if (added.length === 0) return;
 
@@ -227,7 +226,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
           // Enrich in background (author profiles + interaction state)
           enrichPostsInBackground(added, userId);
         },
-        err => {
+        (err: any) => {
           // Non-fatal — live listener failing just means no auto-refresh
           console.warn('[Feed] Real-time listener error:', err?.message);
         }
@@ -617,8 +616,9 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
       await firestore().collection('posts').doc(postId).delete();
       // Remove the original post AND any repost wrappers pointing to it
       setPosts(prev => prev.filter(p => p.id !== postId && p.repostOf !== postId));
-    } catch {
-      Alert.alert('Error', 'Failed to delete post');
+    } catch (e: any) {
+      console.error('[Feed] Delete post error:', e?.message, e?.code, e?.status);
+      Alert.alert('Error', `Failed to delete post: ${e?.message || 'Unknown error'}`);
     }
   };
 

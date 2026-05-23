@@ -95,11 +95,13 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     if (loadingMore || allLoaded || comments.length === 0) return;
     setLoadingMore(true);
     try {
-      // Use the oldest comment's createdAt as cursor
+      // Use the oldest comment's createdAt as cursor with proper orderBy
       const oldestCreatedAt = comments[comments.length - 1].createdAt;
       const snap = await firestore()
         .collection('post_comments')
         .where('postId', '==', postId)
+        .orderBy('createdAt', 'asc')
+        .startAfter({ __fs_type: 'timestamp', value: new Date(oldestCreatedAt).toISOString() })
         .limit(30)
         .get();
       const newComments = snap.docs
@@ -119,15 +121,15 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             replyToUsername: data.replyToUsername || null,
             createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
           };
-        })
-        .filter(c => c.createdAt < oldestCreatedAt) // Only older comments
-        .sort((a, b) => a.createdAt - b.createdAt);
+        });
       if (newComments.length === 0) {
         setAllLoaded(true);
       } else {
         setComments(prev => [...prev, ...newComments]);
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[PostComments] loadMoreComments error:', e);
+    }
     setLoadingMore(false);
   }, [loadingMore, allLoaded, comments, postId]);
 
