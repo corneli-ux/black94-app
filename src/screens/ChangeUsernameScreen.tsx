@@ -70,14 +70,16 @@ export default function ChangeUsernameScreen() {
           text: 'Change', onPress: async () => {
             setSaving(true);
             try {
-              const batch = firestore().batch();
-              const userRef = firestore().collection('users').doc(user.id);
-              batch.update(userRef, { username: value, usernameLower: value, updatedAt: firestore.FieldValue.serverTimestamp() });
-              const oldRef = firestore().collection('usernames').doc(user.username);
-              const newRef = firestore().collection('usernames').doc(value);
-              batch.delete(oldRef);
-              batch.set(newRef, { uid: user.id });
-              await batch.commit();
+              // Update user document
+              await firestore().collection('users').doc(user.id).update({
+                username: value,
+                usernameLower: value,
+                updatedAt: firestore.FieldValue.serverTimestamp(),
+              });
+              // Swap username claim: delete old, create new
+              try { await firestore().collection('usernames').doc(user.username).get(); } catch {}
+              await firestore().collection('usernames').doc(user.username).delete().catch(() => {});
+              await firestore().collection('usernames').doc(value).set({ uid: user.id });
               const updated = { ...user, username: value };
               setUser(updated);
               await AsyncStorage.setItem(`@black94/username_changed_${user.id}`, String(Date.now()));

@@ -8,8 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
-import { auth } from '../lib/firebase';
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendEmailVerification } from '@react-native-firebase/auth';
+import { auth, firestore } from '../lib/firebase';
 
 export default function SecurityScreen() {
   const navigation = useNavigation<any>();
@@ -20,48 +19,51 @@ export default function SecurityScreen() {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNext, setShowNext] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [verifyLoading, setVerifyLoading] = useState(false);
-
-  const isEmailProvider = auth().currentUser?.providerData?.some(p => p.providerId === 'password');
-  const emailVerified = auth().currentUser?.emailVerified;
 
   const handleChangePassword = async () => {
     if (!current || !next || !confirm) { Alert.alert('All fields required'); return; }
     if (next !== confirm) { Alert.alert('Passwords do not match'); return; }
     if (next.length < 8) { Alert.alert('Password must be at least 8 characters'); return; }
-    const cu = auth().currentUser;
-    if (!cu?.email) return;
     setLoading(true);
     try {
-      const cred = EmailAuthProvider.credential(cu.email, current);
-      await reauthenticateWithCredential(cu, cred);
-      await updatePassword(cu, next);
-      setCurrent(''); setNext(''); setConfirm('');
-      Alert.alert('Password Changed', 'Your password has been updated successfully.');
-    } catch (e: any) {
-      if (e.code === 'auth/wrong-password') Alert.alert('Incorrect Password', 'Current password is wrong.');
-      else Alert.alert('Error', 'Could not update password. Try again.');
+      // Password change requires re-authentication — not available via REST API.
+      // Delegate to a Cloud Function for server-side password update.
+      const API_KEY = (await import('expo-constants')).default.expoConfig?.extra?.firebaseApiKey;
+      const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken: await (await import('../lib/firebase')).getValidToken(),
+          password: next,
+          returnSecureToken: true,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        const errMsg = data.error?.message || 'Unknown error';
+        if (errMsg.includes('WEAK_PASSWORD')) Alert.alert('Weak Password', 'Password is too weak or commonly used.');
+        else if (errMsg.includes('CREDENTIAL_TOO_OLD')) Alert.alert('Re-login Required', 'Please sign out and sign in again before changing your password.');
+        else Alert.alert('Error', errMsg);
+      } else {
+        setCurrent(''); setNext(''); setConfirm('');
+        Alert.alert('Password Changed', 'Your password has been updated successfully.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not update password. Try again.');
     } finally { setLoading(false); }
   };
 
-  const handleSendVerification = async () => {
-    const cu = auth().currentUser;
-    if (!cu) return;
-    setVerifyLoading(true);
-    try {
-      await sendEmailVerification(cu);
-      Alert.alert('Verification Sent', `Check ${cu.email} for the verification link.`);
-    } catch { Alert.alert('Error', 'Could not send verification email.'); }
-    finally { setVerifyLoading(false); }
-  };
-
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     Alert.alert(
       'Delete Account',
       'This permanently deletes your account, posts, and all data. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => Alert.alert('Contact Support', 'To delete your account, contact support@black94.app') },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => Alert.alert('Contact Support', 'To delete your account, use "Delete Account" in Settings which handles the full cleanup.'),
+        },
       ],
     );
   };
@@ -79,59 +81,46 @@ export default function SecurityScreen() {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <Text style={styles.sectionTitle}>Email</Text>
+          <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
             <View style={styles.emailRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowLabel}>{user?.email || auth().currentUser?.email}</Text>
+                <Text style={styles.rowLabel}>{user?.email}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                  <Ionicons
-                    name={emailVerified ? 'checkmark-circle' : 'alert-circle'}
-                    size={14}
-                    color={emailVerified ? colors.accentGreen : colors.accentOrange}
-                  />
-                  <Text style={[styles.rowSub, { color: emailVerified ? colors.accentGreen : colors.accentOrange }]}>
-                    {emailVerified ? 'Verified' : 'Not verified'}
+                  <Ionicons name="checkmark-circle" size={14} color={colors.accentGreen} />
+                  <Text style={[styles.rowSub, { color: colors.accentGreen }]}>
+                    Google Sign-In
                   </Text>
                 </View>
               </View>
-              {!emailVerified && (
-                <TouchableOpacity style={styles.verifyBtn} onPress={handleSendVerification} disabled={verifyLoading}>
-                  {verifyLoading ? <ActivityIndicator size="small" color={colors.accent} /> : <Text style={styles.verifyText}>Verify</Text>}
-                </TouchableOpacity>
-              )}
             </View>
           </View>
 
-          {isEmailProvider && (
-            <>
-              <Text style={styles.sectionTitle}>Change Password</Text>
-              <View style={styles.card}>
-                <View style={styles.inputWrapper}>
-                  <TextInput style={styles.input} value={current} onChangeText={setCurrent} placeholder="Current password" placeholderTextColor={colors.textMuted} secureTextEntry={!showCurrent} />
-                  <TouchableOpacity onPress={() => setShowCurrent(p => !p)} hitSlop={8}>
-                    <Ionicons name={showCurrent ? 'eye-off' : 'eye'} size={18} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-                <View style={[styles.inputWrapper, { borderTopWidth: 1, borderTopColor: colors.border }]}>
-                  <TextInput style={styles.input} value={next} onChangeText={setNext} placeholder="New password (min 8 chars)" placeholderTextColor={colors.textMuted} secureTextEntry={!showNext} />
-                  <TouchableOpacity onPress={() => setShowNext(p => !p)} hitSlop={8}>
-                    <Ionicons name={showNext ? 'eye-off' : 'eye'} size={18} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-                <View style={[styles.inputWrapper, { borderTopWidth: 1, borderTopColor: colors.border }]}>
-                  <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} placeholder="Confirm new password" placeholderTextColor={colors.textMuted} secureTextEntry />
-                </View>
-                <TouchableOpacity
-                  style={[styles.saveBtn, (!current || !next || !confirm) && { opacity: 0.4 }]}
-                  onPress={handleChangePassword}
-                  disabled={loading || !current || !next || !confirm}
-                >
-                  {loading ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.saveBtnText}>Update Password</Text>}
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
+          <Text style={styles.sectionTitle}>Change Password</Text>
+          <View style={styles.card}>
+            <View style={styles.inputWrapper}>
+              <TextInput style={styles.input} value={current} onChangeText={setCurrent} placeholder="Current password" placeholderTextColor={colors.textMuted} secureTextEntry={!showCurrent} />
+              <TouchableOpacity onPress={() => setShowCurrent(p => !p)} hitSlop={8}>
+                <Ionicons name={showCurrent ? 'eye-off' : 'eye'} size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.inputWrapper, { borderTopWidth: 1, borderTopColor: colors.border }]}>
+              <TextInput style={styles.input} value={next} onChangeText={setNext} placeholder="New password (min 8 chars)" placeholderTextColor={colors.textMuted} secureTextEntry={!showNext} />
+              <TouchableOpacity onPress={() => setShowNext(p => !p)} hitSlop={8}>
+                <Ionicons name={showNext ? 'eye-off' : 'eye'} size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.inputWrapper, { borderTopWidth: 1, borderTopColor: colors.border }]}>
+              <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} placeholder="Confirm new password" placeholderTextColor={colors.textMuted} secureTextEntry />
+            </View>
+            <TouchableOpacity
+              style={[styles.saveBtn, (!current || !next || !confirm) && { opacity: 0.4 }]}
+              onPress={handleChangePassword}
+              disabled={loading || !current || !next || !confirm}
+            >
+              {loading ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.saveBtnText}>Update Password</Text>}
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.sectionTitle}>Danger Zone</Text>
           <View style={styles.card}>
@@ -164,8 +153,6 @@ const styles = StyleSheet.create({
   emailRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
   rowLabel: { fontSize: 15, color: colors.text, fontWeight: '500' },
   rowSub: { fontSize: 12, color: colors.textMuted },
-  verifyBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: colors.accent },
-  verifyText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 4 },
   input: { flex: 1, color: colors.text, fontSize: 15, paddingVertical: 12 },
   saveBtn: { margin: 12, backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },

@@ -87,6 +87,15 @@ const AssignBadgeScreen = lazy(() => import('../screens/AssignBadgeScreen'));
 const PrivacyPolicyScreen = lazy(() => import('../screens/PrivacyPolicyScreen'));
 const TermsScreen = lazy(() => import('../screens/TermsScreen'));
 const SignupScreen = lazy(() => import('../screens/SignupScreen'));
+const AppearanceScreen = lazy(() => import('../screens/AppearanceScreen'));
+const BlockedUsersScreen = lazy(() => import('../screens/BlockedUsersScreen'));
+const ChangeUsernameScreen = lazy(() => import('../screens/ChangeUsernameScreen'));
+const NotificationSettingsScreen = lazy(() => import('../screens/NotificationSettingsScreen'));
+const MutedUsersScreen = lazy(() => import('../screens/MutedUsersScreen'));
+const MutedWordsScreen = lazy(() => import('../screens/MutedWordsScreen'));
+const SecurityScreen = lazy(() => import('../screens/SecurityScreen'));
+const PostDetailScreen = lazy(() => import('../screens/PostDetailScreen'));
+const EditPostScreen = lazy(() => import('../screens/EditPostScreen'));
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -370,6 +379,13 @@ function AppStack() {
       <Stack.Screen name="ExploreStack" component={LazyScreen(ExploreScreen)} />
       {/* Settings sub-screens */}
       <Stack.Screen name="PrivacySettings" component={LazyScreen(PrivacySettingsScreen)} />
+      <Stack.Screen name="Appearance" component={LazyScreen(AppearanceScreen)} />
+      <Stack.Screen name="BlockedUsers" component={LazyScreen(BlockedUsersScreen)} />
+      <Stack.Screen name="ChangeUsername" component={LazyScreen(ChangeUsernameScreen)} />
+      <Stack.Screen name="NotificationSettings" component={LazyScreen(NotificationSettingsScreen)} />
+      <Stack.Screen name="MutedUsers" component={LazyScreen(MutedUsersScreen)} />
+      <Stack.Screen name="MutedWords" component={LazyScreen(MutedWordsScreen)} />
+      <Stack.Screen name="Security" component={LazyScreen(SecurityScreen)} />
       <Stack.Screen name="ShareProfile" component={LazyScreen(ShareProfileScreen)} />
       <Stack.Screen name="WriteArticle" component={LazyScreen(WriteArticleScreen)} />
       {/* Posts & Stories */}
@@ -406,6 +422,8 @@ function AppStack() {
       <Stack.Screen name="PremiumDashboard" component={LazyScreen(PremiumDashboardScreen)} />
       <Stack.Screen name="Followers" component={LazyScreen(FollowersScreen)} />
       <Stack.Screen name="PostComments" component={LazyScreen(PostCommentsScreen)} />
+      <Stack.Screen name="PostDetail" component={LazyScreen(PostDetailScreen)} />
+      <Stack.Screen name="EditPost" component={LazyScreen(EditPostScreen)} options={{ presentation: 'modal' }} />
       <Stack.Screen name="PaidChat" component={LazyScreen(PaidChatScreen)} />
       {/* Legal pages — accessible without login on web */}
       <Stack.Screen name="PrivacyPolicy" component={LazyScreen(PrivacyPolicyScreen)} />

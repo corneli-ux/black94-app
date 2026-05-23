@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { signOutUser } from '../lib/api';
-import { auth, updateAuthUser } from '../lib/firebase';
+import { auth, updateAuthUser, firestore } from '../lib/firebase';
 import { deleteAccountServer } from '../lib/cloudFunctions';
 import { Avatar } from '../components/Avatar';
 import { PLANS, formatAmount } from '../lib/payments';
@@ -222,7 +222,21 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
             <SettingsLink icon="lock-closed" label="Privacy Settings" onPress={() => navigation.navigate('PrivacySettings' as never)} />
+            <SettingsLink icon="notifications-outline" label="Notification Settings" onPress={() => navigation.navigate('NotificationSettings' as never)} />
+            <SettingsLink icon="sunny-outline" label="Appearance" onPress={() => navigation.navigate('Appearance' as never)} />
+            <SettingsLink icon="at-outline" label="Change Username" onPress={() => navigation.navigate('ChangeUsername' as never)} />
+            <SettingsLink icon="shield-checkmark-outline" label="Security" onPress={() => navigation.navigate('Security' as never)} />
             <SettingsLink icon="share-social" label="Share Profile" onPress={() => navigation.navigate('ShareProfile' as never)} />
+          </View>
+        </View>
+
+        {/* Privacy & Moderation */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Privacy & Moderation</Text>
+          <View style={styles.card}>
+            <SettingsLink icon="ban-outline" label="Blocked Accounts" onPress={() => navigation.navigate('BlockedUsers' as never)} />
+            <SettingsLink icon="volume-mute-outline" label="Muted Accounts" onPress={() => navigation.navigate('MutedUsers' as never)} />
+            <SettingsLink icon="eye-off-outline" label="Muted Words" onPress={() => navigation.navigate('MutedWords' as never)} />
           </View>
         </View>
 
