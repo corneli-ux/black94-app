@@ -18,6 +18,7 @@ import FeedMedia from '../components/FeedMedia';
 import { useAppStore } from '../stores/app';
 import Svg, { Path, Polyline } from 'react-native-svg';
 import { useFeed, Tab } from '../hooks/useFeed';
+import { FeedSkeleton } from '../components/SkeletonLoader';
 
 const SCREEN_W = scale(390);
 
@@ -97,45 +98,7 @@ function formatCount(n: number | undefined): string {
   return n.toString();
 }
 
-/* ── Skeleton Loader ──────────────────────────────────────────────────────── */
-
-function SkeletonCard() {
-  return (
-    <View style={[styles.postCard, { borderBottomColor: 'transparent' }]}>
-      <View style={styles.contentRow}>
-        {/* Avatar placeholder */}
-        <View style={styles.skeletonAvatar} />
-        <View style={{ flex: 1, gap: 8 }}>
-          {/* Name + time */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={[styles.skeletonLine, { width: 100, height: 14 }]} />
-            <View style={[styles.skeletonLine, { width: 60, height: 14 }]} />
-          </View>
-          {/* Caption lines */}
-          <View style={[styles.skeletonLine, { width: '90%', height: 14 }]} />
-          <View style={[styles.skeletonLine, { width: '70%', height: 14 }]} />
-          <View style={[styles.skeletonLine, { width: '40%', height: 14 }]} />
-          {/* Action bar dots */}
-          <View style={{ flexDirection: 'row', marginTop: 12, gap: 56 }}>
-            {[0, 1, 2, 3, 4].map(i => (
-              <View key={i} style={[styles.skeletonDot]} />
-            ))}
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function SkeletonFeed() {
-  return (
-    <View>
-      {[0, 1, 2, 3, 4].map(i => (
-        <SkeletonCard key={i} />
-      ))}
-    </View>
-  );
-}
+/* ── Skeleton: uses shared animated FeedSkeleton from SkeletonLoader.tsx ── */
 
 /* ── Inline Poll (inside PostCard) ─────────────────────────────────────────── */
 
@@ -864,7 +827,20 @@ export default function FeedScreen({ navigation }: any) {
 
   const insets = useSafeAreaInsets();
 
-  if (loading) {
+  // Timeout safety: if loading is still true after 15s, force-show feed
+  // Prevents skeleton from being stuck forever on slow networks.
+  // Must be before the early return to comply with React hooks rules.
+  const [forceLoaded, setForceLoaded] = React.useState(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) setForceLoaded(true);
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  const showSkeleton = loading && !forceLoaded;
+
+  if (showSkeleton) {
     return (
       <View style={styles.container}>
         {/* Header with logo */}
@@ -897,7 +873,7 @@ export default function FeedScreen({ navigation }: any) {
           <View style={[styles.tabUnderline, { left: SCREEN_W / 3 - 24, right: SCREEN_W * 2 / 3 - 24 }]} />
         </View>
 
-        <SkeletonFeed />
+        <FeedSkeleton count={5} />
       </View>
     );
   }
@@ -1276,20 +1252,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
-  /* ── Skeleton ── */
-  skeletonAvatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  skeletonLine: {
-    height: 14,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  skeletonDot: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
+  /* ── Skeleton removed — uses shared FeedSkeleton from SkeletonLoader.tsx ── */
 
   /* ── Load more indicator ── */
   loadMoreIndicator: {

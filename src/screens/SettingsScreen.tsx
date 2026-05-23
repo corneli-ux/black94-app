@@ -239,7 +239,7 @@ export default function SettingsScreen() {
 
         {/* Account Management */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
+          <Text style={styles.sectionTitle}>Account Management</Text>
           <View style={styles.card}>
             <SettingsLink icon="link-outline" label="Linked Accounts" onPress={() => navigation.navigate('LinkedAccounts' as never)} />
             <SettingsLink icon="phone-portrait-outline" label="Active Sessions" onPress={() => navigation.navigate('Sessions' as never)} />
@@ -249,9 +249,10 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Business</Text>
+          <Text style={styles.sectionTitle}>Content</Text>
           <View style={styles.card}>
             <SettingsLink icon="newspaper" label="Write Article" onPress={() => navigation.navigate('WriteArticle' as never)} />
+            <SettingsLink icon="bookmark-outline" label="Bookmarks" onPress={() => navigation.navigate('Bookmarks' as never)} />
           </View>
         </View>
 
