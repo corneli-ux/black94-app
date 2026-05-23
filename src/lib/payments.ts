@@ -176,7 +176,7 @@ export async function initiatePayment(
 
 /**
  * Returns a flat config object that the Razorpay WebView checkout module needs.
- * Used by PremiumDashboardScreen and CheckoutScreen to open the Razorpay modal.
+ * Used by PremiumDashboardScreen to open the Razorpay modal.
  */
 export function getRazorpayCheckoutConfig(options: InitiatePaymentOptions) {
   return {

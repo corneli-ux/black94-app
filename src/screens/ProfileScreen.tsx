@@ -348,7 +348,7 @@ function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, o
   );
 }
 
-function RepliesList({ replies }: { replies: Reply[]; navigation?: any }) {
+function RepliesList({ replies, userProfile }: { replies: Reply[]; navigation?: any; userProfile?: { isVerified?: boolean; badge?: string } | null }) {
   // Filter out self-replies (user replying to their own post)
   const filteredReplies = replies.filter(r =>
     r.authorUsername.toLowerCase() !== r.postAuthorUsername.toLowerCase()
@@ -362,7 +362,11 @@ function RepliesList({ replies }: { replies: Reply[]; navigation?: any }) {
   );
   return (
     <View>
-      {filteredReplies.map(reply => (
+      {filteredReplies.map(reply => {
+        // Use the profile owner's current verification status for consistent badges
+        // The stored authorIsVerified/authorBadge on comments can be stale
+        const isProfileOwner = reply.authorUsername === userProfile?.badge || reply.authorIsVerified;
+        return (
         <View key={reply.id} style={profileCardStyles.postCard}>
           <View style={profileCardStyles.contentRow}>
             <Avatar uri={reply.authorProfileImage || null} name={reply.authorDisplayName || reply.authorUsername} size={40} />
@@ -371,7 +375,11 @@ function RepliesList({ replies }: { replies: Reply[]; navigation?: any }) {
                 <Text style={profileCardStyles.displayName} numberOfLines={1}>
                   {reply.authorDisplayName || reply.authorUsername}
                 </Text>
-                <VerifiedBadge badge={reply.authorBadge} isVerified={reply.authorIsVerified} size={16} />
+                <VerifiedBadge
+                  badge={userProfile?.badge || reply.authorBadge}
+                  isVerified={userProfile?.isVerified !== undefined ? userProfile.isVerified : reply.authorIsVerified}
+                  size={16}
+                />
                 <Text style={profileCardStyles.username}>@{reply.authorUsername}</Text>
                 <Text style={profileCardStyles.dot}>·</Text>
                 <Text style={profileCardStyles.time}>{timeAgo(reply.createdAt)}</Text>
@@ -380,7 +388,8 @@ function RepliesList({ replies }: { replies: Reply[]; navigation?: any }) {
             </View>
           </View>
         </View>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -825,7 +834,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       onScroll={handleScroll}
       scrollEventThrottle={16}
       refreshControl={<RefreshControl refreshing={refreshing && canRefresh} onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }} tintColor={colors.accent} enabled={canRefresh} />}
-      stickyHeaderIndices={[3]}
+      stickyHeaderIndices={[4]}
     >
       {/* Top bar */}
       <SafeAreaView edges={['top']}>
@@ -959,11 +968,14 @@ export default function ProfileScreen({ route, navigation }: any) {
         </View>
       ) : tab === 'posts' && <PostGrid posts={posts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'media' && (
-        <MediaGrid posts={posts} navigation={navigation} />
+        <MediaGrid key="media-grid" posts={posts} navigation={navigation} />
       )}
-      {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
+      {tab === 'replies' && <RepliesList replies={replies} userProfile={user} />}
       {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'reposts' && <PostGrid posts={repostPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
+      {!['posts', 'media', 'replies', 'likes', 'reposts'].includes(tab) && (
+        <MediaGrid key="media-grid-fallback" posts={posts} navigation={navigation} />
+      )}
     </ScrollView>
   );
 }
