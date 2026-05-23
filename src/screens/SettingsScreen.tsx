@@ -240,6 +240,17 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Account Management */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.card}>
+            <SettingsLink icon="link-outline" label="Linked Accounts" onPress={() => navigation.navigate('LinkedAccounts' as never)} />
+            <SettingsLink icon="phone-portrait-outline" label="Active Sessions" onPress={() => navigation.navigate('Sessions' as never)} />
+            <SettingsLink icon="download-outline" label="Export My Data" onPress={() => navigation.navigate('DataExport' as never)} />
+            <SettingsLink icon="checkmark-done-outline" label="Request Verification" onPress={() => navigation.navigate('VerificationRequest' as never)} />
+          </View>
+        </View>
+
         {user?.role === 'business' && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Business</Text>

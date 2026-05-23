@@ -102,6 +102,13 @@ const ScheduledPostsScreen = lazy(() => import('../screens/ScheduledPostsScreen'
 const DraftPostsScreen = lazy(() => import('../screens/DraftPostsScreen'));
 const MessageRequestsScreen = lazy(() => import('../screens/MessageRequestsScreen'));
 const GroupInfoScreen = lazy(() => import('../screens/GroupInfoScreen'));
+const StoryViewersScreen = lazy(() => import('../screens/StoryViewersScreen'));
+const MediaGalleryScreen = lazy(() => import('../screens/MediaGalleryScreen'));
+const DataExportScreen = lazy(() => import('../screens/DataExportScreen'));
+const VerificationRequestScreen = lazy(() => import('../screens/VerificationRequestScreen'));
+const VideoCallScreen = lazy(() => import('../screens/VideoCallScreen'));
+const SessionsScreen = lazy(() => import('../screens/SessionsScreen'));
+const LinkedAccountsScreen = lazy(() => import('../screens/LinkedAccountsScreen'));
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -436,6 +443,13 @@ function AppStack() {
       <Stack.Screen name="DraftPosts" component={LazyScreen(DraftPostsScreen)} />
       <Stack.Screen name="MessageRequests" component={LazyScreen(MessageRequestsScreen)} />
       <Stack.Screen name="GroupInfo" component={LazyScreen(GroupInfoScreen)} />
+      <Stack.Screen name="StoryViewers" component={LazyScreen(StoryViewersScreen)} />
+      <Stack.Screen name="MediaGallery" component={LazyScreen(MediaGalleryScreen)} />
+      <Stack.Screen name="DataExport" component={LazyScreen(DataExportScreen)} />
+      <Stack.Screen name="VerificationRequest" component={LazyScreen(VerificationRequestScreen)} />
+      <Stack.Screen name="VideoCall" component={LazyScreen(VideoCallScreen)} />
+      <Stack.Screen name="Sessions" component={LazyScreen(SessionsScreen)} />
+      <Stack.Screen name="LinkedAccounts" component={LazyScreen(LinkedAccountsScreen)} />
       <Stack.Screen name="PaidChat" component={LazyScreen(PaidChatScreen)} />
       {/* Legal pages — accessible without login on web */}
       <Stack.Screen name="PrivacyPolicy" component={LazyScreen(PrivacyPolicyScreen)} />
