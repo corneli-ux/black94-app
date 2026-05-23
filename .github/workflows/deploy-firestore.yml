@@ -14,11 +14,13 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
       - name: Setup Firebase CLI
         run: npm install -g firebase-tools
 
       - name: Deploy Firestore Rules
-        run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > /tmp/service-account.json
-          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/service-account.json
-          firebase deploy --only firestore:rules --project black94
+        run: firebase deploy --only firestore:rules --project black94
