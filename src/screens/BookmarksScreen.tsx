@@ -235,8 +235,11 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
         await firestore().collection('post_likes').add({ postId: post.id, userId: uid, createdAt: firestore.FieldValue.serverTimestamp() });
         await firestore().collection('posts').doc(post.id).update({ likeCount: firestore.FieldValue.increment(1) });
       } else {
-        const snap = await firestore().collection('post_likes').where('postId', '==', post.id).where('userId', '==', uid).get();
-        for (const d of snap.docs) await d.ref.delete();
+        // BUG FIX: Use deterministic doc ID instead of composite query
+        // (postId + userId composite index may not exist). This avoids
+        // FAILED_PRECONDITION errors that silently break unlike.
+        const likeDocId = `${post.id}_${uid}`;
+        await firestore().collection('post_likes').doc(likeDocId).delete().catch(() => {});
         await firestore().collection('posts').doc(post.id).update({ likeCount: firestore.FieldValue.increment(-1) });
       }
     } catch (e) {
@@ -249,8 +252,9 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   const handleBookmark = async () => {
     try {
       const uid = auth()?.currentUser?.uid; if (!uid) return;
-      const snap = await firestore().collection('post_bookmarks').where('postId', '==', post.id).where('userId', '==', uid).get();
-      for (const d of snap.docs) await d.ref.delete();
+      // BUG FIX: Use deterministic doc ID instead of composite query.
+      const bookmarkDocId = `${post.id}_${uid}`;
+      await firestore().collection('post_bookmarks').doc(bookmarkDocId).delete().catch(() => {});
       setBookmarked(false);
       onUnbookmark();
     } catch (e) {

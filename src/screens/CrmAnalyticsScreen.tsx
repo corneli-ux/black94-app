@@ -85,9 +85,8 @@ const CrmAnalyticsScreen: React.FC = () => {
           let date: Date;
           if (o.createdAt && typeof o.createdAt === 'object' && 'seconds' in o.createdAt) {
             date = new Date(o.createdAt.seconds * 1000);
-          } else if (o.createdAt.toDate) {
-            date = o.createdAt.toDate();
           } else {
+            // Handles ISO strings (from REST wrapper) and numbers (millis)
             date = new Date(o.createdAt);
           }
           const key = date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });

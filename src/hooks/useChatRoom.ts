@@ -196,6 +196,10 @@ export function useChatRoom({
           }
         } catch (e) {
           console.error('[ChatRoom] Failed to fetch chat:', e);
+        } finally {
+          // BUG FIX: Always stop loading — if chat fetch fails or chat doesn't exist,
+          // user was stuck on infinite ActivityIndicator forever.
+          setLoading(false);
         }
       };
       fetchChat();
@@ -211,18 +215,26 @@ export function useChatRoom({
         const field = isUser1 ? 'unreadUser1' : 'unreadUser2';
         await firestore().collection('chats').doc(chat.id).update({ [field]: 0 });
 
+        // BUG FIX: Composite query (senderId + status) requires a composite index
+        // that may not exist. Fall back to single-where query + client-side filter
+        // (same pattern as ChatListScreen.createOrOpenChat) to avoid silent failures.
         try {
           const otherSenderId = isUser1 ? chat.user2Id : chat.user1Id;
           if (otherSenderId) {
+            // Use single-where query (no composite index needed)
             const msgSnap = await firestore()
               .collection('chats').doc(chat.id).collection('messages')
               .where('senderId', '==', otherSenderId)
-              .where('status', 'in', ['sent', 'delivered'])
               .limit(100)
               .get();
-            if (!msgSnap.empty) {
+            // Client-side filter for unread statuses
+            const unreadDocs = msgSnap.docs.filter((doc: any) => {
+              const status = doc.data()?.status;
+              return status === 'sent' || status === 'delivered';
+            });
+            if (unreadDocs.length > 0) {
               const batch = firestore().batch();
-              msgSnap.docs.forEach(doc => {
+              unreadDocs.forEach((doc: any) => {
                 batch.update(doc.ref, { status: 'read' });
               });
               await batch.commit();
@@ -277,22 +289,28 @@ export function useChatRoom({
     const content = text.trim();
     setText('');
     setSending(true);
-    setReplyTo(null); // Clear reply context immediately
+    // BUG FIX: Capture replyTo BEFORE clearing it — the old code cleared replyTo
+    // first, then read from it (always getting null), so reply context was lost.
+    const replyContext = replyTo ? {
+      replyToId: replyTo.id,
+      replyToContent: replyTo.content,
+      replyToSenderName: replyTo.senderId === currentUser?.uid
+        ? 'You'
+        : (chat?.otherUser?.displayName || 'User'),
+    } : undefined;
+    setReplyTo(null);
     const tempMsg: Message = {
       id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, chatId: chat.id,
       senderId: currentUser?.uid || '', receiverId: chat.otherUser?.id || '',
       content, messageType: 'text', createdAt: Date.now(),
+      replyToId: replyContext?.replyToId,
+      replyToContent: replyContext?.replyToContent,
+      replyToSenderName: replyContext?.replyToSenderName,
     };
     setMessages(prev => [...prev, tempMsg]);
     setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
     try {
-      const result = await sendMessage(chat.id, chat.otherUser?.id || '', content, {
-        replyToId: replyTo?.id || undefined,
-        replyToContent: replyTo?.content || undefined,
-        replyToSenderName: replyTo?.senderId === currentUser?.uid
-          ? 'You'
-          : (chat?.otherUser?.displayName || 'User'),
-      });
+      const result = await sendMessage(chat.id, chat.otherUser?.id || '', content, replyContext);
       // BUG FIX: Check sendMessage return value — blocked messages appear sent
       if (result && !result.sent) {
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));

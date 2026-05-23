@@ -181,7 +181,7 @@ export default function GroupInfoScreen() {
             ),
           );
         } catch {}
-        navigation.navigate('ChatList' as never);
+        navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages' } });
       } else {
         // Regular member leaving — remove from participants
         const updatedParticipants = (chatData.participants || []).filter(
@@ -191,7 +191,7 @@ export default function GroupInfoScreen() {
           participants: updatedParticipants,
         });
         // Go back to chat list
-        navigation.navigate('ChatList' as never);
+        navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages' } });
       }
     } catch (e: any) {
       if (__DEV__) console.error('[GroupInfo] Leave failed:', e?.message);

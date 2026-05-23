@@ -163,8 +163,12 @@ export default function ChatListScreen({ navigation, route }: any) {
         setComposeChecking(null);
         try {
           // Dynamic import to handle the case where PaidChatScreen may not exist yet
-          const PaidChatScreen = await import('../screens/PaidChatScreen');
-          navigation.navigate('PaidChat', { targetUser });
+          await import('../screens/PaidChatScreen');
+          // BUG FIX: PaidChatScreen expects { targetUserId, chatPrice }, NOT { targetUser }
+          navigation.navigate('PaidChat', {
+            targetUserId: targetUser.id,
+            chatPrice: privacy.paidChatPrice || 0,
+          });
           return;
         } catch (e) {
           console.warn('[ChatList] PaidChatScreen not available, falling back to normal chat:', e);

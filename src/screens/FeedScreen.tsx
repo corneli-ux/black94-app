@@ -447,7 +447,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
       {
         text: 'Send via DM',
         onPress: () => {
-          navigation.navigate('ChatList', { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername });
+          navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages', params: { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername } } });
         },
       },
     ]);
