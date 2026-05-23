@@ -355,11 +355,13 @@ export default function PremiumDashboardScreen() {
                         .where('status', '==', 'active')
                         .get();
 
-                      const batch = firestore().batch();
-                      subs.docs.forEach(doc => {
-                        batch.update(doc.ref, { status: 'cancelled', cancelledAt: new Date().toISOString() });
-                      });
-                      if (subs.docs.length > 0) await batch.commit();
+                      for (const doc of subs.docs) {
+                        try {
+                          await doc.ref.update({ status: 'cancelled', cancelledAt: new Date().toISOString() });
+                        } catch (e) {
+                          if (__DEV__) console.warn('[Premium] Failed to cancel subscription:', e);
+                        }
+                      }
 
                       // Refresh the app store user data — use fetchUserProfile which
                       // has corruption detection, createdAt conversion, and cache update.

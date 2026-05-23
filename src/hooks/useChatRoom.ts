@@ -444,6 +444,7 @@ export function useChatRoom({
       try {
         const uploadResult = await uploadOptimizedImage(uri, storagePath, {
           mimeType: 'audio/mp4',
+          skipImageValidation: true,
         });
         audioUrl = uploadResult.downloadUrl;
       } catch (uploadErr) {

@@ -38,11 +38,12 @@ export default function SalaryScreen({ navigation }: any) {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    if (!currentUser) { setLoading(false); return; }
+    const currentUid = auth()?.currentUser?.uid;
+    if (!currentUid) { setLoading(false); return; }
     try {
       const snap = await firestore()
         .collection('teamMembers')
-        .where('businessId', '==', currentUser.uid)
+        .where('businessId', '==', currentUid)
         .orderBy('name', 'asc')
         .limit(100)
         .get();
@@ -71,14 +72,14 @@ export default function SalaryScreen({ navigation }: any) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [currentUser]);
+  }, []);
 
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
     setCanRefresh(offset <= 0);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -99,7 +100,8 @@ export default function SalaryScreen({ navigation }: any) {
   };
 
   const handleSaveMember = async () => {
-    if (!currentUser || !formName.trim()) {
+    const saveUid = auth()?.currentUser?.uid;
+    if (!saveUid || !formName.trim()) {
       Alert.alert('Validation', 'Name is required.');
       return;
     }
@@ -122,7 +124,7 @@ export default function SalaryScreen({ navigation }: any) {
       } else {
         // Create new
         await firestore().collection('teamMembers').add({
-          businessId: currentUser.uid,
+          businessId: saveUid,
           name: formName.trim(),
           role: formRole.trim() || 'Team Member',
           baseSalary: salary,

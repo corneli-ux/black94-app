@@ -70,13 +70,11 @@ export default function ChangeUsernameScreen() {
           text: 'Change', onPress: async () => {
             setSaving(true);
             try {
-              // Update user document
               await firestore().collection('users').doc(user.id).update({
                 username: value,
                 usernameLower: value,
                 updatedAt: firestore.FieldValue.serverTimestamp(),
               });
-              // Swap username claim: delete old, create new
               try { await firestore().collection('usernames').doc(user.username).get(); } catch {}
               await firestore().collection('usernames').doc(user.username).delete().catch(() => {});
               await firestore().collection('usernames').doc(value).set({ uid: user.id });

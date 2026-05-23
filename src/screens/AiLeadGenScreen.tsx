@@ -207,6 +207,7 @@ export default function AiLeadGenScreen() {
       Alert.alert('Import Complete', `Successfully imported ${importResult.imported} lead(s).${importResult.skipped > 0 ? `\n${importResult.skipped} row(s) skipped due to errors.` : ''}`);
       // Refresh the leads list
       setAllLeads([]);
+      loadData().catch(() => {});
     } catch (err: any) {
       console.error('[LeadGen] Import failed:', err);
       Alert.alert('Import Error', 'Could not read the CSV file. Make sure it is a valid CSV with columns: Name, Email, Phone, Company, Job Title, Source, Tags, Notes.');

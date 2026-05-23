@@ -18,7 +18,7 @@ import { getValidToken } from './firebase';
 // ── Config ──────────────────────────────────────────────────────────────────
 
 const PROJECT_ID = 'black94';
-const REGION = 'us-central1'; // Must match the Cloud Functions deployment region
+const REGION = 'asia-south1'; // Must match the Cloud Functions deployment region
 
 // Razorpay Key ID — loaded from app.config.js extra.razorpayKeyId.
 // Constants.expoConfig may be null in某些 Expo environments (e.g. bare workflow

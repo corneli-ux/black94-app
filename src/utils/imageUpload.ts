@@ -113,6 +113,8 @@ export interface UploadOptions {
   abortSignal?: AbortSignal;
   /** Max retry attempts. Default: 3. */
   maxRetries?: number;
+  /** Skip image magic byte validation. Use for non-image uploads (e.g., audio). */
+  skipImageValidation?: boolean;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -478,6 +480,7 @@ export async function uploadOptimizedImage(
     onProgress,
     abortSignal,
     maxRetries = MAX_RETRIES,
+    skipImageValidation = false,
   } = options;
 
   let mimeType = detectMimeType(uri, mimeTypeOverride);
@@ -495,15 +498,16 @@ export async function uploadOptimizedImage(
   }
 
   // BLACK PHOTO FIX: Sanity check — a valid image should be at least 100 bytes.
-  if (fileSize < 100) {
+  if (fileSize < 100 && !skipImageValidation) {
     throw new Error(`File too small to be a valid image (${fileSize} bytes): ${uri}`);
   }
 
   console.log(`[imageUpload] File read successfully: ${fileSize} bytes`);
 
   // BLACK PHOTO FIX #2: Validate image magic bytes before uploading.
+  // Skip for non-image uploads (e.g., audio).
   const headerBytes = binaryData.slice(0, 4);
-  if (fileSize >= 4) {
+  if (!skipImageValidation && fileSize >= 4) {
     const isJpeg = headerBytes[0] === 0xFF && headerBytes[1] === 0xD8 && headerBytes[2] === 0xFF;
     const isPng = headerBytes[0] === 0x89 && headerBytes[1] === 0x50 && headerBytes[2] === 0x4E && headerBytes[3] === 0x47;
     const isGif = headerBytes[0] === 0x47 && headerBytes[1] === 0x49 && headerBytes[2] === 0x46;

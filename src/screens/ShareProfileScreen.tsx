@@ -105,7 +105,7 @@ export default function ShareProfileScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (user) generateLink();
-  }, [user]);
+  }, [user, generateLink]);
 
   useEffect(() => {
     if (!linkGenerated) return;

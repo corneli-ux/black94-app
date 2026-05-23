@@ -8,6 +8,8 @@
  * For now, we use the built-in fetch API with a search endpoint.
  */
 
+import { getValidToken } from './firebase';
+
 export interface WebSearchResult {
   url: string;
   name: string;
@@ -23,13 +25,25 @@ export async function searchWeb(query: string, numResults: number = 10): Promise
   if (!query.trim()) return [];
 
   try {
+    // Get auth token for the Cloud Function
+    let token: string;
+    try {
+      token = await getValidToken();
+    } catch {
+      // Unauthenticated — gracefully return empty results
+      return [];
+    }
+
     // Use Firebase Functions callable endpoint for web search
     // The function proxies to z-ai-web-dev-sdk on the backend
     const response = await fetch(
-      'https://us-central1-black94.cloudfunctions.net/webSearch',
+      'https://asia-south1-black94.cloudfunctions.net/webSearch',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ query, num: numResults }),
       }
     );
