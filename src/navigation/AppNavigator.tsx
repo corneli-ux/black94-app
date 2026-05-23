@@ -96,6 +96,12 @@ const MutedWordsScreen = lazy(() => import('../screens/MutedWordsScreen'));
 const SecurityScreen = lazy(() => import('../screens/SecurityScreen'));
 const PostDetailScreen = lazy(() => import('../screens/PostDetailScreen'));
 const EditPostScreen = lazy(() => import('../screens/EditPostScreen'));
+const HashtagScreen = lazy(() => import('../screens/HashtagScreen'));
+const TrendingScreen = lazy(() => import('../screens/TrendingScreen'));
+const ScheduledPostsScreen = lazy(() => import('../screens/ScheduledPostsScreen'));
+const DraftPostsScreen = lazy(() => import('../screens/DraftPostsScreen'));
+const MessageRequestsScreen = lazy(() => import('../screens/MessageRequestsScreen'));
+const GroupInfoScreen = lazy(() => import('../screens/GroupInfoScreen'));
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -424,6 +430,12 @@ function AppStack() {
       <Stack.Screen name="PostComments" component={LazyScreen(PostCommentsScreen)} />
       <Stack.Screen name="PostDetail" component={LazyScreen(PostDetailScreen)} />
       <Stack.Screen name="EditPost" component={LazyScreen(EditPostScreen)} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="Hashtag" component={LazyScreen(HashtagScreen)} />
+      <Stack.Screen name="Trending" component={LazyScreen(TrendingScreen)} />
+      <Stack.Screen name="ScheduledPosts" component={LazyScreen(ScheduledPostsScreen)} />
+      <Stack.Screen name="DraftPosts" component={LazyScreen(DraftPostsScreen)} />
+      <Stack.Screen name="MessageRequests" component={LazyScreen(MessageRequestsScreen)} />
+      <Stack.Screen name="GroupInfo" component={LazyScreen(GroupInfoScreen)} />
       <Stack.Screen name="PaidChat" component={LazyScreen(PaidChatScreen)} />
       {/* Legal pages — accessible without login on web */}
       <Stack.Screen name="PrivacyPolicy" component={LazyScreen(PrivacyPolicyScreen)} />
