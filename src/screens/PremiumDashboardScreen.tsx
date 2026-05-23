@@ -64,7 +64,7 @@ const FEATURES: FeatureRow[] = [
   { feature: 'Shop products', free: '0', premium: '50', business: 'Unlimited' },
   { feature: 'Analytics', free: false, premium: true, business: true },
   { feature: 'Priority support', free: false, premium: true, business: true },
-  { feature: 'Ads (paid)', free: false, premium: true, business: true },
+  { feature: 'Promoted Posts', free: false, premium: true, business: true },
   { feature: 'Affiliate Program', free: false, premium: true, business: true },
   { feature: 'Creator Revenue Share', free: false, premium: 'Eligible*', business: 'Eligible*' },
   { feature: 'Early Access', free: false, premium: true, business: true },

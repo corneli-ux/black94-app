@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
-import { fetchUserProfile, toggleFollow, checkFollowing, toggleLike, toggleBookmark, toggleRepost, getUserDmPermission, getPaidChatPrice, hasPaidChatAccess, fetchActiveAdCampaigns, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
+import { fetchUserProfile, toggleFollow, checkFollowing, toggleLike, toggleBookmark, toggleRepost, getUserDmPermission, getPaidChatPrice, hasPaidChatAccess, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -450,22 +450,17 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [following, setFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
-  const [tab, setTab] = useState<'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'store'>('posts');
+  const [tab, setTab] = useState<'posts' | 'media' | 'replies' | 'likes' | 'reposts'>('posts');
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
   const [repostPosts, setRepostPosts] = useState<Post[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [profileAd, setProfileAd] = useState<any>(null);
   const [coverImageError, setCoverImageError] = useState(false);
 
-  const isBusinessAccount = user?.role === 'business';
-  const showStoreTab = isBusinessAccount;
-
-  const tabs: Array<'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'store'> = showStoreTab
-    ? ['posts', 'media', 'store', 'likes', 'reposts']
-    : ['posts', 'media', 'replies', 'likes', 'reposts'];
+  const tabs: Array<'posts' | 'media' | 'replies' | 'likes' | 'reposts'> =
+    ['posts', 'media', 'replies', 'likes', 'reposts'];
 
   const load = useCallback(async () => {
     try {
@@ -586,22 +581,6 @@ export default function ProfileScreen({ route, navigation }: any) {
       setRefreshing(false);
     }
   }, [targetUserId]);
-
-  // Fetch a random active ad campaign for own profile banner
-  useEffect(() => {
-    (async () => {
-      try {
-        const adList = await fetchActiveAdCampaigns(10);
-        if (adList.length > 0) {
-          // Pick a random campaign (different from UserProfileScreen which picks index 0)
-          const randomIndex = Math.floor(Math.random() * adList.length);
-          setProfileAd(adList[randomIndex]);
-        }
-      } catch {
-        // silently ignore
-      }
-    })();
-  }, []);
 
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
@@ -961,29 +940,6 @@ export default function ProfileScreen({ route, navigation }: any) {
         </View>
       </View>
 
-      {/* Ad Banner — only show if an active campaign exists */}
-      {profileAd && (
-        <View style={styles.adBanner}>
-          <View style={styles.adBannerBadgeRow}>
-            <Ionicons name="megaphone-outline" size={14} color={colors.accentGold} />
-            <Text style={styles.adBannerBadgeText}>Promoted</Text>
-          </View>
-          <Text style={styles.adBannerHeadline} numberOfLines={1}>{profileAd.headline || 'Ad'}</Text>
-          {profileAd.description ? (
-            <Text style={styles.adBannerDescription} numberOfLines={2}>{profileAd.description}</Text>
-          ) : null}
-          {profileAd.ctaText ? (
-            <TouchableOpacity style={styles.adBannerCta} activeOpacity={0.7}>
-              <Text style={styles.adBannerCtaText}>{profileAd.ctaText}</Text>
-            </TouchableOpacity>
-          ) : null}
-          <Text style={styles.adBannerSponsored}>Sponsored</Text>
-        </View>
-      )}
-
-      {/* Separator between ad and tabs */}
-      {profileAd && <View style={styles.adSeparator} />}
-
       {/* Tabs */}
       <View style={styles.tabBar}>
         {tabs.map(t => (
@@ -1008,12 +964,6 @@ export default function ProfileScreen({ route, navigation }: any) {
       {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
       {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'reposts' && <PostGrid posts={repostPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
-      {tab === 'store' && (
-        <View style={{ alignItems: 'center', paddingTop: 60 }}>
-          <Ionicons name="storefront-outline" size={48} color="#94a3b8" style={{ marginBottom: 12 }} />
-          <Text style={{ color: '#94a3b8', fontSize: 15 }}>No products listed yet</Text>
-        </View>
-      )}
     </ScrollView>
   );
 }
@@ -1098,60 +1048,5 @@ const styles = StyleSheet.create({
   /* Tab text: text-[15px] font-medium, active: text-[#e7e9ea] font-bold, inactive: text-[#94a3b8] */
   tabText: { color: '#94a3b8', fontWeight: '500', fontSize: 15 },
   tabTextActive: { color: '#e7e9ea', fontWeight: '700' },
-  /* ── Profile Ad Banner ── */
-  adBanner: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 0,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#000000',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  adBannerBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 8,
-  },
-  adBannerBadgeText: {
-    color: '#71767b',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  adBannerHeadline: {
-    color: '#e7e9ea',
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  adBannerDescription: {
-    color: '#94a3b8',
-    fontSize: 14,
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  adBannerCta: {
-    alignSelf: 'flex-start',
-    marginBottom: 6,
-  },
-  adBannerCtaText: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  adBannerSponsored: {
-    color: 'rgba(113,118,123,0.6)',
-    fontSize: 11,
-  },
-  adSeparator: {
-    height: 0.5,
-    backgroundColor: colors.separator,
-    marginHorizontal: 20,
-    marginTop: 12,
-  },
+
 });

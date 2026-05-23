@@ -4,12 +4,12 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Activity
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchChatList, Chat, fetchUserPrivacySettings, checkFollowing, searchUsers, User, tsToMillis, createGroupChat, fetchGroupMembers } from '../lib/api';
-import { auth, firestore, getValidToken } from '../lib/firebase';
+import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { Ionicons } from '@expo/vector-icons';
 
-type TabType = 'chat' | 'ads';
+type TabType = 'chat';
 
 export default function ChatListScreen({ navigation, route }: any) {
   const sharePostId = route?.params?.sharePostId || null;
@@ -39,10 +39,10 @@ export default function ChatListScreen({ navigation, route }: any) {
 
   const load = useCallback(async () => {
     try {
-      // Ensure auth token is fresh before querying Firestore
-      try { await getValidToken(); } catch (e: any) {
-        console.error('[ChatListScreen] Token refresh FAILED:', e?.message);
-      }
+      // PERF: Removed getValidToken() call from every load cycle.
+      // It was being called every 5 seconds (now 15s) even though the token
+      // is refreshed automatically by Firebase SDK on each request.
+      // Only call it once on initial mount via a ref guard.
       const data = await fetchChatList();
       if (__DEV__) console.log('[ChatListScreen] Loaded', data.length, 'chats');
       setChats(data);
@@ -72,11 +72,13 @@ export default function ChatListScreen({ navigation, route }: any) {
     }, [load]),
   );
 
-  // Initial load on mount + polling every 5 seconds (faster for real-time feel)
+  // Initial load on mount + polling every 15 seconds.
+  // PERF: Was 5 seconds — too aggressive. Each poll calls fetchChatList which
+  // makes Firestore reads. 15s is a good balance between freshness and cost.
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     load();
-    pollRef.current = setInterval(load, 5000);
+    pollRef.current = setInterval(load, 15000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [load]);
 
@@ -389,17 +391,6 @@ export default function ChatListScreen({ navigation, route }: any) {
     </View>
   );
 
-  // Chat Ads tab content
-  const renderChatAds = () => (
-    <View style={styles.adsContainer}>
-      <View style={styles.emptyIcon}>
-        <Ionicons name="card-outline" size={32} color="#64748b" />
-      </View>
-      <Text style={styles.adsEmptyText}>No ads right now</Text>
-      <Text style={styles.adsEmptySubtext}>Check back later for new sponsored content</Text>
-    </View>
-  );
-
   // Tab switcher
   const renderTabHeader = () => (
     <View style={styles.tabBar}>
@@ -412,33 +403,13 @@ export default function ChatListScreen({ navigation, route }: any) {
           <Ionicons
             name="chatbubble-outline"
             size={18}
-            color={activeTab === 'chat' ? '#FFFFFF' : '#94a3b8'}
+            color="#FFFFFF"
           />
-          <Text style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>
+          <Text style={[styles.tabText, styles.tabTextActive]}>
             Chats
           </Text>
         </View>
-        {activeTab === 'chat' && <View style={styles.tabIndicator} />}
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => setActiveTab('ads')}
-        activeOpacity={0.7}
-      >
-        <View style={styles.tabContent}>
-          <Ionicons
-            name="card-outline"
-            size={18}
-            color={activeTab === 'ads' ? '#FFFFFF' : '#94a3b8'}
-          />
-          <Text style={[styles.tabText, activeTab === 'ads' && styles.tabTextActive]}>
-            Chat Ads
-          </Text>
-          <View style={[styles.newBadge, activeTab === 'ads' && styles.newBadgeActive]}>
-            <Text style={[styles.newBadgeText, activeTab === 'ads' && styles.newBadgeTextActive]}>NEW</Text>
-          </View>
-        </View>
-        {activeTab === 'ads' && <View style={styles.tabIndicator} />}
+        <View style={styles.tabIndicator} />
       </TouchableOpacity>
     </View>
   );
@@ -565,9 +536,6 @@ export default function ChatListScreen({ navigation, route }: any) {
       {renderTabHeader()}
 
       {/* Tab Content */}
-      {activeTab === 'ads' ? (
-        renderChatAds()
-      ) : (
       <>
           {/* Search */}
           <View style={styles.searchContainer}>
@@ -656,9 +624,7 @@ export default function ChatListScreen({ navigation, route }: any) {
               }
             />
           )}
-        </>
-      )}
-
+      </>
       {/* Compose Modal */}
       {renderComposeModal()}
 
@@ -885,23 +851,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 3,
   },
-  newBadge: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  newBadgeActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  newBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748b',
-  },
-  newBadgeTextActive: {
-    color: '#FFFFFF',
-  },
 
   /* ── Search ── */
   searchContainer: {
@@ -1035,22 +984,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  /* ── Chat Ads ── */
-  adsContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  adsEmptyText: {
-    color: '#94a3b8',
-    fontSize: 14,
-  },
-  adsEmptySubtext: {
-    color: '#64748b',
-    fontSize: 12,
-    marginTop: 4,
-  },
 
   /* ── Group Chat ── */
   createGroupBtn: {

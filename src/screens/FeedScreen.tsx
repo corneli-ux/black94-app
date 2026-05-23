@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, Share, Image, Linking, ScrollView, Modal, TextInput,
+  RefreshControl, ActivityIndicator, Alert, Share, Image, ScrollView, Modal, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -711,67 +711,6 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   );
 });
 
-/* ── AdCard ──────────────────────────────────────────────────────────────── */
-
-// Track which ad IDs have already been impression-counted this session
-const _impressionTracker = new Set<string>();
-
-function AdCard({ ad }: { ad: any }) {
-  // Fire-and-forget impression tracking on first render
-  React.useEffect(() => {
-    if (ad.id && !_impressionTracker.has(ad.id)) {
-      _impressionTracker.add(ad.id);
-      // Small delay to avoid counting during fast scrolls
-      const timer = setTimeout(() => {
-        firestore().collection('ads').doc(ad.id).update({
-          impressions: firestore.FieldValue.increment(1),
-        }).catch(() => {});
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [ad.id]);
-
-  return (
-    <View style={styles.adCard}>
-      <View style={styles.adBadgeRow}>
-        <Ionicons name="megaphone-outline" size={14} color={colors.accentGold} />
-        <Text style={styles.adBadgeText}>Promoted</Text>
-      </View>
-      <View style={styles.adBody}>
-        <Text style={styles.adHeadline} numberOfLines={1}>{ad.headline || 'Ad'}</Text>
-        {ad.description ? <Text style={styles.adDescription} numberOfLines={2}>{ad.description}</Text> : null}
-        {ad.ctaText ? (
-          <TouchableOpacity
-            style={styles.adCtaBtn}
-            activeOpacity={0.7}
-            onPress={() => {
-              // Track ad click in Firestore, then open link
-              if (ad.id) {
-                firestore().collection('ads').doc(ad.id).update({
-                  clicks: firestore.FieldValue.increment(1),
-                }).catch(() => {});
-              }
-              const url = ad.link || ad.url || ad.destinationUrl;
-              if (url) {
-                Linking.openURL(url).catch(() => {});
-              }
-            }}
-          >
-            <Text style={styles.adCtaText}>{ad.ctaText}</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      <Text style={styles.adSponsored}>Sponsored</Text>
-    </View>
-  );
-}
-
-/* ── Feed item union type ────────────────────────────────────────────────── */
-
-type FeedItem =
-  | { type: 'post'; id: string; post: Post }
-  | { type: 'ad'; id: string; ad: any };
-
 /* ── Stories Row — embedded at top of feed (Instagram-style) ──────────────── */
 
 const STORY_CIRCLE_SIZE = 48;
@@ -784,7 +723,10 @@ interface StoryBubble {
   authorProfileImage: string | null;
 }
 
-function StoriesRow({ navigation }: { navigation: any }) {
+// PERF: Memoize StoriesRow — it fires a Firestore query on mount and should
+// not be recreated on every FeedScreen render (which happens on every
+// like/bookmark/repost state change from the feed hook).
+const StoriesRow = React.memo(function StoriesRow({ navigation }: { navigation: any }) {
   const [bubbles, setBubbles] = useState<StoryBubble[]>([]);
   const currentUser = auth()?.currentUser;
   const storeUser = useAppStore(s => s.user);
@@ -854,7 +796,7 @@ function StoriesRow({ navigation }: { navigation: any }) {
       </ScrollView>
     </View>
   );
-}
+});
 
 const storiesRowStyles = StyleSheet.create({
   container: {
@@ -902,7 +844,6 @@ export default function FeedScreen({ navigation }: any) {
     refreshing,
     activeTab,
     setActiveTab,
-    ads,
     followedUserIds,
     handleRefresh,
     handleLike,
@@ -961,7 +902,7 @@ export default function FeedScreen({ navigation }: any) {
     );
   }
 
-  // Build interleaved feed: posts with ads inserted after every 5th post
+  // Build display feed:
   // Network tab shows only posts from followed users
   // When user follows nobody, Network tab shows empty state instead of all posts
   // Visibility filter: followers-only posts only shown to followers or the author
@@ -975,29 +916,17 @@ export default function FeedScreen({ navigation }: any) {
       return true;
     });
 
-  const feedItems: FeedItem[] = (() => {
-    let displayPosts: Post[];
+  const displayPosts: Post[] = (() => {
+    let filtered: Post[];
     if (activeTab === 'Network') {
       if (followedUserIds.size === 0) {
         return []; // Empty state — user follows nobody
       }
-      displayPosts = posts.filter(p => followedUserIds.has(p.authorId));
+      filtered = posts.filter(p => followedUserIds.has(p.authorId));
     } else {
-      displayPosts = posts;
+      filtered = posts;
     }
-    // Enforce visibility on ALL tabs
-    displayPosts = filterByVisibility(displayPosts);
-    if (displayPosts.length === 0) return displayPosts.map(p => ({ type: 'post' as const, id: p.id, post: p }));
-    const items: FeedItem[] = [];
-    let adIndex = 0;
-    displayPosts.forEach((post, idx) => {
-      items.push({ type: 'post', id: post.id, post });
-      if ((idx + 1) % 5 === 0 && adIndex < ads.length) {
-        items.push({ type: 'ad', id: `ad_${ads[adIndex].id}_${idx}`, ad: ads[adIndex] });
-        adIndex++;
-      }
-    });
-    return items;
+    return filterByVisibility(filtered);
   })();
 
   const tabBarHeight = 50 + (insets.bottom || 0);
@@ -1042,16 +971,13 @@ export default function FeedScreen({ navigation }: any) {
       {/* Feed */}
       <FlatList
         ref={flatListRef}
-        data={feedItems}
+        data={displayPosts}
         keyExtractor={item => item.id}
         ListHeaderComponent={(activeTab === 'For You' || activeTab === 'Black94') ? <StoriesRow navigation={navigation} /> : null}
         renderItem={({ item }) => {
-          if (item.type === 'ad') {
-            return <AdCard ad={item.ad} />;
-          }
           return (
             <PostCard
-              post={item.post}
+              post={item}
               onLike={handleLike}
               onBookmark={handleBookmark}
               onDelete={handleDelete}
@@ -1387,70 +1313,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  /* ── Ad Card ── */
-  adCard: {
-    backgroundColor: colors.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accentGold,
-  },
-  adBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 6,
-  },
-  adBadgeText: {
-    color: colors.accentGold,
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-  },
-  adBody: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    padding: 14,
-    marginBottom: 6,
-  },
-  adHeadline: {
-    color: '#e7e9ea',
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 22,
-    marginBottom: 4,
-  },
-  adDescription: {
-    color: '#94a3b8',
-    fontSize: 14,
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  adCtaBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.accentGold,
-    borderRadius: scale(16),
-    paddingHorizontal: scale(16),
-    paddingVertical: scale(8),
-    marginTop: scale(10),
-  },
-  adCtaText: {
-    color: '#000000',
-    fontSize: fs(14),
-    fontWeight: '700',
-  },
-  adSponsored: {
-    color: '#71767b',
-    fontSize: fs(11),
-    marginTop: scale(6),
-  },
 
   /* ── Inline Poll ── */
   pollCard: {

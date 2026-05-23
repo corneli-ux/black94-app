@@ -22,7 +22,6 @@ import {
   getUserDmPermission,
   getPaidChatPrice,
   hasPaidChatAccess,
-  fetchActiveAdCampaigns,
   toggleLike,
   toggleBookmark,
   toggleRepost,
@@ -555,7 +554,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
-  const [profileAd, setProfileAd] = useState<any>(null);
   const insets = useSafeAreaInsets();
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
@@ -576,20 +574,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
       </SafeAreaView>
     );
   }
-
-  // Fetch one active ad campaign for profile banner
-  useEffect(() => {
-    (async () => {
-      try {
-        const adList = await fetchActiveAdCampaigns(5);
-        if (adList.length > 0) {
-          setProfileAd(adList[0]);
-        }
-      } catch {
-        // silently ignore
-      }
-    })();
-  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -1193,29 +1177,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
           )}
         </View>
 
-        {/* Ad Banner — only show if an active campaign exists */}
-        {profileAd && (
-          <View style={styles.adBanner}>
-            <View style={styles.adBannerBadgeRow}>
-              <Ionicons name="megaphone-outline" size={14} color={colors.accentGold} />
-              <Text style={styles.adBannerBadgeText}>Promoted</Text>
-            </View>
-            <Text style={styles.adBannerHeadline} numberOfLines={1}>{profileAd.headline || 'Ad'}</Text>
-            {profileAd.description ? (
-              <Text style={styles.adBannerDescription} numberOfLines={2}>{profileAd.description}</Text>
-            ) : null}
-            {profileAd.ctaText ? (
-              <TouchableOpacity style={styles.adBannerCta} activeOpacity={0.7}>
-                <Text style={styles.adBannerCtaText}>{profileAd.ctaText}</Text>
-              </TouchableOpacity>
-            ) : null}
-            <Text style={styles.adBannerSponsored}>Sponsored</Text>
-          </View>
-        )}
-
-        {/* Separator between ad and tabs */}
-        {profileAd && <View style={styles.adSeparator} />}
-
         {/* Tab Bar */}
         <View style={styles.tabBar}>
           {tabs.map((t) => (
@@ -1448,59 +1409,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
   },
-  adBanner: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 0,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#000000',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  adBannerBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 8,
-  },
-  adBannerBadgeText: {
-    color: '#71767b',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  adBannerHeadline: {
-    color: '#e7e9ea',
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  adBannerDescription: {
-    color: '#94a3b8',
-    fontSize: 14,
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  adBannerCta: {
-    alignSelf: 'flex-start',
-    marginBottom: 6,
-  },
-  adBannerCtaText: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  adBannerSponsored: {
-    color: 'rgba(113,118,123,0.6)',
-    fontSize: 11,
-  },
-  adSeparator: {
-    height: 0.5,
-    backgroundColor: colors.separator,
-    marginHorizontal: 20,
-    marginTop: 12,
-  },
+
 });

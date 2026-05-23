@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import { CommentData, fetchPostComments, addPostComment, fetchActiveAdCampaigns, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark, tsToMillis } from '../lib/api';
+import { CommentData, fetchPostComments, addPostComment, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark, tsToMillis } from '../lib/api';
 import FactCheckBottomSheet from './FactCheckBottomSheet';
 import { useAppStore } from '../stores/app';
 import { auth, firestore } from '../lib/firebase';
@@ -28,11 +28,6 @@ interface PostCommentsScreenProps {
   navigation?: any;
 }
 
-/* ── Feed item union type for interleaved comments + ads ── */
-type CommentFeedItem =
-  | { type: 'comment'; id: string; comment: CommentData }
-  | { type: 'ad'; id: string; ad: any };
-
 export default function PostCommentsScreen({ route, navigation }: PostCommentsScreenProps) {
   const { postId, postCaption, postAuthorUsername, postAuthorDisplayName } = route?.params || {};
   const { user } = useAppStore();
@@ -47,7 +42,6 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   const [likeMap, setLikeMap] = useState<Record<string, boolean>>({});
   const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
   const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
-  const [ads, setAds] = useState<any[]>([]);
   const [factCheckVisible, setFactCheckVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
@@ -133,18 +127,6 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     setLoadingMore(false);
   }, [loadingMore, allLoaded, comments, postId]);
 
-  // Fetch active ad campaigns on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const adList = await fetchActiveAdCampaigns(5);
-        setAds(adList);
-      } catch {
-        // silently ignore
-      }
-    })();
-  }, []);
-
   // Note: We intentionally do NOT auto-set replyingTo here.
   // The first comment on a post is a top-level comment, not a "reply".
   // Setting replyToId to '' caused inconsistent Firestore state
@@ -185,43 +167,8 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  // Build interleaved feed: comments with ads inserted after every 5th comment
-  const feedItems: CommentFeedItem[] = (() => {
-    if (ads.length === 0) return comments.map(c => ({ type: 'comment' as const, id: c.id, comment: c }));
-    const items: CommentFeedItem[] = [];
-    let adIndex = 0;
-    comments.forEach((comment, idx) => {
-      items.push({ type: 'comment', id: comment.id, comment });
-      if ((idx + 1) % 5 === 0 && adIndex < ads.length) {
-        items.push({ type: 'ad', id: `ad_${ads[adIndex].id}_${idx}`, ad: ads[adIndex] });
-        adIndex++;
-      }
-    });
-    return items;
-  })();
-
-  const renderItem = ({ item }: { item: CommentFeedItem }) => {
-    if (item.type === 'ad') {
-      return (
-        <View style={styles.adCard}>
-          <View style={styles.adBadgeRow}>
-            <Ionicons name="megaphone-outline" size={14} color={colors.accentGold} />
-            <Text style={styles.adBadgeText}>Promoted</Text>
-          </View>
-          <View style={styles.adBody}>
-            <Text style={styles.adHeadline} numberOfLines={1}>{item.ad.headline || 'Ad'}</Text>
-            {item.ad.description ? <Text style={styles.adDescription} numberOfLines={2}>{item.ad.description}</Text> : null}
-            {item.ad.ctaText ? (
-              <TouchableOpacity style={styles.adCtaBtn} activeOpacity={0.7}>
-                <Text style={styles.adCtaText}>{item.ad.ctaText}</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          <Text style={styles.adSponsored}>Sponsored</Text>
-        </View>
-      );
-    }
-    const item2 = item.comment;
+  const renderItem = ({ item }: { item: CommentData }) => {
+    const item2 = item;
     const isReply = !!item2.replyToId;
     return (
       <View style={[styles.commentRow, isReply && styles.commentReplyIndent]}>
@@ -345,11 +292,11 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         </View>
       ) : null}
 
-      {/* Comments list with interleaved ads — flex:1 fills remaining space above input bar */}
+      {/* Comments list — flex:1 fills remaining space above input bar */}
       <FlatList
         ref={listRef}
         style={{ flex: 1 }}
-        data={feedItems}
+        data={comments}
         keyExtractor={item => item.id}
         renderItem={renderItem}
         contentContainerStyle={comments.length === 0 && !loading ? styles.emptyListContent : undefined}
@@ -499,62 +446,7 @@ const styles = StyleSheet.create({
   },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
   commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  /* ── Ad Card (inline in comments) ── */
-  adCard: {
-    backgroundColor: '#000000',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  adBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 8,
-  },
-  adBadgeText: {
-    color: '#71767b',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  adBody: {
-    marginBottom: 8,
-  },
-  adHeadline: {
-    color: '#e7e9ea',
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  adDescription: {
-    color: '#94a3b8',
-    fontSize: 14,
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  adCtaBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 16,
-  },
-  adCtaText: {
-    color: '#e7e9ea',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  adSponsored: {
-    color: 'rgba(113,118,123,0.6)',
-    fontSize: 11,
-    marginTop: 6,
-  },
+
   /* Black themed input bar */
   inputBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

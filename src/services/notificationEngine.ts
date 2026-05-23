@@ -15,7 +15,7 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { firestore, auth } from '../lib/firebase';
 
-const POLL_INTERVAL = 5000; // 5 seconds (faster for better UX)
+const POLL_INTERVAL = 15000; // 15 seconds — was 5s, reduced Firestore reads
 let listenUnsub: (() => void) | null = null;
 let initialDefer: ReturnType<typeof setTimeout> | null = null;
 let appStateSubscription: { remove: () => void } | null = null;
@@ -35,7 +35,8 @@ export function startNotificationPolling(
 
   let lastKnownCount = -1;
 
-  // Defer listener setup by 2 seconds to avoid competing with feed load at startup
+  // PERF: Defer listener setup by 3 seconds to avoid competing with feed load
+  // at startup. Was 2s — giving feed an extra second to load first.
   initialDefer = setTimeout(() => {
     initialDefer = null;
     listenUnsub = firestore()
@@ -59,7 +60,7 @@ export function startNotificationPolling(
         { pollInterval: POLL_INTERVAL },
       );
     console.log('[NotificationEngine] listen() started for user:', userId);
-  }, 2000);
+  }, 3000);
 
   // Pause/resume the listener when the app goes to background/foreground.
   // This saves Firestore reads and battery when the user isn't looking at the app.

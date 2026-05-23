@@ -233,11 +233,12 @@ export function useChatRoom({
               return status === 'sent' || status === 'delivered';
             });
             if (unreadDocs.length > 0) {
-              const batch = firestore().batch();
-              unreadDocs.forEach((doc: any) => {
-                batch.update(doc.ref, { status: 'read' });
-              });
-              await batch.commit();
+              // Use sequential updates instead of batch (more reliable with REST wrapper)
+              await Promise.allSettled(
+                unreadDocs.map((doc: any) =>
+                  doc.ref.update({ status: 'read' })
+                )
+              );
             }
           }
         } catch { /* non-critical */ }
@@ -549,24 +550,28 @@ export function useChatRoom({
   // ── Reaction handler ─────────────────────────────────────────────────────
 
   const handleReaction = async (emoji: string) => {
-    if (!reactionMsg) return;
-    const targetMsg = reactionMsg; // capture for rollback
+    if (!reactionMsg || !currentUser?.uid) return;
+    const targetMsg = reactionMsg;
     try {
+      // Read current reactions first (dot-notation not supported by REST wrapper)
+      const msgSnap = await firestore()
+        .collection('chats').doc(chat.id)
+        .collection('messages').doc(reactionMsg.id)
+        .get();
+      const currentReactions = (msgSnap.exists ? msgSnap.data()?.reactions : null) || {};
       await firestore()
         .collection('chats').doc(chat.id)
         .collection('messages').doc(reactionMsg.id)
         .update({
-          [`reactions.${currentUser?.uid}`]: emoji,
+          reactions: { ...currentReactions, [currentUser.uid]: emoji },
         });
-      // Optimistically update local state
       setMessages(prev => prev.map(m =>
         m.id === targetMsg.id
-          ? { ...m, reactions: { ...m.reactions, [currentUser?.uid || '']: emoji } }
+          ? { ...m, reactions: { ...m.reactions, [currentUser.uid]: emoji } }
           : m
       ));
     } catch (e) {
       console.warn('[Chat] Reaction failed:', e?.message || e);
-      // No rollback needed — the UI shows picker state, not a local reaction
     }
     setReactionMsg(null);
   };
