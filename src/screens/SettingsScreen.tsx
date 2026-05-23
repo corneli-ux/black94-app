@@ -226,6 +226,8 @@ export default function SettingsScreen() {
             <SettingsLink icon="sunny-outline" label="Appearance" onPress={() => navigation.navigate('Appearance' as never)} />
             <SettingsLink icon="at-outline" label="Change Username" onPress={() => navigation.navigate('ChangeUsername' as never)} />
             <SettingsLink icon="shield-checkmark-outline" label="Security" onPress={() => navigation.navigate('Security' as never)} />
+            <SettingsLink icon="mail-outline" label="Change Email" onPress={() => navigation.navigate('ChangeEmail' as never)} />
+            <SettingsLink icon="key-outline" label="Change Password" onPress={() => navigation.navigate('ChangePassword' as never)} />
             <SettingsLink icon="share-social" label="Share Profile" onPress={() => navigation.navigate('ShareProfile' as never)} />
           </View>
         </View>

@@ -109,6 +109,12 @@ const VerificationRequestScreen = lazy(() => import('../screens/VerificationRequ
 const VideoCallScreen = lazy(() => import('../screens/VideoCallScreen'));
 const SessionsScreen = lazy(() => import('../screens/SessionsScreen'));
 const LinkedAccountsScreen = lazy(() => import('../screens/LinkedAccountsScreen'));
+const ChangeEmailScreen = lazy(() => import('../screens/ChangeEmailScreen'));
+const ChangePasswordScreen = lazy(() => import('../screens/ChangePasswordScreen'));
+const ProfileHighlightsScreen = lazy(() => import('../screens/ProfileHighlightsScreen'));
+const LikedPostsScreen = lazy(() => import('../screens/LikedPostsScreen'));
+const MentionedPostsScreen = lazy(() => import('../screens/MentionedPostsScreen'));
+const MediaPostsScreen = lazy(() => import('../screens/MediaPostsScreen'));
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -450,6 +456,12 @@ function AppStack() {
       <Stack.Screen name="VideoCall" component={LazyScreen(VideoCallScreen)} />
       <Stack.Screen name="Sessions" component={LazyScreen(SessionsScreen)} />
       <Stack.Screen name="LinkedAccounts" component={LazyScreen(LinkedAccountsScreen)} />
+      <Stack.Screen name="ChangeEmail" component={LazyScreen(ChangeEmailScreen)} />
+      <Stack.Screen name="ChangePassword" component={LazyScreen(ChangePasswordScreen)} />
+      <Stack.Screen name="ProfileHighlights" component={LazyScreen(ProfileHighlightsScreen)} />
+      <Stack.Screen name="LikedPosts" component={LazyScreen(LikedPostsScreen)} />
+      <Stack.Screen name="MentionedPosts" component={LazyScreen(MentionedPostsScreen)} />
+      <Stack.Screen name="MediaPosts" component={LazyScreen(MediaPostsScreen)} />
       <Stack.Screen name="PaidChat" component={LazyScreen(PaidChatScreen)} />
       {/* Legal pages — accessible without login on web */}
       <Stack.Screen name="PrivacyPolicy" component={LazyScreen(PrivacyPolicyScreen)} />
