@@ -269,8 +269,8 @@ export default function OrderTrackingScreen() {
             styles.statusBadge,
             {
               backgroundColor: isCancelled
-                ? 'rgba(239, 68, 68, 0.15)'
-                : 'rgba(255, 255, 255, 0.15)',
+                ? colors.destructiveBg
+                : colors.borderSubtleStrong,
             },
           ]}>
           <Text
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
   },
   refundOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: colors.overlayHeavy,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -808,7 +808,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 8,

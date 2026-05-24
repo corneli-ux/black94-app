@@ -706,7 +706,7 @@ const styles = StyleSheet.create({
   },
   swipeHint: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.borderWhite40,
   },
   pauseIndicator: {
     position: 'absolute',

@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.bgInput,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSubtle,
     borderRadius: 25,
     marginHorizontal: 16,
     marginVertical: 12,
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, color: colors.text, fontSize: 15, padding: 0 },
   searchBarFocused: {
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: colors.borderWhite40,
     backgroundColor: colors.bgInput,
   },
   /* Search tabs: same as profile tabs */
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 16,
   },

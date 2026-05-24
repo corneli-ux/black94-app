@@ -128,7 +128,7 @@ function StoryProgressBar({
             styles.progressFill,
             {
               width: `${progress * 100}%`,
-              backgroundColor: paused ? 'rgba(255,255,255,0.5)' : colors.white,
+              backgroundColor: paused ? colors.white50 : colors.white,
             },
           ]}
         />
@@ -845,7 +845,7 @@ export default function StoriesScreen({ navigation }: any) {
 
                   {/* Bottom gradient overlay */}
                   <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.75)']}
+                    colors={['transparent', colors.overlayDarker]}
                     style={styles.storyCardOverlay}
                   />
 
@@ -964,7 +964,7 @@ export default function StoriesScreen({ navigation }: any) {
             {/* ── Bottom reaction bar (10%) ──────────────────────────────── */}
             <View style={styles.viewerReactionBar}>
               <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.6)']}
+                colors={['transparent', colors.overlayDark]}
                 style={styles.reactionGradient}
               />
               <SafeAreaView edges={['bottom']} style={styles.reactionBarContent}>
@@ -1288,7 +1288,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.overlayDark,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -1332,7 +1332,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     backgroundColor: colors.bg,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: colors.borderSubtleStrong,
   },
   filterLabel: {
     color: colors.textSecondary,
@@ -1406,7 +1406,7 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   storyCardTime: {
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.white50,
     fontSize: 10,
     marginLeft: 'auto',
   },
@@ -1634,7 +1634,7 @@ const styles = StyleSheet.create({
   /* ── Viewers Modal ──────────────────────────────────────────────────── */
   viewersOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.overlayDark,
   },
   viewersContainer: {
     flex: 1,

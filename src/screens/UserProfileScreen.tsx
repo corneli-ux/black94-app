@@ -1054,7 +1054,9 @@ export default function UserProfileScreen({ navigation, route }: any) {
                 <Text style={styles.displayName}>{user.displayName}</Text>
               ) : null;
             })()}
-            <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
+            {privacy?.nameVisibility !== 'private' && privacy?.nameVisibility !== 'selected' && (
+              <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
+            )}
           </View>
           <Text style={styles.username}>@{user.username}</Text>
           {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}

@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingTop: 100 },
   emptyIcon: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 4 },

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView, ActivityIndicator, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 
@@ -95,8 +96,8 @@ export default function CreateAdScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create Ad</Text>
           <View style={{ width: 32 }} />
@@ -289,8 +290,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
-  backBtn: { padding: 4 },
-  backIcon: { color: colors.text, fontSize: 24 },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   form: { paddingHorizontal: 16, paddingTop: 20 },
   fieldGroup: { marginBottom: 18 },

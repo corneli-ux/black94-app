@@ -25,7 +25,7 @@ const COLORS = {
   bg: colors.bg,
   surface: colors.surface,
   textPrimary: colors.text,
-  textSecondary: colors.textMuted,
+  textSecondary: colors.textSecondary,
   textMuted: colors.textMuted,
   white: colors.white,
   white25: colors.white25,
@@ -749,7 +749,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
 
         {/* Mention autocomplete dropdown */}
         {showMentionDropdown && mentionResults.length > 0 && (
-          <View style={styles.mentionDropdown}>
+          <View style={[styles.mentionDropdown, { bottom: 70 + insets.bottom || 70 }]}>
             {mentionResults.map(user => (
               <TouchableOpacity
                 key={user.id}
@@ -775,6 +775,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
 
         {/* Bottom toolbar */}
         <View style={[styles.toolbar, { paddingBottom: Math.max(8, insets.bottom) }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolbarScroll}>
           <View style={styles.toolbarActions}>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -887,6 +888,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               />
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -1127,7 +1129,7 @@ const styles = StyleSheet.create({
   pollAddRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   pollAddInput: {
     flex: 1, backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.borderSubtle,
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: COLORS.textPrimary, fontSize: 14,
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: COLORS.textPrimary, fontSize: 15,
   },
   pollAddBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.accentBgStrong, alignItems: 'center', justifyContent: 'center' },
   pollDurationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
@@ -1144,6 +1146,9 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.white06,
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  toolbarScroll: {
+    alignItems: 'center',
   },
   toolbarActions: {
     flexDirection: 'row',
@@ -1235,9 +1240,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: 'rgba(56, 189, 248, 0.06)',
+    backgroundColor: colors.accentBg,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.2)',
+    borderColor: colors.accentBorder,
   },
   threadHeader: {
     flexDirection: 'row',

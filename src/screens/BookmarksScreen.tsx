@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   actionCount: { color: colors.textSecondary, fontSize: 13, marginLeft: 2 },
   emptyState: { alignItems: 'center', paddingTop: 100 },
   emptyList: { flexGrow: 1 },
-  emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.bgSubtle, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 4 },
   emptySubtitle: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', paddingHorizontal: 50, lineHeight: 22 },
   emptyCta: { marginTop: 16, paddingHorizontal: 20, paddingVertical: 8, backgroundColor: colors.bgInput, borderRadius: 20 },

@@ -116,7 +116,7 @@ export default function SettingsScreen() {
       <SafeAreaView style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { navigation.navigate('ProfileSelf'); } }}>
+        <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { navigation.navigate('ProfileSelf'); } }} hitSlop={8}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
@@ -216,14 +216,14 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
-            <SettingsLink icon="lock-closed" label="Privacy Settings" onPress={() => navigation.navigate('PrivacySettings' as never)} />
+            <SettingsLink icon="lock-closed-outline" label="Privacy Settings" onPress={() => navigation.navigate('PrivacySettings' as never)} />
             <SettingsLink icon="notifications-outline" label="Notification Settings" onPress={() => navigation.navigate('NotificationSettings' as never)} />
             <SettingsLink icon="sunny-outline" label="Appearance" onPress={() => navigation.navigate('Appearance' as never)} />
             <SettingsLink icon="at-outline" label="Change Username" onPress={() => navigation.navigate('ChangeUsername' as never)} />
             <SettingsLink icon="shield-checkmark-outline" label="Security" onPress={() => navigation.navigate('Security' as never)} />
             <SettingsLink icon="mail-outline" label="Change Email" onPress={() => navigation.navigate('ChangeEmail' as never)} />
             <SettingsLink icon="key-outline" label="Change Password" onPress={() => navigation.navigate('ChangePassword' as never)} />
-            <SettingsLink icon="share-social" label="Share Profile" onPress={() => navigation.navigate('ShareProfile' as never)} />
+            <SettingsLink icon="share-social-outline" label="Share Profile" onPress={() => navigation.navigate('ShareProfile' as never)} />
           </View>
         </View>
 
@@ -251,7 +251,7 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Content</Text>
           <View style={styles.card}>
-            <SettingsLink icon="newspaper" label="Write Article" onPress={() => navigation.navigate('WriteArticle' as never)} />
+            <SettingsLink icon="newspaper-outline" label="Write Article" onPress={() => navigation.navigate('WriteArticle' as never)} />
             <SettingsLink icon="bookmark-outline" label="Bookmarks" onPress={() => navigation.navigate('Bookmarks' as never)} />
           </View>
         </View>
@@ -260,8 +260,8 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Legal</Text>
           <View style={styles.card}>
-            <SettingsLink icon="shield-checkmark" label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy' as never)} />
-            <SettingsLink icon="document-text" label="Terms & Conditions" onPress={() => navigation.navigate('Terms' as never)} />
+            <SettingsLink icon="shield-checkmark-outline" label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy' as never)} />
+            <SettingsLink icon="document-text-outline" label="Terms & Conditions" onPress={() => navigation.navigate('Terms' as never)} />
           </View>
         </View>
 
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
   infoLabel: { color: colors.textSecondary, fontSize: 14 },
   infoValue: { color: colors.text, fontSize: 14 },
   section: { paddingHorizontal: 16, marginTop: 8 },
-  sectionTitle: { color: colors.textMuted, fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: 8 },
+  sectionTitle: { color: colors.textMuted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
   card: {
     backgroundColor: colors.surface, borderRadius: 16,
     borderWidth: 1, borderColor: colors.border, overflow: 'hidden',

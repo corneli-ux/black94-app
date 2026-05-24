@@ -189,7 +189,7 @@ export default function NotificationsScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Notifications</Text>
-          <TouchableOpacity onPress={markAllRead}>
+          <TouchableOpacity onPress={markAllRead} activeOpacity={0.5}>
             <Text style={styles.markAllText}>Mark all read</Text>
           </TouchableOpacity>
         </View>
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.bg,
   },
   unreadDot: {
-    position: 'absolute', top: 0, right: 0,
+    position: 'absolute', top: -2, right: -2,
     width: 8, height: 8, borderRadius: 4,
     backgroundColor: colors.white,
   },

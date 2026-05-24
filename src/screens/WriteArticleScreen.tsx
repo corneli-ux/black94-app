@@ -622,7 +622,7 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
     paddingVertical: 8,
     marginVertical: 4,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: colors.rowUnreadBg,
     borderRadius: 0,
   },
   previewBlockquoteBar: {

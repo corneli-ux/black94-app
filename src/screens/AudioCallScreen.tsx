@@ -303,7 +303,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
 
       {/* Audio streaming notice */}
       <View style={styles.audioNotice}>
-        <Ionicons name="information-circle" size={14} color="rgba(255,255,255,0.5)" />
+        <Ionicons name="information-circle" size={14} color={colors.white50} />
         <Text style={styles.audioNoticeText}>Audio streaming coming soon — call signaling is active</Text>
       </View>
 
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgInput,
   },
   audioNoticeText: {
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.white50,
     fontSize: 11,
   },
   topArea: {
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 100,
     borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.15)',
+    borderColor: colors.accentBgStrong,
   },
   avatarWrapper: {
     marginTop: 20,
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     width: 132,
     height: 132,
     borderRadius: 66,
-    backgroundColor: 'rgba(212, 175, 55, 0.08)',
+    backgroundColor: colors.accentFaint,
     borderWidth: 2.5,
     borderColor: colors.accent,
     justifyContent: 'center',
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.borderSubtle,
     justifyContent: 'center',
     alignItems: 'center',
   },

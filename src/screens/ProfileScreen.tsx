@@ -428,7 +428,7 @@ function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
           />
           {post.mediaUrls.length > 1 && (
             <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: colors.overlayDark, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
-              <Ionicons name="copy-outline" size={12} color={colors.white} />
+              <Ionicons name="images-outline" size={12} color={colors.white} />
             </View>
           )}
         </TouchableOpacity>
@@ -1053,7 +1053,7 @@ const styles = StyleSheet.create({
   },
   /* Follow button (following): border border-[#64748b] text-[#e7e9ea] */
   followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.textTertiary },
-  followBtnText: { color: colors.primaryForeground, fontWeight: '700', fontSize: 14 },
+  followBtnText: { color: colors.primaryForeground, fontWeight: '700', fontSize: 15 },
   followingBtnText: { color: colors.text },
   /* Message button: border border-[#FFFFFF]/40 text-[#FFFFFF] px-5 py-2 rounded-full text-[15px] font-bold */
   messageBtn: {

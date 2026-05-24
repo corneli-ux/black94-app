@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)', // web: bg-white/[0.08]
+    backgroundColor: colors.borderSubtle, // web: bg-white/[0.08]
   },
   dividerText: {
     fontSize: 12,     // web: text-[12px]

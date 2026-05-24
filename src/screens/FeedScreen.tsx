@@ -984,17 +984,17 @@ export default function FeedScreen({ navigation }: any) {
           ) : null
         }
         ListEmptyComponent={
-          <View style={{ alignItems: 'center', paddingTop: 80 }}>
+          <View style={styles.emptyWrap}>
             <View style={styles.emptyIcon}>
               <Ionicons name="chatbubble-outline" size={36} color={colors.textSecondary} />
             </View>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 12 }}>No posts yet</Text>
-            <Text style={{ color: colors.textSecondary, fontSize: 15, marginTop: 4 }}>When people post, their posts will show up here.</Text>
+            <Text style={styles.emptyTitle}>No posts yet</Text>
+            <Text style={styles.emptySubtitle}>When people post, their posts will show up here.</Text>
             <TouchableOpacity
-              style={{ marginTop: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, borderRadius: 8 }}
+              style={styles.emptyBtn}
               onPress={handleRefresh}
             >
-              <Text style={{ color: colors.accent, fontSize: 14 }}>Tap to retry</Text>
+              <Text style={styles.emptyBtnText}>Tap to retry</Text>
             </TouchableOpacity>
           </View>
         }
@@ -1012,7 +1012,7 @@ export default function FeedScreen({ navigation }: any) {
 
       {/* Edit post modal */}
       <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: colors.overlay }} activeOpacity={1} onPress={() => setEditingPost(null)}>
+        <TouchableOpacity style={styles.editModalOverlay} activeOpacity={1} onPress={() => setEditingPost(null)}>
           <View style={styles.editModal}>
             <Text style={styles.editModalTitle}>Edit Post</Text>
             <TextInput
@@ -1160,7 +1160,7 @@ const styles = StyleSheet.create({
   moreBtn: {
     position: 'absolute',
     top: 0,
-    right: -8,
+    right: 0,
     width: 32, height: 32,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: 16,
@@ -1177,31 +1177,6 @@ const styles = StyleSheet.create({
     lineHeight: vs(20),
     marginTop: scale(4),
   },
-  mediaContainer: {
-    marginTop: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.separator,
-  },
-  media: {
-    width: '100%',
-    height: Math.min(SCREEN_W * 0.85, vs(510)),
-    backgroundColor: colors.bg,
-  },
-  mediaErrorOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.overlayDarker,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-  },
-  mediaErrorText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-
   /* ── Action bar — X/Twitter exact spacing ── */
   actions: {
     flexDirection: 'row',
@@ -1252,21 +1227,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
-  /* ── Skeleton ── */
-  skeletonAvatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: colors.bgInput,
-  },
-  skeletonLine: {
-    height: 14,
-    borderRadius: 4,
-    backgroundColor: colors.bgInput,
-  },
-  skeletonDot: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: colors.bgInput,
-  },
-
   /* ── Load more indicator ── */
   loadMoreIndicator: {
     paddingVertical: 20,
@@ -1279,7 +1239,7 @@ const styles = StyleSheet.create({
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: colors.white,
     alignItems: 'center', justifyContent: 'center',
-    elevation: 20, shadowColor: colors.primaryForeground, shadowOffset: { width: 0, height: 4 },
+    elevation: 20, shadowColor: 'rgba(212,175,55,0.3)', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5, shadowRadius: 8,
     zIndex: 999,
   },
@@ -1288,70 +1248,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgSubtle,
     alignItems: 'center', justifyContent: 'center',
   },
-
-  /* ── Ad Card ── */
-  adCard: {
-    backgroundColor: colors.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.separator,
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accentGold,
-  },
-  adBadgeRow: {
-    flexDirection: 'row',
+  emptyWrap: {
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 6,
+    paddingTop: 80,
   },
-  adBadgeText: {
-    color: colors.accentGold,
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-  },
-  adBody: {
-    backgroundColor: colors.bgSubtle,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.separator,
-    padding: 14,
-    marginBottom: 6,
-  },
-  adHeadline: {
+  emptyTitle: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    lineHeight: 22,
-    marginBottom: 4,
+    marginTop: 12,
   },
-  adDescription: {
+  emptySubtitle: {
     color: colors.textSecondary,
+    fontSize: 15,
+    marginTop: 4,
+  },
+  emptyBtn: {
+    marginTop: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+  },
+  emptyBtnText: {
+    color: colors.accent,
     fontSize: 14,
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  adCtaBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.accentGold,
-    borderRadius: scale(16),
-    paddingHorizontal: scale(16),
-    paddingVertical: scale(8),
-    marginTop: scale(10),
-  },
-  adCtaText: {
-    color: colors.primaryForeground,
-    fontSize: fs(14),
-    fontWeight: '700',
-  },
-  adSponsored: {
-    color: colors.textMuted,
-    fontSize: fs(11),
-    marginTop: scale(6),
   },
 
   /* ── Inline Poll ── */
@@ -1376,6 +1297,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   /* ── Edit post modal ──────────────────────────────────────────────── */
+  editModalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+  },
   editModal: {
     position: 'absolute',
     bottom: 100,

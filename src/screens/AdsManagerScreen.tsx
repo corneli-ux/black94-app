@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, RefreshControl, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
@@ -18,9 +19,9 @@ interface AdCampaign {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  active: { label: 'Active', color: colors.accentGreen, bg: 'rgba(0,186,124,0.15)' },
-  paused: { label: 'Paused', color: colors.accentGold, bg: 'rgba(255,215,0,0.15)' },
-  completed: { label: 'Completed', color: colors.textSecondary, bg: 'rgba(113,118,123,0.15)' },
+  active: { label: 'Active', color: colors.accentGreen, bg: colors.greenBg },
+  paused: { label: 'Paused', color: colors.accentGold, bg: colors.accentBgStrong },
+  completed: { label: 'Completed', color: colors.textSecondary, bg: colors.bgSubtle },
 };
 
 function formatINR(amount: number): string {
@@ -123,8 +124,8 @@ export default function AdsManagerScreen({ navigation }: any) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ads Manager</Text>
           <View style={{ width: 32 }} />
@@ -182,8 +183,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12,
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
-  backBtn: { padding: 4 },
-  backIcon: { color: colors.text, fontSize: 24 },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100 },
   card: {

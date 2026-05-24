@@ -6,7 +6,7 @@ import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const CARD_W = (SCREEN_W - 48 - 12) / 2;
+const CARD_W = (SCREEN_W - 32 - 12) / 2;
 
 interface KPIData {
   totalRevenue: number;
@@ -90,8 +90,8 @@ export default function BusinessDashboardScreen({ navigation }: any) {
       {/* Header area */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Business Dashboard</Text>
           <View style={{ width: 32 }} />
@@ -151,8 +151,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12,
   },
-  backBtn: { padding: 4 },
-  backIcon: { color: colors.text, fontSize: 24 },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   kpiGrid: {
     flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16,

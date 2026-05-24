@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { Avatar } from '../components/Avatar';
 import { auth, firestore } from '../lib/firebase';
@@ -266,8 +267,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backArrow}>←</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Product Details</Text>
           <View style={{ width: 36 }} />
@@ -517,7 +518,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { color: colors.text, fontSize: 22 },
   headerTitle: { color: colors.text, fontWeight: '700', fontSize: 16, flex: 1, textAlign: 'center', marginHorizontal: 8 },
   mainImage: { width: SCREEN_W, height: SCREEN_W * 0.9, backgroundColor: colors.bg },
   noImage: { alignItems: 'center', justifyContent: 'center' },
@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 12, left: 0, right: 0,
     flexDirection: 'row', justifyContent: 'center', gap: 6,
   },
-  paginationDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
+  paginationDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.borderSubtleStrong },
   paginationDotActive: { backgroundColor: colors.accent, width: 18 },
   thumbnailRow: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12,

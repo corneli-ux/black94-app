@@ -181,8 +181,8 @@ export default function MyStoreScreen({ route, navigation }: any) {
       {/* Header */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backArrow}>←</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>My Store</Text>
           <Text style={styles.headerCount}>{products.length}</Text>
@@ -233,7 +233,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { color: colors.text, fontSize: 22 },
   headerTitle: { color: colors.text, fontWeight: '700', fontSize: 18, flex: 1, textAlign: 'center' },
   headerCount: {
     color: colors.textSecondary, fontSize: 14, fontWeight: '600',
@@ -243,7 +242,7 @@ const styles = StyleSheet.create({
   separator: { height: 0.5, backgroundColor: colors.border, marginVertical: 2 },
   productRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 12, backgroundColor: colors.bgCard, borderRadius: 12, marginBottom: 4,
+    padding: 12, backgroundColor: colors.bgCard, borderRadius: 12,
   },
   productRowInactive: { opacity: 0.5 },
   productImageWrap: { overflow: 'hidden', borderRadius: 10 },
@@ -268,7 +267,6 @@ const styles = StyleSheet.create({
   inactiveBtn: { borderColor: colors.border },
   activeBtnText: { color: colors.accentGreen, fontSize: 12, fontWeight: '600' },
   inactiveBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  actionBtnText: { color: colors.primary, fontSize: 12, fontWeight: '600' },
   iconBtn: { padding: 2 },
   iconBtnText: { fontSize: 18 },
   inactiveText: { color: colors.textSecondary },
@@ -281,7 +279,7 @@ const styles = StyleSheet.create({
   },
   addBtnText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   fab: {
-    position: 'absolute', bottom: 28, right: 20,
+    position: 'absolute', bottom: 30, right: 20,
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
     shadowColor: colors.primaryForeground, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6,
