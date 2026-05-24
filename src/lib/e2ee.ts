@@ -128,7 +128,17 @@ async function _createOrLoadKeyPair(): Promise<KeyPair> {
 
   // BUG FIX: Persist FIRST, then cache. If persistence fails, don't cache
   // the ephemeral key — let the next call try again.
-  await SecureStore.setItemAsync(SK_KEY, bytesToBase64Url(keyPair.secretKey));
+  // CRITICAL FIX: SecureStore.setItemAsync was NOT wrapped in try/catch.
+  // If the native module throws (permission denied, storage full, New Arch
+  // compat issue), the error propagated up and _localKeyPair was never set,
+  // causing all subsequent E2EE operations to fail. Now we catch the error
+  // and still cache the key in memory (ephemeral — lost on restart, but
+  // chat works for this session).
+  try {
+    await SecureStore.setItemAsync(SK_KEY, bytesToBase64Url(keyPair.secretKey));
+  } catch (e) {
+    if (__DEV__) console.warn('[E2EE] Failed to persist key pair to SecureStore (non-fatal):', e);
+  }
   _localKeyPair = keyPair;
 
   return keyPair;
@@ -391,31 +401,62 @@ export async function isE2EEReady(recipientUid: string): Promise<boolean> {
 /**
  * Convert Uint8Array to Base64URL string (no +, /, = padding).
  * Base64URL is safe for Firestore field values and URL params.
+ *
+ * BUG FIX: btoa() may not be available in all React Native JS engines
+ * (e.g., Hermes < 0.7 or New Architecture edge cases). Falls back to
+ * Buffer.from() — same pattern as firebase.ts:_isTokenExpired().
  */
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  // Standard base64 → base64url
-  return btoa(binary)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+  try {
+    // Standard base64 → base64url
+    return btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  } catch {
+    // btoa() unavailable — use Buffer fallback (transitive dependency)
+    try {
+      const { Buffer } = require('buffer') as { Buffer: typeof globalThis.Buffer };
+      return Buffer.from(binary, 'binary').toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+    } catch {
+      throw new Error('[E2EE] Neither btoa() nor Buffer available for base64 encoding');
+    }
+  }
 }
 
 /**
  * Convert Base64URL string back to Uint8Array.
+ *
+ * BUG FIX: atob() may not be available in all React Native JS engines.
+ * Falls back to Buffer.from() — same pattern as firebase.ts.
  */
 function base64UrlToBytes(b64url: string): Uint8Array {
   // base64url → standard base64
   let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
   // Add padding if needed
   while (b64.length % 4 !== 0) b64 += '=';
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+  try {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    // atob() unavailable — use Buffer fallback
+    try {
+      const { Buffer } = require('buffer') as { Buffer: typeof globalThis.Buffer };
+      const raw = Buffer.from(b64, 'base64');
+      return new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
+    } catch {
+      throw new Error('[E2EE] Neither atob() nor Buffer available for base64 decoding');
+    }
   }
-  return bytes;
 }

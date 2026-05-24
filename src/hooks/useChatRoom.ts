@@ -1,9 +1,41 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { FlatList, Platform, Alert, Keyboard } from 'react-native';
-import { Audio } from 'expo-av';
+// BUG FIX: Lazy-load expo-av and expo-image-picker. These native modules are
+// imported ONLY when the user actually needs them (voice record, image pick).
+// Previously, these were top-level imports that evaluated at module load time.
+// If the native module wasn't properly linked (New Architecture compat issue,
+// EAS build variant mismatch, etc.), the ENTIRE useChatRoom hook would fail
+// to load, causing a white-screen crash when opening ANY chat.
+// With dynamic imports, a broken native module only affects that specific
+// feature (e.g., voice recording won't work) but the rest of chat stays alive.
+// expo-av types
+let Audio: any = null;
+async function getAudio() {
+  if (!Audio) {
+    try {
+      const mod = await import('expo-av');
+      Audio = mod.Audio;
+    } catch (e) {
+      console.error('[ChatRoom] Failed to load expo-av module:', e);
+      Alert.alert('Error', 'Audio module not available. Voice messages are disabled.');
+    }
+  }
+  return Audio;
+}
+let ImagePickerModule: any = null;
+async function getImagePicker() {
+  if (!ImagePickerModule) {
+    try {
+      ImagePickerModule = await import('expo-image-picker');
+    } catch (e) {
+      console.error('[ChatRoom] Failed to load expo-image-picker module:', e);
+      Alert.alert('Error', 'Image picker not available. Please update the app.');
+    }
+  }
+  return ImagePickerModule;
+}
 import { fetchMessages, sendMessage, blockUser, deleteMessage, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
-import * as ImagePicker from 'expo-image-picker';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { tsToMillis } from '../utils/datetime';
 // BUG FIX: Import initE2EE to ensure encryption keys are initialized
@@ -92,11 +124,11 @@ export function useChatRoom({
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
-  const playbackRef = useRef<Audio.Sound | null>(null);
+  const playbackRef = useRef<any>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingRef = useRef<any>(null);
   const flatRef = useRef<FlatList>(null);
   const currentUser = auth()?.currentUser;
   const unsubRef = useRef<(() => void) | null>(null);
@@ -172,7 +204,7 @@ export function useChatRoom({
   // ── Navigation focus listener ─────────────────────────────────────────────
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      if (chat?.id) loadRef.current(true);
+      if (chat?.id) loadRef.current(true).catch(() => {});
     });
     return unsubscribe;
   }, [navigation, chat?.id]);
@@ -339,8 +371,10 @@ export function useChatRoom({
         recordingRef.current.stopAsync().catch(() => {});
         recordingRef.current = null;
       }
-      // Reset audio mode back to non-recording
-      Audio.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => {});
+      // Reset audio mode back to non-recording (fire-and-forget)
+      getAudio().then(AudioMod => {
+        if (AudioMod) AudioMod.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => {});
+      }).catch(() => {});
     };
   }, []);
 
@@ -407,13 +441,15 @@ export function useChatRoom({
       return;
     }
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const IP = await getImagePicker();
+      if (!IP) return;
+      const { status } = await IP.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please allow photo library access to send images.');
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      const result = await IP.launchImageLibraryAsync({
+        mediaTypes: IP.MediaTypeOptions.Images,
         quality: 0.7,
         allowsMultipleSelection: false,
         maxWidth: 1200,
@@ -447,13 +483,15 @@ export function useChatRoom({
       return;
     }
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      const IP = await getImagePicker();
+      if (!IP) return;
+      const { status } = await IP.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Camera access is needed to take photos.');
         return;
       }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      const result = await IP.launchCameraAsync({
+        mediaTypes: IP.MediaTypeOptions.Images,
         quality: 0.7,
         allowsMultipleSelection: false,
         maxWidth: 1200,
@@ -503,12 +541,14 @@ export function useChatRoom({
       return;
     }
     try {
-      await Audio.setAudioModeAsync({
+      const AudioMod = await getAudio();
+      if (!AudioMod) return;
+      await AudioMod.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      const { recording } = await AudioMod.Recording.createAsync(
+        AudioMod.RecordingOptionsPresets.HIGH_QUALITY,
       );
       recordingRef.current = recording;
       setIsRecording(true);
@@ -576,7 +616,10 @@ export function useChatRoom({
       console.error('[ChatRoom] Voice send failed:', e);
     } finally {
       setUploading(false);
-      try { await Audio.setAudioModeAsync({ allowsRecordingIOS: false }); } catch {}
+      try {
+        const AudioMod = await getAudio();
+        if (AudioMod) await AudioMod.setAudioModeAsync({ allowsRecordingIOS: false });
+      } catch {}
     }
   };
 
@@ -598,15 +641,17 @@ export function useChatRoom({
     }
 
     try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const { sound } = await Audio.Sound.createAsync(
+      const AudioMod = await getAudio();
+      if (!AudioMod) return;
+      await AudioMod.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const { sound } = await AudioMod.Sound.createAsync(
         { uri: url },
         { shouldPlay: true },
       );
       playbackRef.current = sound;
       setPlayingVoiceId(message.id);
 
-      sound.setOnPlaybackStatusUpdate((status) => {
+      sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) {
           setPlayingVoiceId(null);
         }
