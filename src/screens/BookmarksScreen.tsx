@@ -12,6 +12,7 @@ import { Post } from '../lib/api';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import CommentSheet from '../components/CommentSheet';
 import FeedMedia from '../components/FeedMedia';
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -98,39 +99,10 @@ export default function BookmarksScreen() {
         });
       }
 
-      // Batch-read unique authors using `__name__` + `in` (with fallback)
-      const uniqueAuthorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean))];
-      const authorMap: Record<string, any> = {};
-      try {
-        const USER_DB = 'projects/black94/databases/(default)/documents/users';
-        for (let i = 0; i < uniqueAuthorIds.length; i += BATCH_SIZE) {
-          const batch = uniqueAuthorIds.slice(i, i + BATCH_SIZE);
-          const refValues = batch.map(uid => `${USER_DB}/${uid}`);
-          const userSnap = await firestore()
-            .collection('users')
-            .where('__name__', 'in', refValues)
-            .get();
-          for (const doc of userSnap.docs) {
-            authorMap[doc.id] = doc.data();
-          }
-        }
-      } catch {
-        // Fallback: parallel individual reads
-        const results = await Promise.all(
-          uniqueAuthorIds.map(uid => firestore().collection('users').doc(uid).get().catch(() => null)),
-        );
-        for (const docSnap of results) {
-          if (docSnap && docSnap.exists) authorMap[docSnap.id] = docSnap.data();
-        }
-      }
-      for (const post of posts) {
-        const fresh = authorMap[post.authorId];
-        if (fresh) {
-          post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
-          post.authorBadge = fresh.badge || post.authorBadge;
-          post.authorIsVerified = fresh.isVerified || post.authorIsVerified;
-        }
-      }
+      // Enrich author profiles from user docs so that name/avatar
+      // changes reflect immediately.
+      await enrichAuthorProfiles(posts);
+
       setBookmarks(posts.sort((a, b) => b.createdAt - a.createdAt));
     } catch (e) { console.error('[Bookmarks] Failed to load:', e); }
     finally { setLoading(false); setRefreshing(false); }

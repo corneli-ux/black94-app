@@ -12,6 +12,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { parseMediaUrls } from '../lib/api';
 import { tsToMillis } from '../utils/datetime';
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 
 interface MentionedPost {
   id: string;
@@ -64,6 +65,10 @@ export default function MentionedPostsScreen() {
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
       });
+
+      // Enrich author profiles from user docs so that name/avatar
+      // changes reflect immediately.
+      await enrichAuthorProfiles(items);
 
       setPosts(items);
     } catch (e: any) {

@@ -18,6 +18,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls, Post } from '../lib/api';
 import FeedMedia from '../components/FeedMedia';
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 
 /* ── Constants ──────────────────────────────────────────────────────────────── */
 
@@ -215,31 +216,9 @@ export default function HashtagScreen() {
         };
       });
 
-      // Batch-enrich with author profiles for fresh avatars/badges
-      const uniqueAuthorIds = [...new Set(mapped.map(p => p.authorId).filter(Boolean))];
-      if (uniqueAuthorIds.length > 0) {
-        try {
-          const userDocs = await Promise.all(
-            uniqueAuthorIds.map(uid =>
-              firestore().collection('users').doc(uid).get().catch(() => null),
-            ),
-          );
-          const authorMap: Record<string, any> = {};
-          for (const doc of userDocs) {
-            if (doc && (doc as any).exists) {
-              authorMap[doc.id] = (doc as any).data();
-            }
-          }
-          for (const post of mapped) {
-            const fresh = authorMap[post.authorId];
-            if (fresh) {
-              post.authorProfileImage = fresh.profileImage || post.authorProfileImage;
-              post.authorBadge = fresh.badge || post.authorBadge;
-              post.authorIsVerified = fresh.isVerified ?? post.authorIsVerified;
-            }
-          }
-        } catch { /* enrichment failure is non-critical */ }
-      }
+      // Enrich author profiles from user docs so that name/avatar
+      // changes reflect immediately.
+      await enrichAuthorProfiles(mapped);
 
       setPosts(mapped);
       setError(null);

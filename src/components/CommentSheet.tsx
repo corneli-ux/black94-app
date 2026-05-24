@@ -10,6 +10,7 @@ import { Avatar, VerifiedBadge } from './Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { CommentData, fetchPostComments, addPostComment, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark } from '../lib/api';
 import { useAppStore } from '../stores/app';
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
@@ -52,43 +53,10 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
 
   // ── Enrich comment author profiles from user docs ──
   const enrichCommentAuthors = useCallback(async (commentsToEnrich: CommentData[]) => {
-    const uniqueIds = [...new Set(commentsToEnrich.map(c => c.authorId).filter(Boolean))];
-    if (uniqueIds.length === 0) return;
-    const CHUNK = 10;
-    const profileMap: Record<string, any> = {};
-    for (let i = 0; i < uniqueIds.length; i += CHUNK) {
-      const chunk = uniqueIds.slice(i, i + CHUNK);
-      try {
-        const docs = await Promise.all(
-          chunk.map(uid => firestore().collection('users').doc(uid).get().catch(() => null))
-        );
-        for (const snap of docs) {
-          if (snap && snap.exists) {
-            const d = snap.data()!;
-            profileMap[snap.id] = {
-              username: d.username || '',
-              displayName: d.displayName || '',
-              profileImage: d.profileImage || null,
-              badge: d.badge || '',
-              isVerified: d.isVerified || false,
-            };
-          }
-        }
-      } catch (e) { console.warn('[CommentSheet] Author enrichment failed:', e); }
-    }
-    let changed = false;
-    for (const c of commentsToEnrich) {
-      const p = profileMap[c.authorId];
-      if (!p) continue;
-      // Always use the latest user doc data (matches feed enrichment behavior)
-      // so profile name/avatar changes reflect immediately on comments.
-      if (p.displayName && p.displayName !== c.authorDisplayName) { c.authorDisplayName = p.displayName; changed = true; }
-      if (p.username && p.username !== c.authorUsername) { c.authorUsername = p.username; changed = true; }
-      if (p.profileImage && p.profileImage !== c.authorProfileImage) { c.authorProfileImage = p.profileImage; changed = true; }
-      if (p.badge && p.badge !== c.authorBadge) { c.authorBadge = p.badge; changed = true; }
-      if (p.isVerified !== c.authorIsVerified) { c.authorIsVerified = p.isVerified; changed = true; }
-    }
-    if (changed) setComments(prev => [...prev]);
+    if (commentsToEnrich.length === 0) return;
+    await enrichAuthorProfiles(commentsToEnrich);
+    // Trigger re-render so UI reflects enriched data
+    setComments(prev => [...prev]);
   }, []);
 
   const loadComments = useCallback(async () => {

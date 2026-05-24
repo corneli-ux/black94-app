@@ -52,7 +52,7 @@ async function openImageLibrary() {
 
 export default function EditProfileScreen({ navigation }: any) {
   const currentUid = auth()?.currentUser?.uid ?? '';
-  const { setUser: setGlobalUser } = useAppStore();
+  const { setUser: setGlobalUser, triggerFeedRefresh } = useAppStore();
 
   const [user, setUser] = useState<User | null>(null);
   const [displayName, setDisplayName] = useState('');
@@ -328,7 +328,9 @@ export default function EditProfileScreen({ navigation }: any) {
                     if (nameChanged) updates.authorDisplayName = displayName.trim();
                     if (usernameChanged) updates.authorUsername = username;
                     if (avatarChanged) updates.authorProfileImage = finalProfileImage || null;
-                    return firestore().collection('posts').doc(doc.id).update(updates).catch(() => {});
+                    return firestore().collection('posts').doc(doc.id).update(updates).catch((e: any) => {
+                      if (__DEV__) console.warn(`[EditProfile] Failed to update post ${doc.id}:`, e?.message);
+                    });
                   }));
                 }
                 if (__DEV__) console.log(`[EditProfile] Updated ${postsSnap.docs.length} posts`);
@@ -349,7 +351,9 @@ export default function EditProfileScreen({ navigation }: any) {
                     if (nameChanged) updates.authorDisplayName = displayName.trim();
                     if (usernameChanged) updates.authorUsername = username;
                     if (avatarChanged) updates.authorProfileImage = finalProfileImage || null;
-                    return firestore().collection('post_comments').doc(doc.id).update(updates).catch(() => {});
+                    return firestore().collection('post_comments').doc(doc.id).update(updates).catch((e: any) => {
+                      if (__DEV__) console.warn(`[EditProfile] Failed to update comment ${doc.id}:`, e?.message);
+                    });
                   }));
                 }
                 if (__DEV__) console.log(`[EditProfile] Updated ${commentsSnap.docs.length} comments`);
@@ -365,6 +369,9 @@ export default function EditProfileScreen({ navigation }: any) {
           { text: 'OK', onPress: () => {
             // Update Zustand store so sidebar/drawer shows the new profile info immediately
             setGlobalUser(updatedProfile);
+            // BUG FIX: Trigger feed refresh so FeedScreen reloads posts
+            // and runs enrichment with the new name/avatar.
+            try { triggerFeedRefresh(); } catch {}
             // BUG FIX: Sync Firebase auth user object with new profile data.
             // Without this, auth().currentUser stays stale (old name/avatar)
             // and any code reading from auth (e.g., getActorData) uses wrong data.

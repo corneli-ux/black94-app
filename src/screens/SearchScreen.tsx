@@ -10,6 +10,7 @@ import { auth, firestore } from '../lib/firebase';
 import { User, Post, tsToMillis, parseMediaUrls, searchByHashtag } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { useAppStore } from '../stores/app';
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 
 export default function SearchScreen({ route, navigation }: any) {
   const [query, setQuery] = useState('');
@@ -85,6 +86,7 @@ export default function SearchScreen({ route, navigation }: any) {
         // Dedicated hashtag search — returns up to 20 matching posts
         const hashPosts = await searchByHashtag(lower);
         setUsers([]);
+        await enrichAuthorProfiles(hashPosts);
         setPosts(hashPosts);
       } else {
         const [uSnap, pSnap] = await Promise.all([
@@ -131,6 +133,10 @@ export default function SearchScreen({ route, navigation }: any) {
             createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
           };
         });
+
+      // Enrich author profiles from user docs so that name/avatar
+      // changes reflect immediately.
+      await enrichAuthorProfiles(foundPosts);
 
       setUsers(visibleUsers);
       setPosts(foundPosts);

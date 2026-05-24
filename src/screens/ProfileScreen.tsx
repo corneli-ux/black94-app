@@ -10,6 +10,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import FeedMedia from '../components/FeedMedia';
 import Svg, { Path, Polyline } from 'react-native-svg';
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
 function RepostIcon({ size = 16, color = colors.textSecondary }: { size?: number; color?: string }) {
@@ -540,6 +541,14 @@ export default function ProfileScreen({ route, navigation }: any) {
       // Merge own posts + repost posts, sort by createdAt descending
       const allPosts = [...ps, ...fetchedRepostPosts];
       allPosts.sort((a, b) => b.createdAt - a.createdAt);
+
+      // BUG FIX: Enrich author profiles from user docs so that name/avatar
+      // changes reflect immediately on the profile page. Without this, posts
+      // show stale authorDisplayName/authorUsername from the Firestore
+      // document (which is only updated by a fire-and-forget batch job in
+      // EditProfileScreen that may not have completed yet).
+      await enrichAuthorProfiles(allPosts);
+
       setPosts(allPosts);
 
       // Batch check interactions for current user's posts

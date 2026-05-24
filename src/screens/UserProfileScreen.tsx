@@ -36,6 +36,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import FeedMedia from '../components/FeedMedia';
 import Svg, { Path, Polyline } from 'react-native-svg';
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -684,6 +685,11 @@ export default function UserProfileScreen({ navigation, route }: any) {
       // Merge own posts + repost posts, sort by createdAt descending
       const allPosts = [...userPosts, ...repostPosts];
       allPosts.sort((a, b) => b.createdAt - a.createdAt);
+
+      // Enrich author profiles from user docs so that name/avatar
+      // changes reflect immediately.
+      await enrichAuthorProfiles(allPosts);
+
       setPosts(allPosts);
 
       // Batch check interactions for current user

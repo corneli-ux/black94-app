@@ -4,6 +4,7 @@ import { toggleLike, toggleBookmark, toggleRepost, Post, tsToMillis, parseMediaU
 import { auth, firestore } from '../lib/firebase';
 import { useAppStore } from '../stores/app';
 import { useOptimisticAction } from './useOptimisticAction';
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 
@@ -64,74 +65,41 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   const PAGE_SIZE = 10;
 
   // ── Enrichment: author profiles ─────────────────────────────────────────
-  // Fetches the latest user docs for all post authors and applies profileImage,
-  // badge, isVerified, displayName, and username to posts. This ensures that
-  // profile name/avatar changes reflect immediately on the feed.
-  // Guard: if the user doc has EMPTY displayName/username (corrupted from the
-  // historical write.update bug), we skip overwriting — the post's stamped
-  // data is used as fallback instead of blank data.
-  const enrichAuthorProfiles = useCallback(async (postsToEnrich: Post[]) => {
+  // Uses the shared enrichAuthorProfiles utility to fetch latest user docs
+  // and apply displayName, username, profileImage, badge, isVerified to posts.
+  // Also includes self-repair logic for corrupted user docs.
+  const enrichAuthorProfilesWithRepair = useCallback(async (postsToEnrich: Post[]) => {
+    await enrichAuthorProfiles(postsToEnrich);
+
+    // Self-repair: check if any user docs were corrupted (empty displayName/username)
+    // and try to fix them from the Zustand store
     const uniqueAuthorIds = [...new Set(postsToEnrich.map(p => p.authorId).filter(Boolean))];
     const CHUNK_SIZE = 10;
-    const authorProfileMap: Record<string, any> = {};
     for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
       const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
-      try {
-        const userDocs = await Promise.all(
-          chunk.map(uid => firestore().collection('users').doc(uid).get().catch(() => null))
-        );
-        for (const docSnap of userDocs) {
-          if (docSnap && docSnap.exists) {
-            const d = docSnap.data()!;
-            authorProfileMap[docSnap.id] = {
-              username: d.username || '',
-              displayName: d.displayName || '',
-              profileImage: d.profileImage || null,
-              badge: d.badge || '',
-              isVerified: d.isVerified || false,
-            };
-            // Self-repair: if user doc is corrupted (empty displayName/username),
-            // try to fix it from the Zustand store so future operations get correct data.
-            if (!d.username || !d.displayName) {
-              if (__DEV__) console.warn(`[Feed] User doc ${docSnap.id} appears corrupted (username="${d.username}", displayName="${d.displayName}") — attempting self-repair`);
-              try {
-                const { useAppStore } = await import('../stores/app');
-                const storeUser = useAppStore.getState().user;
-                if (storeUser && storeUser.id === docSnap.id && (storeUser.username || storeUser.displayName)) {
-                  await firestore().collection('users').doc(docSnap.id).update({
-                    username: storeUser.username || '',
-                    displayName: storeUser.displayName || 'User',
-                    profileImage: storeUser.profileImage || null,
-                  });
-                  // Update the map with repaired data
-                  authorProfileMap[docSnap.id].username = storeUser.username || '';
-                  authorProfileMap[docSnap.id].displayName = storeUser.displayName || 'User';
-                  authorProfileMap[docSnap.id].profileImage = storeUser.profileImage || null;
-                  if (__DEV__) console.log(`[Feed] Repaired user doc ${docSnap.id}: ${storeUser.displayName} @${storeUser.username}`);
-                }
-              } catch (repairErr) {
-                if (__DEV__) console.warn(`[Feed] Failed to repair user doc ${docSnap.id}:`, repairErr);
-              }
-            }
+      const userDocs = await Promise.all(
+        chunk.map(uid => firestore().collection('users').doc(uid).get().catch(() => null))
+      );
+      for (const docSnap of userDocs) {
+        if (!docSnap || !docSnap.exists) continue;
+        const d = docSnap.data()!;
+        if (d.username && d.displayName) continue; // not corrupted
+        if (__DEV__) console.warn(`[Feed] User doc ${docSnap.id} appears corrupted (username="${d.username}", displayName="${d.displayName}") — attempting self-repair`);
+        try {
+          const { useAppStore } = await import('../stores/app');
+          const storeUser = useAppStore.getState().user;
+          if (storeUser && storeUser.id === docSnap.id && (storeUser.username || storeUser.displayName)) {
+            await firestore().collection('users').doc(docSnap.id).update({
+              username: storeUser.username || '',
+              displayName: storeUser.displayName || 'User',
+              profileImage: storeUser.profileImage || null,
+            });
+            if (__DEV__) console.log(`[Feed] Repaired user doc ${docSnap.id}: ${storeUser.displayName} @${storeUser.username}`);
           }
+        } catch (repairErr) {
+          if (__DEV__) console.warn(`[Feed] Failed to repair user doc ${docSnap.id}:`, repairErr);
         }
-      } catch (e) {
-        console.warn('[Feed] Batch author profile fetch failed for chunk:', e);
       }
-    }
-    for (const post of postsToEnrich) {
-      const fresh = authorProfileMap[post.authorId];
-      if (!fresh) continue;
-      // Always update volatile fields (user may have changed avatar/badge)
-      if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
-      if (fresh.badge) post.authorBadge = fresh.badge;
-      post.authorIsVerified = fresh.isVerified;
-      // Always use the latest displayName/username from the user doc so that
-      // profile name changes reflect immediately on posts. Only skip if the
-      // user doc has EMPTY values (corrupted doc from historical bug) — in
-      // that case, keep the post's stamped data as fallback.
-      if (fresh.displayName) post.authorDisplayName = fresh.displayName;
-      if (fresh.username) post.authorUsername = fresh.username;
     }
   }, []);
 
@@ -177,7 +145,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   const enrichPostsInBackground = useCallback(async (postsToEnrich: Post[], userId: string | undefined) => {
     if (postsToEnrich.length === 0) return;
     await Promise.all([
-      enrichAuthorProfiles(postsToEnrich),
+      enrichAuthorProfilesWithRepair(postsToEnrich),
       userId ? enrichInteractions(postsToEnrich, userId) : Promise.resolve(),
     ]);
     setPosts(prev => {
@@ -187,7 +155,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
         return postsToEnrich.find(ep => ep.id === p.id) || p;
       });
     });
-  }, [enrichAuthorProfiles, enrichInteractions]);
+  }, [enrichAuthorProfilesWithRepair, enrichInteractions]);
 
   // ── Real-time listener: watches for NEW posts arriving at the top ──────
   // We attach a live onSnapshot query limited to posts newer than the newest
