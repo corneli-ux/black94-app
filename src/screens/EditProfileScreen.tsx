@@ -301,6 +301,66 @@ export default function EditProfileScreen({ navigation }: any) {
           if (__DEV__) console.warn('[EditProfile] Failed to cache profile:', cacheErr);
         }
 
+        // BUG FIX: Batch-update author metadata on all existing posts and comments
+        // when display name, username, or profile image changes. Without this,
+        // the feed shows stale names/avatars until enrichment runs (which may
+        // not happen for older posts already in the FlatList cache).
+        // This is a fire-and-forget background operation — don't block the UI.
+        const nameChanged = displayName.trim() !== user?.displayName;
+        const usernameChanged = username !== user?.username;
+        const avatarChanged = finalProfileImage !== user?.profileImage;
+        if (nameChanged || usernameChanged || avatarChanged) {
+          if (__DEV__) console.log(`[EditProfile] Author metadata changed — batch-updating posts and comments`);
+          const updateAuthorOnPosts = async () => {
+            try {
+              // Update all posts by this user
+              const postsSnap = await firestore()
+                .collection('posts')
+                .where('authorId', '==', currentUid)
+                .limit(500)
+                .get();
+              if (!postsSnap.empty) {
+                const BATCH_SIZE = 20;
+                for (let i = 0; i < postsSnap.docs.length; i += BATCH_SIZE) {
+                  const batch = postsSnap.docs.slice(i, i + BATCH_SIZE);
+                  await Promise.all(batch.map(doc => {
+                    const updates: Record<string, any> = {};
+                    if (nameChanged) updates.authorDisplayName = displayName.trim();
+                    if (usernameChanged) updates.authorUsername = username;
+                    if (avatarChanged) updates.authorProfileImage = finalProfileImage || null;
+                    return firestore().collection('posts').doc(doc.id).update(updates).catch(() => {});
+                  }));
+                }
+                if (__DEV__) console.log(`[EditProfile] Updated ${postsSnap.docs.length} posts`);
+              }
+
+              // Update all comments by this user
+              const commentsSnap = await firestore()
+                .collection('post_comments')
+                .where('authorId', '==', currentUid)
+                .limit(500)
+                .get();
+              if (!commentsSnap.empty) {
+                const BATCH_SIZE = 20;
+                for (let i = 0; i < commentsSnap.docs.length; i += BATCH_SIZE) {
+                  const batch = commentsSnap.docs.slice(i, i + BATCH_SIZE);
+                  await Promise.all(batch.map(doc => {
+                    const updates: Record<string, any> = {};
+                    if (nameChanged) updates.authorDisplayName = displayName.trim();
+                    if (usernameChanged) updates.authorUsername = username;
+                    if (avatarChanged) updates.authorProfileImage = finalProfileImage || null;
+                    return firestore().collection('post_comments').doc(doc.id).update(updates).catch(() => {});
+                  }));
+                }
+                if (__DEV__) console.log(`[EditProfile] Updated ${commentsSnap.docs.length} comments`);
+              }
+            } catch (bgErr) {
+              if (__DEV__) console.warn('[EditProfile] Background post/comment update failed:', bgErr);
+            }
+          };
+          updateAuthorOnPosts();
+        }
+
         Alert.alert('Success', 'Profile updated successfully', [
           { text: 'OK', onPress: () => {
             // Update Zustand store so sidebar/drawer shows the new profile info immediately

@@ -125,11 +125,12 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
       if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
       if (fresh.badge) post.authorBadge = fresh.badge;
       post.authorIsVerified = fresh.isVerified;
-      // Only fill in displayName/username if the post has EMPTY values (legacy posts
-      // created before these fields were stamped at creation time). Never overwrite
-      // existing values — the post-stamped data is the source of truth for identity.
-      if (!post.authorUsername && fresh.username) post.authorUsername = fresh.username;
-      if (!post.authorDisplayName && fresh.displayName) post.authorDisplayName = fresh.displayName;
+      // Always use the latest displayName/username from the user doc so that
+      // profile name changes reflect immediately on posts. Only skip if the
+      // user doc has EMPTY values (corrupted doc from historical bug) — in
+      // that case, keep the post's stamped data as fallback.
+      if (fresh.displayName) post.authorDisplayName = fresh.displayName;
+      if (fresh.username) post.authorUsername = fresh.username;
     }
   }, []);
 
