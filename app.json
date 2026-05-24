@@ -30,7 +30,8 @@
       "googleServicesFile": "./google-services.json",
       "versionCode": 13,
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "POST_NOTIFICATIONS"
       ],
       "softwareKeyboardLayoutMode": "resize",
       "splash": {

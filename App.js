@@ -186,7 +186,10 @@ export default function App() {
               const fbUser = authInstance.currentUser;
               setToken(fbUser.uid);
               setLoading(false);
-              // FIX: Try cached profile first — shows correct name instantly when offline
+              // PERF: Set user from cache first, mark ready immediately so the
+              // app renders without waiting for the network fetchUserProfile().
+              // Previously setIsReady was ONLY called inside the .then/.catch of
+              // fetchUserProfile, adding 1-3s of blank-screen delay on every cold start.
               const cached = await loadCachedProfile();
               if (cached && cached.id === fbUser.uid) {
                 console.log('[App] Using cached profile for offline restore:', cached.username);
@@ -197,21 +200,23 @@ export default function App() {
               }
               // Cancel safety timeout since auth is validated
               clearTimeout(safetyTimer);
+              // PERF: Mark the app ready IMMEDIATELY — don't wait for background profile fetch.
+              // The cached user data is good enough for first render; the fresh profile
+              // will silently update in the background.
+              setIsReady(true);
               // Re-initialize push notifications + activity tracking on auth restore
               // (token may have changed since last session)
               import('./src/lib/api').then(({ initPostSignUp }) => {
                 initPostSignUp(fbUser.uid).catch((e) => console.warn('[App] initPostSignUp on restore failed:', e));
               }).catch(() => {});
-              // Fetch full profile in background and update
+              // Fetch full profile in background and update (non-blocking)
               fetchUserProfile(fbUser.uid).then(profile => {
                 if (profile) {
                   setUser(profile);
                   saveCachedProfile(profile); // Update cache with fresh data
                 }
-                setIsReady(true);
               }).catch(err => {
                 console.warn('[App] Profile fetch failed after restore, keeping cached user:', err);
-                setIsReady(true);
               });
               return; // Skip onAuthStateChanged — we handled it
             }

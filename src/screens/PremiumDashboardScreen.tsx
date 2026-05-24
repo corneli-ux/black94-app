@@ -54,23 +54,20 @@ interface FeatureRow {
 }
 
 interface UsageStats {
-  products: { current: number; limit: number };
   storage: { current: number; limit: number };
 }
 
 // ── Data ───────────────────────────────────────────────────────────────────
 
 const FEATURES: FeatureRow[] = [
-  { feature: 'Shop products', free: '0', premium: '50', business: 'Unlimited' },
   { feature: 'Analytics', free: false, premium: true, business: true },
   { feature: 'Priority support', free: false, premium: true, business: true },
-  { feature: 'Ads (paid)', free: false, premium: true, business: true },
+  { feature: 'Promoted Posts', free: false, premium: true, business: true },
   { feature: 'Affiliate Program', free: false, premium: true, business: true },
   { feature: 'Creator Revenue Share', free: false, premium: 'Eligible*', business: 'Eligible*' },
   { feature: 'Early Access', free: false, premium: true, business: true },
   { feature: 'Ad Revenue Share', free: false, premium: true, business: true },
   { feature: 'Anonymous Chat', free: false, premium: true, business: true },
-  { feature: 'Store / CRM', free: false, premium: false, business: true },
 ];
 
 // ── Usage fetching helpers ─────────────────────────────────────────────────
@@ -80,20 +77,8 @@ async function fetchUsageStats(userId: string, currentPlan: PlanType): Promise<U
 
   // Default stats — will be overwritten with real data
   const stats: UsageStats = {
-    products: { current: 0, limit: limits.products === -1 ? 999 : limits.products },
     storage: { current: 0, limit: limits.storage },
   };
-
-  try {
-    // ── Product count: query products where ownerId == userId ──
-    const productsSnap = await firestore()
-      .collection('products')
-      .where('ownerId', '==', userId)
-      .get();
-    stats.products.current = productsSnap.size;
-  } catch (e) {
-    console.warn('[Premium] Failed to fetch product count:', e);
-  }
 
   try {
     // ── Storage estimate: fetch user doc and estimate from profile/cover image URLs ──
@@ -133,7 +118,6 @@ export default function PremiumDashboardScreen() {
     (user?.subscription as PlanType) || 'free',
   );
   const [usage, setUsage] = useState<UsageStats>({
-    products: { current: 0, limit: PLAN_LIMITS.free.products },
     storage: { current: 0, limit: PLAN_LIMITS.free.storage },
   });
 
@@ -355,11 +339,13 @@ export default function PremiumDashboardScreen() {
                         .where('status', '==', 'active')
                         .get();
 
-                      const batch = firestore().batch();
-                      subs.docs.forEach(doc => {
-                        batch.update(doc.ref, { status: 'cancelled', cancelledAt: new Date().toISOString() });
-                      });
-                      if (subs.docs.length > 0) await batch.commit();
+                      for (const doc of subs.docs) {
+                        try {
+                          await doc.ref.update({ status: 'cancelled', cancelledAt: new Date().toISOString() });
+                        } catch (e) {
+                          if (__DEV__) console.warn('[Premium] Failed to cancel subscription:', e);
+                        }
+                      }
 
                       // Refresh the app store user data — use fetchUserProfile which
                       // has corruption detection, createdAt conversion, and cache update.
@@ -611,7 +597,6 @@ export default function PremiumDashboardScreen() {
             <Ionicons name="pie-chart-outline" size={18} color={colors.primary} />
             <Text style={styles.sectionTitle}>Usage This Month</Text>
           </View>
-          {usage.products.limit > 0 && renderUsageBar('Products', usage.products.current, usage.products.limit)}
           {renderUsageBar('Storage (MB)', usage.storage.current, usage.storage.limit)}
         </View>
 
@@ -635,7 +620,7 @@ export default function PremiumDashboardScreen() {
           </View>
           {FEATURES.map((feat) => (
             <View key={feat.feature} style={styles.tableRow}>
-              <Text style={styles.tableFeatureCol} numberOfLines={1}>
+              <Text style={styles.tableFeatureCol} numberOfLines={2}>
                 {feat.feature}
               </Text>
               <View style={styles.tableCol}>
@@ -1035,7 +1020,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   tableFeatureCol: {
-    flex: 1.2,
+    flex: 1.5,
     fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,

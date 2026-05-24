@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, Share, Image, Linking, ScrollView, Modal, TextInput,
+  RefreshControl, ActivityIndicator, Alert, Share, Image, ScrollView, Modal, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -18,6 +18,7 @@ import FeedMedia from '../components/FeedMedia';
 import { useAppStore } from '../stores/app';
 import Svg, { Path, Polyline } from 'react-native-svg';
 import { useFeed, Tab } from '../hooks/useFeed';
+import { FeedSkeleton } from '../components/SkeletonLoader';
 
 const SCREEN_W = scale(390);
 
@@ -97,45 +98,7 @@ function formatCount(n: number | undefined): string {
   return n.toString();
 }
 
-/* ── Skeleton Loader ──────────────────────────────────────────────────────── */
-
-function SkeletonCard() {
-  return (
-    <View style={[styles.postCard, { borderBottomColor: 'transparent' }]}>
-      <View style={styles.contentRow}>
-        {/* Avatar placeholder */}
-        <View style={styles.skeletonAvatar} />
-        <View style={{ flex: 1, gap: 8 }}>
-          {/* Name + time */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={[styles.skeletonLine, { width: 100, height: 14 }]} />
-            <View style={[styles.skeletonLine, { width: 60, height: 14 }]} />
-          </View>
-          {/* Caption lines */}
-          <View style={[styles.skeletonLine, { width: '90%', height: 14 }]} />
-          <View style={[styles.skeletonLine, { width: '70%', height: 14 }]} />
-          <View style={[styles.skeletonLine, { width: '40%', height: 14 }]} />
-          {/* Action bar dots */}
-          <View style={{ flexDirection: 'row', marginTop: 12, gap: 56 }}>
-            {[0, 1, 2, 3, 4].map(i => (
-              <View key={i} style={[styles.skeletonDot]} />
-            ))}
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function SkeletonFeed() {
-  return (
-    <View>
-      {[0, 1, 2, 3, 4].map(i => (
-        <SkeletonCard key={i} />
-      ))}
-    </View>
-  );
-}
+/* ── Skeleton: uses shared animated FeedSkeleton from SkeletonLoader.tsx ── */
 
 /* ── Inline Poll (inside PostCard) ─────────────────────────────────────────── */
 
@@ -447,7 +410,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
       {
         text: 'Send via DM',
         onPress: () => {
-          navigation.navigate('ChatList', { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername });
+          navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages', params: { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername } } });
         },
       },
     ]);
@@ -711,67 +674,6 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   );
 });
 
-/* ── AdCard ──────────────────────────────────────────────────────────────── */
-
-// Track which ad IDs have already been impression-counted this session
-const _impressionTracker = new Set<string>();
-
-function AdCard({ ad }: { ad: any }) {
-  // Fire-and-forget impression tracking on first render
-  React.useEffect(() => {
-    if (ad.id && !_impressionTracker.has(ad.id)) {
-      _impressionTracker.add(ad.id);
-      // Small delay to avoid counting during fast scrolls
-      const timer = setTimeout(() => {
-        firestore().collection('ads').doc(ad.id).update({
-          impressions: firestore.FieldValue.increment(1),
-        }).catch(() => {});
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [ad.id]);
-
-  return (
-    <View style={styles.adCard}>
-      <View style={styles.adBadgeRow}>
-        <Ionicons name="megaphone-outline" size={14} color={colors.accentGold} />
-        <Text style={styles.adBadgeText}>Promoted</Text>
-      </View>
-      <View style={styles.adBody}>
-        <Text style={styles.adHeadline} numberOfLines={1}>{ad.headline || 'Ad'}</Text>
-        {ad.description ? <Text style={styles.adDescription} numberOfLines={2}>{ad.description}</Text> : null}
-        {ad.ctaText ? (
-          <TouchableOpacity
-            style={styles.adCtaBtn}
-            activeOpacity={0.7}
-            onPress={() => {
-              // Track ad click in Firestore, then open link
-              if (ad.id) {
-                firestore().collection('ads').doc(ad.id).update({
-                  clicks: firestore.FieldValue.increment(1),
-                }).catch(() => {});
-              }
-              const url = ad.link || ad.url || ad.destinationUrl;
-              if (url) {
-                Linking.openURL(url).catch(() => {});
-              }
-            }}
-          >
-            <Text style={styles.adCtaText}>{ad.ctaText}</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      <Text style={styles.adSponsored}>Sponsored</Text>
-    </View>
-  );
-}
-
-/* ── Feed item union type ────────────────────────────────────────────────── */
-
-type FeedItem =
-  | { type: 'post'; id: string; post: Post }
-  | { type: 'ad'; id: string; ad: any };
-
 /* ── Stories Row — embedded at top of feed (Instagram-style) ──────────────── */
 
 const STORY_CIRCLE_SIZE = 48;
@@ -784,7 +686,10 @@ interface StoryBubble {
   authorProfileImage: string | null;
 }
 
-function StoriesRow({ navigation }: { navigation: any }) {
+// PERF: Memoize StoriesRow — it fires a Firestore query on mount and should
+// not be recreated on every FeedScreen render (which happens on every
+// like/bookmark/repost state change from the feed hook).
+const StoriesRow = React.memo(function StoriesRow({ navigation }: { navigation: any }) {
   const [bubbles, setBubbles] = useState<StoryBubble[]>([]);
   const currentUser = auth()?.currentUser;
   const storeUser = useAppStore(s => s.user);
@@ -854,7 +759,7 @@ function StoriesRow({ navigation }: { navigation: any }) {
       </ScrollView>
     </View>
   );
-}
+});
 
 const storiesRowStyles = StyleSheet.create({
   container: {
@@ -902,7 +807,6 @@ export default function FeedScreen({ navigation }: any) {
     refreshing,
     activeTab,
     setActiveTab,
-    ads,
     followedUserIds,
     handleRefresh,
     handleLike,
@@ -923,7 +827,20 @@ export default function FeedScreen({ navigation }: any) {
 
   const insets = useSafeAreaInsets();
 
-  if (loading) {
+  // Timeout safety: if loading is still true after 15s, force-show feed
+  // Prevents skeleton from being stuck forever on slow networks.
+  // Must be before the early return to comply with React hooks rules.
+  const [forceLoaded, setForceLoaded] = React.useState(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) setForceLoaded(true);
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  const showSkeleton = loading && !forceLoaded;
+
+  if (showSkeleton) {
     return (
       <View style={styles.container}>
         {/* Header with logo */}
@@ -956,12 +873,12 @@ export default function FeedScreen({ navigation }: any) {
           <View style={[styles.tabUnderline, { left: SCREEN_W / 3 - 24, right: SCREEN_W * 2 / 3 - 24 }]} />
         </View>
 
-        <SkeletonFeed />
+        <FeedSkeleton count={5} />
       </View>
     );
   }
 
-  // Build interleaved feed: posts with ads inserted after every 5th post
+  // Build display feed:
   // Network tab shows only posts from followed users
   // When user follows nobody, Network tab shows empty state instead of all posts
   // Visibility filter: followers-only posts only shown to followers or the author
@@ -975,29 +892,17 @@ export default function FeedScreen({ navigation }: any) {
       return true;
     });
 
-  const feedItems: FeedItem[] = (() => {
-    let displayPosts: Post[];
+  const displayPosts: Post[] = (() => {
+    let filtered: Post[];
     if (activeTab === 'Network') {
       if (followedUserIds.size === 0) {
         return []; // Empty state — user follows nobody
       }
-      displayPosts = posts.filter(p => followedUserIds.has(p.authorId));
+      filtered = posts.filter(p => followedUserIds.has(p.authorId));
     } else {
-      displayPosts = posts;
+      filtered = posts;
     }
-    // Enforce visibility on ALL tabs
-    displayPosts = filterByVisibility(displayPosts);
-    if (displayPosts.length === 0) return displayPosts.map(p => ({ type: 'post' as const, id: p.id, post: p }));
-    const items: FeedItem[] = [];
-    let adIndex = 0;
-    displayPosts.forEach((post, idx) => {
-      items.push({ type: 'post', id: post.id, post });
-      if ((idx + 1) % 5 === 0 && adIndex < ads.length) {
-        items.push({ type: 'ad', id: `ad_${ads[adIndex].id}_${idx}`, ad: ads[adIndex] });
-        adIndex++;
-      }
-    });
-    return items;
+    return filterByVisibility(filtered);
   })();
 
   const tabBarHeight = 50 + (insets.bottom || 0);
@@ -1042,16 +947,13 @@ export default function FeedScreen({ navigation }: any) {
       {/* Feed */}
       <FlatList
         ref={flatListRef}
-        data={feedItems}
+        data={displayPosts}
         keyExtractor={item => item.id}
         ListHeaderComponent={(activeTab === 'For You' || activeTab === 'Black94') ? <StoriesRow navigation={navigation} /> : null}
         renderItem={({ item }) => {
-          if (item.type === 'ad') {
-            return <AdCard ad={item.ad} />;
-          }
           return (
             <PostCard
-              post={item.post}
+              post={item}
               onLike={handleLike}
               onBookmark={handleBookmark}
               onDelete={handleDelete}
@@ -1350,6 +1252,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
+<<<<<<< HEAD
   /* ── Skeleton ── */
   skeletonAvatar: {
     width: 44, height: 44, borderRadius: 22,
@@ -1364,6 +1267,9 @@ const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 17,
     backgroundColor: colors.bgInput,
   },
+=======
+  /* ── Skeleton removed — uses shared FeedSkeleton from SkeletonLoader.tsx ── */
+>>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
 
   /* ── Load more indicator ── */
   loadMoreIndicator: {
@@ -1387,6 +1293,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
+<<<<<<< HEAD
   /* ── Ad Card ── */
   adCard: {
     backgroundColor: colors.bg,
@@ -1451,6 +1358,8 @@ const styles = StyleSheet.create({
     fontSize: fs(11),
     marginTop: scale(6),
   },
+=======
+>>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
 
   /* ── Inline Poll ── */
   pollCard: {

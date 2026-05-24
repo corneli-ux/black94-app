@@ -314,8 +314,8 @@ async function _firestoreFetch(
     if (__DEV__) console.error(`[Firestore] Full error response: ${respText.slice(0, 500)}`);
     // If it's a composite index error, include helpful info
     if (data.error?.message?.includes('FAILED_PRECONDITION') || errMsg.includes('index')) {
-      console.error(`[Firestore] COMPOSITE INDEX NEEDED for query on path: ${path}`);
-      console.error(`[Firestore] Create index at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
+      if (__DEV__) console.error(`[Firestore] COMPOSITE INDEX NEEDED for query on path: ${path}`);
+      if (__DEV__) console.error(`[Firestore] Create index at: https://console.firebase.google.com/project/${PROJECT_ID}/firestore/indexes`);
       // Return empty result with a special flag so callers can detect this.
       // This is intentionally allowed in production too — callers (FeedScreen, etc.)
       // check the _missingIndex flag and fall back to individual reads.
@@ -400,6 +400,7 @@ function _parseFields(data: Record<string, any>): {
   const transforms: any[] = [];
 
   for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) continue;
     if (
       value &&
       typeof value === 'object' &&

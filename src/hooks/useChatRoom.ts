@@ -196,6 +196,10 @@ export function useChatRoom({
           }
         } catch (e) {
           console.error('[ChatRoom] Failed to fetch chat:', e);
+        } finally {
+          // BUG FIX: Always stop loading — if chat fetch fails or chat doesn't exist,
+          // user was stuck on infinite ActivityIndicator forever.
+          setLoading(false);
         }
       };
       fetchChat();
@@ -211,21 +215,30 @@ export function useChatRoom({
         const field = isUser1 ? 'unreadUser1' : 'unreadUser2';
         await firestore().collection('chats').doc(chat.id).update({ [field]: 0 });
 
+        // BUG FIX: Composite query (senderId + status) requires a composite index
+        // that may not exist. Fall back to single-where query + client-side filter
+        // (same pattern as ChatListScreen.createOrOpenChat) to avoid silent failures.
         try {
           const otherSenderId = isUser1 ? chat.user2Id : chat.user1Id;
           if (otherSenderId) {
+            // Use single-where query (no composite index needed)
             const msgSnap = await firestore()
               .collection('chats').doc(chat.id).collection('messages')
               .where('senderId', '==', otherSenderId)
-              .where('status', 'in', ['sent', 'delivered'])
               .limit(100)
               .get();
-            if (!msgSnap.empty) {
-              const batch = firestore().batch();
-              msgSnap.docs.forEach(doc => {
-                batch.update(doc.ref, { status: 'read' });
-              });
-              await batch.commit();
+            // Client-side filter for unread statuses
+            const unreadDocs = msgSnap.docs.filter((doc: any) => {
+              const status = doc.data()?.status;
+              return status === 'sent' || status === 'delivered';
+            });
+            if (unreadDocs.length > 0) {
+              // Use sequential updates instead of batch (more reliable with REST wrapper)
+              await Promise.allSettled(
+                unreadDocs.map((doc: any) =>
+                  doc.ref.update({ status: 'read' })
+                )
+              );
             }
           }
         } catch { /* non-critical */ }
@@ -277,22 +290,28 @@ export function useChatRoom({
     const content = text.trim();
     setText('');
     setSending(true);
-    setReplyTo(null); // Clear reply context immediately
+    // BUG FIX: Capture replyTo BEFORE clearing it — the old code cleared replyTo
+    // first, then read from it (always getting null), so reply context was lost.
+    const replyContext = replyTo ? {
+      replyToId: replyTo.id,
+      replyToContent: replyTo.content,
+      replyToSenderName: replyTo.senderId === currentUser?.uid
+        ? 'You'
+        : (chat?.otherUser?.displayName || 'User'),
+    } : undefined;
+    setReplyTo(null);
     const tempMsg: Message = {
       id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, chatId: chat.id,
       senderId: currentUser?.uid || '', receiverId: chat.otherUser?.id || '',
       content, messageType: 'text', createdAt: Date.now(),
+      replyToId: replyContext?.replyToId,
+      replyToContent: replyContext?.replyToContent,
+      replyToSenderName: replyContext?.replyToSenderName,
     };
     setMessages(prev => [...prev, tempMsg]);
     setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
     try {
-      const result = await sendMessage(chat.id, chat.otherUser?.id || '', content, {
-        replyToId: replyTo?.id || undefined,
-        replyToContent: replyTo?.content || undefined,
-        replyToSenderName: replyTo?.senderId === currentUser?.uid
-          ? 'You'
-          : (chat?.otherUser?.displayName || 'User'),
-      });
+      const result = await sendMessage(chat.id, chat.otherUser?.id || '', content, replyContext);
       // BUG FIX: Check sendMessage return value — blocked messages appear sent
       if (result && !result.sent) {
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
@@ -444,6 +463,7 @@ export function useChatRoom({
       try {
         const uploadResult = await uploadOptimizedImage(uri, storagePath, {
           mimeType: 'audio/mp4',
+          skipImageValidation: true,
         });
         audioUrl = uploadResult.downloadUrl;
       } catch (uploadErr) {
@@ -530,24 +550,28 @@ export function useChatRoom({
   // ── Reaction handler ─────────────────────────────────────────────────────
 
   const handleReaction = async (emoji: string) => {
-    if (!reactionMsg) return;
-    const targetMsg = reactionMsg; // capture for rollback
+    if (!reactionMsg || !currentUser?.uid) return;
+    const targetMsg = reactionMsg;
     try {
+      // Read current reactions first (dot-notation not supported by REST wrapper)
+      const msgSnap = await firestore()
+        .collection('chats').doc(chat.id)
+        .collection('messages').doc(reactionMsg.id)
+        .get();
+      const currentReactions = (msgSnap.exists ? msgSnap.data()?.reactions : null) || {};
       await firestore()
         .collection('chats').doc(chat.id)
         .collection('messages').doc(reactionMsg.id)
         .update({
-          [`reactions.${currentUser?.uid}`]: emoji,
+          reactions: { ...currentReactions, [currentUser.uid]: emoji },
         });
-      // Optimistically update local state
       setMessages(prev => prev.map(m =>
         m.id === targetMsg.id
-          ? { ...m, reactions: { ...m.reactions, [currentUser?.uid || '']: emoji } }
+          ? { ...m, reactions: { ...m.reactions, [currentUser.uid]: emoji } }
           : m
       ));
     } catch (e) {
       console.warn('[Chat] Reaction failed:', e?.message || e);
-      // No rollback needed — the UI shows picker state, not a local reaction
     }
     setReactionMsg(null);
   };

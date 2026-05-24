@@ -73,7 +73,7 @@ export default function GroupInfoScreen() {
         id: chatSnap.id,
         groupName: data.groupName || 'Unnamed Group',
         groupImage: typeof data.groupImage === 'string' ? data.groupImage : null,
-        participants: data.participants || [],
+        participants: data.members || data.participants || [],
         createdBy: data.createdBy || '',
         isGroup: data.isGroup || false,
         description: data.description || '',
@@ -181,17 +181,17 @@ export default function GroupInfoScreen() {
             ),
           );
         } catch {}
-        navigation.navigate('ChatList' as never);
+        navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages' } });
       } else {
-        // Regular member leaving — remove from participants
+        // Regular member leaving — remove from members
         const updatedParticipants = (chatData.participants || []).filter(
           (uid: string) => uid !== currentUserId,
         );
         await firestore().collection('chats').doc(chatId).update({
-          participants: updatedParticipants,
+          members: updatedParticipants,
         });
         // Go back to chat list
-        navigation.navigate('ChatList' as never);
+        navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages' } });
       }
     } catch (e: any) {
       if (__DEV__) console.error('[GroupInfo] Leave failed:', e?.message);
@@ -224,7 +224,7 @@ export default function GroupInfoScreen() {
         (uid: string) => uid !== memberId,
       );
       await firestore().collection('chats').doc(chatId).update({
-        participants: updatedParticipants,
+        members: updatedParticipants,
       });
       // Update local state
       setChatData({ ...chatData, participants: updatedParticipants });

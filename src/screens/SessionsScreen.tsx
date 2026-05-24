@@ -102,7 +102,9 @@ export default function SessionsScreen() {
   const formatLastActive = (timestamp: any): string => {
     if (!timestamp) return 'Unknown';
     try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const date = typeof timestamp === 'string' || typeof timestamp === 'number'
+        ? new Date(timestamp)
+        : new Date(timestamp);
       const now = new Date();
       const diffMs = now.getTime() - date.getTime();
       const diffMins = Math.floor(diffMs / 60000);

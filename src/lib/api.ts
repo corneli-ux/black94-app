@@ -2077,23 +2077,6 @@ export async function addPostComment(postId: string, content: string, replyToId?
   };
 }
 
-/* ── Ad Campaigns ─────────────────────────────────────────────────────────── */
-
-export async function fetchActiveAdCampaigns(limit: number = 5): Promise<any[]> {
-  try {
-    const snapshot = await firestore()
-      .collection('adCampaigns')
-      .where('status', '==', 'active')
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .get();
-    return snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-  } catch (e) {
-    console.warn('[Ads] Failed to fetch active ad campaigns:', e);
-    return [];
-  }
-}
-
 /* ── Comment Like Toggle ─────────────────────────────────────────────────── */
 
 /**
@@ -2532,116 +2515,6 @@ export async function searchByHashtag(tag: string): Promise<Post[]> {
   }
 }
 
-/* ── Cart ───────────────────────────────────────────────────────────────────── */
-
-export interface CartItem {
-  productId: string;
-  quantity: number;
-  addedAt: number;
-  name: string;
-  price: number;
-  comparePrice?: number;
-  image: string;
-  ownerName: string;
-}
-
-
-export async function fetchCart(userId: string): Promise<CartItem[]> {
-  try {
-    const snapshot = await firestore()
-      .collection('users')
-      .doc(userId)
-      .collection('cart')
-      .get();
-
-    if (snapshot.empty) return [];
-
-    const cartItems: CartItem[] = [];
-
-    for (const docSnap of snapshot.docs) {
-      const cartData = docSnap.data();
-      const productId = cartData.productId || docSnap.id;
-
-      try {
-        const productSnap = await firestore().collection('products').doc(productId).get();
-        if (!productSnap.exists) continue;
-        const productData = productSnap.data();
-
-        let productImage = '';
-        try {
-          const imgs = typeof productData.images === 'string'
-            ? JSON.parse(productData.images)
-            : productData.images;
-          if (Array.isArray(imgs) && imgs.length > 0) productImage = imgs[0];
-        } catch {}
-
-        let ownerName = '';
-        try {
-          if (productData.ownerId) {
-            const ownerSnap = await firestore().collection('users').doc(productData.ownerId).get();
-            if (ownerSnap.exists) {
-              ownerName = ownerSnap.data()?.displayName || ownerSnap.data()?.businessName || '';
-            }
-          }
-        } catch {}
-
-        cartItems.push({
-          productId,
-          quantity: cartData.quantity || 1,
-          addedAt: (() => { try { return tsToMillis(cartData.addedAt); } catch { return Date.now(); } })(),
-          name: productData.name || 'Unknown Product',
-          price: productData.price || 0,
-          comparePrice: productData.compareAtPrice || undefined,
-          image: productImage,
-          ownerName,
-        });
-      } catch (e) {
-        console.warn('[Cart] Failed to fetch product:', productId, e);
-      }
-    }
-
-    cartItems.sort((a, b) => b.addedAt - a.addedAt);
-    return cartItems;
-  } catch (e) {
-    console.error('[Cart] Failed to fetch cart:', e);
-    return [];
-  }
-}
-
-export async function updateCartItemQuantity(userId: string, productId: string, quantity: number): Promise<void> {
-  const currentUid = currentUser()?.uid;
-  if (!currentUid || currentUid !== userId) throw new Error('Not authenticated');
-  if (quantity <= 0) {
-    await removeFromCart(userId, productId);
-    return;
-  }
-  try {
-    await firestore()
-      .collection('users')
-      .doc(userId)
-      .collection('cart')
-      .doc(productId)
-      .update({ quantity });
-  } catch (e) {
-    console.warn('[Cart] Failed to update cart item quantity:', e);
-  }
-}
-
-export async function removeFromCart(userId: string, productId: string): Promise<void> {
-  const currentUid = currentUser()?.uid;
-  if (!currentUid || currentUid !== userId) throw new Error('Not authenticated');
-  try {
-    await firestore()
-      .collection('users')
-      .doc(userId)
-      .collection('cart')
-      .doc(productId)
-      .delete();
-  } catch (e) {
-    console.warn('[Cart] Failed to remove cart item:', e);
-  }
-}
-
 /* ── Fact-Checking System ──────────────────────────────────────────────────────── */
 
 /**
@@ -2795,62 +2668,6 @@ export async function fetchPostFactChecks(postId: string): Promise<FactCheckClai
     });
   } catch (e) {
     console.error('[FactCheck] Failed to fetch:', e);
-    return [];
-  }
-}
-
-/* ── Product Reviews ─────────────────────────────────────────────────────── */
-
-export async function submitProductReview(
-  productId: string,
-  rating: number,
-  text: string,
-): Promise<void> {
-  const userId = currentUser()?.uid;
-  if (!userId) throw new Error('Not authenticated');
-
-  const userDoc = await firestore().collection('users').doc(userId).get();
-  const userData = userDoc.exists ? userDoc.data() : null;
-
-  await firestore().collection('product_reviews').add({
-    productId,
-    userId,
-    username: userData?.username || '',
-    displayName: userData?.displayName || 'User',
-    profileImage: userData?.profileImage || null,
-    rating,
-    text: text.trim(),
-    createdAt: firestore.FieldValue.serverTimestamp(),
-  });
-
-  // Update product's average rating
-  const reviewsSnap = await firestore()
-    .collection('product_reviews')
-    .where('productId', '==', productId)
-    .get();
-
-  const reviews = reviewsSnap.docs.map(d => d.data());
-  const avgRating = reviews.length > 0
-    ? reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / reviews.length
-    : 0;
-
-  await firestore().collection('products').doc(productId).update({
-    averageRating: Math.round(avgRating * 10) / 10,
-    reviewCount: reviews.length,
-  });
-}
-
-export async function fetchProductReviews(productId: string): Promise<any[]> {
-  try {
-    const snap = await firestore()
-      .collection('product_reviews')
-      .where('productId', '==', productId)
-      .orderBy('createdAt', 'desc')
-      .limit(20)
-      .get();
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch (e) {
-    console.error('[Reviews] Failed to fetch:', e);
     return [];
   }
 }

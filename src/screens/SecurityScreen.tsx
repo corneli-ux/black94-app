@@ -6,9 +6,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import Constants from 'expo-constants';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
-import { auth, firestore } from '../lib/firebase';
+import { auth, getValidToken } from '../lib/firebase';
 
 export default function SecurityScreen() {
   const navigation = useNavigation<any>();
@@ -20,50 +21,72 @@ export default function SecurityScreen() {
   const [showNext, setShowNext] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const currentUser = auth().currentUser;
+
   const handleChangePassword = async () => {
     if (!current || !next || !confirm) { Alert.alert('All fields required'); return; }
     if (next !== confirm) { Alert.alert('Passwords do not match'); return; }
     if (next.length < 8) { Alert.alert('Password must be at least 8 characters'); return; }
+
+    const email = currentUser?.email;
+    if (!email) {
+      Alert.alert('Error', 'No email associated with this account.');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Password change requires re-authentication — not available via REST API.
-      // Delegate to a Cloud Function for server-side password update.
-      const API_KEY = (await import('expo-constants')).default.expoConfig?.extra?.firebaseApiKey;
-      const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          idToken: await (await import('../lib/firebase')).getValidToken(),
-          password: next,
-          returnSecureToken: true,
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) {
-        const errMsg = data.error?.message || 'Unknown error';
-        if (errMsg.includes('WEAK_PASSWORD')) Alert.alert('Weak Password', 'Password is too weak or commonly used.');
-        else if (errMsg.includes('CREDENTIAL_TOO_OLD')) Alert.alert('Re-login Required', 'Please sign out and sign in again before changing your password.');
-        else Alert.alert('Error', errMsg);
-      } else {
-        setCurrent(''); setNext(''); setConfirm('');
-        Alert.alert('Password Changed', 'Your password has been updated successfully.');
+      // Step 1: Reauthenticate via Identity Toolkit signInWithPassword
+      const apiKey = Constants.expoConfig?.extra?.firebaseApiKey as string || '';
+      const signInResp = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: current, returnSecureToken: true }),
+        },
+      );
+      const signInData = await signInResp.json();
+      if (!signInResp.ok) {
+        const errMsg = signInData.error?.message || 'Authentication failed';
+        if (errMsg.includes('INVALID_PASSWORD') || errMsg.includes('wrong password')) {
+          Alert.alert('Incorrect Password', 'Current password is wrong.');
+        } else {
+          Alert.alert('Error', errMsg);
+        }
+        return;
       }
+
+      // Step 2: Update password via Identity Toolkit accounts:update
+      const idToken = signInData.idToken;
+      const updateResp = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken, password: next, returnSecureToken: true }),
+        },
+      );
+      const updateData = await updateResp.json();
+      if (!updateResp.ok) {
+        Alert.alert('Error', updateData.error?.message || 'Could not update password.');
+        return;
+      }
+
+      setCurrent(''); setNext(''); setConfirm('');
+      Alert.alert('Password Changed', 'Your password has been updated successfully.');
     } catch {
       Alert.alert('Error', 'Could not update password. Try again.');
     } finally { setLoading(false); }
   };
 
-  const handleDeleteAccount = async () => {
+  const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
       'This permanently deletes your account, posts, and all data. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => Alert.alert('Contact Support', 'To delete your account, use "Delete Account" in Settings which handles the full cleanup.'),
-        },
+        { text: 'Delete', style: 'destructive', onPress: () => navigation.navigate('Settings' as any) },
       ],
     );
   };
@@ -85,7 +108,7 @@ export default function SecurityScreen() {
           <View style={styles.card}>
             <View style={styles.emailRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowLabel}>{user?.email}</Text>
+                <Text style={styles.rowLabel}>{user?.email || currentUser?.email}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                   <Ionicons name="checkmark-circle" size={14} color={colors.accentGreen} />
                   <Text style={[styles.rowSub, { color: colors.accentGreen }]}>

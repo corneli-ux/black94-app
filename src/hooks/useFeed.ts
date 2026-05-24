@@ -21,7 +21,6 @@ export interface UseFeedReturn {
   refreshing: boolean;
   activeTab: Tab;
   setActiveTab: (tab: Tab) => void;
-  ads: any[];
   followedUserIds: Set<string>;
 
   // Actions
@@ -55,7 +54,6 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   const [loadingMore, setLoadingMore] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('Black94');
-  const [ads, setAds] = useState<any[]>([]);
   const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(new Set());
   const currentUser = auth()?.currentUser;
   const flatListRef = useRef<FlatList>(null);
@@ -404,30 +402,15 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
     }
   }, [currentUser?.uid, loadingMore, allLoaded, attachRealtimeListener, activeTab, docToPost, enrichPostsInBackground]);
 
-  // ── Fetch active ad campaigns (deferred 2s so feed loads first) ───────
+  // ── Load followed user IDs for Network tab (deferred) ────────────────
+  // PERF: Only load followed users when the Network tab is actually selected.
+  // Previously this fired a Firestore collection scan on every mount, even if
+  // the user never visits the Network tab. For users following 1000+ people,
+  // this collection read could take 500ms+.
+  const followedLoadedRef = useRef(false);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      (async () => {
-        try {
-          const adSnap = await firestore()
-            .collection('adCampaigns')
-            .where('status', '==', 'active')
-            .limit(5)
-            .get();
-          const adList = adSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-          setAds(adList);
-          if (__DEV__) console.log(`[Ads] Loaded ${adList.length} active campaigns`);
-        } catch (e) {
-          console.warn('[Ads] Failed to fetch ad campaigns:', e);
-        }
-      })();
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // ── Load followed user IDs for Network tab ────────────────────────────
-  useEffect(() => {
-    if (!currentUser?.uid) return;
+    if (activeTab !== 'Network' || !currentUser?.uid || followedLoadedRef.current) return;
+    followedLoadedRef.current = true;
     (async () => {
       try {
         const snap = await firestore()
@@ -442,7 +425,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
         console.warn('[Feed] Failed to load followed users:', e);
       }
     })();
-  }, [currentUser?.uid]);
+  }, [activeTab, currentUser?.uid]);
 
   // ── Load feed on mount ────────────────────────────────────────────────
   const hasMountedRef = useRef(false);
@@ -667,7 +650,6 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
     refreshing,
     activeTab,
     setActiveTab,
-    ads,
     followedUserIds,
 
     // Actions

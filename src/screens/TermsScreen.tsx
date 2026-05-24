@@ -53,8 +53,8 @@ export default function TermsScreen() {
             You retain ownership of the content you post on Black94. By posting content, you grant us a worldwide, non-exclusive, royalty-free license to use, reproduce, modify, adapt, publish, translate, distribute, and display such content in connection with providing and improving our Services. You represent and warrant that you own or control all rights to the content you post and that such content does not infringe upon the rights of any third party.
           </Section>
 
-          <Section title="6. Marketplace and Payments">
-            Black94 provides marketplace features that allow users to list products and services for sale. When you make a purchase through our Platform, you agree to pay all applicable charges, including product prices, shipping fees, and taxes. Payments are processed through our authorized payment gateway partners. We act as a platform facilitating transactions between buyers and sellers and are not a party to any sale. We do not guarantee the quality, safety, or legality of items listed, the accuracy of listings, or the ability of sellers to sell or buyers to pay.
+          <Section title="6. Payments">
+            Black94 offers premium subscription plans and in-app purchases that provide additional features and functionalities. Payments for subscriptions are processed through our authorized payment gateway partners. All applicable fees, including subscription charges and taxes, will be clearly displayed before you complete your purchase. By making a payment, you agree to the applicable pricing and terms. We do not store your payment card details on our servers; all payment information is handled securely by our payment partners.
           </Section>
 
           <Section title="7. Subscription and Premium Services">

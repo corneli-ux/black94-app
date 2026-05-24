@@ -166,11 +166,6 @@ export default function SettingsScreen() {
             <Text style={styles.infoValue}>{user?.email}</Text>
           </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Account Type</Text>
-            <Text style={styles.infoValue}>{user?.role || 'Personal'}</Text>
-          </View>
-
           {/* Save button moved here from header */}
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
             <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
@@ -244,7 +239,7 @@ export default function SettingsScreen() {
 
         {/* Account Management */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
+          <Text style={styles.sectionTitle}>Account Management</Text>
           <View style={styles.card}>
             <SettingsLink icon="link-outline" label="Linked Accounts" onPress={() => navigation.navigate('LinkedAccounts' as never)} />
             <SettingsLink icon="phone-portrait-outline" label="Active Sessions" onPress={() => navigation.navigate('Sessions' as never)} />
@@ -253,15 +248,13 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {user?.role === 'business' && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Business</Text>
+          <Text style={styles.sectionTitle}>Content</Text>
           <View style={styles.card}>
-            <SettingsLink icon="storefront" label="My Store" onPress={() => navigation.navigate('MyStore' as never)} />
             <SettingsLink icon="newspaper" label="Write Article" onPress={() => navigation.navigate('WriteArticle' as never)} />
+            <SettingsLink icon="bookmark-outline" label="Bookmarks" onPress={() => navigation.navigate('Bookmarks' as never)} />
           </View>
         </View>
-        )}
 
         {/* Legal — moved from drawer to settings */}
         <View style={styles.section}>
@@ -272,13 +265,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tools</Text>
-          <View style={styles.card}>
-            <SettingsLink icon="bar-chart" label="Business Dashboard" onPress={() => navigation.navigate('BusinessDashboard' as never)} />
-            <SettingsLink icon="megaphone" label="Ads Manager" onPress={() => navigation.navigate('AdsManager' as never)} />
-          </View>
-        </View>
+
 
         {/* Logout */}
         <View style={styles.section}>

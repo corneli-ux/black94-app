@@ -108,5 +108,7 @@ export async function createPaymentOrder(params: {
  * @returns { deleted: true } on success.
  */
 export async function deleteAccountServer(): Promise<{ deleted: boolean }> {
-  return callFunction('deleteAccount', {});
+  const uid = auth()?.currentUser?.uid;
+  if (!uid) throw new Error('Not authenticated');
+  return callFunction('deleteAccount', { uid });
 }

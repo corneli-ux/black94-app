@@ -56,12 +56,8 @@ export const PLANS: PaymentPlan[] = [
       'Early access to new features',
       'Ad revenue share (chat & DMs)',
       'Anonymous chat access',
-      '50 shop products',
-      '100 CRM leads',
       'Analytics dashboard',
       'Priority support',
-      'Paid ads access',
-      'Affiliate program',
     ],
   },
   {
@@ -72,9 +68,6 @@ export const PLANS: PaymentPlan[] = [
     duration: 'monthly',
     features: [
       'Everything in Premium',
-      'Unlimited shop products',
-      '500 CRM leads',
-      'Store & CRM dashboard',
       'Smart assistant tools',
       'Custom branding',
       'API access',
@@ -86,10 +79,10 @@ export const PLANS: PaymentPlan[] = [
 
 // ── Plan limits (for usage bars) ──────────────────────────────────────────
 
-export const PLAN_LIMITS: Record<string, { posts: number; stories: number; products: number; storage: number }> = {
-  free: { posts: 5, stories: 3, products: 0, storage: 50 },
-  premium: { posts: -1, stories: -1, products: 50, storage: 500 },
-  business: { posts: -1, stories: -1, products: 500, storage: 5000 },
+export const PLAN_LIMITS: Record<string, { posts: number; stories: number; storage: number }> = {
+  free: { posts: 5, stories: 3, storage: 50 },
+  premium: { posts: -1, stories: -1, storage: 500 },
+  business: { posts: -1, stories: -1, storage: 5000 },
 };
 
 /**
@@ -98,7 +91,7 @@ export const PLAN_LIMITS: Record<string, { posts: number; stories: number; produ
  */
 export async function checkPlanLimit(
   userId: string,
-  action: 'post' | 'story' | 'product',
+  action: 'post' | 'story',
 ): Promise<{ allowed: boolean; reason?: string }> {
   try {
     const userDoc = await firestore().collection('users').doc(userId).get();
@@ -107,9 +100,9 @@ export async function checkPlanLimit(
     const subscription = userDoc.data()?.subscription || 'free';
     const limits = PLAN_LIMITS[subscription] || PLAN_LIMITS.free;
     
-    if (limits[action] === -1) return { allowed: true }; // Unlimited
+    if ((limits as any)[action] === -1) return { allowed: true }; // Unlimited
     
-    const collectionMap = { post: 'posts', story: 'stories', product: 'products' };
+    const collectionMap = { post: 'posts', story: 'stories' };
     const collectionName = collectionMap[action];
     
     let query = firestore()
@@ -147,8 +140,8 @@ export async function checkPlanLimit(
       }).length;
     }
     
-    if (currentCount >= limits[action]) {
-      const actionLabels = { post: 'posts', story: 'stories', product: 'products' };
+    if (currentCount >= (limits as any)[action]) {
+      const actionLabels = { post: 'posts', story: 'stories' };
       return {
         allowed: false,
         reason: `Free accounts can create up to ${limits[action]} ${actionLabels[action]}. Upgrade to Premium for unlimited access.`,
@@ -183,7 +176,7 @@ export async function initiatePayment(
 
 /**
  * Returns a flat config object that the Razorpay WebView checkout module needs.
- * Used by PremiumDashboardScreen and CheckoutScreen to open the Razorpay modal.
+ * Used by PremiumDashboardScreen to open the Razorpay modal.
  */
 export function getRazorpayCheckoutConfig(options: InitiatePaymentOptions) {
   return {

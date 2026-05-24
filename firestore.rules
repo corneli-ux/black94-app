@@ -30,7 +30,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
     }
 
     // Post likes (composite ID: postId_userId)
@@ -62,7 +62,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
     }
 
     // Post comment subcollections (likes, reposts, bookmarks)
@@ -114,7 +114,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
     }
 
     // ── Chats & Messages ────────────────────────────────────────────────
@@ -135,7 +135,7 @@ service cloud.firestore {
     match /anonRooms/{roomId} {
       allow read: if true;
       allow create: if isAuthenticated();
-      allow update: if false;
+      allow update: if isAuthenticated();
       allow delete: if false;
     }
     match /anonRooms/{roomId}/anonMessages/{msgId} {
@@ -216,7 +216,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
     }
 
     // ── Subscriptions ───────────────────────────────────────────────────
@@ -370,7 +370,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
     }
     match /article_bookmarks/{id} {
       allow read: if isAuthenticated();
@@ -387,11 +387,11 @@ service cloud.firestore {
       allow delete: if isAuthenticated();
     }
 
-    // ── Affiliates ───────────────────────────────────────────────────────
+    // ── Affiliates (admin-only write for badge assignment) ────────────
     match /affiliates/{affiliateId} {
       allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
+      allow create: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow update: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
       allow delete: if false;
     }
 
