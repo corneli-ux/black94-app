@@ -391,7 +391,6 @@ export default function ChatListScreen({ navigation, route }: any) {
     </View>
   );
 
-<<<<<<< HEAD
   // Chat Ads tab content
   const renderChatAds = () => (
     <View style={styles.adsContainer}>
@@ -403,8 +402,7 @@ export default function ChatListScreen({ navigation, route }: any) {
     </View>
   );
 
-=======
->>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
+
   // Tab switcher
   const renderTabHeader = () => (
     <View style={styles.tabBar}>
@@ -417,17 +415,12 @@ export default function ChatListScreen({ navigation, route }: any) {
           <Ionicons
             name="chatbubble-outline"
             size={18}
-<<<<<<< HEAD
             color={activeTab === 'chat' ? colors.white : colors.textSecondary}
-=======
-            color="#FFFFFF"
->>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
           />
           <Text style={[styles.tabText, styles.tabTextActive]}>
             Chats
           </Text>
         </View>
-<<<<<<< HEAD
         {activeTab === 'chat' && <View style={styles.tabIndicator} />}
       </TouchableOpacity>
       <TouchableOpacity
@@ -449,9 +442,6 @@ export default function ChatListScreen({ navigation, route }: any) {
           </View>
         </View>
         {activeTab === 'ads' && <View style={styles.tabIndicator} />}
-=======
-        <View style={styles.tabIndicator} />
->>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
       </TouchableOpacity>
     </View>
   );
@@ -893,7 +883,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 3,
   },
-<<<<<<< HEAD
   newBadge: {
     backgroundColor: colors.bgInput,
     borderRadius: 10,
@@ -911,8 +900,6 @@ const styles = StyleSheet.create({
   newBadgeTextActive: {
     color: colors.white,
   },
-=======
->>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
 
   /* ── Search ── */
   searchContainer: {
@@ -1046,7 +1033,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-<<<<<<< HEAD
   /* ── Chat Ads ── */
   adsContainer: {
     flex: 1,
@@ -1063,8 +1049,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-=======
->>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
 
   /* ── Group Chat ── */
   createGroupBtn: {

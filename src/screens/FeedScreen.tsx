@@ -1252,7 +1252,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
-<<<<<<< HEAD
   /* ── Skeleton ── */
   skeletonAvatar: {
     width: 44, height: 44, borderRadius: 22,
@@ -1267,9 +1266,6 @@ const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 17,
     backgroundColor: colors.bgInput,
   },
-=======
-  /* ── Skeleton removed — uses shared FeedSkeleton from SkeletonLoader.tsx ── */
->>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
 
   /* ── Load more indicator ── */
   loadMoreIndicator: {
@@ -1293,7 +1289,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-<<<<<<< HEAD
   /* ── Ad Card ── */
   adCard: {
     backgroundColor: colors.bg,
@@ -1358,8 +1353,6 @@ const styles = StyleSheet.create({
     fontSize: fs(11),
     marginTop: scale(6),
   },
-=======
->>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
 
   /* ── Inline Poll ── */
   pollCard: {

@@ -446,7 +446,6 @@ const styles = StyleSheet.create({
   },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
   commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-<<<<<<< HEAD
   /* ── Ad Card (inline in comments) ── */
   adCard: {
     backgroundColor: colors.bg,
@@ -503,9 +502,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 6,
   },
-=======
-
->>>>>>> 4bc1b31bf2dd1e39dcc4859ec1aad80f93492b05
   /* Black themed input bar */
   inputBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
