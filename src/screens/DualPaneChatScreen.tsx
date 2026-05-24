@@ -231,22 +231,59 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           .limit(50)
           .get();
 
+        // E2EE FIX: Determine other user's ID for correct decryption.
+        // For own messages, nacl.box was called with (recipient_pk, sender_sk).
+        // To decrypt, nacl.box.open needs the recipient's public key.
+        const otherId = selectedChat
+          ? (selectedChat.user1Id === currentUserId ? selectedChat.user2Id : selectedChat.user1Id)
+          : '';
+
         // Decrypt all messages in parallel
         const msgs = await Promise.all(
           snap.docs.map(async (doc) => {
             const data = doc.data();
             const rawContent = data.content ?? '';
             const senderId = data.senderId ?? '';
+            const msgType = data.messageType ?? 'text';
+
+            // Recompute per-message decrypt UID (same logic as above)
+            const msgDecryptUid = (otherId && senderId === currentUserId) ? otherId : senderId;
 
             // Attempt E2E decryption; null = tampered → placeholder, NEVER raw ciphertext
             let content: string;
-            try {
-              const decrypted = await decryptMessage(rawContent, senderId);
-              content = decrypted ?? '[Unable to decrypt this message]';
-            } catch {
-              content = rawContent.startsWith('E2EE:')
-                ? '[Unable to decrypt this message]'
-                : rawContent;
+            if (msgType === 'image' || msgType === 'gif' || msgType === 'voice') {
+              content = rawContent;
+            } else {
+              try {
+                const decrypted = await decryptMessage(rawContent, msgDecryptUid);
+                content = decrypted ?? '[Unable to decrypt this message]';
+              } catch {
+                content = rawContent.startsWith('E2EE:')
+                  ? '[Unable to decrypt this message]'
+                  : rawContent;
+              }
+            }
+
+            // E2EE FIX: Decrypt replyToContent if encrypted
+            let replyToContent: string | undefined = data.replyToContent;
+            if (replyToContent && typeof replyToContent === 'string' && replyToContent.startsWith('E2EE:')) {
+              try {
+                const dec = await decryptMessage(replyToContent, msgDecryptUid);
+                replyToContent = dec ?? '[Encrypted reply]';
+              } catch {
+                replyToContent = '[Encrypted reply]';
+              }
+            }
+
+            // E2EE FIX: Decrypt mediaUrl if encrypted
+            let mediaUrl: string | null = data.mediaUrl ?? null;
+            if (mediaUrl && typeof mediaUrl === 'string' && mediaUrl.startsWith('E2EE:')) {
+              try {
+                const dec = await decryptMessage(mediaUrl, msgDecryptUid);
+                mediaUrl = dec ?? null;
+              } catch {
+                mediaUrl = null;
+              }
             }
 
             return {
@@ -256,9 +293,12 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
               receiverId: data.receiverId ?? '',
               content,
               messageType: data.messageType ?? 'text',
-              mediaUrl: data.mediaUrl ?? null,
+              mediaUrl,
               status: data.status ?? 'sent',
               createdAt: tsToISO(data.createdAt),
+              replyToId: data.replyToId,
+              replyToContent,
+              replyToSenderName: data.replyToSenderName,
             };
           }),
         );

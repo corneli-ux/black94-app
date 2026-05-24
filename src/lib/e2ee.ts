@@ -67,6 +67,7 @@ interface CachedPublicKey {
 let _localKeyPair: KeyPair | null = null;
 let _keyPairPromise: Promise<KeyPair> | null = null; // Deduplication gate
 const _publicKeyCache: Record<string, CachedPublicKey> = {};
+let _secureStoreFailed = false; // Track if SecureStore persistence failed
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    1. IDENTITY KEY MANAGEMENT — on-device only
@@ -138,6 +139,7 @@ async function _createOrLoadKeyPair(): Promise<KeyPair> {
     await SecureStore.setItemAsync(SK_KEY, bytesToBase64Url(keyPair.secretKey));
   } catch (e) {
     if (__DEV__) console.warn('[E2EE] Failed to persist key pair to SecureStore (non-fatal):', e);
+    _secureStoreFailed = true;
   }
   _localKeyPair = keyPair;
 
@@ -392,6 +394,15 @@ export async function isE2EEReady(recipientUid: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Check if the encryption keys are stored securely (SecureStore).
+ * If this returns true, keys are ephemeral (in-memory only) and will be
+ * lost on app restart. The caller should warn the user.
+ */
+export function isEphemeralKeys(): boolean {
+  return _secureStoreFailed && !!_localKeyPair;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════

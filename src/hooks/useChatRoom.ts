@@ -41,7 +41,7 @@ import { tsToMillis } from '../utils/datetime';
 // BUG FIX: Import initE2EE to ensure encryption keys are initialized
 // before fetchMessages calls decryptMessage. Without this, the first message
 // load after a cold start could fail decryption and show raw ciphertext.
-import { initE2EE } from '../lib/e2ee';
+import { initE2EE, isEphemeralKeys } from '../lib/e2ee';
 
 export interface UseChatRoomParams {
   routeChat: any;
@@ -110,7 +110,20 @@ export function useChatRoom({
   // on first encrypt/decrypt call if initE2EE fails.
   useEffect(() => {
     const uid = auth()?.currentUser?.uid;
-    if (uid) initE2EE(uid).catch(() => {});
+    if (uid) {
+      initE2EE(uid).catch(() => {});
+      // E2EE FIX: Warn user if keys are ephemeral (SecureStore failed).
+      // After restart, old messages will be undecryptable.
+      setTimeout(() => {
+        if (isEphemeralKeys()) {
+          Alert.alert(
+            'Security Notice',
+            'Your encryption keys could not be saved securely. If you restart the app, previous encrypted messages may not be readable. Please check your device security settings.',
+            [{ text: 'OK', style: 'default' }],
+          );
+        }
+      }, 1500); // Delay to not interrupt chat loading
+    }
   }, []);
 
   const [sending, setSending] = useState(false);
@@ -178,7 +191,10 @@ export function useChatRoom({
   const load = useCallback(async (silent = false) => {
     if (!chat || !chat.id) return;
     try {
-      const msgs = await fetchMessages(chat.id);
+      // E2EE FIX: Pass currentUserId + otherUserId so fetchMessages can
+      // correctly decrypt the sender's own messages (nacl.box requires the
+      // recipient's public key to decrypt a message you encrypted for them).
+      const msgs = await fetchMessages(chat.id, 50, currentUser?.uid, chat.otherUser?.id);
       if (silent) {
         const currentMessages = messagesRef.current;
         const serverIds = new Set(msgs.map(m => m.id));

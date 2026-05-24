@@ -1146,7 +1146,12 @@ export async function fetchChatList(): Promise<Chat[]> {
   return [];
 }
 
-export async function fetchMessages(chatId: string, limitCount = 50): Promise<Message[]> {
+export async function fetchMessages(
+  chatId: string,
+  limitCount = 50,
+  currentUserId?: string,
+  otherUserId?: string,
+): Promise<Message[]> {
   try {
     const snapshot = await firestore()
       .collection('chats')
@@ -1164,21 +1169,55 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
         const senderId = data.senderId || '';
         const msgType = data.messageType || 'text';
 
+        // E2EE FIX: For the sender's own messages, nacl.box was called with
+        // (recipient_pk, sender_sk). To decrypt, nacl.box.open needs the SAME
+        // shared secret, which requires (recipient_pk, sender_sk). If we pass
+        // sender's own public key, we get a DIFFERENT shared secret and
+        // decryption fails silently. Solution: when senderId === currentUserId,
+        // use otherUserId's public key instead.
+        const decryptUid = (currentUserId && otherUserId && senderId === currentUserId)
+          ? otherUserId
+          : senderId;
+
         // Attempt E2E decryption;
         // null = tampered/corrupted → show placeholder, NEVER raw ciphertext
         // string = decrypted plaintext OR legacy non-E2EE message
-        // Media messages (image/gif) are not encrypted — use content as-is
+        // Media messages (image/gif/voice) may have encrypted mediaUrl but content is empty
         let content: string;
-        if (msgType === 'image' || msgType === 'gif') {
+        if (msgType === 'image' || msgType === 'gif' || msgType === 'voice') {
           content = rawContent;
         } else {
           try {
-            const decrypted = await decryptMessage(rawContent, senderId);
+            const decrypted = await decryptMessage(rawContent, decryptUid);
             content = decrypted ?? '[Unable to decrypt this message]';
           } catch {
             content = rawContent.startsWith('E2EE:')
               ? '[Unable to decrypt this message]'
               : rawContent;
+          }
+        }
+
+        // E2EE FIX: Decrypt replyToContent if it was encrypted (E2EE: prefix).
+        // Previously stored as plaintext, leaking quoted message text.
+        let replyToContent: string | undefined = data.replyToContent;
+        if (replyToContent && typeof replyToContent === 'string' && replyToContent.startsWith('E2EE:')) {
+          try {
+            const dec = await decryptMessage(replyToContent, decryptUid);
+            replyToContent = dec ?? '[Encrypted reply]';
+          } catch {
+            replyToContent = '[Encrypted reply]';
+          }
+        }
+
+        // E2EE FIX: Decrypt mediaUrl if it was encrypted (E2EE: prefix).
+        // Previously stored as plaintext Firebase Storage URL, visible to admins.
+        let mediaUrl: string | null = data.mediaUrl || null;
+        if (mediaUrl && typeof mediaUrl === 'string' && mediaUrl.startsWith('E2EE:')) {
+          try {
+            const dec = await decryptMessage(mediaUrl, decryptUid);
+            mediaUrl = dec ?? null;
+          } catch {
+            mediaUrl = null;
           }
         }
 
@@ -1189,13 +1228,13 @@ export async function fetchMessages(chatId: string, limitCount = 50): Promise<Me
           receiverId: data.receiverId || '',
           content,
           messageType: data.messageType || 'text',
-          mediaUrl: data.mediaUrl || null,
+          mediaUrl,
           status: data.status || 'sent',
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
           reactions: data.reactions || undefined,
           voiceDuration: data.voiceDuration || undefined,
           replyToId: data.replyToId || undefined,
-          replyToContent: data.replyToContent || undefined,
+          replyToContent,
           replyToSenderName: data.replyToSenderName || undefined,
         };
       }),
@@ -1241,7 +1280,8 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   }
 
   // ── E2E Encryption: encrypt content before storing ──
-  // Skip encryption for media messages (image/gif/voice) — the payload is not plain text.
+  // Skip encryption for media message content (image/gif/voice) — the payload
+  // is not plain text (content is empty/placeholder; actual media is in mediaUrl).
   // If encryption fails (no key, error, etc.), send as plaintext with encrypted: false.
   let storedContent: string;
   let isEncrypted = true;
@@ -1265,6 +1305,30 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     }
   }
 
+  // ── E2EE FIX: Encrypt replyToContent to prevent quoted text leakage ──
+  // Previously stored as plaintext, leaking the original message text in Firestore.
+  // Encrypted replyToContent starts with E2EE: prefix; fetchMessages detects this.
+  let storedReplyToContent = replyToContent;
+  if (replyToContent) {
+    try {
+      const encReply = await encryptMessage(replyToContent, userId, receiverId);
+      if (encReply) storedReplyToContent = encReply;
+    } catch { /* non-critical — reply preview is informational */ }
+  }
+
+  // ── E2EE FIX: Encrypt mediaUrl to hide download URLs from Firebase admins ──
+  // Previously stored as plaintext Firebase Storage URLs, accessible to anyone
+  // with Firestore read access. Note: the actual media file in Storage remains
+  // unencrypted at rest — full media encryption requires encrypting the binary
+  // data before upload (future enhancement, similar to Signal's attachment keys).
+  let storedMediaUrl = mediaUrl;
+  if (mediaUrl) {
+    try {
+      const encUrl = await encryptMessage(mediaUrl, userId, receiverId);
+      if (encUrl) storedMediaUrl = encUrl;
+    } catch { /* non-critical — media will fail to display but message is intact */ }
+  }
+
   // STEP 1: Write the message to Firestore (core operation — must be awaited)
   await firestore().collection('chats').doc(chatId).collection('messages').add({
     chatId,
@@ -1272,14 +1336,14 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
     receiverId,
     content: storedContent,
     messageType: msgType,
-    mediaUrl,
+    mediaUrl: storedMediaUrl,
     status: 'sent',
     encrypted: isEncrypted,
     createdAt: firestore.FieldValue.serverTimestamp(),
     clientCreatedAt: Date.now(), // Ensures correct ordering before server timestamp resolves
     ...(voiceDuration ? { voiceDuration } : {}),
     ...(replyToId ? { replyToId } : {}),
-    ...(replyToContent ? { replyToContent } : {}),
+    ...(storedReplyToContent ? { replyToContent: storedReplyToContent } : {}),
     ...(replyToSenderName ? { replyToSenderName } : {}),
   });
 
