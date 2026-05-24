@@ -5,6 +5,7 @@ import { fetchMessages, sendMessage, blockUser, deleteMessage, Message } from '.
 import { auth, firestore } from '../lib/firebase';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadOptimizedImage } from '../utils/imageUpload';
+import { tsToMillis } from '../utils/datetime';
 
 export interface UseChatRoomParams {
   routeChat: any;
@@ -127,7 +128,7 @@ export function useChatRoom({
   messagesRef.current = messages;
 
   const load = useCallback(async (silent = false) => {
-    if (!chat) return;
+    if (!chat || !chat.id) return;
     try {
       const msgs = await fetchMessages(chat.id);
       if (silent) {
@@ -190,7 +191,7 @@ export function useChatRoom({
                   profileImage: d.profileImage || null, coverImage: d.coverImage || null,
                   role: d.role || 'personal', badge: d.badge || '',
                   subscription: d.subscription || 'free', isVerified: d.isVerified || false,
-                  createdAt: d.createdAt?.seconds ? d.createdAt.seconds * 1000 : Date.now(),
+                  createdAt: (() => { try { return tsToMillis(d.createdAt); } catch { return Date.now(); } })(),
                 };
               }
             } catch {}
@@ -199,7 +200,7 @@ export function useChatRoom({
               user1Id: data.user1Id,
               user2Id: data.user2Id,
               lastMessage: data.lastMessage || '',
-              lastMessageTime: data.lastMessageTime?.seconds ? data.lastMessageTime.seconds * 1000 : Date.now(),
+              lastMessageTime: (() => { try { return tsToMillis(data.lastMessageTime); } catch { return Date.now(); } })(),
               unreadCount: 0,
               otherUser,
             });
@@ -210,6 +211,15 @@ export function useChatRoom({
           // BUG FIX: Always stop loading — if chat fetch fails or chat doesn't exist,
           // user was stuck on infinite ActivityIndicator forever.
           setLoading(false);
+        }
+        // BUG FIX: If chat doc doesn't exist (deleted by other user, or invalid chatId),
+        // navigate back instead of leaving user on an infinite spinner screen.
+        // Check after the try/catch/finally since chat state is set inside try.
+        if (!chat && !routeChat) {
+          setTimeout(() => {
+            Alert.alert('Chat Not Found', 'This conversation may have been deleted.');
+            navigation.goBack();
+          }, 100);
         }
       };
       fetchChat();
@@ -225,6 +235,12 @@ export function useChatRoom({
     if (!chat) return;
     const resetUnread = async () => {
       try {
+        // BUG FIX: Guard against corrupted chat data — if user1Id/user2Id
+        // are missing (destroyed by old update() bug), skip reset entirely.
+        if (!chat.user1Id || !chat.user2Id || !chat.id) {
+          if (__DEV__) console.warn('[ChatRoom] Skipping unread reset — chat data corrupted:', { user1Id: chat.user1Id, user2Id: chat.user2Id, id: chat.id });
+          return;
+        }
         const isUser1 = chat.user1Id === currentUser?.uid;
         const field = isUser1 ? 'unreadUser1' : 'unreadUser2';
         await firestore().collection('chats').doc(chat.id).update({ [field]: 0 });
@@ -264,7 +280,7 @@ export function useChatRoom({
     // If resetUnread throws before its internal try/catch, it would crash
     // the app on some React Native configurations.
     resetUnread().catch(() => {});
-    load();
+    load().catch(() => {});
     // BUG FIX: Replaced listen() with simple load() polling.
     // The old listen() had TWO critical bugs:
     //   1. No .limit() — fetched ALL messages (could be 1000+), causing memory

@@ -24,11 +24,21 @@ class ChatErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    if (__DEV__) {
-      console.error('[ChatRoom] Render error caught by boundary:', error);
-      console.error('[ChatRoom] Component stack:', info.componentStack);
-    }
+    console.error('[ChatRoom] Render error caught by boundary:', error?.message || error);
+    console.error('[ChatRoom] Component stack:', info.componentStack);
   }
+
+  handleGoBack = () => {
+    this.setState({ hasError: false, error: null });
+    // Navigate back to chat list on error — user can't recover from a render crash
+    // by retrying in the same broken state. Going back and re-entering the chat
+    // gives a fresh mount cycle.
+    const navigation = (this.props as any)?._reactInternals?.memoizedProps?.navigation
+      || (this.props as any)?.children?.props?.navigation;
+    if (navigation?.goBack) {
+      navigation.goBack();
+    }
+  };
 
   render() {
     if (this.state.hasError) {
@@ -38,16 +48,25 @@ class ChatErrorBoundary extends Component<
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
             Something went wrong loading this chat
           </Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 8, textAlign: 'center' }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 18 }}>
             {this.state.error?.message || 'An unexpected error occurred'}
           </Text>
-          <TouchableOpacity
-            style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.white, borderRadius: 12 }}
-            onPress={() => this.setState({ hasError: false, error: null })}
-            activeOpacity={0.7}
-          >
-            <Text style={{ color: colors.primaryForeground, fontWeight: '700' }}>Try Again</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
+            <TouchableOpacity
+              style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.bgSubtle, borderRadius: 12, borderWidth: 1, borderColor: colors.borderSubtle }}
+              onPress={this.handleGoBack}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: colors.text, fontWeight: '600' }}>Go Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.white, borderRadius: 12 }}
+              onPress={() => this.setState({ hasError: false, error: null })}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: colors.primaryForeground, fontWeight: '700' }}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
