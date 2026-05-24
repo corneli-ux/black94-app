@@ -6,6 +6,10 @@ import { auth, firestore } from '../lib/firebase';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { tsToMillis } from '../utils/datetime';
+// BUG FIX: Import initE2EE to ensure encryption keys are initialized
+// before fetchMessages calls decryptMessage. Without this, the first message
+// load after a cold start could fail decryption and show raw ciphertext.
+import { initE2EE } from '../lib/e2ee';
 
 export interface UseChatRoomParams {
   routeChat: any;
@@ -65,6 +69,18 @@ export function useChatRoom({
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState(shareMessage || '');
   const [loading, setLoading] = useState(!routeChat);
+
+  // BUG FIX: Initialize E2EE key pair on hook mount. Without this, if the app
+  // was cold-started (auth restored from AsyncStorage but E2EE keys weren't),
+  // the first fetchMessages() call would fail decryption for all E2EE messages,
+  // showing raw ciphertext or "[Unable to decrypt this message]" placeholders.
+  // Non-blocking: fire-and-forget, keys will be generated lazily by getMyKeyPair()
+  // on first encrypt/decrypt call if initE2EE fails.
+  useEffect(() => {
+    const uid = auth()?.currentUser?.uid;
+    if (uid) initE2EE(uid).catch(() => {});
+  }, []);
+
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -175,9 +191,11 @@ export function useChatRoom({
   useEffect(() => {
     if (routeChatId && !routeChat) {
       const fetchChat = async () => {
+        let chatFound = false;
         try {
           const chatDoc = await firestore().collection('chats').doc(routeChatId).get();
           if (chatDoc.exists) {
+            chatFound = true;
             const data = chatDoc.data();
             const otherId = data.user1Id === currentUser?.uid ? data.user2Id : data.user1Id;
             let otherUser: any = null;
@@ -212,10 +230,14 @@ export function useChatRoom({
           // user was stuck on infinite ActivityIndicator forever.
           setLoading(false);
         }
-        // BUG FIX: If chat doc doesn't exist (deleted by other user, or invalid chatId),
-        // navigate back instead of leaving user on an infinite spinner screen.
-        // Check after the try/catch/finally since chat state is set inside try.
-        if (!chat && !routeChat) {
+        // BUG FIX (STALE CLOSURE): The original code checked `if (!chat && !routeChat)`
+        // here which ALWAYS evaluated to `true` because `chat` is the stale closure
+        // value (null), even though `setChat()` was called inside the try block above.
+        // React state updates are batched and closures capture the OLD state value.
+        // This caused a false "Chat Not Found" alert + goBack on EVERY chatId-based
+        // navigation (notifications, deep links), making them completely broken.
+        // FIX: Use a local boolean `chatFound` to track if the fetch succeeded.
+        if (!chatFound) {
           setTimeout(() => {
             Alert.alert('Chat Not Found', 'This conversation may have been deleted.');
             navigation.goBack();
@@ -459,7 +481,17 @@ export function useChatRoom({
 
   const handleOpenGifPicker = () => {
     setShowAttachMenu(false);
-    navigation.navigate('GifPicker');
+    // BUG FIX: Pass onSelect callback via route params so GifPickerScreen can
+    // deliver the selected GIF URL back to us. Previously, no callback was passed,
+    // so GifPickerScreen just called navigation.goBack() and the GIF was silently
+    // lost. The selectedGifUrl param was never set by GifPickerScreen.
+    navigation.navigate('GifPicker', {
+      onSelect: (gifUrl: string) => {
+        if (chat) {
+          sendMediaMessage(gifUrl, 'gif', '');
+        }
+      },
+    } as never);
   };
 
   // ── Voice recording (real recording with expo-av) ────────────────────

@@ -149,6 +149,14 @@ function ChatRoomContent({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const currentUser = auth()?.currentUser;
 
+  // BUG FIX: Define safeOtherUser BEFORE renderMessage to eliminate any potential
+  // temporal dead zone (TDZ) issues. Previously, renderMessage at line 152 referenced
+  // safeOtherUser which was defined at line 293 (after the early return). While
+  // this worked at runtime (renderMessage was only called after safeOtherUser was
+  // defined), some React Native JS engines could throw ReferenceError in certain
+  // concurrent rendering scenarios. Now safeOtherUser always has a valid value.
+  const safeOtherUser = chat?.otherUser || { displayName: 'Chat', username: '', profileImage: null };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isMine = item.senderId === currentUser?.uid;
     const msgType = item.messageType || 'text';
@@ -159,7 +167,7 @@ function ChatRoomContent({ route, navigation }: any) {
     if (item.deleted) {
       return (
         <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
-          {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
+          {!isMine && <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={28} />}
           <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs, styles.deletedBubble]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="ban-outline" size={14} color={isMine ? colors.overlayLight : colors.textMuted} />
@@ -287,10 +295,6 @@ function ChatRoomContent({ route, navigation }: any) {
       </View>
     );
   }
-
-  // BUG FIX: If chat exists but has no otherUser (fetch failed or corrupted),
-  // provide safe defaults instead of crashing when accessing .otherUser properties.
-  const safeOtherUser = chat.otherUser || { displayName: 'Chat', username: '', profileImage: null };
 
   return (
     <View style={[styles.safeArea]}>

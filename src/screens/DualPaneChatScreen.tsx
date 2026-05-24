@@ -429,7 +429,33 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
   }, [route.params?.selectedGifUrl, selectedChat?.id]);
 
   const handleOpenGifPicker = () => {
-    navigation.navigate('GifPicker');
+    // BUG FIX: Pass onSelect callback via route params so GifPickerScreen can
+    // deliver the selected GIF URL back. Previously no callback was passed,
+    // so selecting a GIF silently did nothing.
+    navigation.navigate('GifPicker', {
+      onSelect: (gifUrl: string) => {
+        if (!selectedChat) return;
+        const otherId = selectedChat.user1Id === currentUserId
+          ? selectedChat.user2Id
+          : selectedChat.user1Id;
+        const tempMsg: ChatMessage = {
+          id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          chatId: selectedChat.id,
+          senderId: currentUserId,
+          receiverId: otherId,
+          content: 'GIF',
+          messageType: 'gif',
+          mediaUrl: gifUrl,
+          status: 'sent',
+          createdAt: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, tempMsg]);
+        sendMessage(selectedChat.id, otherId, 'GIF', { messageType: 'gif', mediaUrl: gifUrl }).catch(() => {
+          setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+        });
+        setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 50);
+      },
+    } as never);
   };
 
   // ── Reaction handler ──────────────────────────────────────────────────
@@ -482,8 +508,8 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
         onPress={() => openChat(item.id)}
         activeOpacity={0.7}>
         <View style={styles.avatarBg}>
-          {item.otherUser?.profileImage ? (
-            <Image source={{ uri: item.otherUser.profileImage }} style={styles.avatar} />
+          {safeImageSource(item.otherUser?.profileImage) ? (
+            <Image source={safeImageSource(item.otherUser.profileImage)} style={styles.avatar} />
           ) : (
             <Text style={styles.avatarInitial}>
               {(item.otherUser?.displayName ?? 'U')[0].toUpperCase()}
