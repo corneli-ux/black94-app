@@ -7,7 +7,7 @@ import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis, parseMediaUrls, toggleRepost } from '../lib/api';
+import { tsToMillis, parseMediaUrls, toggleRepost, toggleLike } from '../lib/api';
 import { Post } from '../lib/api';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import CommentSheet from '../components/CommentSheet';
@@ -200,24 +200,15 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   }, []);
 
   const handleLike = async () => {
-    const next = !liked; setLiked(next); setLikeCount(c => c + (next ? 1 : -1));
+    if (!post || !post.id) return;
+    setLiked(!liked);
+    setLikeCount(prev => liked ? prev - 1 : prev + 1);
     try {
-      const uid = auth()?.currentUser?.uid; if (!uid) return;
-      if (next) {
-        await firestore().collection('post_likes').add({ postId: post.id, userId: uid, createdAt: firestore.FieldValue.serverTimestamp() });
-        await firestore().collection('posts').doc(post.id).update({ likeCount: firestore.FieldValue.increment(1) });
-      } else {
-        // BUG FIX: Use deterministic doc ID instead of composite query
-        // (postId + userId composite index may not exist). This avoids
-        // FAILED_PRECONDITION errors that silently break unlike.
-        const likeDocId = `${post.id}_${uid}`;
-        await firestore().collection('post_likes').doc(likeDocId).delete().catch(() => {});
-        await firestore().collection('posts').doc(post.id).update({ likeCount: firestore.FieldValue.increment(-1) });
-      }
-    } catch (e) {
-      // Revert optimistic state on failure
-      setLiked(!next);
-      setLikeCount(c => c + (next ? -1 : 1));
+      await toggleLike(post.id, liked);
+    } catch {
+      // Rollback on failure
+      setLiked(liked);
+      setLikeCount(prev => liked ? prev + 1 : prev - 1);
     }
   };
 

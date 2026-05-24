@@ -2133,7 +2133,7 @@ export async function toggleCommentLike(commentId: string, currentlyLiked: boole
     }
   } catch (e) {
     console.error('[Comments] Failed to toggle like:', e);
-    return currentlyLiked; // Return unchanged on error
+    throw e; // Let caller handle rollback
   }
 }
 

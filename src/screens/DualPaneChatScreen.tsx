@@ -60,6 +60,7 @@ interface ChatMessage {
   mediaUrl: string | null;
   status: string;
   createdAt: string;
+  reactions?: Record<string, string>;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -104,6 +105,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
   const [phoneTab, setPhoneTab] = useState<'list' | 'room'>('list');
   const [showNuclearConfirm, setShowNuclearConfirm] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  const [reactionMsg, setReactionMsg] = useState<ChatMessage | null>(null);
 
   const messagesEndRef = useRef<FlatList>(null);
   const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -419,6 +421,34 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
     navigation.navigate('GifPicker');
   };
 
+  // ── Reaction handler ──────────────────────────────────────────────────
+  const handleReaction = useCallback(async (emoji: string) => {
+    if (!reactionMsg || !selectedChatId) return;
+    const currentUserId = auth().currentUser?.uid;
+    if (!currentUserId) return;
+    const existingReaction = reactionMsg.reactions?.[currentUserId];
+    try {
+      if (existingReaction === emoji) {
+        await firestore().collection('chats').doc(selectedChatId).collection('messages').doc(reactionMsg.id).update({ [`reactions.${currentUserId}`]: firestore.FieldValue.delete() });
+        setMessages(prev => prev.map(m =>
+          m.id === reactionMsg.id
+            ? { ...m, reactions: { ...Object.fromEntries(Object.entries(m.reactions || {}).filter(([k]) => k !== currentUserId)) } }
+            : m
+        ));
+      } else {
+        await firestore().collection('chats').doc(selectedChatId).collection('messages').doc(reactionMsg.id).update({ [`reactions.${currentUserId}`]: emoji });
+        setMessages(prev => prev.map(m =>
+          m.id === reactionMsg.id
+            ? { ...m, reactions: { ...m.reactions, [currentUserId]: emoji } }
+            : m
+        ));
+      }
+    } catch (e) {
+      console.error('[DualPaneChat] Reaction failed:', e);
+    }
+    setReactionMsg(null);
+  }, [reactionMsg, selectedChatId]);
+
   // ── Render chat list item ──────────────────────────────────────────────
   const renderChatItem = ({ item }: { item: ChatItem }) => {
     const isSelected = item.id === selectedChatId;
@@ -450,34 +480,45 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isMine = item.senderId === currentUserId;
     const msgType = item.messageType || 'text';
+    const reactionEntries = item.reactions ? Object.values(item.reactions) as string[] : [];
     return (
       <View
         style={[styles.msgWrapper, isMine ? styles.msgMine : styles.msgTheirs]}>
-        <View
-          style={[
-            styles.msgBubble,
-            isMine ? styles.msgBubbleMine : styles.msgBubbleTheirs,
-          ]}>
-          {msgType === 'image' && item.mediaUrl ? (
-            <Image
-              source={{ uri: item.mediaUrl }}
-              style={{ width: 220, height: 220, borderRadius: 14, marginBottom: 4 }}
-              resizeMode="contain"
-            />
-          ) : null}
-          {msgType === 'gif' && item.mediaUrl ? (
-            <Image
-              source={{ uri: item.mediaUrl }}
-              style={{ width: 200, height: 160, borderRadius: 14, marginBottom: 4 }}
-              resizeMode="contain"
-            />
-          ) : null}
-          {item.content && msgType === 'text' ? (
-            <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
-              {item.content}
-            </Text>
-          ) : null}
-        </View>
+        <TouchableOpacity
+          onLongPress={() => setReactionMsg(item)}
+          activeOpacity={1}
+        >
+          <View
+            style={[
+              styles.msgBubble,
+              isMine ? styles.msgBubbleMine : styles.msgBubbleTheirs,
+            ]}>
+            {msgType === 'image' && item.mediaUrl ? (
+              <Image
+                source={{ uri: item.mediaUrl }}
+                style={{ width: 220, height: 220, borderRadius: 14, marginBottom: 4 }}
+                resizeMode="contain"
+              />
+            ) : null}
+            {msgType === 'gif' && item.mediaUrl ? (
+              <Image
+                source={{ uri: item.mediaUrl }}
+                style={{ width: 200, height: 160, borderRadius: 14, marginBottom: 4 }}
+                resizeMode="contain"
+              />
+            ) : null}
+            {item.content && msgType === 'text' ? (
+              <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
+                {item.content}
+              </Text>
+            ) : null}
+          </View>
+          {reactionEntries.length > 0 && (
+            <View style={styles.reactionBadge}>
+              <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
     );
   };
@@ -565,6 +606,24 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+
+        {/* Emoji Reaction Picker Modal */}
+        <Modal
+          visible={!!reactionMsg}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setReactionMsg(null)}
+        >
+          <TouchableOpacity style={styles.reactionModalOverlay} activeOpacity={1} onPress={() => setReactionMsg(null)}>
+            <View style={styles.reactionPicker}>
+              {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                <TouchableOpacity key={emoji} style={styles.reactionEmojiBtn} onPress={() => handleReaction(emoji)}>
+                  <Text style={styles.reactionEmoji}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {/* Nuclear Block Confirmation Modal */}
         <Modal
@@ -1009,4 +1068,40 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  // Reaction picker
+  reactionModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reactionPicker: {
+    flexDirection: 'row',
+    backgroundColor: '#1e293b',
+    borderRadius: 24,
+    padding: 8,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  reactionEmojiBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reactionEmoji: { fontSize: 28 },
+  reactionBadge: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  reactionText: { fontSize: 14 },
 });

@@ -95,11 +95,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
         <TouchableOpacity
           onLongPress={() => {
-            if (isMine) {
-              setContextMsg(item);
-            } else {
-              setReactionMsg(item);
-            }
+            setContextMsg(item);
           }}
           onPress={() => {
             if (msgType === 'text') setReplyTo(item);
@@ -439,7 +435,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         </View>
       </Modal>
 
-      {/* Message Context Menu (delete for me / everyone) — own messages only */}
+      {/* Message Context Menu — shows React + Reply for all, Delete only for own messages */}
       <Modal visible={!!contextMsg} transparent animationType="fade" onRequestClose={() => setContextMsg(null)}>
         <TouchableOpacity style={styles.reactionModalOverlay} activeOpacity={1} onPress={() => setContextMsg(null)}>
           <View style={styles.contextMenu}>
@@ -465,30 +461,34 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               <Ionicons name="return-down-left" size={20} color={colors.text} />
               <Text style={styles.contextMenuText}>Reply</Text>
             </TouchableOpacity>
-            <View style={styles.contextMenuDivider} />
-            <TouchableOpacity
-              style={[styles.contextMenuItem, { opacity: 0.7 }]}
-              onPress={() => handleDeleteMessage('me')}
-            >
-              <Ionicons name="trash-outline" size={20} color={colors.text} />
-              <Text style={styles.contextMenuText}>Delete for Me</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.contextMenuItem, { opacity: 0.9 }]}
-              onPress={() => {
-                Alert.alert(
-                  'Delete for Everyone',
-                  'This message will be deleted for all participants. This cannot be undone.',
-                  [
-                    { text: 'Cancel', style: 'cancel', onPress: () => setContextMsg(null) },
-                    { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMessage('everyone') },
-                  ],
-                );
-              }}
-            >
-              <Ionicons name="trash" size={20} color={colors.like} />
-              <Text style={[styles.contextMenuText, { color: colors.like }]}>Delete for Everyone</Text>
-            </TouchableOpacity>
+            {contextMsg?.senderId === currentUser?.uid && (
+              <>
+                <View style={styles.contextMenuDivider} />
+                <TouchableOpacity
+                  style={[styles.contextMenuItem, { opacity: 0.7 }]}
+                  onPress={() => handleDeleteMessage('me')}
+                >
+                  <Ionicons name="trash-outline" size={20} color={colors.text} />
+                  <Text style={styles.contextMenuText}>Delete for Me</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.contextMenuItem, { opacity: 0.9 }]}
+                  onPress={() => {
+                    Alert.alert(
+                      'Delete for Everyone',
+                      'This message will be deleted for all participants. This cannot be undone.',
+                      [
+                        { text: 'Cancel', style: 'cancel', onPress: () => setContextMsg(null) },
+                        { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMessage('everyone') },
+                      ],
+                    );
+                  }}
+                >
+                  <Ionicons name="trash" size={20} color={colors.like} />
+                  <Text style={[styles.contextMenuText, { color: colors.like }]}>Delete for Everyone</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </TouchableOpacity>
       </Modal>
