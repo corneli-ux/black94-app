@@ -157,7 +157,7 @@ export default function SettingsScreen() {
             <Text style={styles.infoLabel}>Username</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.infoValue}>@{user?.username}</Text>
-              <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+              <Ionicons name="chevron-forward" size={14} color={colors.accent} />
             </View>
           </TouchableOpacity>
 
@@ -308,9 +308,9 @@ export default function SettingsScreen() {
 function SettingsLink({ icon, label, onPress }: { icon: string; label: string; onPress?: () => void }) {
   return (
     <TouchableOpacity style={styles.linkItem} onPress={onPress} disabled={!onPress}>
-      <Ionicons name={icon as any} size={18} color={colors.textSecondary} />
+      <Ionicons name={icon as any} size={18} color={colors.accent} />
       <Text style={styles.linkText}>{label}</Text>
-      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+      <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
     </TouchableOpacity>
   );
 }
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
   infoLabel: { color: colors.textSecondary, fontSize: 14 },
   infoValue: { color: colors.text, fontSize: 14 },
   section: { paddingHorizontal: 16, marginTop: 8 },
-  sectionTitle: { color: colors.textMuted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
+  sectionTitle: { color: colors.accent, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 },
   card: {
     backgroundColor: colors.surface, borderRadius: 16,
     borderWidth: 1, borderColor: colors.border, overflow: 'hidden',

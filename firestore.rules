@@ -13,7 +13,25 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true;
       allow create: if isAuthenticated();
-      allow update: if isOwner(userId);
+      // SECURITY: Prevent users from granting themselves verification or roles.
+      // Users CAN clear/demote their own badges but CANNOT self-verify or
+      // self-promote. Only Cloud Functions (admin SDK) can grant verification.
+      //
+      // Blocked client actions:
+      //   - isVerified: false → true  (can only clear, not grant)
+      //   - badge: '' → 'gold'/'blue' (can only clear, not set)
+      //   - role: 'personal' → 'business'/'admin' (can only demote/clear)
+      //   - isAdmin: false → true (can only clear, never set)
+      // Allowed client actions:
+      //   - subscription: 'premium' → 'free' (cancel subscription)
+      //   - badge: 'gold' → '' (clear own badge on cancel)
+      //   - isVerified: true → false (clear verification on cancel)
+      //   - role: 'business' → '' (clear business role)
+      allow update: if isOwner(userId)
+        && !(request.resource.data.isVerified == true && (resource.data.isNull() || resource.data.isVerified != true))
+        && !(request.resource.data.badge in ['gold', 'blue', 'pro'] && (resource.data.isNull() || !(resource.data.badge in ['gold', 'blue', 'pro'])))
+        && !(request.resource.data.role in ['business', 'admin'] && (resource.data.isNull() || !(resource.data.role in ['business', 'admin'])))
+        && !(request.resource.data.isAdmin == true && (resource.data.isNull() || resource.data.isAdmin != true));
       allow delete: if isOwner(userId);
     }
 
@@ -476,6 +494,14 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Verification Requests ───────────────────────────────────────────
+    match /verification_requests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false;  // only admin/cloud function can process
       allow delete: if false;
     }
 

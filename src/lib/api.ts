@@ -403,18 +403,9 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
           updateFields.profileImage = preferCache
             ? (cachedProfile.profileImage || existingData?.profileImage || googlePhoto)
             : (existingData?.profileImage || cachedProfile?.profileImage || googlePhoto);
-          updateFields.role = preferCache
-            ? (cachedProfile.role || existingData?.role || 'personal')
-            : (existingData?.role || cachedProfile?.role || 'personal');
-          updateFields.badge = preferCache
-            ? (cachedProfile.badge || existingData?.badge || '')
-            : (existingData?.badge || cachedProfile?.badge || '');
-          updateFields.subscription = preferCache
-            ? (cachedProfile.subscription || existingData?.subscription || 'free')
-            : (existingData?.subscription || cachedProfile?.subscription || 'free');
-          updateFields.isVerified = preferCache
-            ? (cachedProfile.isVerified ?? existingData?.isVerified ?? false)
-            : (existingData?.isVerified ?? cachedProfile?.isVerified ?? false);
+          // NOTE: role, badge, subscription, isVerified are PROTECTED fields —
+          // only Cloud Functions (admin SDK) can write them. Self-heal must NOT
+          // touch these or Firestore rules will reject the entire update.
           if (!existingData?.createdAt) {
             updateFields.createdAt = cachedProfile?.createdAt
               ? { timestampValue: new Date(cachedProfile.createdAt).toISOString() }

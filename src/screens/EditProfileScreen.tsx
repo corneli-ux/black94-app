@@ -34,11 +34,32 @@ const ROLE_OPTIONS: { key: Role; label: string; description: string }[] = [
 const BIO_MAX_LENGTH = 160;
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
-// Lazy image picker (avoid crash if library not linked)
+// Lazy image picker with proper permission handling (avoid crash if library not linked)
 async function openImageLibrary() {
   try {
-    const { launchImageLibrary } = require('expo-image-picker');
-    const result = await launchImageLibrary({
+    const ImagePicker = require('expo-image-picker');
+
+    // Request media library permission BEFORE launching the picker.
+    // On Android 13+, launchImageLibrary may silently return empty/cancelled
+    // result without permissions, making it look like "upload not working".
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status === 'denied') {
+      Alert.alert(
+        'Photos Access Denied',
+        'BLACK94 needs access to your photos to select images. Please enable it in Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => ImagePicker.grantMediaLibraryPermissionsAsync() },
+        ],
+      );
+      return null;
+    }
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow photo library access to select images.');
+      return null;
+    }
+
+    const result = await ImagePicker.launchImageLibrary({
       mediaType: 'photo',
       // BUG FIX: Removed quality, maxWidth, maxHeight — picker-side JPEG
       // conversion was turning PNG transparency into black pixels.
@@ -264,6 +285,9 @@ export default function EditProfileScreen({ navigation }: any) {
         }
 
         // Update user profile
+        // NOTE: role, badge, isVerified, subscription are PROTECTED fields —
+        // only Cloud Functions (admin SDK) can change them. Do NOT include
+        // them here or Firestore rules will reject the update.
         await firestore().collection('users').doc(currentUid).update({
           displayName: displayName.trim(),
           displayNameLower: displayName.trim().toLowerCase(),
@@ -272,7 +296,6 @@ export default function EditProfileScreen({ navigation }: any) {
           bio: bio.trim(),
           profileImage: finalProfileImage,
           coverImage: finalCoverImage,
-          role,
           updatedAt: firestore.FieldValue.serverTimestamp(),
         });
 
@@ -305,64 +328,54 @@ export default function EditProfileScreen({ navigation }: any) {
         // when display name, username, or profile image changes. Without this,
         // the feed shows stale names/avatars until enrichment runs (which may
         // not happen for older posts already in the FlatList cache).
-        // This is a fire-and-forget background operation — don't block the UI.
+        //
+        // PERF: This is fire-and-forget and does NOT block the UI or the save.
+        // The enrichment layer (enrichAuthorProfiles) handles real-time updates
+        // — this batch update is only a fallback for posts loaded before enrichment.
+        // Limited to 50 posts + 50 comments to avoid slow Firestore reads.
         const nameChanged = displayName.trim() !== user?.displayName;
         const usernameChanged = username !== user?.username;
         const avatarChanged = finalProfileImage !== user?.profileImage;
         if (nameChanged || usernameChanged || avatarChanged) {
-          if (__DEV__) console.log(`[EditProfile] Author metadata changed — batch-updating posts and comments`);
-          const updateAuthorOnPosts = async () => {
-            try {
-              // Update all posts by this user
-              const postsSnap = await firestore()
-                .collection('posts')
-                .where('authorId', '==', currentUid)
-                .limit(500)
-                .get();
-              if (!postsSnap.empty) {
-                const BATCH_SIZE = 20;
-                for (let i = 0; i < postsSnap.docs.length; i += BATCH_SIZE) {
-                  const batch = postsSnap.docs.slice(i, i + BATCH_SIZE);
-                  await Promise.all(batch.map(doc => {
+          if (__DEV__) console.log(`[EditProfile] Author metadata changed — background-updating posts/comments`);
+          // Fire-and-forget — do NOT await. Use setTimeout(0) to ensure it
+          // runs AFTER the current call stack (so the Alert shows immediately).
+          setTimeout(() => {
+            (async () => {
+              try {
+                const postsSnap = await firestore()
+                  .collection('posts')
+                  .where('authorId', '==', currentUid)
+                  .limit(50)
+                  .get();
+                if (!postsSnap.empty) {
+                  await Promise.all(postsSnap.docs.map(doc => {
                     const updates: Record<string, any> = {};
                     if (nameChanged) updates.authorDisplayName = displayName.trim();
                     if (usernameChanged) updates.authorUsername = username;
                     if (avatarChanged) updates.authorProfileImage = finalProfileImage || null;
-                    return firestore().collection('posts').doc(doc.id).update(updates).catch((e: any) => {
-                      if (__DEV__) console.warn(`[EditProfile] Failed to update post ${doc.id}:`, e?.message);
-                    });
+                    return firestore().collection('posts').doc(doc.id).update(updates).catch(() => {});
                   }));
                 }
-                if (__DEV__) console.log(`[EditProfile] Updated ${postsSnap.docs.length} posts`);
-              }
-
-              // Update all comments by this user
-              const commentsSnap = await firestore()
-                .collection('post_comments')
-                .where('authorId', '==', currentUid)
-                .limit(500)
-                .get();
-              if (!commentsSnap.empty) {
-                const BATCH_SIZE = 20;
-                for (let i = 0; i < commentsSnap.docs.length; i += BATCH_SIZE) {
-                  const batch = commentsSnap.docs.slice(i, i + BATCH_SIZE);
-                  await Promise.all(batch.map(doc => {
+              } catch {}
+              try {
+                const commentsSnap = await firestore()
+                  .collection('post_comments')
+                  .where('authorId', '==', currentUid)
+                  .limit(50)
+                  .get();
+                if (!commentsSnap.empty) {
+                  await Promise.all(commentsSnap.docs.map(doc => {
                     const updates: Record<string, any> = {};
                     if (nameChanged) updates.authorDisplayName = displayName.trim();
                     if (usernameChanged) updates.authorUsername = username;
                     if (avatarChanged) updates.authorProfileImage = finalProfileImage || null;
-                    return firestore().collection('post_comments').doc(doc.id).update(updates).catch((e: any) => {
-                      if (__DEV__) console.warn(`[EditProfile] Failed to update comment ${doc.id}:`, e?.message);
-                    });
+                    return firestore().collection('post_comments').doc(doc.id).update(updates).catch(() => {});
                   }));
                 }
-                if (__DEV__) console.log(`[EditProfile] Updated ${commentsSnap.docs.length} comments`);
-              }
-            } catch (bgErr) {
-              if (__DEV__) console.warn('[EditProfile] Background post/comment update failed:', bgErr);
-            }
-          };
-          updateAuthorOnPosts();
+              } catch {}
+            })();
+          }, 0);
         }
 
         Alert.alert('Success', 'Profile updated successfully', [
