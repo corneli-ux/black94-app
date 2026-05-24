@@ -15,6 +15,7 @@ import { useChatRoom } from '../hooks/useChatRoom';
 // ─────────────────────────────────────────────────────────────────────────────
 class ChatErrorBoundary extends Component<
   { children: React.ReactNode },
+    navigation?: any;
   { hasError: boolean; error: Error | null }
 > {
   state = { hasError: false, error: null as Error | null };
@@ -30,14 +31,8 @@ class ChatErrorBoundary extends Component<
 
   handleGoBack = () => {
     this.setState({ hasError: false, error: null });
-    // Navigate back to chat list on error — user can't recover from a render crash
-    // by retrying in the same broken state. Going back and re-entering the chat
-    // gives a fresh mount cycle.
-    const navigation = (this.props as any)?._reactInternals?.memoizedProps?.navigation
-      || (this.props as any)?.children?.props?.navigation;
-    if (navigation?.goBack) {
-      navigation.goBack();
-    }
+    // Navigate back — use navigation passed directly as a prop (reliable, no _reactInternals hacks)
+    this.props.navigation?.goBack();
   };
 
   render() {
@@ -94,7 +89,7 @@ function formatTime(timestamp?: number | string): string {
 
 export default function ChatRoomScreen({ route, navigation }: any) {
   return (
-    <ChatErrorBoundary>
+    <ChatErrorBoundary navigation={navigation}>
       <ChatRoomContent route={route} navigation={navigation} />
     </ChatErrorBoundary>
   );
