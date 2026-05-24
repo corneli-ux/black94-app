@@ -28,6 +28,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { firestore, auth } from '../lib/firebase';
 import { fetchUserProfile, blockUser, sendMessage } from '../lib/api';
+
+// ── Safe image source helper ──────────────────────────────────────────────────
+// BUG FIX: Same as ChatRoomScreen — prevents Image crash on corrupted mediaUrl
+function safeImageSource(uri: string | null | undefined): { uri: string } | undefined {
+  if (typeof uri === 'string' && uri.startsWith('http')) {
+    return { uri };
+  }
+  return undefined;
+}
 import { decryptMessage } from '../lib/e2ee';
 import { colors } from '../theme/colors';
 
@@ -270,8 +279,10 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
     setLoadingMessages(true);
     loadMessages();
 
-    // Poll every 2 seconds for near-real-time chat
-    msgPollRef.current = setInterval(() => loadRef.current(), 2000);
+    // BUG FIX: Poll every 8s instead of 2s. Each poll does a Firestore query +
+    // E2EE decryption of up to 50 messages. 2s polling was causing excessive
+    // Firestore reads, battery drain, and potential request queueing issues.
+    msgPollRef.current = setInterval(() => loadRef.current(), 8000);
 
     return () => {
       if (msgPollRef.current) {
@@ -422,23 +433,36 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
   };
 
   // ── Reaction handler ──────────────────────────────────────────────────
+  // BUG FIX: Use read-then-update pattern (same as useChatRoom) instead of
+  // dot-notation update. Dot-notation updates via the REST wrapper PATCH
+  // with nested mapValues can accidentally overwrite sibling fields (e.g.,
+  // deleting other users' reactions when updating one user's reaction).
   const handleReaction = useCallback(async (emoji: string) => {
-    if (!reactionMsg || !selectedChatId) return;
+    const target = reactionMsg;
+    if (!target || !selectedChatId) return;
     const currentUserId = auth().currentUser?.uid;
     if (!currentUserId) return;
-    const existingReaction = reactionMsg.reactions?.[currentUserId];
+    const existingReaction = target.reactions?.[currentUserId];
     try {
       if (existingReaction === emoji) {
-        await firestore().collection('chats').doc(selectedChatId).collection('messages').doc(reactionMsg.id).update({ [`reactions.${currentUserId}`]: firestore.FieldValue.delete() });
+        // Remove reaction — read current, delete user's entry
+        const msgSnap = await firestore().collection('chats').doc(selectedChatId).collection('messages').doc(target.id).get();
+        const currentReactions = (msgSnap.exists ? msgSnap.data()?.reactions : null) || {};
+        delete currentReactions[currentUserId];
+        await firestore().collection('chats').doc(selectedChatId).collection('messages').doc(target.id).update({ reactions: currentReactions });
         setMessages(prev => prev.map(m =>
-          m.id === reactionMsg.id
+          m.id === target.id
             ? { ...m, reactions: { ...Object.fromEntries(Object.entries(m.reactions || {}).filter(([k]) => k !== currentUserId)) } }
             : m
         ));
       } else {
-        await firestore().collection('chats').doc(selectedChatId).collection('messages').doc(reactionMsg.id).update({ [`reactions.${currentUserId}`]: emoji });
+        // Add/update reaction — read current, merge new one
+        const msgSnap = await firestore().collection('chats').doc(selectedChatId).collection('messages').doc(target.id).get();
+        const currentReactions = (msgSnap.exists ? msgSnap.data()?.reactions : null) || {};
+        currentReactions[currentUserId] = emoji;
+        await firestore().collection('chats').doc(selectedChatId).collection('messages').doc(target.id).update({ reactions: currentReactions });
         setMessages(prev => prev.map(m =>
-          m.id === reactionMsg.id
+          m.id === target.id
             ? { ...m, reactions: { ...m.reactions, [currentUserId]: emoji } }
             : m
         ));
@@ -493,18 +517,20 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
               styles.msgBubble,
               isMine ? styles.msgBubbleMine : styles.msgBubbleTheirs,
             ]}>
-            {msgType === 'image' && item.mediaUrl ? (
+            {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
               <Image
-                source={{ uri: item.mediaUrl }}
+                source={safeImageSource(item.mediaUrl)}
                 style={{ width: 220, height: 220, borderRadius: 14, marginBottom: 4 }}
                 resizeMode="contain"
+                onError={() => {}}
               />
             ) : null}
-            {msgType === 'gif' && item.mediaUrl ? (
+            {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
               <Image
-                source={{ uri: item.mediaUrl }}
+                source={safeImageSource(item.mediaUrl)}
                 style={{ width: 200, height: 160, borderRadius: 14, marginBottom: 4 }}
                 resizeMode="contain"
+                onError={() => {}}
               />
             ) : null}
             {item.content && msgType === 'text' ? (

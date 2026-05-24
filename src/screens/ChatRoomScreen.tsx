@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Component } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
@@ -8,6 +8,64 @@ import { Avatar } from '../components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { useChatRoom } from '../hooks/useChatRoom';
 
+// ── Error Boundary: catches any render crash and shows recovery UI instead of
+//    a white/red React Native crash screen. This is the #1 defense against the
+//    chat crash — any throw during rendering (corrupted data, type errors, native
+//    module errors) is caught and shows a retry button.
+// ─────────────────────────────────────────────────────────────────────────────
+class ChatErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  state = { hasError: false, error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    if (__DEV__) {
+      console.error('[ChatRoom] Render error caught by boundary:', error);
+      console.error('[ChatRoom] Component stack:', info.componentStack);
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
+          <Ionicons name="alert-triangle" size={48} color={colors.like} />
+          <Text style={{ color: colors.text, fontSize: 17, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
+            Something went wrong loading this chat
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 8, textAlign: 'center' }}>
+            {this.state.error?.message || 'An unexpected error occurred'}
+          </Text>
+          <TouchableOpacity
+            style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.white, borderRadius: 12 }}
+            onPress={() => this.setState({ hasError: false, error: null })}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: colors.primaryForeground, fontWeight: '700' }}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ── Safe image source helper ──────────────────────────────────────────────────
+// BUG FIX: React Native's <Image> crashes if source.uri is not a string.
+// If Firestore returns a corrupted value (object, array, etc.) for mediaUrl,
+// the truthiness check passes but the Image component crashes the app.
+function safeImageSource(uri: string | null | undefined): { uri: string } | undefined {
+  if (typeof uri === 'string' && uri.startsWith('http')) {
+    return { uri };
+  }
+  return undefined;
+}
+
 function formatTime(timestamp?: number | string): string {
   if (!timestamp) return '';
   const date = typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp);
@@ -16,6 +74,14 @@ function formatTime(timestamp?: number | string): string {
 }
 
 export default function ChatRoomScreen({ route, navigation }: any) {
+  return (
+    <ChatErrorBoundary>
+      <ChatRoomContent route={route} navigation={navigation} />
+    </ChatErrorBoundary>
+  );
+}
+
+function ChatRoomContent({ route, navigation }: any) {
   const {
     chat,
     messages,
@@ -92,7 +158,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
     return (
       <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
-        {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
+        {!isMine && <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={28} />}
         <TouchableOpacity
           onLongPress={() => {
             setContextMsg(item);
@@ -105,25 +171,27 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         >
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
           {/* Image message */}
-          {msgType === 'image' && item.mediaUrl ? (
+          {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
             <TouchableOpacity
               activeOpacity={0.9}
-              onPress={() => setFullscreenImage(item.mediaUrl)}
+              onPress={() => setFullscreenImage(typeof item.mediaUrl === 'string' ? item.mediaUrl : null)}
             >
               <Image
-                source={{ uri: item.mediaUrl }}
+                source={safeImageSource(item.mediaUrl)}
                 style={styles.bubbleImage}
                 resizeMode="cover"
+                onError={() => {/* silently degrade — image fails to load */}}
               />
             </TouchableOpacity>
           ) : null}
 
           {/* GIF message */}
-          {msgType === 'gif' && item.mediaUrl ? (
+          {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
             <Image
-              source={{ uri: item.mediaUrl }}
+              source={safeImageSource(item.mediaUrl)}
               style={styles.bubbleGif}
               resizeMode="contain"
+              onError={() => {/* silently degrade */}}
             />
           ) : null}
 
@@ -201,6 +269,10 @@ export default function ChatRoomScreen({ route, navigation }: any) {
     );
   }
 
+  // BUG FIX: If chat exists but has no otherUser (fetch failed or corrupted),
+  // provide safe defaults instead of crashing when accessing .otherUser properties.
+  const safeOtherUser = chat.otherUser || { displayName: 'Chat', username: '', profileImage: null };
+
   return (
     <View style={[styles.safeArea]}>
       {/* Header with SafeAreaView for notch */}
@@ -211,12 +283,12 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         </TouchableOpacity>
         {chat ? (
           <>
-            <Avatar uri={chat.otherUser?.profileImage} name={chat.otherUser?.displayName} size={36} />
+            <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={36} />
             <View style={{ marginLeft: 10, flex: 1 }}>
               <Text style={styles.headerName} numberOfLines={1}>
-                {chat.otherUser?.displayName || chat.otherUser?.username || 'Chat'}
+                {safeOtherUser.displayName || safeOtherUser.username || 'Chat'}
               </Text>
-              <Text style={styles.headerHandle}>@{chat.otherUser?.username}</Text>
+              <Text style={styles.headerHandle}>@{safeOtherUser.username}</Text>
             </View>
           </>
         ) : (
@@ -515,11 +587,12 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           onPress={() => setFullscreenImage(null)}
         >
           <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            {fullscreenImage ? (
+            {safeImageSource(fullscreenImage) ? (
               <Image
-                source={{ uri: fullscreenImage }}
+                source={safeImageSource(fullscreenImage)}
                 style={styles.fullscreenImage}
                 resizeMode="contain"
+                onError={() => setFullscreenImage(null)}
               />
             ) : null}
             <TouchableOpacity style={styles.imageViewerClose} onPress={() => setFullscreenImage(null)} hitSlop={16}>

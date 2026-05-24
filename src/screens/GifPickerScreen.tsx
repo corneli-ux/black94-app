@@ -184,8 +184,11 @@ export default function GifPickerScreen() {
       if (onSelect) {
         onSelect(gifUrl);
       } else {
-        // Fallback: pass via route params so the previous screen can pick it up
-        navigation.navigate('ChatRoom', { selectedGifUrl: gifUrl, merge: true });
+        // Fallback: go back — the calling screen picks up the GIF via
+        // route params (useChatRoom already listens for selectedGifUrl).
+        // BUG FIX: Don't hardcode 'ChatRoom' — use goBack() so it works
+        // for both ChatRoomScreen and DualPaneChatScreen.
+        navigation.goBack();
       }
     },
     [onSelect, navigation],

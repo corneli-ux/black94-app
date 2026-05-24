@@ -95,6 +95,12 @@ export function useChatRoom({
 
   const sendMediaMessage = async (mediaUrl: string, msgType: string, content: string) => {
     if (!chat) return;
+    // BUG FIX: Type-guard mediaUrl — if Firestore returns a non-string value
+    // (corrupted data), the Image component would crash with an invalid uri.
+    if (typeof mediaUrl !== 'string' || !mediaUrl.startsWith('http')) {
+      Alert.alert('Error', 'Media URL is invalid. Please try again.');
+      return;
+    }
     setSending(true);
     const tempMsg: Message = {
       id: `tmp-media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, chatId: chat.id,
@@ -254,7 +260,10 @@ export function useChatRoom({
         if (__DEV__) console.warn('Failed to reset unread:', e);
       }
     };
-    resetUnread();
+    // BUG FIX: Add .catch() to prevent unhandled promise rejection.
+    // If resetUnread throws before its internal try/catch, it would crash
+    // the app on some React Native configurations.
+    resetUnread().catch(() => {});
     load();
     // BUG FIX: Replaced listen() with simple load() polling.
     // The old listen() had TWO critical bugs:
@@ -274,10 +283,26 @@ export function useChatRoom({
     };
   }, [chat?.id]);
 
-  // ── Cleanup playback on unmount ─────────────────────────────────────────
+  // ── Cleanup playback + recording on unmount ──────────────────────────────
+  // BUG FIX: If user navigates away while recording, the recording interval
+  // and Audio.Recording were never cleaned up, causing:
+  //   1. Memory leak (recordingRef stays alive)
+  //   2. stale setInterval keeps running (recordingDuration state updates on unmounted component)
+  //   3. Audio mode stuck in recording mode (silenced, no playback)
   useEffect(() => {
     return () => {
       playbackRef.current?.unloadAsync().catch(() => {});
+      // Clean up active recording if user navigates away mid-recording
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      if (recordingRef.current) {
+        recordingRef.current.stopAsync().catch(() => {});
+        recordingRef.current = null;
+      }
+      // Reset audio mode back to non-recording
+      Audio.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => {});
     };
   }, []);
 
