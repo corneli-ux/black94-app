@@ -64,6 +64,11 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   const PAGE_SIZE = 10;
 
   // ── Enrichment: author profiles ─────────────────────────────────────────
+  // IMPORTANT: Only enrich volatile fields (profileImage, badge, isVerified) from
+  // user docs. displayName and username are stamped at creation time and must NOT
+  // be overwritten — the user doc may be corrupted (historical write.update bug),
+  // which would propagate wrong data to ALL posts by that user.
+  // We only fill in displayName/username if the post has EMPTY values (legacy posts).
   const enrichAuthorProfiles = useCallback(async (postsToEnrich: Post[]) => {
     const uniqueAuthorIds = [...new Set(postsToEnrich.map(p => p.authorId).filter(Boolean))];
     const CHUNK_SIZE = 10;
@@ -84,6 +89,29 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
               badge: d.badge || '',
               isVerified: d.isVerified || false,
             };
+            // Self-repair: if user doc is corrupted (empty displayName/username),
+            // try to fix it from the Zustand store so future operations get correct data.
+            if (!d.username || !d.displayName) {
+              if (__DEV__) console.warn(`[Feed] User doc ${docSnap.id} appears corrupted (username="${d.username}", displayName="${d.displayName}") — attempting self-repair`);
+              try {
+                const { useAppStore } = await import('../stores/app');
+                const storeUser = useAppStore.getState().user;
+                if (storeUser && storeUser.id === docSnap.id && (storeUser.username || storeUser.displayName)) {
+                  await firestore().collection('users').doc(docSnap.id).update({
+                    username: storeUser.username || '',
+                    displayName: storeUser.displayName || 'User',
+                    profileImage: storeUser.profileImage || null,
+                  });
+                  // Update the map with repaired data
+                  authorProfileMap[docSnap.id].username = storeUser.username || '';
+                  authorProfileMap[docSnap.id].displayName = storeUser.displayName || 'User';
+                  authorProfileMap[docSnap.id].profileImage = storeUser.profileImage || null;
+                  if (__DEV__) console.log(`[Feed] Repaired user doc ${docSnap.id}: ${storeUser.displayName} @${storeUser.username}`);
+                }
+              } catch (repairErr) {
+                if (__DEV__) console.warn(`[Feed] Failed to repair user doc ${docSnap.id}:`, repairErr);
+              }
+            }
           }
         }
       } catch (e) {
@@ -93,11 +121,15 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
     for (const post of postsToEnrich) {
       const fresh = authorProfileMap[post.authorId];
       if (!fresh) continue;
-      if (fresh.username) post.authorUsername = fresh.username;
-      if (fresh.displayName) post.authorDisplayName = fresh.displayName;
+      // Always update volatile fields (user may have changed avatar/badge)
       if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
       if (fresh.badge) post.authorBadge = fresh.badge;
       post.authorIsVerified = fresh.isVerified;
+      // Only fill in displayName/username if the post has EMPTY values (legacy posts
+      // created before these fields were stamped at creation time). Never overwrite
+      // existing values — the post-stamped data is the source of truth for identity.
+      if (!post.authorUsername && fresh.username) post.authorUsername = fresh.username;
+      if (!post.authorDisplayName && fresh.displayName) post.authorDisplayName = fresh.displayName;
     }
   }, []);
 
@@ -372,10 +404,9 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
       }
 
       if (__DEV__) {
+        console.log(`[Feed] Loaded ${newPosts.length} posts, currentUser=${currentUser?.uid}`);
         for (const p of newPosts) {
-          if (p.mediaUrls.length > 0) {
-            console.log(`[Feed] Post ${p.id} has ${p.mediaUrls.length} media URL(s): ${p.mediaUrls[0]?.slice(0, 120)}`);
-          }
+          console.log(`[Feed] Post ${p.id.slice(0,8)}: authorId=${p.authorId}, displayName="${p.authorDisplayName}", username="@${p.authorUsername}", hasImage=${!!p.authorProfileImage}`);
         }
       }
 

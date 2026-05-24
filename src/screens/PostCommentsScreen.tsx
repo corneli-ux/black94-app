@@ -92,6 +92,12 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     setCommentsError(null);
     try {
       const data = await fetchPostComments(postId);
+      if (__DEV__ && data.length > 0) {
+        console.log(`[PostComments] Loaded ${data.length} comments for post ${postId?.slice(0,8)}`);
+        for (const c of data.slice(0, 5)) {
+          console.log(`[PostComments] Comment ${c.id.slice(0,8)}: authorId=${c.authorId}, displayName="${c.authorDisplayName}", username="@${c.authorUsername}"`);
+        }
+      }
       setComments(data);
       enrichCommentAuthors(data);
       // BUG FIX: Correct the post's commentCount with the actual count.
