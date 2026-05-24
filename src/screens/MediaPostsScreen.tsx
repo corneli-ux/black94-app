@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   countBar: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.04)',
+    borderBottomWidth: 0.5, borderBottomColor: colors.bgSubtle,
   },
   countText: { color: colors.textMuted, fontSize: 13, fontWeight: '500' },
   list: { paddingBottom: 20 },
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   },
   playOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: colors.overlayLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.overlayDark,
     alignItems: 'center',
     justifyContent: 'center',
     paddingLeft: 3,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingTop: 100, paddingHorizontal: 40 },
   emptyIcon: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 4 },

@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
   addBtnText: { color: colors.white, fontSize: 14, fontWeight: '700' },
   deleteIcon: { color: colors.like, fontSize: 16, fontWeight: '700', marginLeft: 4 },
   statusAndActions: { width: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalOverlay: { flex: 1, backgroundColor: colors.overlayHeavy, justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalContent: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: colors.border },
   modalTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 16 },
   formInput: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: colors.text, fontSize: 15, marginBottom: 10 },

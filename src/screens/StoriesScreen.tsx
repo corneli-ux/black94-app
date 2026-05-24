@@ -79,7 +79,7 @@ function GradientBorder({
   children: React.ReactNode;
 }) {
   const gradientColors: readonly [string, string, ...string[]] = viewed
-    ? ['#374151', '#6b7280', '#374151']
+    ? ['#000000', '#000000', '#000000']
     : ['#f09433', '#e6683c', '#dc2743', '#cc2366', '#bc1888', '#8a3ab9'];
 
   return (
@@ -858,9 +858,9 @@ export default function StoriesScreen({ navigation }: any) {
                       </Text>
                     </View>
                     <View style={styles.storyCardStats}>
-                      <Ionicons name="eye-outline" size={11} color="rgba(255,255,255,0.7)" />
+                      <Ionicons name="eye-outline" size={11} color={'#e7e9ea'} />
                       <Text style={styles.storyCardStat}>{story.viewCount}</Text>
-                      <Ionicons name="heart-outline" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 6 }} />
+                      <Ionicons name="heart-outline" size={11} color={'#e7e9ea'} style={{ marginLeft: 6 }} />
                       <Text style={styles.storyCardStat}>{story.likeCount}</Text>
                       <Text style={styles.storyCardTime}>{timeAgo(story.createdAt)}</Text>
                     </View>
@@ -1292,7 +1292,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: colors.accentBorderStrong,
   },
   musicTitle: {
     color: colors.text,
@@ -1401,7 +1401,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   storyCardStat: {
-    color: 'rgba(255,255,255,0.8)',
+    color: '#e7e9ea',
     fontSize: 10,
     marginLeft: 2,
   },
@@ -1432,7 +1432,7 @@ const styles = StyleSheet.create({
   /* ── Upload Overlay ──────────────────────────────────────────────────── */
   uploadingOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: colors.overlayHeavy,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1499,7 +1499,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   pausedIndicator: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: colors.accentBorderStrong,
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -1608,7 +1608,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.92)',
+    backgroundColor: colors.overlayFull,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },

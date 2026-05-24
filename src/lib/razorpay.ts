@@ -225,11 +225,11 @@ function generateCheckoutHTML(
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #111; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
     .container { text-align: center; padding: 20px; }
-    .spinner { width: 40px; height: 40px; border: 3px solid #333; border-top: 3px solid #fff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #000; border-top: 3px solid #D4AF37; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    p { color: #888; font-size: 14px; }
+    p { color: #e7e9ea; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -252,7 +252,7 @@ function generateCheckoutHTML(
           contact: ${safePhone},
         },
         theme: {
-          color: '#111111'
+          color: '#000000'
         },
         handler: function(response) {
           window.ReactNativeWebView.postMessage(JSON.stringify({

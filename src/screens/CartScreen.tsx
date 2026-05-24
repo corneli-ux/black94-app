@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: colors.borderSubtleAlt,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,

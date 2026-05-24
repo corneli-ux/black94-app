@@ -57,8 +57,8 @@ function formatINR(amount: number): string {
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
   pending: { color: colors.accentGold, bg: 'rgba(245, 158, 11, 0.15)' },
-  confirmed: { color: colors.primary, bg: 'rgba(255, 255, 255, 0.15)' },
-  processing: { color: colors.primary, bg: 'rgba(255, 255, 255, 0.15)' },
+  confirmed: { color: colors.primary, bg: colors.borderSubtleStrong },
+  processing: { color: colors.primary, bg: colors.borderSubtleStrong },
   shipped: { color: colors.accent, bg: 'rgba(6, 182, 212, 0.15)' },
   delivered: { color: colors.accentGreen, bg: 'rgba(34, 197, 94, 0.15)' },
   cancelled: { color: colors.error, bg: 'rgba(239, 68, 68, 0.15)' },
@@ -750,12 +750,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: colors.borderSubtle,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: colors.separator,
   },
   actionBtnCancel: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -803,7 +803,7 @@ const styles = StyleSheet.create({
   // ── Tracking modal ──────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: colors.overlayDarker,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,

@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
   },
   darkOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: colors.overlayLight,
   },
   textStoryContent: {
     fontSize: 32,
@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
   progressTrack: {
     flex: 1,
     height: 2.5,
-    backgroundColor: 'rgba(255, 255, 255,0.2)',
+    backgroundColor: colors.accentBorder,
     borderRadius: 1.25,
     overflow: 'hidden',
   },
@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
   },
   authorUsername: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255,0.8)',
+    color: '#e7e9ea',
   },
   authorMeta: {
     flexDirection: 'row',
@@ -613,13 +613,13 @@ const styles = StyleSheet.create({
   },
   storyTime: {
     fontSize: 12,
-    color: 'rgba(255, 255,255,0.6)',
+    color: '#e7e9ea',
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255,255,0.2)',
+    backgroundColor: colors.accentBorder,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -650,25 +650,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   pollOption: {
-    backgroundColor: 'rgba(255, 255,255,0.1)',
+    backgroundColor: colors.accentBg,
     borderRadius: 10,
     marginBottom: 8,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.accentBorder,
   },
   pollOptionSelected: {
     borderColor: colors.accent,
   },
   pollOptionVoted: {
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.accentBorder,
   },
   pollOptionFill: {
     position: 'absolute',
     top: 0,
     left: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: colors.accentBorder,
   },
   pollOptionContent: {
     flexDirection: 'row',
@@ -688,11 +688,11 @@ const styles = StyleSheet.create({
   pollVotePercent: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
+    color: '#e7e9ea',
   },
   pollVoteCount: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#e7e9ea',
     textAlign: 'center',
     marginTop: 8,
   },
@@ -718,6 +718,6 @@ const styles = StyleSheet.create({
   },
   pauseText: {
     fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
+    color: '#e7e9ea',
   },
 });

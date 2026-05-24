@@ -68,8 +68,8 @@ function formatOrderDate(raw: string): string {
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
   pending: { color: colors.accentGold, bg: 'rgba(245, 158, 11, 0.15)' },
-  confirmed: { color: colors.primary, bg: 'rgba(255, 255, 255, 0.15)' },
-  processing: { color: colors.primary, bg: 'rgba(255, 255, 255, 0.15)' },
+  confirmed: { color: colors.primary, bg: colors.borderSubtleStrong },
+  processing: { color: colors.primary, bg: colors.borderSubtleStrong },
   shipped: { color: colors.accent, bg: 'rgba(6, 182, 212, 0.15)' },
   delivered: { color: colors.accentGreen, bg: 'rgba(34, 197, 94, 0.15)' },
   cancelled: { color: colors.error, bg: 'rgba(239, 68, 68, 0.15)' },
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 8, paddingHorizontal: 32, lineHeight: 20 },
 
   // Modal common
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalOverlay: { flex: 1, backgroundColor: colors.overlayDarker, justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalContent: { backgroundColor: colors.surface, borderRadius: 20, padding: 24, width: '100%', maxWidth: 440, borderWidth: 1, borderColor: colors.border, maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   modalTitle: { color: colors.text, fontSize: 20, fontWeight: '700' },
@@ -762,7 +762,7 @@ const styles = StyleSheet.create({
   trackingNumberText: { fontSize: 14, color: colors.accent, fontWeight: '600', fontFamily: 'monospace' },
 
   // Action buttons
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: colors.bgInput },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.borderSubtle, backgroundColor: colors.bgInput },
   actionBtnDanger: { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.2)' },
   actionBtnText: { fontSize: 13, fontWeight: '600', color: colors.primary },
   actionBtnTextDanger: { color: colors.error },

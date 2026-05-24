@@ -199,7 +199,7 @@ export default function StorefrontScreen({ route, navigation }: any) {
             <Image source={{ uri: owner.coverImage }} style={styles.cover} resizeMode="cover" />
           ) : (
             <View style={[styles.cover, { backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={{ color: 'rgba(255,255,255,0.08)', fontSize: 60, fontWeight: '800' }}>B94</Text>
+              <Text style={{ color: colors.borderSubtle, fontSize: 60, fontWeight: '800' }}>B94</Text>
             </View>
           )}
         </View>

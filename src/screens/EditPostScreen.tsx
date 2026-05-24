@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     minWidth: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: colors.white25,
   },
   saveButtonActive: {
     backgroundColor: colors.white,
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.white50,
   },
   saveButtonTextActive: {
     color: colors.bg,

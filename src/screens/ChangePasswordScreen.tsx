@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   submitBtnText: { color: colors.bg, fontSize: 15, fontWeight: '700' },
   infoBox: {
     flexDirection: 'row', gap: 10, marginTop: 24,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     borderRadius: 10, padding: 14, borderWidth: 1, borderColor: colors.border,
   },
   infoText: { flex: 1, color: colors.textMuted, fontSize: 13, lineHeight: 19 },

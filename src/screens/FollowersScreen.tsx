@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   tabTextActive: { color: colors.text, fontWeight: '700' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyText: { color: colors.textSecondary, fontSize: 15, marginTop: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.04)' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12, borderBottomWidth: 0.5, borderBottomColor: colors.bgSubtle },
   userInfo: { flex: 1, minWidth: 0 },
   name: { color: colors.text, fontSize: 15, fontWeight: '700' },
   handle: { color: colors.textSecondary, fontSize: 14 },

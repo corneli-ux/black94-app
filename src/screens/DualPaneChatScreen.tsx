@@ -762,7 +762,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   chatItemSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.accentBg,
     borderLeftWidth: 3,
     borderLeftColor: colors.primary,
   },
@@ -936,7 +936,7 @@ const styles = StyleSheet.create({
   },
   nuclearOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: colors.overlayDarker,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -989,7 +989,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: colors.borderSubtleAlt,
     alignItems: 'center',
   },
   nuclearCancelText: {

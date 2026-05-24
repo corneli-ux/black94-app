@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: colors.accentBg,
   },
   retryBtnText: {
     color: colors.text,

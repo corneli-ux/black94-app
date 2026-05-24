@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
   /* -- Success Modal -- */
   successOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: colors.overlayDarker,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,

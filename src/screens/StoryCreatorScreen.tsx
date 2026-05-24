@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   previewPollOption: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.accentBg,
     borderRadius: 10,
     padding: 12,
   },

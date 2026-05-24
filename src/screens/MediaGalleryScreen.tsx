@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
+    borderBottomColor: colors.bgSubtle,
   },
   countText: {
     color: colors.textMuted,
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   },
   playOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: colors.overlayLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.overlayDark,
     alignItems: 'center',
     justifyContent: 'center',
     paddingLeft: 3, // Visual centering for play triangle
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: colors.borderSubtleStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },

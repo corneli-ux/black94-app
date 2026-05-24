@@ -30,7 +30,7 @@ const C = {
   success: colors.accentGreen,
   warning: colors.accentGold,
   danger: colors.error,
-  white20: 'rgba(255,255,255,0.2)',
+  white20: colors.accentBorder,
   badgeNew: colors.accent,
   badgeContacted: colors.accentGold,
   badgeQualified: '#8b5cf6',
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: colors.overlayHeavy,
     justifyContent: 'flex-end',
   },
   modalContent: {

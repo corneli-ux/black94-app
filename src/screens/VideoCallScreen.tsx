@@ -372,10 +372,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   selfViewText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: '#e7e9ea',
     fontSize: 11,
     fontWeight: '600',
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowColor: colors.overlayDark,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%)',
+    backgroundColor: colors.overlayDarker,
   },
   backBtn: {
     width: 36,

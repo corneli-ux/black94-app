@@ -170,7 +170,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                     <Ionicons name="alert-circle-outline" size={40} color={colors.like} />
                     <Text style={styles.emptyTitle}>Could not load comments</Text>
                     <Text style={styles.emptySub}>{commentsError}</Text>
-                    <TouchableOpacity onPress={loadComments} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                    <TouchableOpacity onPress={loadComments} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 14, backgroundColor: colors.borderSubtle }}>
                       <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>Retry</Text>
                     </TouchableOpacity>
                   </View>
@@ -309,21 +309,21 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: colors.overlayDark, justifyContent: 'flex-end' },
   backdropTouch: { flex: 1 },
   sheetContainer: { justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: Dimensions.get('window').height * 0.75, overflow: 'hidden', borderWidth: 1, borderColor: colors.separator },
   handleWrap: { alignItems: 'center', paddingVertical: 10 },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.accentBorder },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: colors.borderSubtle },
   headerTitle: { color: colors.white, fontWeight: '700', fontSize: 16 },
-  preview: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  preview: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: colors.separator },
   previewCaption: { color: colors.textSecondary, fontSize: 14, lineHeight: 20 },
   list: { flex: 1, paddingHorizontal: 16 },
   emptyWrap: { alignItems: 'center', paddingVertical: 48 },
   emptyTitle: { color: colors.text, fontSize: 16, fontWeight: '700', marginTop: 12 },
   emptySub: { color: colors.textTertiary, fontSize: 14, marginTop: 4 },
-  commentRow: { flexDirection: 'row', gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  commentRow: { flexDirection: 'row', gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.separator },
   commentBody: { flex: 1 },
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' },
   commentName: { color: colors.text, fontWeight: '700', fontSize: 15, lineHeight: 20 },
@@ -332,11 +332,11 @@ const styles = StyleSheet.create({
   commentContent: { color: colors.text, fontSize: 15, lineHeight: 20, marginTop: 4 },
   replyToIndicator: { color: colors.textMuted, fontSize: 13, lineHeight: 18, marginTop: 2 },
   replyToName: { color: colors.accent, fontWeight: '500' },
-  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: colors.bg },
+  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.separator, backgroundColor: colors.bg },
   inputWrap: { flex: 1, backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, maxHeight: 100, justifyContent: 'center' },
   input: { color: colors.text, fontSize: 15, lineHeight: 20, maxHeight: 80 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
-  sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  sendBtnDisabled: { backgroundColor: colors.borderSubtle },
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderTopColor: colors.separator,
     backgroundColor: colors.bg,
   },
   replyingBarText: {

@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   availableText: { color: colors.accentGreen, fontSize: 13, marginTop: 8, fontWeight: '600' },
   infoBox: {
     flexDirection: 'row', gap: 8, marginTop: 24,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     borderRadius: 10, padding: 14, borderWidth: 1, borderColor: colors.border,
   },
   infoText: { flex: 1, color: colors.textMuted, fontSize: 13, lineHeight: 19 },

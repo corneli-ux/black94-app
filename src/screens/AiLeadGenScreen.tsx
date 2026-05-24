@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.4 },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalOverlay: { flex: 1, backgroundColor: colors.overlayDarker, justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalContent: { backgroundColor: colors.surface, borderRadius: 20, padding: 24, width: '100%', maxWidth: 440, borderWidth: 1, borderColor: colors.border, maxHeight: '80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },

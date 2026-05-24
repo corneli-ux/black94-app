@@ -77,12 +77,12 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
           <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs, styles.deletedBubble]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="ban-outline" size={14} color={isMine ? 'rgba(0,0,0,0.35)' : colors.textMuted} />
-              <Text style={[styles.bubbleText, isMine ? { color: 'rgba(0,0,0,0.35)' } : { color: colors.textMuted }, { fontStyle: 'italic' }]}>
+              <Ionicons name="ban-outline" size={14} color={isMine ? colors.overlayLight : colors.textMuted} />
+              <Text style={[styles.bubbleText, isMine ? { color: colors.overlayLight } : { color: colors.textMuted }, { fontStyle: 'italic' }]}>
                 This message was deleted
               </Text>
             </View>
-            <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.3)' } : { color: colors.textMuted }]}>
+            <Text style={[styles.bubbleTime, isMine ? { color: colors.overlayLight } : { color: colors.textMuted }]}>
               {formatTime(item.createdAt)}
             </Text>
           </View>
@@ -144,13 +144,13 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 color={isMine ? colors.primaryForeground : colors.text}
               />
               <View style={styles.voiceWaveform}>
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.3)' } : { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.5)' } : { backgroundColor: 'rgba(255,255,255,0.5)' }]} />
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.3)' } : { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.6)' } : { backgroundColor: 'rgba(255,255,255,0.6)' }]} />
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.2)' } : { backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlay } : { backgroundColor: colors.accentBorderStrong }]} />
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlay } : { backgroundColor: colors.white50 }]} />
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlay } : { backgroundColor: colors.accentBorderStrong }]} />
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlayDark } : { backgroundColor: colors.borderWhite40 }]} />
+                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlayLight } : { backgroundColor: colors.accentBorder }]} />
               </View>
-              <Text style={[styles.voiceDuration, isMine ? { color: 'rgba(0,0,0,0.6)' } : { color: colors.textSecondary }]}>
+              <Text style={[styles.voiceDuration, isMine ? { color: colors.overlayDark } : { color: colors.textSecondary }]}>
                 {item.voiceDuration || 0}s
               </Text>
             </TouchableOpacity>
@@ -162,7 +162,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           ) : null}
 
           {/* Timestamp */}
-          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.5)' } : { color: colors.textSecondary }]}>
+          <Text style={[styles.bubbleTime, isMine ? { color: colors.overlay } : { color: colors.textSecondary }]}>
             {formatTime(item.createdAt)}
           </Text>
           {/* Read receipt indicators — own messages only */}
@@ -171,9 +171,9 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               {item.status === 'read' ? (
                 <Ionicons name="checkmark-done" size={14} color="#38bdf8" />
               ) : item.status === 'delivered' ? (
-                <Ionicons name="checkmark-done" size={14} color="rgba(0,0,0,0.3)" />
+                <Ionicons name="checkmark-done" size={14} color={colors.overlayLight} />
               ) : (
-                <Ionicons name="checkmark" size={14} color="rgba(0,0,0,0.3)" />
+                <Ionicons name="checkmark" size={14} color={colors.overlayLight} />
               )}
             </View>
           )}
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 10,
     borderBottomWidth: 0,
-    backgroundColor: 'rgba(0,0,0,0.9)',
+    backgroundColor: colors.overlayFull,
   },
   backBtn: {
     width: 36,
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
     minWidth: 180,
     backgroundColor: colors.bg,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSubtle,
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: colors.primaryForeground,
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
   reactionBadge: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: colors.borderSubtleAlt,
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
   reactionText: { fontSize: 14 },
   reactionModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
   },
   contextMenuDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: colors.accentBg,
     marginHorizontal: 12,
     marginVertical: 4,
   },
@@ -702,7 +702,7 @@ const styles = StyleSheet.create({
   // ── Full-screen image viewer ──
   imageViewerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
+    backgroundColor: colors.overlaySolid,
   },
   fullscreenImage: {
     width: '100%',
@@ -715,7 +715,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: colors.borderSubtleStrong,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSubtle,
     shadowColor: colors.primaryForeground,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
@@ -823,7 +823,7 @@ const styles = StyleSheet.create({
   uploadingOverlay: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.overlayDark,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
@@ -837,7 +837,7 @@ const styles = StyleSheet.create({
   // ── Nuclear block modal ──
   nuclearOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: colors.overlayHeavy,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -890,7 +890,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: colors.borderSubtleStrong,
     alignItems: 'center',
   },
   nuclearCancelText: {
@@ -936,7 +936,7 @@ const styles = StyleSheet.create({
   recordingOverlay: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: colors.overlayMax,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 200,
@@ -974,7 +974,7 @@ const styles = StyleSheet.create({
   replyPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderLeftWidth: 2,
@@ -1005,7 +1005,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   replyIndicator: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     borderLeftWidth: 2,
     borderLeftColor: colors.accent,
     paddingHorizontal: 10,

@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
   },
   commentReplyIndent: {
     paddingLeft: 44, // Indent replies under parent (16 base + 28 for child offset)
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    backgroundColor: colors.bgSubtle,
   },
   commentBody: { flex: 1, minWidth: 0 },
   commentHeader: {
@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSubtle,
   },
   adBadgeRow: {
     flexDirection: 'row',

@@ -1,88 +1,89 @@
-// Black94 Theme — "Pure Black Premium" matching web app globals.css exactly
-// Colors extracted from web app's CSS custom properties + Tailwind config
+// Black94 Theme — "Pure Black Premium" — Deep Polish Pass
+// All grays eliminated. Backgrounds, surfaces, borders all pure #000000.
+// Visual hierarchy achieved through opacity layers, NOT color shifts.
 
 export const colors = {
-  // ── Backgrounds (web: --background: #000000, --card: #000000) ──
+  // ── Backgrounds ──
   bg: '#000000',
   bgCard: '#000000',
-  bgInput: '#16181c',
-  bgModal: '#0d0b14',              // web: compose sheet bg
-  surface: '#16181c',               // web: --secondary, --muted
-  surfaceElevated: '#1d1f23',      // web: chat bubble received, input bg
-  surfaceLight: '#1e2026',
+  bgInput: '#000000',
+  bgModal: '#000000',
+  surface: '#000000',
+  surfaceElevated: '#000000',
+  surfaceLight: '#000000',
   background: '#000000',
 
-  // ── Text (web: --foreground: #e7e9ea) ──
+  // ── Text ──
   text: '#e7e9ea',                 // primary text
   white: '#ffffff',
-  textSecondary: '#94a3b8',        // web: text-[#94a3b8] (username, muted labels, action counts)
-  textMuted: '#71767b',            // web: --muted-foreground
-  textTertiary: '#64748b',         // web: timestamp, subtle labels
+  textSecondary: '#e7e9ea',        // was #94a3b8 gray — now same as primary for readability
+  textMuted: '#e7e9ea',            // was #71767b gray — now same as primary
+  textTertiary: '#e7e9ea',         // was #64748b gray — now same as primary
   foreground: '#e7e9ea',
 
-  // ── Borders (web: --border: #374151, separators: white/[0.06]) ──
-  border: '#374151',
-  borderLight: '#3a3f44',
-  separator: 'rgba(255,255,255,0.06)',  // web: border-white/[0.06]
-  input: '#374151',
+  // ── Borders ──
+  border: '#000000',               // was #374151 gray — pure black
+  borderLight: '#000000',          // was #3a3f44 gray — pure black
+  separator: 'rgba(212,175,55,0.15)',  // gold-tinted separator for premium feel
+  input: '#000000',                // was #374151 gray — pure black
 
   // ── Brand Accents ──
-  accent: '#D4AF37',               // gold accent (was brand blue)
-  accentGold: '#f59e0b',           // web: --chart-3, amber-500
-  accentRed: '#f4212e',            // web: destructive
-  accentGreen: '#10b981',          // web: emerald-500
-  primary: '#FFFFFF',              // web: --primary: #FFFFFF
-  primaryForeground: '#000000',    // web: --primary-foreground: #000000
+  accent: '#D4AF37',               // gold accent
+  accentGold: '#f59e0b',
+  accentRed: '#f4212e',
+  accentGreen: '#10b981',
+  primary: '#FFFFFF',
+  primaryForeground: '#000000',
 
   // ── Tab bar ──
   tabBar: '#000000',
-  tabBarBorder: '#374151',
+  tabBarBorder: '#000000',         // was #374151 gray — pure black
   headerBg: '#000000',
 
-  // ── Verified badges (exact match to web PAvatar.tsx resolveBadgeColor) ──
-  verified: '#D4AF37',             // gold (was blue) — badge 'pro' or 'blue'
-  verifiedGold: '#ffd700',         // web: badge 'gold' → #ffd700
-  verifiedDefault: '#FFFFFF',      // web: generic verified → #FFFFFF
+  // ── Verified badges ──
+  verified: '#D4AF37',
+  verifiedGold: '#ffd700',
+  verifiedDefault: '#FFFFFF',
 
   // ── Chat ──
   chatBubbleMine: '#FFFFFF',
-  chatBubbleMineGradientEnd: '#D1D5DB',  // web: gradient end for sent bubble
+  chatBubbleMineGradientEnd: '#FFFFFF',  // was #D1D5DB gray — now pure white
   chatBubbleMineText: '#000000',
-  chatBubbleOther: 'rgba(255,255,255,0.08)',  // web: white/[0.06] with backdrop blur
+  chatBubbleOther: 'rgba(212,175,55,0.08)',  // gold-tinted received bubble
   chatBubbleOtherText: '#e7e9ea',
 
   // ── Like / Bookmark ──
-  like: '#f43f5e',                 // web: rose-500
-  repost: '#10b981',               // web: emerald-500
-  bookmark: '#FFFFFF',             // web: white when active
+  like: '#f43f5e',
+  repost: '#10b981',
+  bookmark: '#FFFFFF',
 
   // ── Semantic ──
   error: '#ef4444',
   destructive: '#ef4444',
-  delete: '#f4212e',               // web: delete red
+  delete: '#f4212e',
 
   // ── Card ──
   card: '#000000',
-  muted: '#16181c',
+  muted: '#000000',
 
   // ── Avatar fallback ──
-  avatarFallback: '#1e293b',
+  avatarFallback: '#000000',       // was #1e293b gray-blue — pure black
   avatarFallbackText: '#e7e9ea',
-  avatarGradientEnd: '#9CA3AF',    // web: bg-gradient-to-br from-[#FFFFFF] to-[#9CA3AF]
+  avatarGradientEnd: '#000000',    // was #9CA3AF gray — pure black
 
   // ── Compose ──
-  composeBorder: 'rgba(255,255,255,0.08)',   // web: border-white/[0.08]
-  composeDisabled: 'rgba(255,255,255,0.08)',  // web: bg-white/[0.08]
-  composeDisabledText: '#64748b',             // web: text-[#64748b]
+  composeBorder: 'rgba(212,175,55,0.2)',   // gold-tinted border
+  composeDisabled: 'rgba(212,175,55,0.08)',
+  composeDisabledText: '#e7e9ea',          // was #64748b gray
 
   // ── Surfaces (semi-transparent) ──
-  bgSubtle: 'rgba(255,255,255,0.04)',          // subtle elevated surface
-  bgSubtleAlt: 'rgba(255,255,255,0.05)',       // slightly more visible surface
+  bgSubtle: 'rgba(212,175,55,0.04)',          // gold-tinted subtle surface
+  bgSubtleAlt: 'rgba(212,175,55,0.06)',       // gold-tinted
   white25: 'rgba(255,255,255,0.25)',
   white50: 'rgba(255,255,255,0.5)',
-  borderSubtle: 'rgba(255,255,255,0.08)',
-  borderSubtleAlt: 'rgba(255,255,255,0.12)',
-  borderSubtleStrong: 'rgba(255,255,255,0.15)',
+  borderSubtle: 'rgba(212,175,55,0.12)',      // gold-tinted
+  borderSubtleAlt: 'rgba(212,175,55,0.15)',   // gold-tinted
+  borderSubtleStrong: 'rgba(212,175,55,0.2)', // gold-tinted
   borderWhite40: 'rgba(255,255,255,0.4)',
 
   // ── Overlays ──
@@ -93,7 +94,7 @@ export const colors = {
   overlayDarker: 'rgba(0,0,0,0.75)',
   drawerOverlay: 'rgba(0,0,0,0.7)',
 
-  // ── Accent tints (for badges, chips, highlights) ──
+  // ── Accent tints ──
   accentFaint: 'rgba(212,175,55,0.08)',
   accentBg: 'rgba(212,175,55,0.1)',
   accentBgStrong: 'rgba(212,175,55,0.15)',
@@ -107,21 +108,30 @@ export const colors = {
   destructiveBorder: 'rgba(244,63,94,0.2)',
 
   // ── Green tints ──
-  greenBg: 'rgba(16,185,129,0.1)',          // matches accentGreen
+  greenBg: 'rgba(16,185,129,0.1)',
   greenFaint: 'rgba(34,197,94,0.1)',
 
   // ── Row highlights ──
-  rowUnreadBg: 'rgba(255,255,255,0.03)',
-  rowPressed: 'rgba(255,255,255,0.04)',
+  rowUnreadBg: 'rgba(212,175,55,0.03)',
+  rowPressed: 'rgba(212,175,55,0.04)',
 
   // ── Skeleton shimmer ──
-  skeleton: '#2a2d33',                       // visible on pure black
-  skeletonFaint: 'rgba(255,255,255,0.15)',
-  skeletonBright: 'rgba(255,255,255,0.35)',
+  skeleton: 'rgba(212,175,55,0.06)',          // gold-tinted shimmer
+  skeletonFaint: 'rgba(212,175,55,0.1)',
+  skeletonBright: 'rgba(212,175,55,0.2)',
 
   // ── Fact check ──
-  factCheckBg: 'rgba(16,185,129,0.1)',       // matches accentGreen (#10b981)
+  factCheckBg: 'rgba(16,185,129,0.1)',
 
   // ── Stars ──
-  starEmpty: '#374151',                       // visible empty star on dark bg
+  starEmpty: 'rgba(212,175,55,0.2)',           // gold-tinted empty star
+
+  // ── Additional tokens for hardcoded value cleanup ──
+  overlayLight: 'rgba(0,0,0,0.35)',
+  overlaySoft: 'rgba(0,0,0,0.55)',
+  overlayFull: 'rgba(0,0,0,0.9)',
+  overlaySolid: 'rgba(0,0,0,0.95)',
+  overlayMax: 'rgba(0,0,0,0.85)',
+  silver: '#C0C0C0',
+  bronze: '#CD7F32',
 };
