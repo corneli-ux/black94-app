@@ -157,7 +157,7 @@ export default function StoreDashboardScreen() {
           allOrders = sellerSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         }
       } catch (e) {
-        console.warn('[StoreDashboard] sellerId query failed, trying businessId:', e);
+        if (__DEV__) console.warn('[StoreDashboard] sellerId query failed, trying businessId:', e);
       }
 
       // Fallback: try businessId
@@ -174,7 +174,7 @@ export default function StoreDashboardScreen() {
             allOrders = bizSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
           }
         } catch (e2) {
-          console.warn('[StoreDashboard] businessId fallback failed:', e2);
+          if (__DEV__) console.warn('[StoreDashboard] businessId fallback failed:', e2);
         }
       }
 
@@ -283,7 +283,7 @@ export default function StoreDashboardScreen() {
           productsFetched = true;
         }
       } catch (e) {
-        console.warn('[StoreDashboard] ownerId product query failed:', e);
+        if (__DEV__) console.warn('[StoreDashboard] ownerId product query failed:', e);
       }
 
       if (!productsFetched) {

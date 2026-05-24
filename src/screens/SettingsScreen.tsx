@@ -67,7 +67,7 @@ export default function SettingsScreen() {
           try {
             await signOutUser();
           } catch (err) {
-            console.warn('[Settings] signOutUser error:', err);
+            if (__DEV__) console.warn('[Settings] signOutUser error:', err);
           }
           useAppStore.getState().logout();
         },

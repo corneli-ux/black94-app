@@ -79,10 +79,10 @@ export const PLANS: PaymentPlan[] = [
 
 // ── Plan limits (for usage bars) ──────────────────────────────────────────
 
-export const PLAN_LIMITS: Record<string, { posts: number; stories: number; storage: number }> = {
-  free: { posts: 5, stories: 3, storage: 50 },
-  premium: { posts: -1, stories: -1, storage: 500 },
-  business: { posts: -1, stories: -1, storage: 5000 },
+export const PLAN_LIMITS: Record<string, { posts: number; stories: number; products: number; storage: number }> = {
+  free: { posts: 5, stories: 3, products: 5, storage: 50 },
+  premium: { posts: -1, stories: -1, products: -1, storage: 500 },
+  business: { posts: -1, stories: -1, products: -1, storage: 5000 },
 };
 
 /**
@@ -91,7 +91,7 @@ export const PLAN_LIMITS: Record<string, { posts: number; stories: number; stora
  */
 export async function checkPlanLimit(
   userId: string,
-  action: 'post' | 'story',
+  action: 'post' | 'story' | 'product',
 ): Promise<{ allowed: boolean; reason?: string }> {
   try {
     const userDoc = await firestore().collection('users').doc(userId).get();
@@ -102,7 +102,7 @@ export async function checkPlanLimit(
     
     if ((limits as any)[action] === -1) return { allowed: true }; // Unlimited
     
-    const collectionMap = { post: 'posts', story: 'stories' };
+    const collectionMap = { post: 'posts', story: 'stories', product: 'products' };
     const collectionName = collectionMap[action];
     
     let query = firestore()
@@ -141,7 +141,7 @@ export async function checkPlanLimit(
     }
     
     if (currentCount >= (limits as any)[action]) {
-      const actionLabels = { post: 'posts', story: 'stories' };
+      const actionLabels = { post: 'posts', story: 'stories', product: 'products' };
       return {
         allowed: false,
         reason: `Free accounts can create up to ${limits[action]} ${actionLabels[action]}. Upgrade to Premium for unlimited access.`,
@@ -229,7 +229,7 @@ export async function verifyAndActivateSubscription(
     throw new Error('Payment verification failed on server');
   }
 
-  console.log(`[Payments] Server verified payment: ${params.razorpayPaymentId}`);
+  if (__DEV__) console.log(`[Payments] Server verified payment: ${params.razorpayPaymentId}`);
 
   // Fetch and return the updated user profile (server already activated subscription)
   const updatedUser = await fetchUserProfile(currentUid);

@@ -259,7 +259,7 @@ function CustomDrawerContent({ navigation }: any) {
             try {
               await signOutUser();
             } catch (e) {
-              console.warn('[Drawer] signOutUser error:', e);
+              if (__DEV__) console.warn('[Drawer] signOutUser error:', e);
             }
             useAppStore.getState().logout();
           },
@@ -442,7 +442,7 @@ export default function AppNavigator() {
     setPendingNotificationTap(null); // Clear immediately
 
     const nav = navRef.current;
-    console.log('[Navigator] Routing notification tap:', JSON.stringify(data));
+    if (__DEV__) console.log('[Navigator] Routing notification tap:', JSON.stringify(data));
 
     try {
       const type = data.type;
@@ -455,10 +455,9 @@ export default function AppNavigator() {
           nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages' } });
         }
       } else if (type === 'like' || type === 'comment' || type === 'repost') {
-        // Post interaction — navigate to post (if postId available) or notifications tab
+        // Post interaction — navigate to the specific post if postId is available
         if (data.postId) {
-          // Navigate to notifications tab which shows the post context
-          nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Notifications' } });
+          nav.navigate('PostComments', { postId: data.postId });
         } else {
           nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Notifications' } });
         }
@@ -477,7 +476,7 @@ export default function AppNavigator() {
         nav.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Notifications' } });
       }
     } catch (e) {
-      console.warn('[Navigator] Failed to route notification tap:', e);
+      if (__DEV__) console.warn('[Navigator] Failed to route notification tap:', e);
     }
   }, [pendingNotificationTap]);
 

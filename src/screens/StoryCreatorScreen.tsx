@@ -83,7 +83,7 @@ async function openImageLibrary() {
     });
     return result;
   } catch (err) {
-    console.warn('[StoryCreatorScreen] Image picker not available:', err);
+    if (__DEV__) console.warn('[StoryCreatorScreen] Image picker not available:', err);
     return null;
   }
 }
@@ -134,13 +134,13 @@ export default function StoryCreatorScreen({ navigation }: any) {
             const { copyToSafeCache } = require('../utils/imageUpload');
             uri = await copyToSafeCache(uri);
           } catch (copyErr: any) {
-            console.warn('[StoryCreatorScreen] copyToSafeCache failed:', copyErr?.message);
+            if (__DEV__) console.warn('[StoryCreatorScreen] copyToSafeCache failed:', copyErr?.message);
           }
         }
         setImageUri(uri);
       }
     } catch (e) {
-      console.warn('[StoryCreatorScreen] image picker error:', e);
+      if (__DEV__) console.warn('[StoryCreatorScreen] image picker error:', e);
     }
   }, []);
 

@@ -259,7 +259,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     try {
       userDocSnap = await userDocRef.get();
     } catch (e) {
-      console.warn('[Auth] Firestore user doc fetch failed:', e);
+      if (__DEV__) console.warn('[Auth] Firestore user doc fetch failed:', e);
       // BUG FIX: Do NOT treat fetch failure as "new user". The old code set
       // exists: false, which caused set(merge) to overwrite the user's custom
       // username/displayName with Google-derived defaults. This is how a user
@@ -302,7 +302,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       // would overwrite the user's custom username/displayName with Google defaults.
       // Fall through to return cached data from AsyncStorage instead.
       if (fetchFailed) {
-        console.warn('[Auth] Skipping user doc creation — fetch failed, doc likely exists');
+        if (__DEV__) console.warn('[Auth] Skipping user doc creation — fetch failed, doc likely exists');
       } else {
         userData.createdAt = firestore.FieldValue.serverTimestamp();
         try {
@@ -317,7 +317,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
             await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: fbUser.uid });
           }
         } catch (e) {
-          console.warn('[Auth] Failed to create user doc:', e);
+          if (__DEV__) console.warn('[Auth] Failed to create user doc:', e);
         }
       }
     } else {
@@ -367,7 +367,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
         );
 
         if (isSilentlyCorrupted && __DEV__) {
-          console.warn('[Auth] User doc silently corrupted (matches Google defaults, not cached profile) — restoring from cache');
+          if (__DEV__) console.warn('[Auth] User doc silently corrupted (matches Google defaults, not cached profile) — restoring from cache');
         }
 
         const updateFields: Record<string, any> = {
@@ -385,7 +385,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
           const preferCache = isSilentlyCorrupted && cachedProfile;
 
           if (__DEV__) {
-            console.warn('[Auth] User doc corrupted — self-healing from', preferCache ? 'cached profile (preferred)' : cachedProfile ? 'cached profile' : 'Google defaults');
+            if (__DEV__) console.warn('[Auth] User doc corrupted — self-healing from', preferCache ? 'cached profile (preferred)' : cachedProfile ? 'cached profile' : 'Google defaults');
           }
 
           updateFields.username = preferCache
@@ -434,7 +434,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
               }
             }
           } catch (reReadErr) {
-            console.warn('[Auth] Failed to re-read user doc after heal, using updateFields as fallback:', reReadErr);
+            if (__DEV__) console.warn('[Auth] Failed to re-read user doc after heal, using updateFields as fallback:', reReadErr);
             // Fallback: manually apply healed fields to existingData
             for (const [key, val] of Object.entries(updateFields)) {
               if (val !== undefined && !(val && typeof val === 'object' && '__sentinel' in val)) {
@@ -446,7 +446,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
           await userDocRef.update(updateFields);
         }
       } catch (e) {
-        console.warn('[Auth] Failed to update user doc:', e);
+        if (__DEV__) console.warn('[Auth] Failed to update user doc:', e);
       }
     }
 
@@ -524,7 +524,7 @@ export async function initPostSignUp(userId: string): Promise<void> {
     // Track first activity
     trackUserActivity(userId).catch(() => {});
   } catch (e) {
-    console.warn('[Auth] Post sign-up init failed:', e);
+    if (__DEV__) console.warn('[Auth] Post sign-up init failed:', e);
   }
 }
 
@@ -768,14 +768,14 @@ export async function toggleLike(postId: string, currentlyLiked: boolean): Promi
           checkPostLikeMilestones(postAuthorId, postId, newLikeCount).catch(() => {});
         }
       } catch (e) {
-        console.warn('[Like] Notification fire-and-forget failed:', e);
+        if (__DEV__) console.warn('[Like] Notification fire-and-forget failed:', e);
       }
 
       return true;
     }
   } catch (e) {
-    console.warn('[Like] toggleLike error:', e);
-    return currentlyLiked;
+    if (__DEV__) console.warn('[Like] toggleLike error:', e);
+    throw e;
   }
 }
 
@@ -794,8 +794,8 @@ export async function toggleBookmark(postId: string, currentlyBookmarked: boolea
       return true;
     }
   } catch (e) {
-    console.warn('[Bookmark] toggleBookmark error:', e);
-    return currentlyBookmarked;
+    if (__DEV__) console.warn('[Bookmark] toggleBookmark error:', e);
+    throw e;
   }
 }
 
@@ -857,7 +857,7 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
       const postData = postDoc.exists ? postDoc.data() : null;
 
       if (!postData) {
-        console.warn('[Repost] Original post not found, aborting repost creation');
+        if (__DEV__) console.warn('[Repost] Original post not found, aborting repost creation');
         // Undo the repostRef set above
         await repostRef.delete().catch(() => {});
         try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
@@ -918,7 +918,7 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
           }).catch(() => {});
         }
       } catch (e) {
-        console.warn('[Repost] Notification fire-and-forget failed:', e);
+        if (__DEV__) console.warn('[Repost] Notification fire-and-forget failed:', e);
       }
 
       // BUG FIX #1: Return the doc data directly so FeedScreen never needs
@@ -932,7 +932,7 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
       };
     }
   } catch (e) {
-    console.warn('[Repost] toggleRepost error:', e);
+    if (__DEV__) console.warn('[Repost] toggleRepost error:', e);
     // BUG FIX #4: Return success:false on error so FeedScreen knows to
     // revert optimistic state. Previously returned currentlyReposted (a boolean),
     // which made FeedScreen think the toggle succeeded.
@@ -1051,7 +1051,7 @@ export async function fetchChatList(): Promise<Chat[]> {
     if (__DEV__ && allDocs.length > 0) {
       allDocs.forEach((docSnap: any, i: number) => {
         const d = docSnap.data();
-        console.log(`[Chat] Doc[${i}] id=${docSnap.id} user1Id=${d.user1Id} user2Id=${d.user2Id} lastMessage=${typeof d.lastMessage} ts=${d.lastMessageTime}`);
+        if (__DEV__) console.log(`[Chat] Doc[${i}] id=${docSnap.id} user1Id=${d.user1Id} user2Id=${d.user2Id} lastMessage=${typeof d.lastMessage} ts=${d.lastMessageTime}`);
       });
     }
 
@@ -1060,7 +1060,7 @@ export async function fetchChatList(): Promise<Chat[]> {
     const validDocs = allDocs.filter((docSnap: any) => {
       const d = docSnap.data();
       if (!d.user1Id || !d.user2Id) {
-        console.warn(`[Chat] CORRUPTED chat doc ${docSnap.id}: missing user1Id/user2Id — skipping. Fields: ${Object.keys(d).join(', ')}`);
+        if (__DEV__) console.warn(`[Chat] CORRUPTED chat doc ${docSnap.id}: missing user1Id/user2Id — skipping. Fields: ${Object.keys(d).join(', ')}`);
         return false;
       }
       return true;
@@ -1077,14 +1077,14 @@ export async function fetchChatList(): Promise<Chat[]> {
       try {
         const allChatsNoFilter = await firestore().collection('chats').limit(20).get();
         if (__DEV__) {
-          console.log(`[Chat] DIAGNOSTIC: Total docs in chats collection (no filter): ${allChatsNoFilter.docs.length}`);
+          if (__DEV__) console.log(`[Chat] DIAGNOSTIC: Total docs in chats collection (no filter): ${allChatsNoFilter.docs.length}`);
           allChatsNoFilter.docs.forEach((docSnap: any, i: number) => {
             const d = docSnap.data();
-            console.log(`[Chat] DIAGNOSTIC[${i}] id=${docSnap.id} user1Id=${d.user1Id} user2Id=${d.user2Id} fields=${Object.keys(d).join(',')}`);
+            if (__DEV__) console.log(`[Chat] DIAGNOSTIC[${i}] id=${docSnap.id} user1Id=${d.user1Id} user2Id=${d.user2Id} fields=${Object.keys(d).join(',')}`);
           });
         }
         // Also log the current userId for comparison
-        console.log(`[Chat] DIAGNOSTIC: Current userId = ${userId}`);
+        if (__DEV__) console.log(`[Chat] DIAGNOSTIC: Current userId = ${userId}`);
       } catch (diagErr: any) {
         console.error('[Chat] DIAGNOSTIC FAILED (unfiltered query error):', diagErr?.message || diagErr);
       }
@@ -1236,7 +1236,7 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
       return { sent: false, reason: 'blocked' };
     }
   } catch (e) {
-    console.warn('[Messages] Block check failed, BLOCKING message to be safe:', e);
+    if (__DEV__) console.warn('[Messages] Block check failed, BLOCKING message to be safe:', e);
     return { sent: false, reason: 'block_check_failed' };
   }
 
@@ -1311,7 +1311,7 @@ export async function sendMessage(chatId: string, receiverId: string, content: s
   const actorFromStore = buildNotifFromStore();
 
   if (!chatData?.user1Id || !chatData?.user2Id) {
-    console.warn('[Messages] Chat doc missing user IDs, skipping unread update');
+    if (__DEV__) console.warn('[Messages] Chat doc missing user IDs, skipping unread update');
     // Fire notification from store data (zero network latency)
     dispatchEngagementNotification({
       recipientId: receiverId,
@@ -1523,7 +1523,7 @@ export async function blockUser(targetUserId: string): Promise<boolean> {
         // Also delete the chat document itself
         await firestore().collection('chats').doc(chatId).delete();
       } catch (e) {
-        console.warn(`[Block] Failed to clean up chat ${chatId}:`, e);
+        if (__DEV__) console.warn(`[Block] Failed to clean up chat ${chatId}:`, e);
       }
     }
 
@@ -1609,7 +1609,7 @@ export async function initiateCall(receiverId: string, receiverName: string, rec
       priority: 'critical',
     }).catch(() => {});
   } catch (e) {
-    console.warn('[Call] Notification failed:', e);
+    if (__DEV__) console.warn('[Call] Notification failed:', e);
   }
 
   return {
@@ -1853,7 +1853,7 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
           }),
         ]);
       } catch (e) {
-        console.warn('[Follow] Count update failed:', e);
+        if (__DEV__) console.warn('[Follow] Count update failed:', e);
       }
       return false;
     } else {
@@ -1873,7 +1873,7 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
         }),
       ]);
     } catch (e) {
-      console.warn('[Follow] Count update failed:', e);
+      if (__DEV__) console.warn('[Follow] Count update failed:', e);
     }
 
     // ── Notification: tell target user they got a new follower ──
@@ -1893,13 +1893,13 @@ export async function toggleFollow(targetUserId: string, currentlyFollowing: boo
       // Track activity
       trackUserActivity(userId).catch(() => {});
     } catch (e) {
-      console.warn('[Follow] Notification fire-and-forget failed:', e);
+      if (__DEV__) console.warn('[Follow] Notification fire-and-forget failed:', e);
     }
 
     return true;
     }
   } catch (e) {
-    console.warn('[Follow] toggleFollow error:', e);
+    if (__DEV__) console.warn('[Follow] toggleFollow error:', e);
     return currentlyFollowing;
   }
 }
@@ -1911,7 +1911,7 @@ export async function checkFollowing(targetUserId: string): Promise<boolean> {
     const docSnap = await firestore().collection('follows').doc(`${userId}_${targetUserId}`).get();
     return docSnap.exists;
   } catch (e) {
-    console.warn('[API] checkFollowing error:', e);
+    if (__DEV__) console.warn('[API] checkFollowing error:', e);
     return false;
   }
 }
@@ -1951,7 +1951,7 @@ export interface FactCheckClaim {
 
 export async function fetchPostComments(postId: string): Promise<CommentData[]> {
   if (!postId) {
-    console.warn('[Comments] No postId provided, returning empty');
+    if (__DEV__) console.warn('[Comments] No postId provided, returning empty');
     return [];
   }
   try {
@@ -2052,7 +2052,7 @@ export async function addPostComment(postId: string, content: string, replyToId?
       commentCount: firestore.FieldValue.increment(1),
     });
   } catch (e) {
-    console.warn('[Comments] Failed to increment commentCount:', e);
+    if (__DEV__) console.warn('[Comments] Failed to increment commentCount:', e);
   }
 
   // ── Notification: tell post author someone commented ──
@@ -2082,7 +2082,7 @@ export async function addPostComment(postId: string, content: string, replyToId?
       trackUserActivity(userId).catch(() => {});
     }
   } catch (e) {
-    console.warn('[Comments] Notification fire-and-forget failed:', e);
+    if (__DEV__) console.warn('[Comments] Notification fire-and-forget failed:', e);
   }
 
   return {
@@ -2188,7 +2188,7 @@ export async function toggleCommentRepost(commentId: string, currentlyReposted: 
           }).catch(() => {});
         }
       } catch (e) {
-        console.warn('[CommentRepost] Notification fire-and-forget failed:', e);
+        if (__DEV__) console.warn('[CommentRepost] Notification fire-and-forget failed:', e);
       }
 
       if (__DEV__) console.log(`[CommentRepost] Added repost on comment ${commentId}`);
@@ -2267,7 +2267,7 @@ export async function getPaidChatPrice(targetUserId: string): Promise<number> {
     if (!privacy || privacy.dmPermission !== 'paid') return 0;
     return typeof privacy.paidChatPrice === 'number' ? privacy.paidChatPrice : 0;
   } catch (e) {
-    console.warn('[PaidChat] Failed to fetch price:', e);
+    if (__DEV__) console.warn('[PaidChat] Failed to fetch price:', e);
     return 0;
   }
 }
@@ -2316,7 +2316,7 @@ export async function hasPaidChatAccess(
     const data = docSnap.data();
     return data?.status === 'active';
   } catch (e) {
-    console.warn('[PaidChat] Failed to check access:', e);
+    if (__DEV__) console.warn('[PaidChat] Failed to check access:', e);
     return false;
   }
 }
@@ -2340,7 +2340,7 @@ export async function getUserDmPermission(targetUserId: string): Promise<string>
     if (perm === 'followers_only') return 'followers';
     return perm;
   } catch (e) {
-    console.warn('[PaidChat] Failed to fetch DM permission:', e);
+    if (__DEV__) console.warn('[PaidChat] Failed to fetch DM permission:', e);
     return 'all';
   }
 }
@@ -2573,7 +2573,7 @@ export async function submitFactCheck(
   try {
     await autoVerifyFactCheck(docRef.id, claimText);
   } catch (e) {
-    console.warn('[FactCheck] Auto-verification failed:', e);
+    if (__DEV__) console.warn('[FactCheck] Auto-verification failed:', e);
   }
 
   const snap = await firestore().collection('factChecks').doc(docRef.id).get();
@@ -2692,6 +2692,184 @@ export async function fetchPostFactChecks(postId: string): Promise<FactCheckClai
     });
   } catch (e) {
     console.error('[FactCheck] Failed to fetch:', e);
+    return [];
+  }
+}
+
+/* ── Cart ──────────────────────────────────────────────────────────────────── */
+
+export interface CartItem {
+  productId: string;
+  name: string;
+  price: number;
+  image: string;
+  quantity: number;
+  variant?: string;
+  ownerName?: string;
+  comparePrice?: number;
+}
+
+export async function fetchCart(userId: string): Promise<CartItem[]> {
+  try {
+    const cartSnap = await firestore().collection('carts').doc(userId).get();
+    if (!cartSnap.exists) return [];
+    const data = cartSnap.data();
+    const items: CartItem[] = (data?.items || []).map((item: any) => ({
+      productId: item.productId || '',
+      name: item.name || 'Product',
+      price: item.price || 0,
+      image: item.image || '',
+      quantity: item.quantity || 1,
+      variant: item.variant || '',
+      ownerName: item.ownerName || '',
+      comparePrice: item.comparePrice || undefined,
+    }));
+    return items;
+  } catch (e) {
+    if (__DEV__) console.warn('[Cart] Failed to fetch cart:', e);
+    return [];
+  }
+}
+
+export async function updateCartItemQuantity(
+  userId: string,
+  productId: string,
+  newQty: number,
+): Promise<void> {
+  try {
+    const cartRef = firestore().collection('carts').doc(userId);
+    const cartSnap = await cartRef.get();
+    if (!cartSnap.exists) return;
+    const data = cartSnap.data();
+    const items: any[] = data?.items || [];
+    const idx = items.findIndex((i: any) => i.productId === productId);
+    if (idx >= 0) {
+      items[idx].quantity = newQty;
+      await cartRef.update({
+        items,
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  } catch (e) {
+    if (__DEV__) console.warn('[Cart] Failed to update item quantity:', e);
+    throw e;
+  }
+}
+
+export async function removeFromCart(
+  userId: string,
+  productId: string,
+): Promise<void> {
+  try {
+    const cartRef = firestore().collection('carts').doc(userId);
+    const cartSnap = await cartRef.get();
+    if (!cartSnap.exists) return;
+    const data = cartSnap.data();
+    const items: any[] = (data?.items || []).filter(
+      (i: any) => i.productId !== productId,
+    );
+    await cartRef.update({
+      items,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    if (__DEV__) console.warn('[Cart] Failed to remove item:', e);
+    throw e;
+  }
+}
+
+/* ── Product Reviews ───────────────────────────────────────────────────────── */
+
+export interface ProductReview {
+  id: string;
+  userId: string;
+  displayName: string;
+  profileImage: string | null;
+  rating: number;
+  text: string;
+  createdAt: number;
+}
+
+export async function submitProductReview(
+  productId: string,
+  rating: number,
+  text: string,
+): Promise<void> {
+  const userId = currentUser()?.uid;
+  if (!userId) throw new Error('Not authenticated');
+
+  try {
+    // Fetch reviewer profile for display name / avatar
+    let displayName = '';
+    let profileImage: string | null = null;
+    try {
+      const userSnap = await firestore().collection('users').doc(userId).get();
+      if (userSnap.exists) {
+        const ud = userSnap.data();
+        displayName = ud?.displayName || ud?.username || 'User';
+        profileImage = ud?.profileImage || null;
+      }
+    } catch {}
+
+    await firestore()
+      .collection('products')
+      .doc(productId)
+      .collection('reviews')
+      .add({
+        userId,
+        displayName,
+        profileImage,
+        rating,
+        text,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+    // Recalculate average rating on the product document
+    try {
+      const reviewsSnap = await firestore()
+        .collection('products')
+        .doc(productId)
+        .collection('reviews')
+        .get();
+      const reviews = reviewsSnap.docs.map((d: any) => d.data());
+      if (reviews.length > 0) {
+        const avg = reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / reviews.length;
+        await firestore().collection('products').doc(productId).update({
+          averageRating: Math.round(avg * 10) / 10,
+          reviewCount: reviews.length,
+        });
+      }
+    } catch {
+      // Non-critical — don't block review submission
+    }
+  } catch (e) {
+    if (__DEV__) console.warn('[Reviews] Failed to submit review:', e);
+    throw e;
+  }
+}
+
+export async function fetchProductReviews(productId: string): Promise<ProductReview[]> {
+  try {
+    const snap = await firestore()
+      .collection('products')
+      .doc(productId)
+      .collection('reviews')
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snap.docs.map((doc: any) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        userId: data.userId || '',
+        displayName: data.displayName || 'User',
+        profileImage: data.profileImage || null,
+        rating: data.rating || 0,
+        text: data.text || '',
+        createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
+      };
+    });
+  } catch (e) {
+    if (__DEV__) console.warn('[Reviews] Failed to fetch reviews:', e);
     return [];
   }
 }

@@ -269,7 +269,7 @@ export default function StoriesScreen({ navigation }: any) {
           createdAt: firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
     } catch (e) {
-      console.warn('[Stories] Failed to save comment:', e);
+      if (__DEV__) console.warn('[Stories] Failed to save comment:', e);
     }
   }, [commentText, viewingStory, currentUser, userDisplayName, storeUser, userProfileImage]);
 
@@ -472,7 +472,7 @@ export default function StoriesScreen({ navigation }: any) {
           }, { merge: true });
       }
     } catch (e) {
-      console.warn('[StoriesScreen] Failed to increment view count:', e);
+      if (__DEV__) console.warn('[StoriesScreen] Failed to increment view count:', e);
     }
   }, [currentUser, storeUser]);
 
@@ -488,7 +488,7 @@ export default function StoriesScreen({ navigation }: any) {
         .get();
       setViewers(snap.docs.map(d => d.data() as any));
     } catch (e) {
-      console.warn('[StoriesScreen] Failed to load viewers:', e);
+      if (__DEV__) console.warn('[StoriesScreen] Failed to load viewers:', e);
     }
   }, []);
 
@@ -502,7 +502,7 @@ export default function StoriesScreen({ navigation }: any) {
         .update({ likeCount: firestore.FieldValue.increment(1) });
       setLiked(true);
     } catch (e) {
-      console.warn('[StoriesScreen] Failed to like story:', e);
+      if (__DEV__) console.warn('[StoriesScreen] Failed to like story:', e);
     }
   }, [viewingStory, currentUser]);
 
@@ -519,7 +519,7 @@ export default function StoriesScreen({ navigation }: any) {
         .doc(viewingStory.id)
         .update({ likeCount: firestore.FieldValue.increment(newLiked ? 1 : -1) });
     } catch (e) {
-      console.warn('[StoriesScreen] Failed to like story:', e);
+      if (__DEV__) console.warn('[StoriesScreen] Failed to like story:', e);
       setLiked(currentLiked); // rollback on failure
     } finally {
       likingRef.current = false;

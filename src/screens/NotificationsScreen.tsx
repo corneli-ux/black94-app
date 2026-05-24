@@ -22,6 +22,7 @@ interface Notification {
   actorBadge?: string;
   postCaption?: string;
   postId?: string;
+  chatId?: string;
   commentContent?: string;
   read: boolean;
   createdAt: number;
@@ -60,7 +61,7 @@ export default function NotificationsScreen({ navigation }: any) {
       // BUG FIX: Also update local state so unread indicators disappear immediately
       setNotifs(prev => prev.map(n => ({ ...n, read: true })));
     } catch (e) {
-      console.warn('Failed to mark read:', e);
+      if (__DEV__) console.warn('Failed to mark read:', e);
     }
   }, [currentUser, setUnreadNotificationCount]);
 
@@ -92,6 +93,7 @@ export default function NotificationsScreen({ navigation }: any) {
           actorBadge: data.actorBadge || '',
           postCaption: data.postCaption || '',
           postId: data.postId || '',
+          chatId: data.chatId || '',
           read: data.read || false,
           createdAt: (() => { try { return tsToMillis(data.createdAt); } catch { return Date.now(); } })(),
         };
@@ -145,7 +147,11 @@ export default function NotificationsScreen({ navigation }: any) {
         if (item.type === 'follow') {
           navigation.navigate('UserProfile', { userId: item.actorId });
         } else if (item.type === 'chat') {
-          navigation.navigate('DualPaneChat', { otherUserId: item.actorId });
+          if (item.chatId) {
+            navigation.navigate('ChatRoom', { chatId: item.chatId });
+          } else {
+            navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages' } });
+          }
         } else if (item.postId) {
           navigation.navigate('PostComments', { postId: item.postId });
         } else {

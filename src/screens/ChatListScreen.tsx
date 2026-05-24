@@ -45,12 +45,13 @@ export default function ChatListScreen({ navigation, route }: any) {
       // Only call it once on initial mount via a ref guard.
       const data = await fetchChatList();
       if (__DEV__) console.log('[ChatListScreen] Loaded', data.length, 'chats');
-      setChats(data);
-      setFiltered(search.trim() ? data.filter((c: any) =>
+      const sorted = data.sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
+      setChats(sorted);
+      setFiltered(search.trim() ? sorted.filter((c: any) =>
         (c.otherUser?.displayName || '').toLowerCase().includes(search.trim().toLowerCase()) ||
         (c.otherUser?.username || '').toLowerCase().includes(search.trim().toLowerCase()) ||
         (c.lastMessage || '').toLowerCase().includes(search.trim().toLowerCase())
-      ) : data);
+      ) : sorted);
     } catch (e: any) {
       console.error('[ChatListScreen] Chat load error:', e?.message);
       console.error('[ChatListScreen] Error stack:', e?.stack);
@@ -175,7 +176,7 @@ export default function ChatListScreen({ navigation, route }: any) {
           });
           return;
         } catch (e) {
-          console.warn('[ChatList] PaidChatScreen not available, falling back to normal chat:', e);
+          if (__DEV__) console.warn('[ChatList] PaidChatScreen not available, falling back to normal chat:', e);
           // Fall through to normal chat creation
         }
       }
@@ -267,7 +268,7 @@ export default function ChatListScreen({ navigation, route }: any) {
       c.otherUser?.displayName?.toLowerCase().includes(lower) ||
       c.otherUser?.username?.toLowerCase().includes(lower) ||
       (typeof c.lastMessage === 'string' && c.lastMessage.toLowerCase().includes(lower))
-    ));
+    ).sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0)));
   };
 
   const deleteChat = async (chatId: string, chatName: string) => {
@@ -288,14 +289,14 @@ export default function ChatListScreen({ navigation, route }: any) {
 
           const deletePromises = snapshot.docs.map(doc =>
             messagesRef.doc(doc.id).delete().catch(e => {
-              console.warn(`[ChatDelete] Failed to delete message ${doc.id}:`, e);
+              if (__DEV__) console.warn(`[ChatDelete] Failed to delete message ${doc.id}:`, e);
             })
           );
           await Promise.all(deletePromises);
           deleted += snapshot.size;
           hasMore = snapshot.size >= batchSize;
         } catch (e) {
-          console.warn(`[ChatDelete] Batch failed at ${deleted} messages, continuing...`, e);
+          if (__DEV__) console.warn(`[ChatDelete] Batch failed at ${deleted} messages, continuing...`, e);
           break;
         }
       }

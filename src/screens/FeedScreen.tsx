@@ -149,7 +149,7 @@ function InlinePoll({ post }: { post: Post }) {
         setVoted(true);
       }
     } catch (e) {
-      console.warn('[InlinePoll] Vote failed:', e);
+      if (__DEV__) console.warn('[InlinePoll] Vote failed:', e);
     } finally {
       setVoting(false);
     }
@@ -331,18 +331,18 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   // download URL (token may have expired) before showing the error overlay.
   // FeedMedia handles display — this only manages the URL refresh logic.
   const handleMediaError = React.useCallback(async (originalUrl: string) => {
-    console.warn('[Feed] Image failed:', originalUrl?.slice(0, 80));
+    if (__DEV__) console.warn('[Feed] Image failed:', originalUrl?.slice(0, 80));
     if (!refreshAttemptedRef.current && originalUrl) {
       refreshAttemptedRef.current = true;
       try {
         const newUrl = await refreshFirebaseUrl(originalUrl);
         if (newUrl && newUrl !== originalUrl) {
-          console.log('[Feed] Refreshed URL, retrying:', newUrl.slice(0, 80));
+          if (__DEV__) console.log('[Feed] Refreshed URL, retrying:', newUrl.slice(0, 80));
           setRefreshedUrls(prev => ({ ...prev, [originalUrl]: newUrl }));
           return; // FeedMedia will auto-retry via uri prop change
         }
       } catch (refreshErr: any) {
-        console.warn('[Feed] URL refresh failed:', refreshErr?.message);
+        if (__DEV__) console.warn('[Feed] URL refresh failed:', refreshErr?.message);
       }
     }
     // Refresh failed or already attempted — FeedMedia shows error state

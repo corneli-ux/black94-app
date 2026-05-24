@@ -207,7 +207,7 @@ export async function copyToSafeCache(uri: string): Promise<string> {
     // Verify source file exists before copying
     const info = await FileSystem.getInfoAsync(uri);
     if (!info.exists) {
-      console.warn('[copyToSafeCache] Source file does not exist:', uri);
+      if (__DEV__) console.warn('[copyToSafeCache] Source file does not exist:', uri);
       throw new Error(`Source image file no longer exists. Please try selecting the image again.`);
     }
 
@@ -219,7 +219,7 @@ export async function copyToSafeCache(uri: string): Promise<string> {
         await FileSystem.makeDirectoryAsync(safeDir, { intermediates: true });
       }
     } catch (mkdirErr) {
-      console.warn('[copyToSafeCache] Failed to create safe directory, will copy to root cache:', mkdirErr);
+      if (__DEV__) console.warn('[copyToSafeCache] Failed to create safe directory, will copy to root cache:', mkdirErr);
     }
 
     // Generate unique destination filename preserving extension
@@ -229,13 +229,13 @@ export async function copyToSafeCache(uri: string): Promise<string> {
     const destPath = `${cacheDir}B94_picked/img_${timestamp}_${random}.${ext}`;
 
     await FileSystem.copyAsync({ from: uri, to: destPath });
-    console.log('[copyToSafeCache] Copied', uri.slice(-40), '→', destPath.slice(-40));
+    if (__DEV__) console.log('[copyToSafeCache] Copied', uri.slice(-40), '→', destPath.slice(-40));
     return destPath;
   } catch (err: any) {
     if (err?.message?.includes('no longer exists')) {
       throw err; // Re-throw our friendly message
     }
-    console.warn('[copyToSafeCache] Copy failed, returning original URI:', err?.message);
+    if (__DEV__) console.warn('[copyToSafeCache] Copy failed, returning original URI:', err?.message);
     return uri; // Best-effort: return original and hope it survives
   }
 }
@@ -489,7 +489,7 @@ export async function uploadOptimizedImage(
   // Read the file as Uint8Array.
   // FIX: React Native's Blob doesn't support ArrayBuffer on many Android versions.
   // We use base64 → Uint8Array which works on ALL platforms.
-  console.log(`[imageUpload] Reading file: ${uri} (${mimeType})`);
+  if (__DEV__) console.log(`[imageUpload] Reading file: ${uri} (${mimeType})`);
   const binaryData = await readFileAsBinary(uri);
 
   const fileSize = binaryData.length;
@@ -502,7 +502,7 @@ export async function uploadOptimizedImage(
     throw new Error(`File too small to be a valid image (${fileSize} bytes): ${uri}`);
   }
 
-  console.log(`[imageUpload] File read successfully: ${fileSize} bytes`);
+  if (__DEV__) console.log(`[imageUpload] File read successfully: ${fileSize} bytes`);
 
   // BLACK PHOTO FIX #2: Validate image magic bytes before uploading.
   // Skip for non-image uploads (e.g., audio).
@@ -517,13 +517,13 @@ export async function uploadOptimizedImage(
     }
     // Auto-correct MIME type if the actual bytes don't match.
     if (isPng && mimeType === 'image/jpeg') {
-      console.warn('[imageUpload] MIME mismatch: PNG bytes but Content-Type is image/jpeg. Auto-correcting to image/png.');
+      if (__DEV__) console.warn('[imageUpload] MIME mismatch: PNG bytes but Content-Type is image/jpeg. Auto-correcting to image/png.');
       mimeType = 'image/png';
     } else if (isJpeg && mimeType === 'image/png') {
-      console.warn('[imageUpload] MIME mismatch: JPEG bytes but Content-Type is image/png. Auto-correcting to image/jpeg.');
+      if (__DEV__) console.warn('[imageUpload] MIME mismatch: JPEG bytes but Content-Type is image/png. Auto-correcting to image/jpeg.');
       mimeType = 'image/jpeg';
     }
-    console.log(`[imageUpload] Magic byte check passed: ${isJpeg ? 'JPEG' : isPng ? 'PNG' : 'GIF'}`);
+    if (__DEV__) console.log(`[imageUpload] Magic byte check passed: ${isJpeg ? 'JPEG' : isPng ? 'PNG' : 'GIF'}`);
   }
 
   // Build the simple upload URL
@@ -545,7 +545,7 @@ export async function uploadOptimizedImage(
         ? await _invalidateTokenAndRetry()
         : await getValidToken();
 
-      console.log(`[imageUpload] Upload attempt ${attempt + 1}/${maxRetries + 1} to ${path}`);
+      if (__DEV__) console.log(`[imageUpload] Upload attempt ${attempt + 1}/${maxRetries + 1} to ${path}`);
 
       // Upload using XHR as PRIMARY method (works on all RN platforms).
       // XHR.send(Uint8Array) is universally supported in React Native.
@@ -562,7 +562,7 @@ export async function uploadOptimizedImage(
         );
       } catch (fetchErr: any) {
         // Fallback: XHR with Uint8Array (works on ALL platforms)
-        console.warn(`[imageUpload] fetch upload failed, trying XHR fallback: ${fetchErr.message}`);
+        if (__DEV__) console.warn(`[imageUpload] fetch upload failed, trying XHR fallback: ${fetchErr.message}`);
         downloadUrl = await doUpload(
           uploadUrl,
           binaryData,
@@ -580,15 +580,15 @@ export async function uploadOptimizedImage(
       try {
         const verifyResp = await fetch(downloadUrl, { method: 'HEAD' });
         if (!verifyResp.ok) {
-          console.warn(`[imageUpload] Post-upload verification FAILED: HTTP ${verifyResp.status} for ${downloadUrl.slice(0, 80)}...`);
+          if (__DEV__) console.warn(`[imageUpload] Post-upload verification FAILED: HTTP ${verifyResp.status} for ${downloadUrl.slice(0, 80)}...`);
         } else {
           const contentLength = verifyResp.headers.get('content-length');
           if (contentLength && parseInt(contentLength) < 100) {
-            console.warn(`[imageUpload] Post-upload file is suspiciously small: ${contentLength} bytes`);
+            if (__DEV__) console.warn(`[imageUpload] Post-upload file is suspiciously small: ${contentLength} bytes`);
           }
         }
       } catch (verifyErr) {
-        console.warn('[imageUpload] Post-upload verification error:', verifyErr);
+        if (__DEV__) console.warn('[imageUpload] Post-upload verification error:', verifyErr);
       }
 
       // Final progress callback at 100%
@@ -596,7 +596,7 @@ export async function uploadOptimizedImage(
         onProgress(fileSize, fileSize);
       }
 
-      console.log(`[imageUpload] Upload succeeded in ${Date.now() - startTime}ms: ${downloadUrl.slice(0, 80)}...`);
+      if (__DEV__) console.log(`[imageUpload] Upload succeeded in ${Date.now() - startTime}ms: ${downloadUrl.slice(0, 80)}...`);
 
       return {
         downloadUrl,
@@ -607,7 +607,7 @@ export async function uploadOptimizedImage(
       };
     } catch (err: any) {
       lastError = err;
-      console.warn(`[imageUpload] Attempt ${attempt + 1} failed: ${err.message} (status: ${err.status || 'none'})`);
+      if (__DEV__) console.warn(`[imageUpload] Attempt ${attempt + 1} failed: ${err.message} (status: ${err.status || 'none'})`);
 
       // Don't retry aborted uploads
       if (abortSignal?.aborted || err.message === 'Upload aborted') {
@@ -635,7 +635,7 @@ export async function uploadOptimizedImage(
 
       if (isAuthError || isNetworkError || retryableStatus) {
         const retryDelay = getRetryDelay(attempt);
-        console.log(`[imageUpload] Retrying in ${retryDelay}ms...`);
+        if (__DEV__) console.log(`[imageUpload] Retrying in ${retryDelay}ms...`);
         await delay(retryDelay);
         continue;
       }
@@ -695,18 +695,18 @@ export async function deleteImage(storagePath: string): Promise<void> {
 
     // 404 is acceptable — file was already deleted or never existed
     if (response.ok || response.status === 404) {
-      console.log(`[imageUpload] Deleted: ${storagePath}`);
+      if (__DEV__) console.log(`[imageUpload] Deleted: ${storagePath}`);
       return;
     }
 
     // Log but don't throw for permission errors — the UI should handle this gracefully
     const errorBody = await response.text().catch(() => '');
-    console.warn(
+    if (__DEV__) console.warn(
       `[imageUpload] Failed to delete ${storagePath}: ${response.status} ${errorBody}`,
     );
   } catch (err: any) {
     // Network errors during delete are non-critical — log and continue
-    console.warn(`[imageUpload] Delete error for ${storagePath}:`, err.message);
+    if (__DEV__) console.warn(`[imageUpload] Delete error for ${storagePath}:`, err.message);
   }
 }
 
@@ -753,12 +753,12 @@ export async function getImageDownloadUrl(
     });
 
     if (response.status === 404) {
-      console.log(`[imageUpload] File not found: ${storagePath}`);
+      if (__DEV__) console.log(`[imageUpload] File not found: ${storagePath}`);
       return null;
     }
 
     if (!response.ok) {
-      console.warn(
+      if (__DEV__) console.warn(
         `[imageUpload] Failed to get metadata for ${storagePath}: ${response.status}`,
       );
       return null;
@@ -778,7 +778,7 @@ export async function getImageDownloadUrl(
     const firstToken = downloadTokens.split(',')[0];
     return `${STORAGE_BASE}/${encodedPath}?alt=media&token=${firstToken}`;
   } catch (err: any) {
-    console.warn(`[imageUpload] getImageDownloadUrl error:`, err.message);
+    if (__DEV__) console.warn(`[imageUpload] getImageDownloadUrl error:`, err.message);
     return null;
   }
 }
@@ -861,7 +861,7 @@ export async function refreshFirebaseUrl(url: string): Promise<string | null> {
 
     return await getImageDownloadUrl(storagePath);
   } catch (err: any) {
-    console.warn('[imageUpload] refreshFirebaseUrl error:', err.message);
+    if (__DEV__) console.warn('[imageUpload] refreshFirebaseUrl error:', err.message);
     return null;
   }
 }

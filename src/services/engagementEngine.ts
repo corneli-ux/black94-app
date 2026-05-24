@@ -270,7 +270,7 @@ export async function dispatchEngagementNotification(
         createdAt: firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
   } catch (e) {
-    console.warn('[EngagementEngine] Firestore write failed:', e);
+    if (__DEV__) console.warn('[EngagementEngine] Firestore write failed:', e);
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -408,7 +408,7 @@ export async function checkFollowerMilestones(userId: string, followerCount: num
           priority: 'normal',
         });
       } catch (e) {
-        console.warn('[EngagementEngine] Follower milestone check failed:', e);
+        if (__DEV__) console.warn('[EngagementEngine] Follower milestone check failed:', e);
       }
     }
   }
@@ -458,7 +458,7 @@ export async function checkPostLikeMilestones(
           priority: 'normal',
         });
       } catch (e) {
-        console.warn('[EngagementEngine] Post like milestone check failed:', e);
+        if (__DEV__) console.warn('[EngagementEngine] Post like milestone check failed:', e);
       }
     }
   }
@@ -482,7 +482,7 @@ export async function trackUserActivity(userId: string): Promise<void> {
         openedAppAt: firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
   } catch (e) {
-    console.warn('[EngagementEngine] Activity tracking failed:', e);
+    if (__DEV__) console.warn('[EngagementEngine] Activity tracking failed:', e);
   }
 }
 
@@ -561,7 +561,7 @@ export async function checkReEngagement(userId: string): Promise<void> {
       }
     }
   } catch (e) {
-    console.warn('[EngagementEngine] Re-engagement check failed:', e);
+    if (__DEV__) console.warn('[EngagementEngine] Re-engagement check failed:', e);
   }
 }
 
@@ -679,7 +679,7 @@ export async function computeEngagementScore(userId: string): Promise<Engagement
       }, { merge: true });
 
   } catch (e) {
-    console.warn('[EngagementEngine] Score computation failed:', e);
+    if (__DEV__) console.warn('[EngagementEngine] Score computation failed:', e);
   }
 
   return score;
@@ -717,6 +717,6 @@ export async function sendWelcomeNotification(userId: string): Promise<void> {
       priority: 'normal',
     });
   } catch (e) {
-    console.warn('[EngagementEngine] Welcome notification failed:', e);
+    if (__DEV__) console.warn('[EngagementEngine] Welcome notification failed:', e);
   }
 }

@@ -256,7 +256,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           return [...pendingTemps, ...msgs];
         });
       } catch (err) {
-        console.warn('[DualPaneChatScreen] msg poll error:', err);
+        if (__DEV__) console.warn('[DualPaneChatScreen] msg poll error:', err);
       } finally {
         setLoadingMessages(false);
       }

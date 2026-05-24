@@ -250,7 +250,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
         },
         (err: any) => {
           // Non-fatal — live listener failing just means no auto-refresh
-          console.warn('[Feed] Real-time listener error:', err?.message);
+          if (__DEV__) console.warn('[Feed] Real-time listener error:', err?.message);
         }
       );
 
@@ -392,9 +392,9 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
       }
 
       if (__DEV__) {
-        console.log(`[Feed] Loaded ${newPosts.length} posts, currentUser=${currentUser?.uid}`);
+        if (__DEV__) console.log(`[Feed] Loaded ${newPosts.length} posts, currentUser=${currentUser?.uid}`);
         for (const p of newPosts) {
-          console.log(`[Feed] Post ${p.id.slice(0,8)}: authorId=${p.authorId}, displayName="${p.authorDisplayName}", username="@${p.authorUsername}", hasImage=${!!p.authorProfileImage}`);
+          if (__DEV__) console.log(`[Feed] Post ${p.id.slice(0,8)}: authorId=${p.authorId}, displayName="${p.authorDisplayName}", username="@${p.authorUsername}", hasImage=${!!p.authorProfileImage}`);
         }
       }
 
@@ -445,7 +445,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
         setFollowedUserIds(ids);
         if (__DEV__) console.log(`[Feed] Loaded ${ids.size} followed users for Network tab`);
       } catch (e) {
-        console.warn('[Feed] Failed to load followed users:', e);
+        if (__DEV__) console.warn('[Feed] Failed to load followed users:', e);
       }
     })();
   }, [activeTab, currentUser?.uid]);

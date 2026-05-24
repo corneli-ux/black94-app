@@ -168,7 +168,7 @@ export function onDocumentSnapshot(
       if (err?.message?.includes('Session expired') || err?.message?.includes('Not authenticated')) {
         return; // Auth will be re-established on next successful interaction
       }
-      console.warn(`[Realtime] onDocumentSnapshot(${collectionPath}/${docId}) error:`, err?.message);
+      if (__DEV__) console.warn(`[Realtime] onDocumentSnapshot(${collectionPath}/${docId}) error:`, err?.message);
     }
   };
 
@@ -205,7 +205,7 @@ export function onCollectionSnapshot(
       if (err?.message?.includes('Session expired') || err?.message?.includes('Not authenticated')) {
         return;
       }
-      console.warn(`[Realtime] onCollectionSnapshot(${collectionPath}) error:`, err?.message);
+      if (__DEV__) console.warn(`[Realtime] onCollectionSnapshot(${collectionPath}) error:`, err?.message);
     }
   };
 
@@ -243,7 +243,7 @@ export function onMessageListener(
       if (err?.message?.includes('Session expired') || err?.message?.includes('Not authenticated')) {
         return;
       }
-      console.warn(`[Realtime] onMessageListener(${chatId}) error:`, err?.message);
+      if (__DEV__) console.warn(`[Realtime] onMessageListener(${chatId}) error:`, err?.message);
     }
   };
 
@@ -291,7 +291,7 @@ export function onUnreadCountListener(
       if (err?.message?.includes('Session expired') || err?.message?.includes('Not authenticated')) {
         return;
       }
-      console.warn(`[Realtime] onUnreadCountListener(${userId}) error:`, err?.message);
+      if (__DEV__) console.warn(`[Realtime] onUnreadCountListener(${userId}) error:`, err?.message);
     }
   };
 
@@ -321,7 +321,7 @@ export function onNotificationCountListener(
       if (err?.message?.includes('Session expired') || err?.message?.includes('Not authenticated')) {
         return;
       }
-      console.warn(`[Realtime] onNotificationCountListener(${userId}) error:`, err?.message);
+      if (__DEV__) console.warn(`[Realtime] onNotificationCountListener(${userId}) error:`, err?.message);
     }
   };
 

@@ -130,7 +130,7 @@ async function getFileSize(uri: string): Promise<number> {
     }
     return 0;
   } catch (err) {
-    console.warn('[imageOptimizer] Failed to get file size:', err);
+    if (__DEV__) console.warn('[imageOptimizer] Failed to get file size:', err);
     return 0;
   }
 }
@@ -150,7 +150,7 @@ async function getImageDimensions(
     });
     return { width: result.width, height: result.height };
   } catch (err) {
-    console.warn('[imageOptimizer] Failed to get image dimensions:', err);
+    if (__DEV__) console.warn('[imageOptimizer] Failed to get image dimensions:', err);
     return { width: 0, height: 0 };
   }
 }
@@ -208,7 +208,7 @@ async function generateNoiseDitheredUri(uri: string): Promise<string> {
     return result.uri;
   } catch (err) {
     // If dithering fails, just return the original URI — it's non-critical
-    console.warn('[imageOptimizer] Noise dithering failed, using original:', err);
+    if (__DEV__) console.warn('[imageOptimizer] Noise dithering failed, using original:', err);
     return uri;
   }
 }
@@ -498,16 +498,16 @@ export async function optimizeImage(
     // Content-Type: image/jpeg, which causes React Native's Image component to
     // fail loading (it tries to decode as JPEG but bytes are PNG).
     if (isPng && outputMime === 'image/jpeg') {
-      console.warn('[imageOptimizer] Format mismatch: requested JPEG but got PNG bytes. Using actual format.');
+      if (__DEV__) console.warn('[imageOptimizer] Format mismatch: requested JPEG but got PNG bytes. Using actual format.');
       actualMime = 'image/png';
     } else if (isJpeg && outputMime === 'image/png') {
-      console.warn('[imageOptimizer] Format mismatch: requested PNG but got JPEG bytes. Using actual format.');
+      if (__DEV__) console.warn('[imageOptimizer] Format mismatch: requested PNG but got JPEG bytes. Using actual format.');
       actualMime = 'image/jpeg';
     }
 
     const outputValid = isJpeg || isPng || isGif;
     if (!outputValid) {
-      console.warn('[imageOptimizer] Output FAILED magic byte validation — corrupt file. Size:', optimizedSize, 'bytes');
+      if (__DEV__) console.warn('[imageOptimizer] Output FAILED magic byte validation — corrupt file. Size:', optimizedSize, 'bytes');
       if (__DEV__) console.warn('[imageOptimizer] Falling back to original URI:', uri);
       const origSize = await getFileSize(uri);
       return {
@@ -521,7 +521,7 @@ export async function optimizeImage(
     }
     if (__DEV__) console.log('[imageOptimizer] Output passed magic byte validation:', isJpeg ? 'JPEG' : isPng ? 'PNG' : 'GIF', '(requested:', outputMime, ')');
   } catch (validationErr) {
-    console.warn('[imageOptimizer] Magic byte validation failed (non-critical):', validationErr);
+    if (__DEV__) console.warn('[imageOptimizer] Magic byte validation failed (non-critical):', validationErr);
   }
 
   // Step 9: Generate thumbnail
@@ -547,7 +547,7 @@ export async function optimizeImage(
         );
         thumbnailUri = thumb.uri;
       } catch (err) {
-        console.warn('[imageOptimizer] Thumbnail generation failed, using optimized:', err);
+        if (__DEV__) console.warn('[imageOptimizer] Thumbnail generation failed, using optimized:', err);
         // Non-critical — fall back to the optimized image
       }
     }
@@ -593,7 +593,7 @@ export async function pickAndOptimizeImage(
     // Request permissions first
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      console.warn('[imageOptimizer] Media library permission denied');
+      if (__DEV__) console.warn('[imageOptimizer] Media library permission denied');
       // Don't throw — let the UI decide how to handle this
       return null;
     }
@@ -614,7 +614,7 @@ export async function pickAndOptimizeImage(
 
     const asset = pickerResult.assets[0];
     if (!asset.uri) {
-      console.warn('[imageOptimizer] Picker returned asset without URI');
+      if (__DEV__) console.warn('[imageOptimizer] Picker returned asset without URI');
       return null;
     }
 

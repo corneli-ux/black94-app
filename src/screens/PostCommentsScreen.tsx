@@ -63,9 +63,9 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     try {
       const data = await fetchPostComments(postId);
       if (__DEV__ && data.length > 0) {
-        console.log(`[PostComments] Loaded ${data.length} comments for post ${postId?.slice(0,8)}`);
+        if (__DEV__) console.log(`[PostComments] Loaded ${data.length} comments for post ${postId?.slice(0,8)}`);
         for (const c of data.slice(0, 5)) {
-          console.log(`[PostComments] Comment ${c.id.slice(0,8)}: authorId=${c.authorId}, displayName="${c.authorDisplayName}", username="@${c.authorUsername}"`);
+          if (__DEV__) console.log(`[PostComments] Comment ${c.id.slice(0,8)}: authorId=${c.authorId}, displayName="${c.authorDisplayName}", username="@${c.authorUsername}"`);
         }
       }
       setComments(data);
@@ -87,8 +87,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           }
         }
       } catch (e) {
-        // Non-critical — don't block comment loading
-        console.warn('[PostComments] Failed to correct commentCount:', e);
+        if (__DEV__) console.warn('[PostComments] Failed to correct commentCount:', e);
       }
     } catch (e: any) {
       console.error('[PostComments] loadComments error:', e?.message);
@@ -138,7 +137,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         setComments(prev => [...prev, ...newComments]);
       }
     } catch (e) {
-      console.warn('[PostComments] loadMoreComments error:', e);
+      if (__DEV__) console.warn('[PostComments] loadMoreComments error:', e);
     }
     setLoadingMore(false);
   }, [loadingMore, allLoaded, comments, postId]);

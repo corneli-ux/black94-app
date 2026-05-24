@@ -66,7 +66,7 @@ export default function BookmarksScreen() {
         }
       } catch {
         // Fallback: parallel individual reads via Promise.all
-        console.warn('[Bookmarks] Batch query failed, falling back to individual reads');
+        if (__DEV__) console.warn('[Bookmarks] Batch query failed, falling back to individual reads');
         const results = await Promise.all(
           bookmarkEntries.map(async (entry) => {
             try {
@@ -184,7 +184,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   }, [post.id, post.mediaUrls]);
 
   const handleMediaError = useCallback(async (originalUrl: string) => {
-    console.warn('[Bookmarks] Image failed:', originalUrl?.slice(0, 80));
+    if (__DEV__) console.warn('[Bookmarks] Image failed:', originalUrl?.slice(0, 80));
     if (!refreshAttemptedRef.current && originalUrl) {
       refreshAttemptedRef.current = true;
       try {
@@ -194,7 +194,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
           return;
         }
       } catch (refreshErr: any) {
-        console.warn('[Bookmarks] URL refresh failed:', refreshErr?.message);
+        if (__DEV__) console.warn('[Bookmarks] URL refresh failed:', refreshErr?.message);
       }
     }
   }, []);
@@ -230,7 +230,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
       setBookmarked(false);
       onUnbookmark();
     } catch (e) {
-      console.warn('[Bookmarks] Unbookmark failed:', e);
+      if (__DEV__) console.warn('[Bookmarks] Unbookmark failed:', e);
     }
   };
 

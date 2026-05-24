@@ -150,7 +150,7 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
   const handleShouldStartLoad = useCallback(
     (request: WebViewNavigation): boolean => {
       const url = request.url;
-      console.log('[GoogleSignInWebView] Navigation:', url.substring(0, 120));
+      if (__DEV__) console.log('[GoogleSignInWebView] Navigation:', url.substring(0, 120));
 
       // ── Check for Google OAuth errors in the URL ──
       // Google includes error parameters when the consent screen fails
@@ -190,10 +190,10 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
         }
 
         if (code) {
-          console.log('[GoogleSignInWebView] Got auth code, exchanging for ID token...');
+          if (__DEV__) console.log('[GoogleSignInWebView] Got auth code, exchanging for ID token...');
           exchangeCodeForToken(code, codeVerifierRef.current)
             .then((idToken) => {
-              console.log('[GoogleSignInWebView] Got ID token, completing sign-in');
+              if (__DEV__) console.log('[GoogleSignInWebView] Got ID token, completing sign-in');
               onToken(idToken);
             })
             .catch((err) => {

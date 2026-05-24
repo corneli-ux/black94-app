@@ -59,7 +59,7 @@ export function startNotificationPolling(
         },
         { pollInterval: POLL_INTERVAL },
       );
-    console.log('[NotificationEngine] listen() started for user:', userId);
+    if (__DEV__) console.log('[NotificationEngine] listen() started for user:', userId);
   }, 3000);
 
   // Pause/resume the listener when the app goes to background/foreground.
@@ -74,7 +74,7 @@ export function startNotificationPolling(
         pausedLastCount = lastKnownCount;
         listenUnsub();
         listenUnsub = null;
-        console.log('[NotificationEngine] listen() paused (app backgrounded)');
+        if (__DEV__) console.log('[NotificationEngine] listen() paused (app backgrounded)');
       }
     } else if (nextState === 'active') {
       if (paused) {
@@ -104,12 +104,12 @@ export function startNotificationPolling(
             },
             { pollInterval: POLL_INTERVAL },
           );
-        console.log('[NotificationEngine] listen() resumed (app foregrounded)');
+        if (__DEV__) console.log('[NotificationEngine] listen() resumed (app foregrounded)');
       }
     }
   });
 
-  console.log('[NotificationEngine] Polling started for user:', userId);
+  if (__DEV__) console.log('[NotificationEngine] Polling started for user:', userId);
 }
 
 /**
@@ -119,7 +119,7 @@ export function stopNotificationPolling(): void {
   if (listenUnsub) {
     listenUnsub();
     listenUnsub = null;
-    console.log('[NotificationEngine] listen() stopped');
+    if (__DEV__) console.log('[NotificationEngine] listen() stopped');
   }
   if (initialDefer) {
     clearTimeout(initialDefer);
@@ -156,7 +156,7 @@ async function pollUnread(userId: string): Promise<number> {
     return snap.docs.length;
   } catch (e) {
     // On any query error (missing index, permission, etc.), fall back
-    console.warn('[NotificationEngine] Composite query failed, using fallback:', e?.message || e);
+    if (__DEV__) console.warn('[NotificationEngine] Composite query failed, using fallback:', e?.message || e);
     return _pollUnreadFallback(userId);
   }
 }
@@ -259,10 +259,10 @@ export async function createNotification(
         createdAt: firestore.FieldValue.serverTimestamp(),
       });
 
-    console.log(`[NotificationEngine] Created ${type} notification for ${recipientId}`);
+    if (__DEV__) console.log(`[NotificationEngine] Created ${type} notification for ${recipientId}`);
   } catch (e) {
     // Notification creation should never break the main action (like, follow, etc.)
-    console.warn('[NotificationEngine] Failed to create notification:', e);
+    if (__DEV__) console.warn('[NotificationEngine] Failed to create notification:', e);
   }
 }
 
@@ -299,7 +299,7 @@ export async function createEngagementNotification(
         createdAt: firestore.FieldValue.serverTimestamp(),
       });
   } catch (e) {
-    console.warn('[NotificationEngine] Engagement notification failed:', e);
+    if (__DEV__) console.warn('[NotificationEngine] Engagement notification failed:', e);
   }
 }
 
@@ -332,8 +332,8 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
       totalMarked += snapshot.docs.length;
       if (snapshot.docs.length === 0) break;
     }
-    console.log(`[NotificationEngine] Marked ${totalMarked} notifications as read`);
+    if (__DEV__) console.log(`[NotificationEngine] Marked ${totalMarked} notifications as read`);
   } catch (e) {
-    console.warn('[NotificationEngine] Failed to mark notifications read:', e);
+    if (__DEV__) console.warn('[NotificationEngine] Failed to mark notifications read:', e);
   }
 }

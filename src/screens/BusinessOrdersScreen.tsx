@@ -147,7 +147,7 @@ export default function BusinessOrdersScreen() {
       try {
         rawOrders = await fetchBusinessOrders(userId);
       } catch (e) {
-        console.warn('[BusinessOrdersScreen] fetchBusinessOrders failed:', e);
+        if (__DEV__) console.warn('[BusinessOrdersScreen] fetchBusinessOrders failed:', e);
       }
 
       // Fallback: direct sellerId query in case orders use sellerId instead
@@ -188,7 +188,7 @@ export default function BusinessOrdersScreen() {
             });
           }
         } catch (e2) {
-          console.warn('[BusinessOrdersScreen] sellerId fallback failed:', e2);
+          if (__DEV__) console.warn('[BusinessOrdersScreen] sellerId fallback failed:', e2);
         }
       }
 
@@ -235,7 +235,7 @@ export default function BusinessOrdersScreen() {
           ),
         );
       } catch (err) {
-        console.warn('[BusinessOrdersScreen] updateStatus error:', err);
+        if (__DEV__) console.warn('[BusinessOrdersScreen] updateStatus error:', err);
         Alert.alert('Error', 'Failed to update order status. Please try again.');
       } finally {
         setUpdatingStatus(false);

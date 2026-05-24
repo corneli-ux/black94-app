@@ -70,7 +70,7 @@ export async function getUserProfile(uid: string): Promise<CachedUserProfile | n
 
     return profile;
   } catch (e) {
-    console.warn('[userCache] Failed to fetch user:', uid, e);
+    if (__DEV__) console.warn('[userCache] Failed to fetch user:', uid, e);
     return null;
   }
 }
@@ -125,7 +125,7 @@ export async function getUserProfilesBatch(uids: string[]): Promise<Map<string, 
         result.set(uid, profile);
       }
     } catch (e) {
-      console.warn('[userCache] Batch fetch failed:', e);
+      if (__DEV__) console.warn('[userCache] Batch fetch failed:', e);
     }
   }
 

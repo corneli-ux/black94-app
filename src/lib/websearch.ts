@@ -49,7 +49,7 @@ export async function searchWeb(query: string, numResults: number = 10): Promise
     );
 
     if (!response.ok) {
-      console.warn('[WebSearch] Function returned status:', response.status);
+      if (__DEV__) console.warn('[WebSearch] Function returned status:', response.status);
       return [];
     }
 
@@ -70,7 +70,7 @@ export async function searchWeb(query: string, numResults: number = 10): Promise
     return [];
   } catch (e) {
     // Cloud function may not be deployed yet — gracefully fall back
-    console.warn('[WebSearch] Search failed (function may not be deployed):', e);
+    if (__DEV__) console.warn('[WebSearch] Search failed (function may not be deployed):', e);
     return [];
   }
 }

@@ -101,7 +101,7 @@ async function fetchUsageStats(userId: string, currentPlan: PlanType): Promise<U
     }
     stats.storage.current = Math.round(estimatedMB);
   } catch (e) {
-    console.warn('[Premium] Failed to estimate storage:', e);
+    if (__DEV__) console.warn('[Premium] Failed to estimate storage:', e);
   }
 
   return stats;
@@ -143,7 +143,7 @@ export default function PremiumDashboardScreen() {
       const stats = await fetchUsageStats(uid, plan);
       setUsage(stats);
     } catch (e) {
-      console.warn('[Premium] Failed to load usage stats:', e);
+      if (__DEV__) console.warn('[Premium] Failed to load usage stats:', e);
     }
   }, []);
 

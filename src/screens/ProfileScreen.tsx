@@ -515,7 +515,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           };
         });
       } catch (e) {
-        console.warn('[ProfileScreen] Failed to fetch repost posts:', e);
+        if (__DEV__) console.warn('[ProfileScreen] Failed to fetch repost posts:', e);
       }
 
       const ps: Post[] = feed.docs.map(d => {
@@ -574,7 +574,7 @@ export default function ProfileScreen({ route, navigation }: any) {
             ]);
             await Promise.all(promises);
           } catch (e) {
-            console.warn('[Profile] Interaction check failed:', e);
+            if (__DEV__) console.warn('[Profile] Interaction check failed:', e);
           }
         }
 
@@ -774,7 +774,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       setFollowing(newState);
       setFollowersCount(c => newState ? c + 1 : Math.max(0, c - 1));
     } catch (e) {
-      console.warn('[ProfileScreen] follow error:', e);
+      if (__DEV__) console.warn('[ProfileScreen] follow error:', e);
     }
     setFollowLoading(false);
   };
@@ -837,7 +837,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       // DM permission is "all" (or null/undefined), or "followers" (and user follows) — proceed normally
       await findOrCreateChat(currentUser.uid, targetUserId);
     } catch (e: any) {
-      console.warn('[ProfileScreen] message error:', e);
+      if (__DEV__) console.warn('[ProfileScreen] message error:', e);
     } finally {
       setMessaging(false);
     }
@@ -887,7 +887,7 @@ export default function ProfileScreen({ route, navigation }: any) {
             style={styles.cover}
             resizeMode="cover"
             onError={(e) => {
-              console.warn('[ProfileScreen] Cover image failed to load:', e.nativeEvent?.error);
+              if (__DEV__) console.warn('[ProfileScreen] Cover image failed to load:', e.nativeEvent?.error);
               setCoverImageError(true);
             }}
           />

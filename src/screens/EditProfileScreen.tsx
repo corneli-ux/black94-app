@@ -66,7 +66,7 @@ async function openImageLibrary() {
     });
     return result;
   } catch (err) {
-    console.warn('[EditProfileScreen] Image picker not available:', err);
+    if (__DEV__) console.warn('[EditProfileScreen] Image picker not available:', err);
     return null;
   }
 }
@@ -139,7 +139,7 @@ export default function EditProfileScreen({ navigation }: any) {
           setRole((userData.role as Role) || 'personal');
         }
       } catch (e) {
-        console.warn('[EditProfileScreen] Failed to load user:', e);
+        if (__DEV__) console.warn('[EditProfileScreen] Failed to load user:', e);
       } finally {
         setLoading(false);
       }
@@ -198,7 +198,7 @@ export default function EditProfileScreen({ navigation }: any) {
               const { copyToSafeCache } = require('../utils/imageUpload');
               uri = await copyToSafeCache(uri);
             } catch (copyErr: any) {
-              console.warn('[EditProfileScreen] copyToSafeCache failed:', copyErr?.message);
+              if (__DEV__) console.warn('[EditProfileScreen] copyToSafeCache failed:', copyErr?.message);
             }
           }
           if (type === 'profile') {
@@ -208,7 +208,7 @@ export default function EditProfileScreen({ navigation }: any) {
           }
         }
       } catch (e) {
-        console.warn('[EditProfileScreen] image picker error:', e);
+        if (__DEV__) console.warn('[EditProfileScreen] image picker error:', e);
       }
     },
     [],

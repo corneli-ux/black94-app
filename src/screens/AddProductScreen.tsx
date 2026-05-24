@@ -228,7 +228,7 @@ export default function AddProductScreen({ route, navigation }: any) {
           const safeUri = await copyToSafeCache(rawUri);
           safeUris.push(safeUri);
         } catch (copyErr: any) {
-          console.warn('[AddProduct] Failed to cache image:', copyErr?.message);
+          if (__DEV__) console.warn('[AddProduct] Failed to cache image:', copyErr?.message);
         }
       }
       if (safeUris.length > 0) {
@@ -453,7 +453,7 @@ export default function AddProductScreen({ route, navigation }: any) {
       }
     } catch (e: any) {
       if (e?.message === 'Upload cancelled') {
-        console.log('[AddProduct] Upload cancelled by user.');
+        if (__DEV__) console.log('[AddProduct] Upload cancelled by user.');
         return;
       }
       console.error('[AddProduct] Save error:', e);

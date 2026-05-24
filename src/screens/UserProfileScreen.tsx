@@ -679,7 +679,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
           };
         });
       } catch (e) {
-        console.warn('[UserProfile] Failed to fetch repost posts:', e);
+        if (__DEV__) console.warn('[UserProfile] Failed to fetch repost posts:', e);
       }
 
       // Merge own posts + repost posts, sort by createdAt descending
@@ -714,7 +714,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
             ]);
             await Promise.all(promises);
           } catch (e) {
-            console.warn('[UserProfile] Interaction check failed:', e);
+            if (__DEV__) console.warn('[UserProfile] Interaction check failed:', e);
           }
         }
 
@@ -726,7 +726,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
         setPosts([...allPosts]);
       }
     } catch (e) {
-      console.warn('[UserProfileScreen] load error:', e);
+      if (__DEV__) console.warn('[UserProfileScreen] load error:', e);
       // BUG FIX: Set loadError so the UI shows an error screen with retry
       // instead of a permanent loading spinner when profile data fails to load.
       setLoadError(true);
@@ -859,7 +859,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
       setIsFollowing(nowFollowing);
       setFollowerCount((prev) => (nowFollowing ? prev + 1 : Math.max(0, prev - 1)));
     } catch (e) {
-      console.warn('[UserProfileScreen] follow error:', e);
+      if (__DEV__) console.warn('[UserProfileScreen] follow error:', e);
     }
     setFollowLoading(false);
   }, [currentUid, userId, followLoading, isFollowing]);
@@ -940,7 +940,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
         }
       }
     } catch (e) {
-      console.warn('[UserProfileScreen] message error:', e);
+      if (__DEV__) console.warn('[UserProfileScreen] message error:', e);
     }
     setMessageLoading(false);
   }, [currentUid, userId, messageLoading, navigation]);

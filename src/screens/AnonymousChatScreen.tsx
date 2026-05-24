@@ -256,7 +256,7 @@ export default function AnonymousChatScreen() {
     try {
       await firestore().collection('anonQueue').doc(myUserId).delete();
     } catch (e: any) {
-      console.warn('[AnonChat] Failed to delete queue entry:', e?.message);
+      if (__DEV__) console.warn('[AnonChat] Failed to delete queue entry:', e?.message);
     }
   }, [myUserId]);
 
@@ -267,7 +267,7 @@ export default function AnonymousChatScreen() {
         lastActivity: nowISO(),
       });
     } catch (e: any) {
-      console.warn('[AnonChat] Failed to update room activity:', e?.message);
+      if (__DEV__) console.warn('[AnonChat] Failed to update room activity:', e?.message);
     }
   }, []);
 
@@ -280,7 +280,7 @@ export default function AnonymousChatScreen() {
       });
       setAnonChatCount(prev => (prev ?? 0) + 1);
     } catch (e: any) {
-      console.warn('[AnonChat] Failed to increment chat count:', e?.message);
+      if (__DEV__) console.warn('[AnonChat] Failed to increment chat count:', e?.message);
     }
   }, [myUserId]);
 
@@ -298,7 +298,7 @@ export default function AnonymousChatScreen() {
       }
       await firestore().collection('anonRooms').doc(roomId).update(updateData);
     } catch (e: any) {
-      console.warn('[AnonChat] Failed to update typing state:', e?.message);
+      if (__DEV__) console.warn('[AnonChat] Failed to update typing state:', e?.message);
     }
   }, [myUserId]);
 
@@ -411,7 +411,7 @@ export default function AnonymousChatScreen() {
               partnerId: myUserId,
             });
           } catch (e: any) {
-            console.warn('[AnonChat] Failed to mark partner as matched:', e?.message);
+            if (__DEV__) console.warn('[AnonChat] Failed to mark partner as matched:', e?.message);
           }
 
           // Mark ourselves as matched
@@ -421,7 +421,7 @@ export default function AnonymousChatScreen() {
               partnerId,
             });
           } catch (e: any) {
-            console.warn('[AnonChat] Failed to mark self as matched:', e?.message);
+            if (__DEV__) console.warn('[AnonChat] Failed to mark self as matched:', e?.message);
           }
 
           // Clean up our own queue entry after matching
@@ -457,7 +457,7 @@ export default function AnonymousChatScreen() {
         }
       }
     } catch (e: any) {
-      console.warn('[AnonChat] Queue poll error:', e?.message);
+      if (__DEV__) console.warn('[AnonChat] Queue poll error:', e?.message);
     }
   }, [myUserId, myName, deleteOwnQueueEntry, stopSearchTimer, startConnectionTimer, incrementAnonChatCount]);
 
@@ -477,6 +477,7 @@ export default function AnonymousChatScreen() {
           .collection('anonMessages')
           .where('roomId', '==', roomId)
           .orderBy('createdAt', 'asc')
+          .limit(100)
           .get();
 
         if (!snapshot.empty && mountedRef.current) {
@@ -528,7 +529,7 @@ export default function AnonymousChatScreen() {
           }, 100);
         }
       } catch (e: any) {
-        console.warn('[AnonChat] Message poll error:', e?.message);
+        if (__DEV__) console.warn('[AnonChat] Message poll error:', e?.message);
       }
     };
 
@@ -567,7 +568,7 @@ export default function AnonymousChatScreen() {
           }
         }
       } catch (e: any) {
-        console.warn('[AnonChat] Typing poll error:', e?.message);
+        if (__DEV__) console.warn('[AnonChat] Typing poll error:', e?.message);
       }
     };
 
@@ -1077,7 +1078,7 @@ export default function AnonymousChatScreen() {
                           });
                         }
                       } catch (e: any) {
-                        console.warn('[AnonChat] Report failed:', e?.message);
+                        if (__DEV__) console.warn('[AnonChat] Report failed:', e?.message);
                       }
                       await fullCleanup();
                       if (mountedRef.current) {

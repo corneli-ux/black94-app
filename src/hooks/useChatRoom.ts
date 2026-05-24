@@ -93,7 +93,7 @@ export function useChatRoom({
     if (!chat) return;
     setSending(true);
     const tempMsg: Message = {
-      id: `tmp-media-${Date.now()}`, chatId: chat.id,
+      id: `tmp-media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, chatId: chat.id,
       senderId: currentUser?.uid || '', receiverId: chat.otherUser?.id || '',
       content: content || (msgType === 'gif' ? 'GIF' : ''), messageType: msgType,
       mediaUrl, createdAt: Date.now(),
@@ -243,7 +243,7 @@ export function useChatRoom({
           }
         } catch { /* non-critical */ }
       } catch (e) {
-        console.warn('Failed to reset unread:', e);
+        if (__DEV__) console.warn('Failed to reset unread:', e);
       }
     };
     resetUnread();
@@ -265,6 +265,13 @@ export function useChatRoom({
       if (unsubRef.current) unsubRef.current();
     };
   }, [chat?.id]);
+
+  // ── Cleanup playback on unmount ─────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      playbackRef.current?.unloadAsync().catch(() => {});
+    };
+  }, []);
 
   // ── Keyboard scroll to bottom ─────────────────────────────────────────────
   useEffect(() => {
@@ -444,7 +451,7 @@ export function useChatRoom({
       recordingRef.current = null;
 
       if (!uri) {
-        console.warn('[ChatRoom] No recording URI after stop');
+        if (__DEV__) console.warn('[ChatRoom] No recording URI after stop');
         return;
       }
 
@@ -563,7 +570,7 @@ export function useChatRoom({
           : m
       ));
     } catch (e) {
-      console.warn('[Chat] Reaction failed:', e?.message || e);
+      if (__DEV__) console.warn('[Chat] Reaction failed:', e?.message || e);
     }
     setReactionMsg(null);
   };

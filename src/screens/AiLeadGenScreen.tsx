@@ -125,7 +125,7 @@ export default function AiLeadGenScreen() {
         const customers = await CRM.identifyPotentialCustomers(uid);
         setPotentialCustomers(customers.slice(0, 20));
       } catch (e) {
-        console.warn('[LeadGen] identifyPotentialCustomers error:', e);
+        if (__DEV__) console.warn('[LeadGen] identifyPotentialCustomers error:', e);
         setPotentialCustomers([]);
       }
 
@@ -134,7 +134,7 @@ export default function AiLeadGenScreen() {
         const followUps = await CRM.getPendingFollowUps(uid);
         setPendingFollowUps(followUps);
       } catch (e) {
-        console.warn('[LeadGen] getPendingFollowUps error:', e);
+        if (__DEV__) console.warn('[LeadGen] getPendingFollowUps error:', e);
         setPendingFollowUps([]);
       }
     } catch (err) {

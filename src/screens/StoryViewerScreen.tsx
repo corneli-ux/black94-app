@@ -96,7 +96,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
 
         setStories(items);
       } catch (e) {
-        console.warn('[StoryViewerScreen] load error:', e);
+        if (__DEV__) console.warn('[StoryViewerScreen] load error:', e);
       }
     };
     loadStories();
@@ -132,13 +132,17 @@ export default function StoryViewerScreen({ navigation, route }: any) {
             setUserVote(null);
           }
         } catch (e) {
-          console.warn('[StoryViewerScreen] Failed to check vote:', e);
+          if (__DEV__) console.warn('[StoryViewerScreen] Failed to check vote:', e);
           setUserVote(null);
         }
       };
       checkVote();
     }
   }, [currentIndex, stories]);
+
+  // Ref for goNext to avoid double-fire from useEffect dependency changes
+  const goNextRef = useRef(goNext);
+  goNextRef.current = goNext;
 
   // Progress bar animation
   useEffect(() => {
@@ -162,14 +166,14 @@ export default function StoryViewerScreen({ navigation, route }: any) {
       useNativeDriver: false,
     }).start(({ finished }) => {
       if (finished) {
-        goNext();
+        goNextRef.current();
       }
     });
 
     return () => {
       progressAnim.stopAnimation();
     };
-  }, [currentIndex, stories.length, isPaused, goNext]);
+  }, [currentIndex, stories.length, isPaused, progressAnim]);
 
   // Pan responder for swipe dismiss
   useEffect(() => {

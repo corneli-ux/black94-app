@@ -31,7 +31,7 @@ export default function LoginScreen() {
         const tokens = await GoogleSignin.getTokens();
         idToken = tokens.idToken;
       } catch (e) {
-        console.warn('[Login] getTokens failed:', e);
+        if (__DEV__) console.warn('[Login] getTokens failed:', e);
       }
 
       if (!idToken) {
@@ -43,7 +43,7 @@ export default function LoginScreen() {
       if (user) {
         setUser(user);
         setToken(user.id);
-        initPostSignUp(user.id).catch((e) => console.warn('[Login] initPostSignUp failed:', e));
+        if (__DEV__) initPostSignUp(user.id).catch((e) => console.warn('[Login] initPostSignUp failed:', e));
       }
     } catch (error: any) {
       console.error('Sign in error:', error);

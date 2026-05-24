@@ -89,7 +89,7 @@ export default function AuthScreen() {
             setUser(user);
             setToken(user.id);
             // Initialize push notifications, welcome message & activity tracking
-            initPostSignUp(user.id).catch((e) => console.warn('[AuthScreen] initPostSignUp failed:', e));
+            if (__DEV__) initPostSignUp(user.id).catch((e) => console.warn('[AuthScreen] initPostSignUp failed:', e));
             return; // Success!
           }
         } catch (err: any) {
@@ -156,7 +156,7 @@ export default function AuthScreen() {
         const tokens = await GoogleSignin.getTokens();
         idToken = tokens.idToken;
       } catch (e) {
-        console.warn('[AuthScreen] getTokens failed:', e);
+        if (__DEV__) console.warn('[AuthScreen] getTokens failed:', e);
       }
     }
     if (!idToken) throw new Error('Failed to obtain Google ID token from native sign-in');

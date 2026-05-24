@@ -10,7 +10,7 @@ import * as Font from 'expo-font';
 
 // Initialize WebBrowser for OAuth callback handling
 // Wrap in try-catch for web compatibility
-try { WebBrowser.maybeCompleteAuthSession(); } catch (e) { console.warn('[WebBrowser]', e); }
+try { WebBrowser.maybeCompleteAuthSession(); } catch (e) { if (__DEV__) console.warn('[WebBrowser]', e); }
 import { onAuthStateChanged, auth, restoreAuth, getValidToken } from './src/lib/firebase';
 import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
@@ -24,7 +24,7 @@ const USER_CACHE_KEY = '@black94/user_cache';
 
 // Prevent native splash from auto-hiding before JS is ready
 // Wrap in try-catch — no-op on web
-try { SplashScreen.preventAutoHideAsync({ fade: true }); } catch (e) { console.warn('[Splash]', e); }
+try { SplashScreen.preventAutoHideAsync({ fade: true }); } catch (e) { if (__DEV__) console.warn('[Splash]', e); }
 
 /* ── Error Boundary ───────────────────────────────────────────────────────── */
 
@@ -94,13 +94,13 @@ export default function App() {
     // On native, this is still fast enough because it runs at app startup.
     import('./src/services/pushNotifications').then(({ initNotifications }) => {
       initNotifications((tapData) => {
-        console.log('[App] Notification tap received:', JSON.stringify(tapData));
+        if (__DEV__) console.log('[App] Notification tap received:', JSON.stringify(tapData));
         setPendingNotificationTap(tapData);
       }).catch(e => {
-        console.warn('[App] Notification init failed:', e);
+        if (__DEV__) console.warn('[App] Notification init failed:', e);
       });
     }).catch(e => {
-      console.warn('[App] Failed to import pushNotifications:', e);
+      if (__DEV__) console.warn('[App] Failed to import pushNotifications:', e);
     });
   }, []);
 
@@ -113,9 +113,9 @@ export default function App() {
           'Roboto-Medium': require('./assets/fonts/Roboto-Medium.ttf'),
           'Roboto-Bold': require('./assets/fonts/Roboto-Bold.ttf'),
         });
-        console.log('[App] Fonts loaded — Roboto');
+        if (__DEV__) console.log('[App] Fonts loaded — Roboto');
       } catch (e) {
-        console.warn('[App] Font loading failed, using system default:', e);
+        if (__DEV__) console.warn('[App] Font loading failed, using system default:', e);
       }
       setFontsLoaded(true);
     })();
@@ -124,7 +124,7 @@ export default function App() {
   useEffect(() => {
     // ── WEB: Skip Firebase auth entirely, set demo user ──
     if (IS_WEB) {
-      console.log('[App] Web platform detected — bypassing login, setting demo user');
+      if (__DEV__) console.log('[App] Web platform detected — bypassing login, setting demo user');
       setUser({
         id: 'web_demo_user',
         email: 'demo@black94.com',
@@ -165,7 +165,7 @@ export default function App() {
 
     // Safety timeout — longer to allow auth restoration
     const safetyTimer = setTimeout(() => {
-      console.warn('[App] Safety timeout reached — forcing ready');
+      if (__DEV__) console.warn('[App] Safety timeout reached — forcing ready');
       forceReady = true;
       setIsReady(true);
     }, FORCE_READY_TIMEOUT);
@@ -177,12 +177,12 @@ export default function App() {
         const authInstance = auth();
 
         if (restored && authInstance.currentUser) {
-          console.log('[App] Auth restored — validating token...');
+          if (__DEV__) console.log('[App] Auth restored — validating token...');
           try {
             // Validate the token by making a Firestore call
             const validToken = await getValidToken();
             if (validToken) {
-              console.log('[App] Token valid, auto-login successful');
+              if (__DEV__) console.log('[App] Token valid, auto-login successful');
               const fbUser = authInstance.currentUser;
               setToken(fbUser.uid);
               setLoading(false);
@@ -192,7 +192,7 @@ export default function App() {
               // fetchUserProfile, adding 1-3s of blank-screen delay on every cold start.
               const cached = await loadCachedProfile();
               if (cached && cached.id === fbUser.uid) {
-                console.log('[App] Using cached profile for offline restore:', cached.username);
+                if (__DEV__) console.log('[App] Using cached profile for offline restore:', cached.username);
                 setUser(cached);
               } else {
                 // No cache or different user — build from Firebase auth data
@@ -207,7 +207,7 @@ export default function App() {
               // Re-initialize push notifications + activity tracking on auth restore
               // (token may have changed since last session)
               import('./src/lib/api').then(({ initPostSignUp }) => {
-                initPostSignUp(fbUser.uid).catch((e) => console.warn('[App] initPostSignUp on restore failed:', e));
+                initPostSignUp(fbUser.uid).catch((e) => { if (__DEV__) console.warn('[App] initPostSignUp on restore failed:', e); });
               }).catch(() => {});
               // Fetch full profile in background and update (non-blocking)
               fetchUserProfile(fbUser.uid).then(profile => {
@@ -216,19 +216,19 @@ export default function App() {
                   saveCachedProfile(profile); // Update cache with fresh data
                 }
               }).catch(err => {
-                console.warn('[App] Profile fetch failed after restore, keeping cached user:', err);
+                if (__DEV__) console.warn('[App] Profile fetch failed after restore, keeping cached user:', err);
               });
               return; // Skip onAuthStateChanged — we handled it
             }
           } catch (e) {
-            console.warn('[App] Token validation failed after restore:', e);
+            if (__DEV__) console.warn('[App] Token validation failed after restore:', e);
             // Token expired, need to refresh or re-login
           }
         }
 
         // Step 2: Normal auth state listener (for fresh login or sign-up)
         if (!authInstance) {
-          console.warn('[App] Firebase Auth null — showing login screen');
+          if (__DEV__) console.warn('[App] Firebase Auth null — showing login screen');
           setUser(null);
           setToken(null);
           setIsReady(true);
@@ -283,7 +283,7 @@ export default function App() {
               }
               setIsReady(true);
             }).catch(err => {
-              console.warn('[App] Profile fetch failed, using cached or Firebase data:', err);
+              if (__DEV__) console.warn('[App] Profile fetch failed, using cached or Firebase data:', err);
               // FIX: Use cached profile if available, don't show wrong name when offline
               loadCachedProfile().then(cached => {
                 if (cached && cached.id === fbUser.uid) {
@@ -320,7 +320,7 @@ export default function App() {
   useEffect(() => {
     if (isReady) {
       const hide = async () => {
-        try { await SplashScreen.hideAsync({ fade: true }); } catch (e) { console.warn('[Splash]', e); }
+        try { await SplashScreen.hideAsync({ fade: true }); } catch (e) { if (__DEV__) console.warn('[Splash]', e); }
       };
       hide();
     }

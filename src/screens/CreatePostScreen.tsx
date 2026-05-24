@@ -426,7 +426,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
       navigation.goBack();
     } catch (err: any) {
       if (err?.message === 'Upload cancelled') {
-        console.log('[CreatePost] Upload cancelled by user.');
+        if (__DEV__) console.log('[CreatePost] Upload cancelled by user.');
         return;
       }
       console.error('[CreatePost] Failed to create post:', err);

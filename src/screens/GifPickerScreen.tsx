@@ -37,31 +37,33 @@ import Constants from 'expo-constants';
 const TENOR_KEY = (Constants.expoConfig?.extra?.tenorApiKey as string) || '';
 const PAGE_SIZE = 30;
 
-async function fetchTrending(pos?: number): Promise<GifItem[]> {
+async function fetchTrending(pos?: number): Promise<{ items: GifItem[]; next: string | null }> {
   let url = `https://tenor.googleapis.com/v2/trending?key=${TENOR_KEY}&limit=${PAGE_SIZE}&media_filter=gif`;
   if (pos != null) url += `&pos=${pos}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Tenor trending error: ${res.status}`);
   const json = await res.json();
-  return (json.results ?? []).map((r: any) => ({
+  const items = (json.results ?? []).map((r: any) => ({
     id: r.id,
     thumbnailUrl: r.media_formats?.tinygif?.url ?? r.media_formats?.gif?.url ?? '',
     fullUrl: r.media_formats?.gif?.url ?? '',
   }));
+  return { items, next: json.next ?? null };
 }
 
-async function searchGifs(query: string, pos?: number): Promise<GifItem[]> {
+async function searchGifs(query: string, pos?: number): Promise<{ items: GifItem[]; next: string | null }> {
   const encoded = encodeURIComponent(query);
   let url = `https://tenor.googleapis.com/v2/search?q=${encoded}&key=${TENOR_KEY}&limit=${PAGE_SIZE}&media_filter=gif`;
   if (pos != null) url += `&pos=${pos}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Tenor search error: ${res.status}`);
   const json = await res.json();
-  return (json.results ?? []).map((r: any) => ({
+  const items = (json.results ?? []).map((r: any) => ({
     id: r.id,
     thumbnailUrl: r.media_formats?.tinygif?.url ?? r.media_formats?.gif?.url ?? '',
     fullUrl: r.media_formats?.gif?.url ?? '',
   }));
+  return { items, next: json.next ?? null };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -95,10 +97,10 @@ export default function GifPickerScreen() {
     setError(null);
 
     fetchTrending()
-      .then((items) => {
+      .then(({ items, next }) => {
         if (!cancelled) {
           setGifs(items);
-          setNextPos(null); // Tenor v2 doesn't always return simple pos for trending
+          setNextPos(next);
         }
       })
       .catch((err) => {
@@ -128,9 +130,9 @@ export default function GifPickerScreen() {
         setError(null);
         currentQueryRef.current = '';
         try {
-          const items = await fetchTrending();
+          const { items, next } = await fetchTrending();
           setGifs(items);
-          setNextPos(null);
+          setNextPos(next);
         } catch (err: any) {
           setError(err.message);
         } finally {
@@ -146,9 +148,9 @@ export default function GifPickerScreen() {
       const q = text.trim();
       currentQueryRef.current = q;
       try {
-        const items = await searchGifs(q);
+        const { items, next } = await searchGifs(q);
         setGifs(items);
-        setNextPos(null);
+        setNextPos(next);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -166,8 +168,9 @@ export default function GifPickerScreen() {
 
     setLoadingMore(true);
     try {
-      const items = q ? await searchGifs(q, nextPos ? Number(nextPos) : undefined) : await fetchTrending(nextPos ? Number(nextPos) : undefined);
-      setGifs((prev) => [...prev, ...items]);
+      const result = q ? await searchGifs(q, nextPos ? Number(nextPos) : undefined) : await fetchTrending(nextPos ? Number(nextPos) : undefined);
+      setGifs((prev) => [...prev, ...result.items]);
+      setNextPos(result.next);
     } catch {
       // Silently fail on load more
     } finally {
@@ -182,7 +185,7 @@ export default function GifPickerScreen() {
         onSelect(gifUrl);
       } else {
         // Fallback: pass via route params so the previous screen can pick it up
-        navigation.navigate('ChatRoom', { selectedGifUrl: gifUrl });
+        navigation.navigate('ChatRoom', { selectedGifUrl: gifUrl, merge: true });
       }
     },
     [onSelect, navigation],

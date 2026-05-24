@@ -53,9 +53,9 @@ async function ensureAndroidChannel(): Promise<void> {
       lockscreenVisibility: Notifications.AndroidImportance.HIGH,
     });
     _channelCreated = true;
-    console.log('[Push] Android notification channel created:', CHANNEL_ID);
+    if (__DEV__) console.log('[Push] Android notification channel created:', CHANNEL_ID);
   } catch (e) {
-    console.warn('[Push] Failed to create Android channel:', e);
+    if (__DEV__) console.warn('[Push] Failed to create Android channel:', e);
   }
 }
 
@@ -99,7 +99,7 @@ export async function initNotifications(onNotificationTap: NotificationTapHandle
   if (_initialized) return;
   _initialized = true;
 
-  console.log('[Push] Initializing notification system...');
+  if (__DEV__) console.log('[Push] Initializing notification system...');
 
   // 1. Create Android notification channel FIRST — this is critical for
   //    background/killed notifications to appear on Android 8+
@@ -110,14 +110,14 @@ export async function initNotifications(onNotificationTap: NotificationTapHandle
 
   // Foreground notification received (app is open)
   Notifications.addNotificationReceivedListener(notification => {
-    console.log('[Push] Foreground notification:', notification.request.content.title);
+    if (__DEV__) console.log('[Push] Foreground notification:', notification.request.content.title);
   });
 
   // Notification tapped (foreground or background) — this is what routes
   // the user to the correct screen when they tap a notification
   Notifications.addNotificationResponseReceivedListener(response => {
     const data = response.notification.request.content.data || {};
-    console.log('[Push] Notification tapped:', JSON.stringify(data));
+    if (__DEV__) console.log('[Push] Notification tapped:', JSON.stringify(data));
     if (_tapHandler) {
       _tapHandler(data);
     }
@@ -128,7 +128,7 @@ export async function initNotifications(onNotificationTap: NotificationTapHandle
     const lastResponse = await Notifications.getLastNotificationResponseAsync();
     if (lastResponse?.notification) {
       const data = lastResponse.notification.request.content.data || {};
-      console.log('[Push] Cold-start notification detected:', JSON.stringify(data));
+      if (__DEV__) console.log('[Push] Cold-start notification detected:', JSON.stringify(data));
       // BUG FIX: Increased from 500ms to 1500ms.
       // 500ms was too short on slow/mid-range devices — the navigator hadn't
       // mounted yet (navRef.current was still null), so the tap was silently
@@ -138,10 +138,10 @@ export async function initNotifications(onNotificationTap: NotificationTapHandle
       }, 1500);
     }
   } catch (e) {
-    console.warn('[Push] Cold-start notification check failed:', e);
+    if (__DEV__) console.warn('[Push] Cold-start notification check failed:', e);
   }
 
-  console.log('[Push] Notification system initialized');
+  if (__DEV__) console.log('[Push] Notification system initialized');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -176,7 +176,7 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     }
 
     if (finalStatus !== 'granted') {
-      console.warn('[Push] Notification permission not granted:', finalStatus);
+      if (__DEV__) console.warn('[Push] Notification permission not granted:', finalStatus);
       return false;
     }
 
@@ -206,13 +206,13 @@ async function registerPushToken(): Promise<string | null> {
     const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
 
     if (!token) {
-      console.warn('[Push] No push token returned');
+      if (__DEV__) console.warn('[Push] No push token returned');
       return null;
     }
 
     const userId = auth()?.currentUser?.uid;
     if (!userId) {
-      console.warn('[Push] No user logged in, skipping token registration');
+      if (__DEV__) console.warn('[Push] No user logged in, skipping token registration');
       return token; // Return token but don't store
     }
 
@@ -243,7 +243,7 @@ async function registerPushToken(): Promise<string | null> {
         updatedAt: firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
-    console.log('[Push] Token registered for user:', userId);
+    if (__DEV__) console.log('[Push] Token registered for user:', userId);
     return token;
   } catch (e) {
     console.error('[Push] Token registration failed:', e);
@@ -312,16 +312,16 @@ export async function sendPushNotification(payload: PushPayload): Promise<boolea
     if (!success) {
       // Log top-level API errors (auth failures, malformed request, etc.)
       if (responseJson?.errors) {
-        console.warn('[Push] Send errors:', JSON.stringify(responseJson.errors));
+        if (__DEV__) console.warn('[Push] Send errors:', JSON.stringify(responseJson.errors));
       }
       // Log per-receipt errors (invalid token, device unregistered, etc.)
       for (const receipt of receipts) {
         if (receipt.status === 'error') {
-          console.warn('[Push] Receipt error:', receipt.id, receipt.message, receipt.details);
+          if (__DEV__) console.warn('[Push] Receipt error:', receipt.id, receipt.message, receipt.details);
         }
       }
     } else {
-      console.log('[Push] Notification sent successfully to:', payload.to.slice(-8));
+      if (__DEV__) console.log('[Push] Notification sent successfully to:', payload.to.slice(-8));
     }
 
     return success;
@@ -372,7 +372,7 @@ export async function sendPushToUser(
           }
         }
       } catch (fallbackErr) {
-        console.warn('[Push] latestToken fallback read failed:', fallbackErr);
+        if (__DEV__) console.warn('[Push] latestToken fallback read failed:', fallbackErr);
       }
     }
 
@@ -398,7 +398,7 @@ export async function sendPushToUser(
 
     const anySuccess = results.some(r => r);
     if (anySuccess) {
-      console.log(`[Push] Sent to ${recipientId} (${tokens.length} devices)`);
+      if (__DEV__) console.log(`[Push] Sent to ${recipientId} (${tokens.length} devices)`);
     }
     return anySuccess;
   } catch (e) {
@@ -436,8 +436,8 @@ export async function clearPushToken(): Promise<void> {
     // Reset permission flag so next login session can request again if needed
     _pushPermissionRequested = false;
 
-    console.log('[Push] Token cleared on logout');
+    if (__DEV__) console.log('[Push] Token cleared on logout');
   } catch (e) {
-    console.warn('[Push] Failed to clear token:', e);
+    if (__DEV__) console.warn('[Push] Failed to clear token:', e);
   }
 }

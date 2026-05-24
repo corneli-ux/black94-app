@@ -65,7 +65,7 @@ export default function ShareProfileScreen({ route, navigation }: any) {
         used: false,
       });
     } catch (e) {
-      console.warn('[ShareProfile] Failed to save share token:', e);
+      if (__DEV__) console.warn('[ShareProfile] Failed to save share token:', e);
     }
 
     setShareLink(link);
