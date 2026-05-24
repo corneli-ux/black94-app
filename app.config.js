@@ -2,13 +2,14 @@
  * app.config.js — Expo dynamic config
  *
  * Publishable keys (Razorpay Key ID, Firebase API Key, Tenor API Key) are
- * injected at build time via EAS secrets or environment variables.
+ * loaded in priority order:
+ *   1. Environment variable (from .env file or CI injection)
+ *   2. Default value below (repo is private — safe)
  *
  * Secret keys (Razorpay Key Secret, Webhook Secret) are NEVER in this file.
  * They live only in GitHub Secrets → Cloud Functions runtime.
  *
- * To set keys: eas secret:create --scope project --name <KEY> --value <VALUE>
- * Or create a .env file (gitignored) with the key you want to set.
+ * To override: create a .env file (gitignored) with the key you want to change.
  */
 
 // Load .env file if present (silent — won't error if missing)
@@ -97,13 +98,9 @@ module.exports = function () {
         eas: {
           projectId: '9dff44f7-2b2b-432d-a355-902a3d75e970',
         },
-        // Injected at build time via EAS secrets or env vars.
-        // Set with: eas secret:create --scope project --name FIREBASE_API_KEY --value <key>
-        firebaseApiKey: process.env.FIREBASE_API_KEY || '',
-        // Set with: eas secret:create --scope project --name RAZORPAY_KEY_ID --value <key>
-        razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
-        // Set with: eas secret:create --scope project --name TENOR_API_KEY --value <key>
-        tenorApiKey: process.env.TENOR_API_KEY || '',
+        firebaseApiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDOGRbI4V82VJ0KZND3v1ggfO5s3933-3w',
+        razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_Sqrg8zp3p7LGhX',
+        tenorApiKey: process.env.TENOR_API_KEY || 'AIzaSyDi7RJ3mPuN9gBjDXCMrhjS8ypHwm1nHB0',
       },
       owner: 'corneli1',
     },
