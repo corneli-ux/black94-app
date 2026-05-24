@@ -211,9 +211,9 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             {/* Repost */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleRepostPress}>
               <View style={profileCardStyles.actionIconWrap}>
-                <RepostIcon size={18} color={isReposted ? '#00ba7c' : colors.textSecondary} />
+                <RepostIcon size={18} color={isReposted ? colors.repost : colors.textSecondary} />
               </View>
-              {localRepostCount > 0 ? <Text style={[profileCardStyles.actionCount, isReposted && { color: '#00ba7c' }]}>{localRepostCount}</Text> : null}
+              {localRepostCount > 0 ? <Text style={[profileCardStyles.actionCount, isReposted && { color: colors.repost }]}>{localRepostCount}</Text> : null}
             </TouchableOpacity>
             {/* Like */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
@@ -483,7 +483,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <RepostIcon size={18} color={repostMap[reply.id] ? '#00ba7c' : colors.textSecondary} />
+                    <RepostIcon size={18} color={repostMap[reply.id] ? colors.repost : colors.textSecondary} />
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>

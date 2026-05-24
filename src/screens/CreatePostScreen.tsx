@@ -34,8 +34,8 @@ const COLORS = {
   white50: 'rgba(255,255,255,0.5)',
   accent: colors.accent,
   red: colors.delete,
-  green: '#00ba7c',
-  amber: '#ffd400',
+  green: colors.repost,
+  amber: colors.accentGold,
   gold: colors.accent,
 };
 

@@ -786,7 +786,7 @@ const storiesRowStyles = StyleSheet.create({
   avatarContainer: {
     borderRadius: STORY_CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: '#0f0f0f',
+    borderColor: colors.bg,
     overflow: 'hidden',
   },
   label: {

@@ -53,7 +53,7 @@ export function Avatar({
 
   return (
     <LinearGradient
-      colors={['#FFFFFF', '#9CA3AF']}
+      colors={[colors.white, colors.avatarGradientEnd]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={[
@@ -102,7 +102,7 @@ export function VerifiedBadge({ badge, isVerified, size = 18 }: { badge?: string
       {/* Checkmark — exact same path from webapp */}
       <Path
         d="M9.662 14.85l-3.429-3.428 1.293-1.302 2.072 2.072 4.4-4.794 1.347 1.246z"
-        fill="#000"
+        fill={colors.primaryForeground}
       />
     </Svg>
   );
