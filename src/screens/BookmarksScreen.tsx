@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Dimensions, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -13,6 +12,7 @@ import { refreshFirebaseUrl } from '../utils/imageUpload';
 import CommentSheet from '../components/CommentSheet';
 import FeedMedia from '../components/FeedMedia';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
+import { AppIcon } from '../components/icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -121,7 +121,7 @@ export default function BookmarksScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Bookmarks</Text>
           <View style={{ width: 22 }} />
@@ -138,7 +138,7 @@ export default function BookmarksScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="bookmark-outline" size={32} color={colors.textSecondary} />
+              <AppIcon name="bookmark-border" size="3xl" color={colors.textSecondary} />
             </View>
             <Text style={styles.emptyTitle}>No bookmarks yet</Text>
             <Text style={styles.emptySubtitle}>
@@ -265,26 +265,26 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
           )}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
-              <View style={styles.actionIconWrap}><Ionicons name="chatbubble-outline" size={18} color={colors.textMuted} /></View>
+              <View style={styles.actionIconWrap}><AppIcon name="chat-bubble-outline" size="md" color={colors.textMuted} /></View>
               {formatCount(commentCount) ? <Text style={styles.actionCount}>{formatCount(commentCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={handleRepost}>
-              <View style={styles.actionIconWrap}><Ionicons name="repeat" size={18} color={reposted ? colors.accentGreen : colors.textMuted} /></View>
+              <View style={styles.actionIconWrap}><AppIcon name="repeat" size="md" color={reposted ? colors.accentGreen : colors.textMuted} /></View>
               {formatCount(repostCount) ? <Text style={[styles.actionCount, reposted && { color: colors.accentGreen }]}>{formatCount(repostCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-              <View style={styles.actionIconWrap}><Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? colors.like : colors.textMuted} /></View>
+              <View style={styles.actionIconWrap}><AppIcon name={liked ? 'favorite' : 'favorite-border'} size="md" color={liked ? colors.like : colors.textMuted} /></View>
               {formatCount(likeCount) ? <Text style={[styles.actionCount, liked && { color: colors.like }]}>{formatCount(likeCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} disabled>
-              <View style={styles.actionIconWrap}><Ionicons name="trending-up-outline" size={18} color={colors.textMuted} /></View>
+              <View style={styles.actionIconWrap}><AppIcon name="trending-up" size="md" color={colors.textMuted} /></View>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
-                <View style={styles.actionIconWrap}><Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarked ? colors.white : colors.textMuted} /></View>
+                <View style={styles.actionIconWrap}><AppIcon name={bookmarked ? 'bookmark' : 'bookmark-border'} size="md" color={bookmarked ? colors.white : colors.textMuted} /></View>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-                <View style={styles.actionIconWrap}><Ionicons name="share-outline" size={18} color={colors.textMuted} /></View>
+                <View style={styles.actionIconWrap}><AppIcon name="share" size="md" color={colors.textMuted} /></View>
               </TouchableOpacity>
             </View>
           </View>

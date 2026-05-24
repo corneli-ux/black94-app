@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 interface PrivacyConfig {
   isPrivate: boolean;
@@ -84,7 +84,7 @@ export default function PrivacySettingsScreen() {
             onPress={() => update({ allowDMsFrom: o.val })}
           >
             <Text style={[styles.rowLabel, { flex: 1 }]}>{o.label}</Text>
-            {config.allowDMsFrom === o.val && <Ionicons name="checkmark-circle" size={20} color={colors.accent} />}
+            {config.allowDMsFrom === o.val && <AppIcon name="check-circle" size={20} color={colors.accent} />}
           </TouchableOpacity>
         ))}
       </>
@@ -96,7 +96,7 @@ export default function PrivacySettingsScreen() {
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Privacy & Safety</Text>
         {saving
@@ -135,11 +135,11 @@ export default function PrivacySettingsScreen() {
         <View style={styles.card}>
           <TouchableOpacity style={styles.navRow} onPress={() => navigation.navigate('MutedUsers')}>
             <Text style={styles.rowLabel}>Muted Accounts</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+            <AppIcon name="chevron-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.navRow, { borderBottomWidth: 0 }]} onPress={() => navigation.navigate('MutedWords')}>
             <Text style={styles.rowLabel}>Muted Words</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+            <AppIcon name="chevron-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 

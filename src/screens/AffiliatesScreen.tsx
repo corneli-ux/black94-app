@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, RefreshControl, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { Avatar } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 interface Affiliate {
   id: string;
@@ -102,7 +102,7 @@ export default function AffiliatesScreen({ navigation }: any) {
 
           {/* Prominent badge tier display */}
           <View style={[styles.badgeDisplay, { backgroundColor: badgeCfg.bg, borderColor: badgeCfg.color }]}>
-            <Ionicons name={badgeCfg.icon as any} size={14} color={badgeCfg.color} />
+            <AppIcon name={badgeCfg.icon} size="sm" color={badgeCfg.color} />
             <Text style={[styles.badgeDisplayText, { color: badgeCfg.color }]}>
               {item.badge}
             </Text>
@@ -169,7 +169,7 @@ export default function AffiliatesScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Affiliates</Text>
           {/* Assign Badges button in header */}
@@ -178,7 +178,7 @@ export default function AffiliatesScreen({ navigation }: any) {
             onPress={() => navigation.navigate('AssignBadge')}
             activeOpacity={0.7}
           >
-            <Ionicons name="ribbon-outline" size={20} color={colors.accentGold} />
+            <AppIcon name="ribbon-outline" size={20} color={colors.accentGold} />
             <Text style={styles.assignBadgeBtnText}>Badges</Text>
           </TouchableOpacity>
         </View>
@@ -208,7 +208,7 @@ export default function AffiliatesScreen({ navigation }: any) {
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>
-              <Ionicons name="ribbon-outline" size={14} color={colors.accentGold} style={{ marginBottom: 2 }} />
+              <AppIcon name="ribbon-outline" size="sm" color={colors.accentGold} style={{ marginBottom: 2 }} />
               <Text style={styles.summaryNumber}>
                 {affiliates.filter(a => a.badge && a.badge !== 'None').length}
               </Text>
@@ -241,7 +241,7 @@ export default function AffiliatesScreen({ navigation }: any) {
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={48} color={colors.textTertiary} />
+              <AppIcon name="groups" size="hero" color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>No affiliates yet</Text>
               <Text style={styles.emptyText}>
                 Invite affiliates to promote your products and earn commissions.
@@ -251,7 +251,7 @@ export default function AffiliatesScreen({ navigation }: any) {
                 onPress={() => navigation.navigate('AssignBadge')}
                 activeOpacity={0.7}
               >
-                <Ionicons name="add" size={20} color={colors.accent} />
+                <AppIcon name="add" size={20} color={colors.accent} />
                 <Text style={styles.emptyActionBtnText}>Add Team Members & Assign Badges</Text>
               </TouchableOpacity>
             </View>

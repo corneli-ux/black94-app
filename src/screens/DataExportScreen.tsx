@@ -4,11 +4,11 @@ import {
   Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 type ExportStatus = 'none' | 'pending' | 'processing' | 'ready';
 
@@ -124,7 +124,7 @@ export default function DataExportScreen() {
 
   const InfoItem = ({ icon, text }: { icon: string; text: string }) => (
     <View style={styles.infoItem}>
-      <Ionicons name={icon} size={18} color={colors.accent} style={styles.infoIcon} />
+      <AppIcon name={icon} size="md" color={colors.accent} style={styles.infoIcon} />
       <Text style={styles.infoText}>{text}</Text>
     </View>
   );
@@ -135,7 +135,7 @@ export default function DataExportScreen() {
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Data Export</Text>
           <View style={{ width: 22 }} />
@@ -152,7 +152,7 @@ export default function DataExportScreen() {
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Data Export</Text>
         <View style={{ width: 22 }} />
@@ -162,7 +162,7 @@ export default function DataExportScreen() {
         <Text style={styles.sectionTitle}>GDPR / DPDP Act Compliance</Text>
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
+            <AppIcon name="verified-user" size={20} color={colors.accent} />
             <Text style={styles.cardTitle}>Your Right to Data Portability</Text>
           </View>
           <Text style={styles.cardDescription}>
@@ -200,7 +200,7 @@ export default function DataExportScreen() {
             <Text style={styles.sectionTitle}>Current Request</Text>
             <View style={styles.card}>
               <View style={styles.statusRow}>
-                <Ionicons
+                <AppIcon
                   name={STATUS_CONFIG[status]?.icon || 'help-outline'}
                   size={20}
                   color={STATUS_CONFIG[status]?.iconColor || colors.textMuted}
@@ -223,7 +223,7 @@ export default function DataExportScreen() {
 
               {status === 'ready' && (
                 <TouchableOpacity style={styles.downloadBtn} onPress={handleDownload}>
-                  <Ionicons name="download-outline" size={18} color={colors.bg} />
+                  <AppIcon name="download" size="md" color={colors.bg} />
                   <Text style={styles.downloadBtnText}>Download Export</Text>
                 </TouchableOpacity>
               )}
@@ -242,7 +242,7 @@ export default function DataExportScreen() {
               <ActivityIndicator color={colors.bg} />
             ) : (
               <>
-                <Ionicons name="archive-outline" size={18} color={colors.bg} />
+                <AppIcon name="archive" size="md" color={colors.bg} />
                 <Text style={styles.requestBtnText}>Request Data Export</Text>
               </>
             )}
@@ -265,7 +265,7 @@ export default function DataExportScreen() {
         <Text style={styles.sectionTitle}>Grievance Officer</Text>
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="gavel-outline" size={20} color={colors.accent} />
+            <AppIcon name="gavel-outline" size={20} color={colors.accent} />
             <Text style={styles.cardTitle}>Grievance Officer</Text>
           </View>
           <Text style={styles.cardDescription}>
@@ -276,9 +276,9 @@ export default function DataExportScreen() {
             style={styles.grievanceEmailRow}
             onPress={() => Linking.openURL('mailto:grievance@black94.com')}
           >
-            <Ionicons name="mail-outline" size={16} color={colors.accent} />
+            <AppIcon name="mail-outline" size={16} color={colors.accent} />
             <Text style={styles.grievanceEmail}>grievance@black94.com</Text>
-            <Ionicons name="open-outline" size={14} color={colors.textMuted} style={{ marginLeft: 4 }} />
+            <AppIcon name="open-in-new" size="sm" color={colors.textMuted} style={{ marginLeft: 4 }} />
           </TouchableOpacity>
         </View>
 

@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
-
+import { AppIcon } from '../components/icons';
 
 interface Product {
   id: string;
@@ -114,7 +113,7 @@ export default function MyStoreScreen({ route, navigation }: any) {
           <Image source={{ uri: item.images[0] }} style={styles.productImage} resizeMode="cover" />
         ) : (
           <View style={[styles.productImage, styles.productImagePlaceholder]}>
-            <Ionicons name="cube-outline" size={24} color={colors.textMuted} />
+            <AppIcon name="cube-outline" size="xl" color={colors.textMuted} />
           </View>
         )}
       </TouchableOpacity>
@@ -130,19 +129,19 @@ export default function MyStoreScreen({ route, navigation }: any) {
         </View>
         {item.stock > 0 && item.stock <= 5 && (
           <View style={styles.lowStockBadge}>
-            <Ionicons name="alert-circle" size={12} color={colors.accentGold} />
+            <AppIcon name="error-outline" size="xs" color={colors.accentGold} />
             <Text style={styles.lowStockBadgeText}>Low Stock</Text>
           </View>
         )}
         {item.stock === 0 && (
           <View style={styles.outOfStockBadge}>
-            <Ionicons name="close-circle" size={12} color={colors.like} />
+            <AppIcon name="cancel" size="xs" color={colors.like} />
             <Text style={styles.outOfStockBadgeText}>Out of Stock</Text>
           </View>
         )}
         {item.featured && (
           <View style={styles.featuredBadge}>
-            <Ionicons name="ribbon-outline" size={12} color={colors.accentGold} />
+            <AppIcon name="ribbon-outline" size="xs" color={colors.accentGold} />
             <Text style={styles.featuredText}>Featured</Text>
           </View>
         )}
@@ -159,10 +158,10 @@ export default function MyStoreScreen({ route, navigation }: any) {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => handleEdit(item)}>
-          <Ionicons name="create-outline" size={18} color={colors.textSecondary} />
+          <AppIcon name="edit" size="md" color={colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => handleDelete(item)}>
-          <Ionicons name="trash-outline" size={18} color={colors.accentRed} />
+          <AppIcon name="delete-outline" size="md" color={colors.accentRed} />
         </TouchableOpacity>
       </View>
     </View>
@@ -182,7 +181,7 @@ export default function MyStoreScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>My Store</Text>
           <Text style={styles.headerCount}>{products.length}</Text>
@@ -191,7 +190,7 @@ export default function MyStoreScreen({ route, navigation }: any) {
 
       {products.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="storefront-outline" size={60} color={colors.textMuted} />
+          <AppIcon name="storefront-outline" size={60} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>No products yet</Text>
           <Text style={styles.emptySubtitle}>Tap the + button to add your first product.</Text>
           <TouchableOpacity

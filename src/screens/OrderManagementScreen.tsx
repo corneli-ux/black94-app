@@ -23,10 +23,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
 import { fetchBusinessOrders, updateOrderStatus, ShopOrder, OrderItem } from '../lib/shop';
 import { getShipRocketClient, ShipRocketTrackingActivity } from '../lib/shiprocket';
 import { firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -343,7 +343,7 @@ export default function OrderManagementScreen() {
       >
         <View style={styles.orderHeader}>
           <View style={styles.orderIdRow}>
-            <Ionicons name="receipt-outline" size={14} color={colors.textMuted} />
+            <AppIcon name="receipt" size="sm" color={colors.textMuted} />
             <Text style={styles.orderId}>{item.id.slice(0, 8).toUpperCase()}</Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
@@ -355,15 +355,15 @@ export default function OrderManagementScreen() {
 
         <View style={styles.orderBody}>
           <View style={styles.detailRow}>
-            <Ionicons name="person-outline" size={14} color={colors.textMuted} />
+            <AppIcon name="person-outline" size="sm" color={colors.textMuted} />
             <Text style={styles.detailText}>{item.buyerName || 'Unknown'}</Text>
           </View>
           <View style={styles.detailRow}>
-            <Ionicons name="cube-outline" size={14} color={colors.textMuted} />
+            <AppIcon name="cube-outline" size="sm" color={colors.textMuted} />
             <Text style={styles.detailText}>{itemsCount} item(s)</Text>
           </View>
           <View style={styles.detailRow}>
-            <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
+            <AppIcon name="calendar-today" size="sm" color={colors.textMuted} />
             <Text style={styles.detailText}>{formatOrderDate(item.createdAt)}</Text>
           </View>
         </View>
@@ -372,7 +372,7 @@ export default function OrderManagementScreen() {
           <Text style={styles.orderTotal}>{formatINR(item.total)}</Text>
           {item.trackingNumber ? (
             <View style={styles.trackingRow}>
-              <Ionicons name="trail-sign-outline" size={12} color={colors.accent} />
+              <AppIcon name="trail-sign-outline" size="xs" color={colors.accent} />
               <Text style={styles.trackingText} numberOfLines={1}>{item.trackingNumber}</Text>
             </View>
           ) : null}
@@ -399,7 +399,7 @@ export default function OrderManagementScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <AppIcon name="arrow-back" size="xl" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Order Management</Text>
         <View style={{ width: 32 }} />
@@ -444,7 +444,7 @@ export default function OrderManagementScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="cube-outline" size={44} color={colors.textMuted} />
+              <AppIcon name="cube-outline" size={44} color={colors.textMuted} />
             </View>
             <Text style={styles.emptyTitle}>No {activeFilter === 'all' ? '' : activeFilter + ' '}orders</Text>
             <Text style={styles.emptySubtitle}>Orders will appear here when customers make purchases.</Text>
@@ -464,7 +464,7 @@ export default function OrderManagementScreen() {
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Order Details</Text>
                   <TouchableOpacity onPress={() => setDetailModal(false)}>
-                    <Ionicons name="close" size={24} color={colors.text} />
+                    <AppIcon name="close" size="xl" color={colors.text} />
                   </TouchableOpacity>
                 </View>
 
@@ -557,7 +557,7 @@ export default function OrderManagementScreen() {
                   {/* Create Shipment */}
                   {(selectedOrder.status === 'confirmed' || selectedOrder.status === 'processing') && (
                     <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(42, 127, 255, 0.15)', borderColor: 'rgba(42, 127, 255, 0.3)' }]} onPress={() => { setDetailModal(false); openShipmentFlow(selectedOrder); }} activeOpacity={0.7}>
-                      <Ionicons name="rocket-outline" size={14} color={colors.accent} />
+                      <AppIcon name="rocket-launch" size="sm" color={colors.accent} />
                       <Text style={[styles.actionBtnText, { color: colors.accent }]}>Create Shipment</Text>
                     </TouchableOpacity>
                   )}
@@ -565,7 +565,7 @@ export default function OrderManagementScreen() {
                   {/* Track */}
                   {selectedOrder.trackingNumber && (
                     <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]} onPress={() => { setDetailModal(false); handleTrackShipment(selectedOrder); }} activeOpacity={0.7}>
-                      <Ionicons name="navigate-outline" size={14} color={colors.accentGreen} />
+                      <AppIcon name="navigate-outline" size="sm" color={colors.accentGreen} />
                       <Text style={[styles.actionBtnText, { color: colors.accentGreen }]}>Track</Text>
                     </TouchableOpacity>
                   )}
@@ -583,7 +583,7 @@ export default function OrderManagementScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Create Shipment</Text>
               <TouchableOpacity onPress={() => setShipmentModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+                <AppIcon name="close" size="xl" color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -643,7 +643,7 @@ export default function OrderManagementScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Shipment Tracking</Text>
               <TouchableOpacity onPress={() => setTrackingModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+                <AppIcon name="close" size="xl" color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -653,7 +653,7 @@ export default function OrderManagementScreen() {
               <ScrollView showsVerticalScrollIndicator={false}>
                 {trackingStatus ? (
                   <View style={styles.trackingStatusCard}>
-                    <Ionicons name="checkmark-circle" size={20} color={colors.accentGreen} />
+                    <AppIcon name="check-circle" size={20} color={colors.accentGreen} />
                     <Text style={styles.trackingStatusText}>{trackingStatus}</Text>
                   </View>
                 ) : null}

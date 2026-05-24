@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 import { useAppStore } from '../stores/app';
+import { AppIcon } from '../components/icons';
 
 const READING_WPM = 200;
 
@@ -303,7 +303,7 @@ export default function WriteArticleScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Write Article</Text>
         <TouchableOpacity
@@ -311,8 +311,8 @@ export default function WriteArticleScreen() {
           style={styles.previewToggle}
           hitSlop={8}
         >
-          <Ionicons
-            name={isPreview ? 'create-outline' : 'eye-outline'}
+          <AppIcon
+            name={isPreview ? 'edit' : 'visibility'}
             size={20}
             color={colors.accent}
           />
@@ -358,7 +358,7 @@ export default function WriteArticleScreen() {
 
           {/* Cover Image URL */}
           <View style={styles.coverSection}>
-            <Ionicons name="image-outline" size={18} color={colors.textSecondary} />
+            <AppIcon name="image" size="md" color={colors.textSecondary} />
             <TextInput
               style={styles.coverInput}
               placeholder="Cover image URL (optional)"
@@ -376,7 +376,7 @@ export default function WriteArticleScreen() {
           {coverImageUrl.trim() ? (
             <View style={styles.coverPreviewContainer}>
               <View style={styles.coverPreviewPlaceholder}>
-                <Ionicons name="image" size={40} color={colors.textSecondary} />
+                <AppIcon name="image" size={40} color={colors.textSecondary} />
                 <Text style={styles.coverPreviewText}>Cover image preview</Text>
               </View>
             </View>
@@ -395,7 +395,7 @@ export default function WriteArticleScreen() {
                   onPress={() => handleToolbarAction(action)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name={action.icon as any} size={18} color={colors.textSecondary} />
+                  <AppIcon name={action.icon} size="md" color={colors.textSecondary} />
                 </TouchableOpacity>
               ))}
             </ScrollView>

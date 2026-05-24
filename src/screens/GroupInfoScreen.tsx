@@ -15,7 +15,7 @@ import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 import { useAppStore } from '../stores/app';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../components/icons';
 
 interface MemberInfo {
   id: string;
@@ -296,7 +296,7 @@ export default function GroupInfoScreen() {
             {isRemoving ? (
               <ActivityIndicator size="small" color={colors.accentRed} />
             ) : (
-              <Ionicons name="remove-circle-outline" size={20} color={colors.accentRed} />
+              <AppIcon name="remove-circle-outline" size={20} color={colors.accentRed} />
             )}
           </TouchableOpacity>
         )}
@@ -313,7 +313,7 @@ export default function GroupInfoScreen() {
         activeOpacity={0.7}
       >
         <View style={styles.addMembersIcon}>
-          <Ionicons name="person-add-outline" size={18} color={colors.accent} />
+          <AppIcon name="person-add-outline" size="md" color={colors.accent} />
         </View>
         <Text style={styles.addMembersText}>Add members</Text>
       </TouchableOpacity>
@@ -335,14 +335,14 @@ export default function GroupInfoScreen() {
               hitSlop={8}
               style={styles.backBtn}
             >
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
+              <AppIcon name="arrow-back" size="lg" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Group Info</Text>
             <View style={{ width: 36 }} />
           </View>
         </SafeAreaView>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
+          <AppIcon name="error-outline" size="hero" color={colors.textMuted} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadGroupInfo}>
             <Text style={styles.retryText}>Retry</Text>
@@ -363,7 +363,7 @@ export default function GroupInfoScreen() {
               hitSlop={8}
               style={styles.backBtn}
             >
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
+              <AppIcon name="arrow-back" size="lg" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Group Info</Text>
             <View style={{ width: 36 }} />
@@ -386,7 +386,7 @@ export default function GroupInfoScreen() {
             hitSlop={8}
             style={styles.backBtn}
           >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Group Info</Text>
           <View style={{ width: 36 }} />
@@ -403,7 +403,7 @@ export default function GroupInfoScreen() {
             {/* Mute Notifications */}
             <View style={styles.footerActionRow}>
               <View style={styles.footerActionInfo}>
-                <Ionicons name={muted ? 'notifications-off-outline' : 'notifications-outline'} size={20} color={colors.text} />
+                <AppIcon name={muted ? 'notifications-off' : 'notifications-outlined'} size={20} color={colors.text} />
                 <Text style={styles.footerActionLabel}>Mute Notifications</Text>
               </View>
               <Switch
@@ -425,7 +425,7 @@ export default function GroupInfoScreen() {
                 <ActivityIndicator size="small" color={colors.accentRed} />
               ) : (
                 <>
-                  <Ionicons name="exit-outline" size={18} color={colors.accentRed} style={{ marginRight: 8 }} />
+                  <AppIcon name="exit-outline" size="md" color={colors.accentRed} style={{ marginRight: 8 }} />
                   <Text style={styles.leaveText}>
                     {chatData?.createdBy === currentUserId ? 'Delete Group' : 'Leave Group'}
                   </Text>

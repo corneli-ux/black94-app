@@ -21,9 +21,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { auth, firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import type { ShopOrder, OrderItem } from '../lib/shop';
+import { AppIcon } from '../components/icons';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -305,7 +305,7 @@ export default function OrderTrackingScreen() {
                         isCurrent && styles.stepDotCurrent,
                       ]}>
                       {isCompleted ? (
-                        <Ionicons name="checkmark" size={14} color={colors.white} />
+                        <AppIcon name="check" size="sm" color={colors.white} />
                       ) : isCurrent ? (
                         <View style={styles.stepDotInner} />
                       ) : null}
@@ -348,7 +348,7 @@ export default function OrderTrackingScreen() {
                 />
               ) : (
                 <View style={styles.itemImagePlaceholder}>
-                  <Ionicons name="image-outline" size={18} color={colors.textMuted} />
+                  <AppIcon name="image" size="md" color={colors.textMuted} />
                 </View>
               )}
               <View style={styles.itemInfo}>
@@ -397,8 +397,8 @@ export default function OrderTrackingScreen() {
                   <Text style={styles.trackingValue}>
                     {order.trackingNumber}
                   </Text>
-                  <Ionicons
-                    name="copy-outline"
+                  <AppIcon
+                    name="content-copy"
                     size={16}
                     color={colors.primary}
                     style={{ marginLeft: 8 }}
@@ -448,7 +448,7 @@ export default function OrderTrackingScreen() {
           style={styles.contactBtn}
           onPress={handleContactSeller}
           activeOpacity={0.7}>
-          <Ionicons name="chatbubble-outline" size={20} color={colors.white} />
+          <AppIcon name="chat-bubble-outline" size={20} color={colors.white} />
           <Text style={styles.contactBtnText}>Contact Seller</Text>
         </TouchableOpacity>
       </ScrollView>

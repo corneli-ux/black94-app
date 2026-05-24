@@ -19,9 +19,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { fetchPostFactChecks, submitFactCheck, FactCheckClaim } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 const VERDICT_CONFIG: Record<string, { color: string; icon: any; label: string }> = {
   pending: { color: colors.textSecondary, icon: 'time-outline', label: 'Pending Review' },
@@ -102,7 +102,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
       >
         <View style={styles.claimHeader}>
           <View style={[styles.verdictBadge, { backgroundColor: config.color + '20' }]}>
-            <Ionicons name={config.icon} size={14} color={config.color} />
+            <AppIcon name={config.icon} size="sm" color={config.color} />
             <Text style={[styles.verdictText, { color: config.color }]}>{config.label}</Text>
           </View>
           {item.confidenceScore > 0 && (
@@ -139,10 +139,10 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose} hitSlop={8} activeOpacity={0.7}>
-              <Ionicons name="close" size={24} color={colors.text} />
+              <AppIcon name="close" size="xl" color={colors.text} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Ionicons name={'shield-checkmark' as any} size={20} color={colors.accent} />
+              <AppIcon name={'verified-user'} size={20} color={colors.accent} />
               <Text style={styles.headerTitle}>Fact-Check</Text>
             </View>
             <View style={{ width: 24 }} />
@@ -150,7 +150,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
 
           {/* AI Disclosure Banner */}
           <View style={styles.aiDisclosureBanner}>
-            <Ionicons name="sparkles-outline" size={14} color={colors.accent} />
+            <AppIcon name="sparkles-outline" size="sm" color={colors.accent} />
             <Text style={styles.aiDisclosureText}>
               AI-Generated Analysis — This is an automated analysis and may not be accurate.
             </Text>
@@ -159,11 +159,11 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
           {/* Summary */}
           <View style={styles.summaryRow}>
             <View style={[styles.summaryChip, { backgroundColor: '#22c55e20' }]}>
-              <Ionicons name="checkmark-circle" size={14} color={colors.accentGreen} />
+              <AppIcon name="check-circle" size="sm" color={colors.accentGreen} />
               <Text style={[styles.summaryText, { color: colors.accentGreen }]}>{verifiedCount} Verified</Text>
             </View>
             <View style={[styles.summaryChip, { backgroundColor: '#ef444420' }]}>
-              <Ionicons name="alert-circle" size={14} color={colors.error} />
+              <AppIcon name="error-outline" size="sm" color={colors.error} />
               <Text style={[styles.summaryText, { color: colors.error }]}>{debunkedCount} Flagged</Text>
             </View>
             <Text style={styles.totalText}>{claims.length} total claims</Text>
@@ -177,7 +177,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
             </View>
           ) : claims.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="shield-outline" size={40} color={colors.textMuted} />
+              <AppIcon name="shield" size={40} color={colors.textMuted} />
               <Text style={styles.emptyTitle}>No Fact-Checks Yet</Text>
               <Text style={styles.emptySubtitle}>
                 Be the first to fact-check claims in this post.
@@ -196,7 +196,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
 
           {/* AI Disclaimer Footer */}
           <View style={styles.aiDisclaimerFooter}>
-            <Ionicons name="information-circle-outline" size={12} color={colors.textMuted} />
+            <AppIcon name="info-outline" size="xs" color={colors.textMuted} />
             <Text style={styles.aiDisclaimerFooterText}>
               Fact-checks are AI-analyzed. Always verify claims independently before sharing.
             </Text>
@@ -244,7 +244,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
                 <ActivityIndicator color={colors.white} size="small" />
               ) : (
                 <>
-                  <Ionicons name="flag-outline" size={18} color={colors.white} style={{ marginRight: 8 }} />
+                  <AppIcon name="outlined-flag" size="md" color={colors.white} style={{ marginRight: 8 }} />
                   <Text style={styles.submitBtnText}>Submit Claim</Text>
                 </>
               )}

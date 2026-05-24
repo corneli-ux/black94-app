@@ -9,29 +9,18 @@ import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive
 import { votePostPoll, Post, PostPollData, tsToMillis } from '../lib/api';
 import * as ExpoLinking from 'expo-linking';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon, RepostIcon } from '../components/icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import FeedMedia from '../components/FeedMedia';
 import { useAppStore } from '../stores/app';
-import Svg, { Path, Polyline } from 'react-native-svg';
 import { useFeed, Tab } from '../hooks/useFeed';
 import { FeedSkeleton } from '../components/SkeletonLoader';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 
 const SCREEN_W = scale(390);
-
-/* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
-function RepostIcon({ size = 18, color = colors.textSecondary }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="23 4 23 10 17 10" />
-      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-    </Svg>
-  );
-}
 
 /* ── Hashtag/Mention Highlighted Text — tappable ────────────────────────── */
 function HighlightedCaption({ text, style, navigation }: { text: string; style: any; navigation?: any }) {
@@ -422,7 +411,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
       {/* Double-tap heart overlay */}
       {showHeart && (
         <View style={styles.heartOverlay} pointerEvents="none">
-          <Ionicons name="heart" size={96} color={colors.like} />
+          <AppIcon name="favorite" size={96} color={colors.like} />
         </View>
       )}
 
@@ -526,7 +515,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                   }
                 }}
               >
-                <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
+                <AppIcon name="more-horiz" size="md" color={colors.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
@@ -574,7 +563,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {/* Fact Check Indicator */}
           {(post.factCheckVerified || 0) > 0 && (
             <View style={styles.factCheckBadge}>
-              <Ionicons name="checkmark-circle" size={14} color={colors.accentGreen} />
+              <AppIcon name="check-circle" size="sm" color={colors.accentGreen} />
               <Text style={styles.factCheckText}>
                 Fact-checked · {post.factCheckVerified} verified
               </Text>
@@ -582,7 +571,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           )}
           {(post.factCheckDebunked || 0) > 0 && (
             <View style={styles.factCheckBadge}>
-              <Ionicons name="close-circle" size={14} color={colors.error} />
+              <AppIcon name="cancel" size="sm" color={colors.error} />
               <Text style={[styles.factCheckText, { color: colors.error }]}>
                 Debunked · {post.factCheckDebunked} flagged
               </Text>
@@ -594,7 +583,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             {/* Comment */}
             <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: interactionId, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
+                <AppIcon name="chat-bubble-outline" size="md" color={colors.textSecondary} />
               </View>
               {formatCount(post.commentCount) ? (
                 <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
@@ -620,9 +609,9 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(interactionId, post.liked)}>
               <View style={styles.actionIconWrap}>
                 {post.liked ? (
-                  <Ionicons name="heart" size={18} color={colors.like} />
+                  <AppIcon name="favorite" size="md" color={colors.like} />
                 ) : (
-                  <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
+                  <AppIcon name="favorite-border" size="md" color={colors.textSecondary} />
                 )}
               </View>
               {formatCount(post.likeCount) ? (
@@ -643,7 +632,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               }}
             >
               <View style={styles.actionIconWrap}>
-                <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
+                <AppIcon name="trending-up" size="md" color={colors.textSecondary} />
               </View>
               {formatCount(post.viewCount) ? (
                 <Text style={styles.actionCount}>{formatCount(post.viewCount)}</Text>
@@ -655,16 +644,16 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(interactionId, post.bookmarked)}>
                 <View style={styles.actionIconWrap}>
                   {post.bookmarked ? (
-                    <Ionicons name="bookmark" size={18} color={colors.bookmark} />
+                    <AppIcon name="bookmark" size="md" color={colors.bookmark} />
                   ) : (
-                    <Ionicons name="bookmark-outline" size={18} color={colors.textSecondary} />
+                    <AppIcon name="bookmark-border" size="md" color={colors.textSecondary} />
                   )}
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
                 <View style={styles.actionIconWrap}>
-                  <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
+                  <AppIcon name="share" size="md" color={colors.textSecondary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -861,7 +850,7 @@ export default function FeedScreen({ navigation }: any) {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-              <Ionicons name="menu" size={22} color={colors.text} />
+              <AppIcon name="menu" size="lg" color={colors.text} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
@@ -870,7 +859,7 @@ export default function FeedScreen({ navigation }: any) {
               style={styles.headerBtn}
               onPress={() => navigation.navigate('PremiumDashboard')}
             >
-              <Ionicons name="diamond-outline" size={22} color={colors.accent} />
+              <AppIcon name="diamond-outline" size="lg" color={colors.accent} />
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -928,7 +917,7 @@ export default function FeedScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-            <Ionicons name="menu" size={22} color={colors.text} />
+            <AppIcon name="menu" size="lg" color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
@@ -937,7 +926,7 @@ export default function FeedScreen({ navigation }: any) {
             style={styles.headerBtn}
             onPress={() => navigation.navigate('PremiumDashboard')}
           >
-            <Ionicons name="diamond-outline" size={22} color={colors.accent} />
+            <AppIcon name="diamond-outline" size="lg" color={colors.accent} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1000,7 +989,7 @@ export default function FeedScreen({ navigation }: any) {
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="chatbubble-outline" size={36} color={colors.textSecondary} />
+              <AppIcon name="chat-bubble-outline" size="4xl" color={colors.textSecondary} />
             </View>
             <Text style={styles.emptyTitle}>No posts yet</Text>
             <Text style={styles.emptySubtitle}>When people post, their posts will show up here.</Text>
@@ -1021,7 +1010,7 @@ export default function FeedScreen({ navigation }: any) {
         onPress={() => navigation.navigate('CreatePost')}
         activeOpacity={0.8}
       >
-        <Ionicons name="add" size={24} color={colors.primaryForeground} />
+        <AppIcon name="add" size="xl" color={colors.primaryForeground} />
       </TouchableOpacity>
 
       {/* Edit post modal */}

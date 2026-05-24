@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, RefreshControl, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 interface AdCampaign {
   id: string;
@@ -125,7 +125,7 @@ export default function AdsManagerScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ads Manager</Text>
           <View style={{ width: 32 }} />
@@ -154,7 +154,7 @@ export default function AdsManagerScreen({ navigation }: any) {
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📢</Text>
+              <AppIcon name="campaign" size="hero" color={colors.accent} />
               <Text style={styles.emptyTitle}>No ad campaigns yet</Text>
               <Text style={styles.emptyText}>
                 Create your first ad campaign to reach more customers.

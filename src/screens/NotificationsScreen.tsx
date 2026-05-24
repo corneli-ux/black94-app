@@ -9,7 +9,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
 import { markAllNotificationsRead } from '../services/notificationEngine';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../components/icons';
 
 interface Notification {
   id: string;
@@ -36,13 +36,13 @@ function NotifTypeIcon({ type }: { type: string }) {
     : type === 'comment' ? colors.white
     : type === 'chat' ? colors.accentGold
     : colors.textSecondary;
-  const name = type === 'like' ? 'heart'
+  const name = type === 'like' ? 'favorite'
     : type === 'repost' ? 'repeat'
     : type === 'follow' ? 'person-add'
-    : type === 'comment' ? 'chatbubble'
+    : type === 'comment' ? 'chat'
     : type === 'chat' ? 'mail'
-    : 'at';
-  return <Ionicons name={name} size={16} color={color} />;
+    : 'alternate-email';
+  return <AppIcon name={name} size="md" color={color} />;
 }
 
 export default function NotificationsScreen({ navigation }: any) {
@@ -228,7 +228,7 @@ export default function NotificationsScreen({ navigation }: any) {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
               <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.bgSubtle, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-                <Ionicons name="notifications-outline" size={28} color={colors.textSecondary} />
+                <AppIcon name="notifications-outlined" size="xxl" color={colors.textSecondary} />
               </View>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 6 }}>Nothing to see here — yet</Text>
               <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 40, fontSize: 15 }}>

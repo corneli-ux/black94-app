@@ -25,9 +25,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
 import { fetchBusinessOrders, updateOrderStatus, ShopOrder } from '../lib/shop';
 import { firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -312,7 +312,7 @@ export default function BusinessOrdersScreen() {
         {/* Header row: order ID + status badge */}
         <View style={styles.orderHeader}>
           <View style={styles.orderIdRow}>
-            <Ionicons name="receipt-outline" size={14} color={colors.textMuted} />
+            <AppIcon name="receipt" size="sm" color={colors.textMuted} />
             <Text style={styles.orderId}>{item.id.slice(0, 8).toUpperCase()}</Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
@@ -325,22 +325,22 @@ export default function BusinessOrdersScreen() {
         {/* Detail rows */}
         <View style={styles.orderDetails}>
           <View style={styles.orderDetailRow}>
-            <Ionicons name="person-outline" size={14} color={colors.textMuted} />
+            <AppIcon name="person-outline" size="sm" color={colors.textMuted} />
             <Text style={styles.orderDetailText}>{item.buyerName}</Text>
           </View>
           <View style={styles.orderDetailRow}>
-            <Ionicons name="cube-outline" size={14} color={colors.textMuted} />
+            <AppIcon name="cube-outline" size="sm" color={colors.textMuted} />
             <Text style={styles.orderDetailText} numberOfLines={1}>
               {item.itemsSummary || `${item.itemsCount} item(s)`}
             </Text>
           </View>
           <View style={styles.orderDetailRow}>
-            <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
+            <AppIcon name="calendar-today" size="sm" color={colors.textMuted} />
             <Text style={styles.orderDetailText}>{dateStr}</Text>
           </View>
           {item.trackingNumber ? (
             <View style={styles.orderDetailRow}>
-              <Ionicons name="trail-sign-outline" size={14} color={colors.accent} />
+              <AppIcon name="trail-sign-outline" size="sm" color={colors.accent} />
               <Text style={[styles.orderDetailText, { color: colors.accent }]} numberOfLines={1}>
                 {item.trackingNumber}
               </Text>
@@ -395,8 +395,8 @@ export default function BusinessOrdersScreen() {
                   activeOpacity={0.7}
                   disabled={updatingStatus}
                 >
-                  <Ionicons
-                    name={action.icon as any}
+                  <AppIcon
+                    name={action.icon}
                     size={15}
                     color={
                       action.nextStatus === 'cancelled'
@@ -501,7 +501,7 @@ export default function BusinessOrdersScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="cube-outline" size={44} color={colors.textMuted} />
+              <AppIcon name="cube-outline" size={44} color={colors.textMuted} />
             </View>
             <Text style={styles.emptyTitle}>
               No {activeFilter === 'all' ? '' : activeFilter + ' '}orders yet
@@ -536,7 +536,7 @@ export default function BusinessOrdersScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             <View style={styles.modalHeader}>
-              <Ionicons name="car-outline" size={24} color={colors.accent} />
+              <AppIcon name="car-outline" size="xl" color={colors.accent} />
               <Text style={styles.modalTitle}>Ship Order</Text>
             </View>
             <Text style={styles.modalSubtitle}>

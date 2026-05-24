@@ -4,11 +4,11 @@ import {
   Alert, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 type VerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';
 type Category = 'Creator' | 'Business' | 'Public Figure' | 'Organization';
@@ -122,14 +122,14 @@ export default function VerificationRequestScreen() {
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Verification</Text>
           <View style={{ width: 22 }} />
         </View>
         <View style={styles.verifiedContainer}>
           <View style={styles.verifiedBadge}>
-            <Ionicons name="checkmark-circle" size={48} color={colors.verified} />
+            <AppIcon name="check-circle" size="hero" color={colors.verified} />
           </View>
           <Text style={styles.verifiedTitle}>You Are Verified</Text>
           <Text style={styles.verifiedSub}>
@@ -146,7 +146,7 @@ export default function VerificationRequestScreen() {
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Verification</Text>
           <View style={{ width: 22 }} />
@@ -167,7 +167,7 @@ export default function VerificationRequestScreen() {
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Request Verification</Text>
           <View style={{ width: 22 }} />
@@ -178,7 +178,7 @@ export default function VerificationRequestScreen() {
           <Text style={styles.sectionTitle}>About Verification</Text>
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Ionicons name="ribbon-outline" size={20} color={colors.verified} />
+              <AppIcon name="ribbon-outline" size={20} color={colors.verified} />
               <Text style={styles.cardTitle}>Get Verified on Black94</Text>
             </View>
             <Text style={styles.cardDescription}>
@@ -194,7 +194,7 @@ export default function VerificationRequestScreen() {
               <Text style={styles.sectionTitle}>Request Status</Text>
               <View style={styles.card}>
                 <View style={styles.statusRow}>
-                  <Ionicons name={STATUS_DISPLAY[status].icon} size={22} color={STATUS_DISPLAY[status].color} />
+                  <AppIcon name={STATUS_DISPLAY[status].icon} size="lg" color={STATUS_DISPLAY[status].color} />
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={[styles.statusLabel, { color: STATUS_DISPLAY[status].color }]}>
                       {STATUS_DISPLAY[status].label}
@@ -243,7 +243,7 @@ export default function VerificationRequestScreen() {
                           style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
                           onPress={() => setCategory(cat)}
                         >
-                          <Ionicons
+                          <AppIcon
                             name={CATEGORY_ICONS[cat]}
                             size={16}
                             color={isSelected ? colors.bg : colors.textSecondary}

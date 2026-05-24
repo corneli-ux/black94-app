@@ -22,7 +22,7 @@ import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { auth } from '../lib/firebase';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../components/icons';
 
 export default function LinkedAccountsScreen() {
   const navigation = useNavigation<any>();
@@ -73,7 +73,7 @@ export default function LinkedAccountsScreen() {
           onPress={() => navigation.goBack()}
           hitSlop={8}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Linked Accounts</Text>
         <View style={{ width: 22 }} />
@@ -85,7 +85,7 @@ export default function LinkedAccountsScreen() {
       >
         {/* ── Info banner ───────────────────────────────────────────── */}
         <View style={styles.infoBanner}>
-          <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
+          <AppIcon name="info-outline" size="md" color={colors.textSecondary} />
           <Text style={styles.infoBannerText}>
             Manage your connected sign-in methods. You can link multiple accounts for easier login.
           </Text>
@@ -110,7 +110,7 @@ export default function LinkedAccountsScreen() {
             </View>
             {isGoogleLinked ? (
               <View style={styles.connectedBadge}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.accentGreen} />
+                <AppIcon name="check-circle" size={16} color={colors.accentGreen} />
                 <Text style={styles.connectedBadgeText}>Connected</Text>
               </View>
             ) : (
@@ -132,9 +132,9 @@ export default function LinkedAccountsScreen() {
               style={styles.unlinkRow}
               onPress={handleUnlinkGoogle}
             >
-              <Ionicons name="unlink-outline" size={18} color={colors.accentRed} />
+              <AppIcon name="unlink-outline" size="md" color={colors.accentRed} />
               <Text style={styles.unlinkText}>Unlink Google Account</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+              <AppIcon name="chevron-right" size={16} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -146,7 +146,7 @@ export default function LinkedAccountsScreen() {
           <View style={styles.accountRow}>
             <View style={styles.accountIcon}>
               <View style={styles.twitterIconBg}>
-                <Ionicons name="logo-twitter" size={22} color={colors.white} />
+                <AppIcon name="logo-twitter" size="lg" color={colors.white} />
               </View>
             </View>
             <View style={styles.accountInfo}>
@@ -167,7 +167,7 @@ export default function LinkedAccountsScreen() {
           <View style={[styles.accountRow, { borderBottomWidth: 0 }]}>
             <View style={styles.accountIcon}>
               <View style={styles.appleIconBg}>
-                <Ionicons name="logo-apple" size={26} color={colors.white} />
+                <AppIcon name="logo-apple" size={26} color={colors.white} />
               </View>
             </View>
             <View style={styles.accountInfo}>
@@ -185,7 +185,7 @@ export default function LinkedAccountsScreen() {
 
         {/* ── Security note ─────────────────────────────────────────── */}
         <View style={styles.securityNote}>
-          <Ionicons name="shield-checkmark-outline" size={14} color={colors.textMuted} />
+          <AppIcon name="verified-user" size="sm" color={colors.textMuted} />
           <Text style={styles.securityNoteText}>
             Your login information is encrypted and securely stored. Linking accounts does not grant access to your profile on other platforms.
           </Text>

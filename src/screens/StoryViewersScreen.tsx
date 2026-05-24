@@ -9,12 +9,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { colors } from '../theme/colors';
 import { timeAgo } from '../utils/timeAgo';
 import { tsToMillis } from '../utils/datetime';
+import { AppIcon } from '../components/icons';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -168,7 +168,7 @@ export default function StoryViewersScreen() {
           <Text style={styles.time}>{timeAgo(item.viewedAt)}</Text>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      <AppIcon name="chevron-right" size="md" color={colors.textMuted} />
     </TouchableOpacity>
   );
 
@@ -182,7 +182,7 @@ export default function StoryViewersScreen() {
           onPress={() => navigation.goBack()}
           hitSlop={8}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Story Views</Text>
         <View style={{ width: 22 }} />
@@ -191,7 +191,7 @@ export default function StoryViewersScreen() {
       {/* Viewer count */}
       {!loading && viewers.length > 0 && (
         <View style={styles.countBar}>
-          <Ionicons name="eye-outline" size={16} color={colors.textMuted} />
+          <AppIcon name="visibility" size={16} color={colors.textMuted} />
           <Text style={styles.countText}>
             {viewers.length} view{viewers.length !== 1 ? 's' : ''}
           </Text>
@@ -205,7 +205,7 @@ export default function StoryViewersScreen() {
         </View>
       ) : viewers.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="eye-outline" size={48} color={colors.textMuted} />
+          <AppIcon name="visibility" size="hero" color={colors.textMuted} />
           <Text style={styles.emptyText}>No views yet</Text>
           <Text style={styles.emptySubtext}>
             When someone views your story, they'll appear here.

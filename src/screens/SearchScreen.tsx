@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { searchWeb, WebSearchResult } from '../lib/websearch';
@@ -11,6 +10,7 @@ import { User, Post, tsToMillis, parseMediaUrls, searchByHashtag } from '../lib/
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { useAppStore } from '../stores/app';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
+import { AppIcon } from '../components/icons';
 
 export default function SearchScreen({ route, navigation }: any) {
   const [query, setQuery] = useState('');
@@ -215,7 +215,7 @@ export default function SearchScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Search</Text>
           <View style={{ width: 22 }} />
@@ -224,7 +224,7 @@ export default function SearchScreen({ route, navigation }: any) {
 
       {/* Search Bar */}
       <View style={[styles.searchBarWrap, focused && styles.searchBarFocused]}>
-        <Ionicons name="search" size={20} color={colors.textSecondary} />
+        <AppIcon name="search" size={20} color={colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search"
@@ -239,7 +239,7 @@ export default function SearchScreen({ route, navigation }: any) {
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => { setQuery(''); setUsers([]); setPosts([]); setWebResults([]); setSearched(false); }} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
+            <AppIcon name="cancel" size="md" color={colors.textTertiary} />
           </TouchableOpacity>
         )}
       </View>
@@ -330,13 +330,13 @@ export default function SearchScreen({ route, navigation }: any) {
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="time-outline" size={18} color={colors.textMuted} />
+                <AppIcon name="schedule" size="md" color={colors.textMuted} />
                 <Text style={styles.historyText}>{term}</Text>
                 <TouchableOpacity
                   onPress={() => removeHistoryItem(term)}
                   hitSlop={8}
                 >
-                  <Ionicons name="close" size={16} color={colors.textMuted} />
+                  <AppIcon name="close" size={16} color={colors.textMuted} />
                 </TouchableOpacity>
               </TouchableOpacity>
             ))}
@@ -344,7 +344,7 @@ export default function SearchScreen({ route, navigation }: any) {
         ) : (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="search" size={32} color={colors.textTertiary} />
+              <AppIcon name="search" size="3xl" color={colors.textTertiary} />
             </View>
             <Text style={styles.emptyTitle}>Search for people and posts</Text>
             <Text style={styles.emptySubtitle}>Find users, posts, and topics across Black94.</Text>

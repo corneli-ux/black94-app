@@ -23,9 +23,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../lib/firebase';
-import * as CRM from '../lib/crm';
+import * as CRM from '../lib/crm';import { AppIcon } from '../components/icons';
+
 import {
   CrmLead,
   ScheduledFollowUp,
@@ -240,7 +240,7 @@ export default function AiLeadGenScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Lead Generation</Text>
           <View style={{ width: 32 }} />
@@ -249,7 +249,7 @@ export default function AiLeadGenScreen() {
         {/* ═══ Section 1: Lead Sources Dashboard ═══ */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="analytics-outline" size={20} color={colors.accent} />
+            <AppIcon name="analytics-outline" size={20} color={colors.accent} />
             <Text style={styles.sectionTitle}>Lead Sources</Text>
             <Text style={styles.sectionCount}>{totalSourceLeads} total</Text>
           </View>
@@ -284,7 +284,7 @@ export default function AiLeadGenScreen() {
               return (
                 <View key={key} style={styles.sourceCard}>
                   <View style={[styles.sourceIcon, { backgroundColor: config.color + '15' }]}>
-                    <Ionicons name={config.icon as any} size={20} color={config.color} />
+                    <AppIcon name={config.icon} size={20} color={config.color} />
                   </View>
                   <Text style={styles.sourceName}>{config.label}</Text>
                   <Text style={[styles.sourceCount, { color: config.color }]}>{count}</Text>
@@ -297,13 +297,13 @@ export default function AiLeadGenScreen() {
         {/* ═══ Section 2: Potential Customers ═══ */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="person-add-outline" size={20} color={colors.accentGold} />
+            <AppIcon name="person-add-outline" size={20} color={colors.accentGold} />
             <Text style={styles.sectionTitle}>Potential Customers</Text>
           </View>
 
           {potentialCustomers.length === 0 ? (
             <View style={styles.emptySection}>
-              <Ionicons name="people-outline" size={36} color={colors.textMuted} />
+              <AppIcon name="groups" size="4xl" color={colors.textMuted} />
               <Text style={styles.emptyText}>No potential customers identified yet.</Text>
               <Text style={styles.emptySubText}>High-intent users will be identified as they interact with your business.</Text>
             </View>
@@ -345,14 +345,14 @@ export default function AiLeadGenScreen() {
         {/* ═══ Section 3: Auto Follow-ups ═══ */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="time-outline" size={20} color={colors.accentGreen} />
+            <AppIcon name="schedule" size={20} color={colors.accentGreen} />
             <Text style={styles.sectionTitle}>Auto Follow-ups</Text>
             <Text style={styles.sectionCount}>{pendingFollowUps.length} pending</Text>
           </View>
 
           {pendingFollowUps.length === 0 ? (
             <View style={styles.emptySection}>
-              <Ionicons name="checkmark-done-circle-outline" size={36} color={colors.textMuted} />
+              <AppIcon name="checkmark-done-circle-outline" size="4xl" color={colors.textMuted} />
               <Text style={styles.emptyText}>All caught up!</Text>
               <Text style={styles.emptySubText}>No pending follow-ups at the moment.</Text>
             </View>
@@ -368,7 +368,7 @@ export default function AiLeadGenScreen() {
                       <Text style={styles.followUpName}>{lead?.name || 'Unknown Lead'}</Text>
                       <Text style={styles.followUpPreview} numberOfLines={2}>{fu.message || 'No message scheduled'}</Text>
                       <View style={styles.followUpMeta}>
-                        <Ionicons name="calendar-outline" size={12} color={colors.textMuted} />
+                        <AppIcon name="calendar-today" size="xs" color={colors.textMuted} />
                         <Text style={styles.followUpDate}>{formatRelativeDate(fu.scheduledAt)}</Text>
                       </View>
                     </View>
@@ -382,7 +382,7 @@ export default function AiLeadGenScreen() {
                         {isGenerating ? (
                           <ActivityIndicator size="small" color={colors.bg} />
                         ) : (
-                          <Ionicons name="sparkles-outline" size={14} color={colors.bg} />
+                          <AppIcon name="sparkles-outline" size="sm" color={colors.bg} />
                         )}
                       </TouchableOpacity>
                     </View>
@@ -396,7 +396,7 @@ export default function AiLeadGenScreen() {
         {/* ═══ Section 4: Generate Follow-up Button ═══ */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="sparkles-outline" size={20} color={colors.verified} />
+            <AppIcon name="sparkles-outline" size={20} color={colors.verified} />
             <Text style={styles.sectionTitle}>Follow-up Generator</Text>
           </View>
           <Text style={styles.sectionDesc}>
@@ -429,7 +429,7 @@ export default function AiLeadGenScreen() {
         {/* ═══ Section 5: Import / Export ═══ */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="swap-vertical-outline" size={20} color={colors.accent} />
+            <AppIcon name="swap-vert" size={20} color={colors.accent} />
             <Text style={styles.sectionTitle}>Import / Export</Text>
           </View>
 
@@ -439,7 +439,7 @@ export default function AiLeadGenScreen() {
               onPress={handleImportLeads}
               activeOpacity={0.7}
             >
-              <Ionicons name="cloud-upload-outline" size={18} color={colors.accent} />
+              <AppIcon name="cloud-upload" size="md" color={colors.accent} />
               <View style={styles.importExportBtnInfo}>
                 <Text style={styles.importExportBtnTitle}>Import Leads</Text>
                 <Text style={styles.importExportBtnDesc}>Upload CSV file</Text>
@@ -455,7 +455,7 @@ export default function AiLeadGenScreen() {
               {exporting ? (
                 <ActivityIndicator size="small" color={colors.accentGreen} />
               ) : (
-                <Ionicons name="cloud-download-outline" size={18} color={colors.accentGreen} />
+                <AppIcon name="cloud-download" size="md" color={colors.accentGreen} />
               )}
               <View style={styles.importExportBtnInfo}>
                 <Text style={styles.importExportBtnTitle}>Export Leads</Text>
@@ -474,11 +474,11 @@ export default function AiLeadGenScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderLeft}>
-                <Ionicons name="sparkles" size={20} color={colors.accentGold} />
+                <AppIcon name="sparkles" size={20} color={colors.accentGold} />
                 <Text style={styles.modalTitle}>Follow-up Message</Text>
               </View>
               <TouchableOpacity onPress={() => setShowMessageModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+                <AppIcon name="close" size="xl" color={colors.text} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -501,7 +501,7 @@ export default function AiLeadGenScreen() {
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="copy-outline" size={16} color={colors.bg} />
+                <AppIcon name="content-copy" size={16} color={colors.bg} />
                 <Text style={styles.primaryBtnText}>Copy Message</Text>
               </TouchableOpacity>
             </View>

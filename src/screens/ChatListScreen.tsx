@@ -7,7 +7,7 @@ import { fetchChatList, Chat, fetchUserPrivacySettings, checkFollowing, searchUs
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../components/icons';
 
 type TabType = 'chat';
 
@@ -377,7 +377,7 @@ export default function ChatListScreen({ navigation, route }: any) {
   const renderNoResults = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIcon}>
-        <Ionicons name="search-outline" size={32} color={colors.textSecondary} />
+        <AppIcon name="search" size="3xl" color={colors.textSecondary} />
       </View>
       <Text style={styles.emptyTitle}>No results</Text>
       <Text style={styles.emptySubtitle}>No chats found matching "{search}"</Text>
@@ -387,7 +387,7 @@ export default function ChatListScreen({ navigation, route }: any) {
   const renderNoChats = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIcon}>
-        <Ionicons name="chatbubble-outline" size={32} color={colors.textSecondary} />
+        <AppIcon name="chat-bubble-outline" size="3xl" color={colors.textSecondary} />
       </View>
       <Text style={styles.emptyTitle}>No messages yet</Text>
       <Text style={styles.emptySubtitle}>Start a conversation to see messages here.</Text>
@@ -398,7 +398,7 @@ export default function ChatListScreen({ navigation, route }: any) {
   const renderChatAds = () => (
     <View style={styles.adsContainer}>
       <View style={styles.emptyIcon}>
-        <Ionicons name="card-outline" size={32} color={colors.textTertiary} />
+        <AppIcon name="credit-card" size="3xl" color={colors.textTertiary} />
       </View>
       <Text style={styles.adsEmptyText}>No ads right now</Text>
       <Text style={styles.adsEmptySubtext}>Check back later for new sponsored content</Text>
@@ -415,9 +415,9 @@ export default function ChatListScreen({ navigation, route }: any) {
         activeOpacity={0.7}
       >
         <View style={styles.tabContent}>
-          <Ionicons
-            name="chatbubble-outline"
-            size={18}
+          <AppIcon
+            name="chat-bubble-outline"
+            size="md"
             color={activeTab === 'chat' ? colors.white : colors.textSecondary}
           />
           <Text style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>
@@ -432,9 +432,9 @@ export default function ChatListScreen({ navigation, route }: any) {
         activeOpacity={0.7}
       >
         <View style={styles.tabContent}>
-          <Ionicons
-            name="card-outline"
-            size={18}
+          <AppIcon
+            name="credit-card"
+            size="md"
             color={activeTab === 'ads' ? colors.white : colors.textSecondary}
           />
           <Text style={[styles.tabText, activeTab === 'ads' && styles.tabTextActive]}>
@@ -468,7 +468,7 @@ export default function ChatListScreen({ navigation, route }: any) {
               onPress={() => setComposeModalVisible(false)}
               hitSlop={8}
             >
-              <Ionicons name="close" size={24} color={colors.text} />
+              <AppIcon name="close" size="xl" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.composeTitle}>New Message</Text>
             <View style={{ width: 24 }} />
@@ -476,7 +476,7 @@ export default function ChatListScreen({ navigation, route }: any) {
 
           {/* Search Input */}
           <View style={styles.composeSearchContainer}>
-            <Ionicons name="search" size={18} color={colors.textTertiary} style={styles.composeSearchIcon} />
+            <AppIcon name="search" size="md" color={colors.textTertiary} style={styles.composeSearchIcon} />
             <TextInput
               style={styles.composeSearchInput}
               placeholder="Search by username or name..."
@@ -496,7 +496,7 @@ export default function ChatListScreen({ navigation, route }: any) {
           <View style={styles.composeResultsContainer}>
             {composeSearch.trim().length >= 2 && !composeSearching && composeResults.length === 0 && (
               <View style={styles.composeEmptyContainer}>
-                <Ionicons name="person-outline" size={36} color={colors.textTertiary} />
+                <AppIcon name="person-outline" size="4xl" color={colors.textTertiary} />
                 <Text style={styles.composeEmptyText}>No users found</Text>
                 <Text style={styles.composeEmptySubtext}>Try a different username or name</Text>
               </View>
@@ -504,7 +504,7 @@ export default function ChatListScreen({ navigation, route }: any) {
 
             {composeSearch.trim().length < 2 && (
               <View style={styles.composeEmptyContainer}>
-                <Ionicons name="chatbubble-ellipses-outline" size={36} color={colors.textTertiary} />
+                <AppIcon name="forum" size="4xl" color={colors.textTertiary} />
                 <Text style={styles.composeEmptyText}>Find someone to message</Text>
                 <Text style={styles.composeEmptySubtext}>Enter a username or display name (min. 2 characters)</Text>
               </View>
@@ -531,7 +531,7 @@ export default function ChatListScreen({ navigation, route }: any) {
                 {composeChecking === user.id ? (
                   <ActivityIndicator size="small" color={colors.accent} />
                 ) : (
-                  <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+                  <AppIcon name="chevron-right" size={20} color={colors.textTertiary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -554,14 +554,14 @@ export default function ChatListScreen({ navigation, route }: any) {
               activeOpacity={0.7}
               hitSlop={8}
             >
-              <Ionicons name="people-outline" size={22} color={colors.text} />
+              <AppIcon name="groups" size="lg" color={colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.newMsgBtn}
               onPress={handleCompose}
               activeOpacity={0.7}
             >
-              <Ionicons name="create-outline" size={22} color={colors.accent} />
+              <AppIcon name="edit" size="lg" color={colors.accent} />
             </TouchableOpacity>
           </View>
         </View>
@@ -575,7 +575,7 @@ export default function ChatListScreen({ navigation, route }: any) {
       <>
           {/* Search */}
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={16} color={colors.textTertiary} style={styles.searchIcon} />
+            <AppIcon name="search" size={16} color={colors.textTertiary} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search chats..."
@@ -672,7 +672,7 @@ export default function ChatListScreen({ navigation, route }: any) {
             {/* Header */}
             <View style={styles.groupModalHeader}>
               <TouchableOpacity onPress={() => setShowGroupCreate(false)} hitSlop={8}>
-                <Ionicons name="close" size={22} color={colors.text} />
+                <AppIcon name="close" size="lg" color={colors.text} />
               </TouchableOpacity>
               <Text style={styles.groupModalTitle}>New Group</Text>
               <View style={{ width: 22 }} />
@@ -680,7 +680,7 @@ export default function ChatListScreen({ navigation, route }: any) {
 
             {/* Group name input */}
             <View style={styles.groupNameInput}>
-              <Ionicons name="chatbubbles-outline" size={20} color={colors.textSecondary} />
+              <AppIcon name="forum" size={20} color={colors.textSecondary} />
               <TextInput
                 style={styles.groupNameText}
                 value={groupName}
@@ -724,7 +724,7 @@ export default function ChatListScreen({ navigation, route }: any) {
                       <Text style={styles.groupUserHandle}>@{item.username}</Text>
                     </View>
                     <View style={[styles.groupCheckbox, isSelected && styles.groupCheckboxSelected]}>
-                      {isSelected && <Ionicons name="checkmark" size={16} color={colors.primaryForeground} />}
+                      {isSelected && <AppIcon name="check" size={16} color={colors.primaryForeground} />}
                     </View>
                   </TouchableOpacity>
                 );

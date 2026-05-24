@@ -4,11 +4,11 @@ import {
   TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 export default function ChangeEmailScreen() {
   const navigation = useNavigation<any>();
@@ -67,7 +67,7 @@ export default function ChangeEmailScreen() {
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Change Email</Text>
           <View style={{ width: 22 }} />
@@ -76,7 +76,7 @@ export default function ChangeEmailScreen() {
         <View style={styles.body}>
           <Text style={styles.sectionLabel}>Current email</Text>
           <View style={styles.currentEmailBox}>
-            <Ionicons name="mail-outline" size={18} color={colors.textMuted} />
+            <AppIcon name="mail-outline" size="md" color={colors.textMuted} />
             <Text style={styles.currentEmailText}>{user?.email || 'No email on file'}</Text>
           </View>
 
@@ -107,10 +107,10 @@ export default function ChangeEmailScreen() {
               autoCorrect={false}
             />
             {confirmEmail.length > 0 && newEmail === confirmEmail && (
-              <Ionicons name="checkmark-circle" size={20} color={colors.accentGreen} />
+              <AppIcon name="check-circle" size={20} color={colors.accentGreen} />
             )}
             {confirmEmail.length > 0 && newEmail !== confirmEmail && (
-              <Ionicons name="close-circle" size={20} color={colors.accentRed} />
+              <AppIcon name="cancel" size={20} color={colors.accentRed} />
             )}
           </View>
 
@@ -132,7 +132,7 @@ export default function ChangeEmailScreen() {
           </TouchableOpacity>
 
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+            <AppIcon name="info-outline" size={16} color={colors.textMuted} />
             <Text style={styles.infoText}>
               A verification link will be sent to your new email address. You must click the link to confirm the change. Your current email will remain active until verification is complete.
             </Text>

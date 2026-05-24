@@ -23,9 +23,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
 import { firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -413,21 +413,21 @@ export default function StoreDashboardScreen() {
         <View style={styles.revenueRow}>
           <View style={[styles.revenueCard, styles.revenueCardToday]}>
             <View style={styles.revenueCardTop}>
-              <Ionicons name="today-outline" size={16} color={colors.accentGold} />
+              <AppIcon name="today-outline" size={16} color={colors.accentGold} />
               <Text style={styles.revenueLabel}>Today</Text>
             </View>
             <Text style={styles.revenueValue}>{formatCompactINR(revenue.today)}</Text>
           </View>
           <View style={styles.revenueCard}>
             <View style={styles.revenueCardTop}>
-              <Ionicons name="calendar-outline" size={16} color={colors.accent} />
+              <AppIcon name="calendar-today" size={16} color={colors.accent} />
               <Text style={styles.revenueLabel}>Last 7 Days</Text>
             </View>
             <Text style={styles.revenueValue}>{formatCompactINR(revenue.week)}</Text>
           </View>
           <View style={styles.revenueCard}>
             <View style={styles.revenueCardTop}>
-              <Ionicons name="bar-chart-outline" size={16} color={colors.accentGreen} />
+              <AppIcon name="bar-chart" size={16} color={colors.accentGreen} />
               <Text style={styles.revenueLabel}>30 Days</Text>
             </View>
             <Text style={styles.revenueValue}>{formatCompactINR(revenue.month)}</Text>
@@ -437,7 +437,7 @@ export default function StoreDashboardScreen() {
         {/* Total lifetime revenue */}
         <View style={styles.totalRevenueCard}>
           <View style={styles.totalRevenueLeft}>
-            <Ionicons name="wallet-outline" size={20} color={colors.primary} />
+            <AppIcon name="account-balance-wallet" size={20} color={colors.primary} />
             <View>
               <Text style={styles.totalRevenueLabel}>Lifetime Revenue</Text>
               <Text style={styles.totalRevenueValue}>{formatINR(revenue.total)}</Text>
@@ -449,7 +449,7 @@ export default function StoreDashboardScreen() {
             activeOpacity={0.7}
           >
             <Text style={styles.viewOrdersBtnText}>View All</Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+            <AppIcon name="chevron-right" size="sm" color={colors.primary} />
           </TouchableOpacity>
         </View>
 
@@ -519,7 +519,7 @@ export default function StoreDashboardScreen() {
               onPress={() => navigation.navigate('AddProduct' as never)}
               activeOpacity={0.7}
             >
-              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+              <AppIcon name="add-circle-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
           {topProducts.length > 0 ? (
@@ -543,7 +543,7 @@ export default function StoreDashboardScreen() {
                   />
                 ) : (
                   <View style={styles.productImagePlaceholder}>
-                    <Ionicons name="image-outline" size={18} color={colors.textMuted} />
+                    <AppIcon name="image" size="md" color={colors.textMuted} />
                   </View>
                 )}
                 <View style={styles.productInfo}>
@@ -561,7 +561,7 @@ export default function StoreDashboardScreen() {
             ))
           ) : (
             <View style={styles.emptySectionWrap}>
-              <Ionicons name="storefront-outline" size={32} color={colors.textMuted} />
+              <AppIcon name="storefront-outline" size="3xl" color={colors.textMuted} />
               <Text style={styles.emptySectionText}>
                 {hasNoProducts ? 'No products listed yet' : 'No sales data yet'}
               </Text>
@@ -571,7 +571,7 @@ export default function StoreDashboardScreen() {
                   onPress={() => navigation.navigate('AddProduct' as never)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="add" size={16} color={colors.white} />
+                  <AppIcon name="add" size={16} color={colors.white} />
                   <Text style={styles.addProductBtnText}>Add Your First Product</Text>
                 </TouchableOpacity>
               )}
@@ -584,7 +584,7 @@ export default function StoreDashboardScreen() {
           <View style={styles.lowStockCard}>
             <View style={styles.lowStockHeader}>
               <View style={styles.lowStockTitleRow}>
-                <Ionicons name="alert-circle" size={18} color={colors.accentGold} />
+                <AppIcon name="error-outline" size="md" color={colors.accentGold} />
                 <Text style={styles.lowStockTitle}>Low Stock Alerts</Text>
               </View>
               <Text style={styles.lowStockCount}>{lowStockProducts.length} item{lowStockProducts.length !== 1 ? 's' : ''}</Text>
@@ -592,7 +592,7 @@ export default function StoreDashboardScreen() {
             {lowStockProducts.map(product => (
               <View key={product.id} style={styles.lowStockItem}>
                 <View style={styles.lowStockItemInfo}>
-                  <Ionicons name="cube-outline" size={14} color={colors.accentGold} />
+                  <AppIcon name="cube-outline" size="sm" color={colors.accentGold} />
                   <Text style={styles.lowStockItemName} numberOfLines={1}>{product.name}</Text>
                 </View>
                 <Text style={styles.lowStockItemStock}>{product.stock} left</Text>
@@ -632,7 +632,7 @@ export default function StoreDashboardScreen() {
                 activeOpacity={0.7}
               >
                 <View style={styles.orderAvatar}>
-                  <Ionicons name="person-outline" size={18} color={colors.textMuted} />
+                  <AppIcon name="person-outline" size="md" color={colors.textMuted} />
                 </View>
                 <View style={styles.orderInfo}>
                   <Text style={styles.orderBuyer} numberOfLines={1}>
@@ -677,7 +677,7 @@ export default function StoreDashboardScreen() {
               activeOpacity={0.7}
             >
               <View style={[styles.actionIconBg, { backgroundColor: colors.bgInput }]}>
-                <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+                <AppIcon name="add-circle-outline" size="xl" color={colors.primary} />
               </View>
               <Text style={styles.actionLabel}>Add Product</Text>
             </TouchableOpacity>
@@ -687,7 +687,7 @@ export default function StoreDashboardScreen() {
               activeOpacity={0.7}
             >
               <View style={[styles.actionIconBg, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                <Ionicons name="storefront-outline" size={24} color={colors.accentGreen} />
+                <AppIcon name="storefront-outline" size="xl" color={colors.accentGreen} />
               </View>
               <Text style={styles.actionLabel}>View Store</Text>
             </TouchableOpacity>
@@ -697,7 +697,7 @@ export default function StoreDashboardScreen() {
               activeOpacity={0.7}
             >
               <View style={[styles.actionIconBg, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
-                <Ionicons name="bag-handle-outline" size={24} color={colors.accentGold} />
+                <AppIcon name="bag-handle-outline" size="xl" color={colors.accentGold} />
               </View>
               <Text style={styles.actionLabel}>Orders</Text>
             </TouchableOpacity>
@@ -707,7 +707,7 @@ export default function StoreDashboardScreen() {
               activeOpacity={0.7}
             >
               <View style={[styles.actionIconBg, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
-                <Ionicons name="megaphone-outline" size={24} color={colors.error} />
+                <AppIcon name="megaphone-outline" size="xl" color={colors.error} />
               </View>
               <Text style={styles.actionLabel}>Manage Ads</Text>
             </TouchableOpacity>

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { firestore } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
+import { AppIcon } from '../components/icons';
 
 interface BlockedUser { id: string; displayName: string; username: string; profileImage?: string; }
 
@@ -60,7 +60,7 @@ export default function BlockedUsersScreen() {
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Blocked Accounts</Text>
         <View style={{ width: 22 }} />
@@ -73,7 +73,7 @@ export default function BlockedUsersScreen() {
             keyExtractor={i => i.id}
             ListEmptyComponent={
               <View style={styles.empty}>
-                <Ionicons name="ban-outline" size={48} color={colors.textMuted} />
+                <AppIcon name="block" size="hero" color={colors.textMuted} />
                 <Text style={styles.emptyTitle}>No blocked accounts</Text>
                 <Text style={styles.emptySub}>People you block won't be able to follow you or see your posts.</Text>
               </View>

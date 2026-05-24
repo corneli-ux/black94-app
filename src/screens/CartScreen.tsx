@@ -11,10 +11,10 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../lib/firebase';
 import { fetchCart, updateCartItemQuantity, removeFromCart, CartItem } from '../lib/api';
 import { colors } from '../theme/colors';
+import { AppIcon } from '../components/icons';
 
 function formatINR(amount: number): string {
   return '₹' + amount.toLocaleString('en-IN');
@@ -132,7 +132,7 @@ export default function CartScreen({ route, navigation }: any) {
             <Image source={{ uri: item.image }} style={styles.itemImage} resizeMode="cover" />
           ) : (
             <View style={[styles.itemImage, styles.itemImagePlaceholder]}>
-              <Ionicons name="cube-outline" size={28} color={colors.textMuted} />
+              <AppIcon name="cube-outline" size="xxl" color={colors.textMuted} />
             </View>
           )}
         </TouchableOpacity>
@@ -161,7 +161,7 @@ export default function CartScreen({ route, navigation }: any) {
             onPress={() => handleRemove(item.productId)}
             disabled={isUpdating}
           >
-            <Ionicons name="close" size={16} color={colors.textSecondary} />
+            <AppIcon name="close" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
           <View style={styles.qtyRow}>
             <TouchableOpacity
@@ -172,7 +172,7 @@ export default function CartScreen({ route, navigation }: any) {
               {isUpdating ? (
                 <ActivityIndicator size="small" color={colors.text} />
               ) : (
-                <Ionicons name="remove" size={16} color={colors.text} />
+                <AppIcon name="remove" size={16} color={colors.text} />
               )}
             </TouchableOpacity>
             <Text style={styles.qtyValue}>{item.quantity}</Text>
@@ -184,7 +184,7 @@ export default function CartScreen({ route, navigation }: any) {
               {isUpdating ? (
                 <ActivityIndicator size="small" color={colors.text} />
               ) : (
-                <Ionicons name="add" size={16} color={colors.text} />
+                <AppIcon name="add" size={16} color={colors.text} />
               )}
             </TouchableOpacity>
           </View>
@@ -207,7 +207,7 @@ export default function CartScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Cart</Text>
           <View style={styles.headerBadge}>
@@ -218,7 +218,7 @@ export default function CartScreen({ route, navigation }: any) {
 
       {cartItems.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="cart-outline" size={60} color={colors.textMuted} />
+          <AppIcon name="cart-outline" size={60} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>Your cart is empty</Text>
           <Text style={styles.emptySubtitle}>
             Browse stores and add products to get started.

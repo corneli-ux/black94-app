@@ -4,12 +4,12 @@ import {
   Alert, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { auth, getValidToken } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 export default function SecurityScreen() {
   const navigation = useNavigation<any>();
@@ -97,7 +97,7 @@ export default function SecurityScreen() {
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Security</Text>
           <View style={{ width: 22 }} />
@@ -110,7 +110,7 @@ export default function SecurityScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>{user?.email || currentUser?.email}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                  <Ionicons name="checkmark-circle" size={14} color={colors.accentGreen} />
+                  <AppIcon name="check-circle" size="sm" color={colors.accentGreen} />
                   <Text style={[styles.rowSub, { color: colors.accentGreen }]}>
                     Google Sign-In
                   </Text>
@@ -124,13 +124,13 @@ export default function SecurityScreen() {
             <View style={styles.inputWrapper}>
               <TextInput style={styles.input} value={current} onChangeText={setCurrent} placeholder="Current password" placeholderTextColor={colors.textMuted} secureTextEntry={!showCurrent} />
               <TouchableOpacity onPress={() => setShowCurrent(p => !p)} hitSlop={8}>
-                <Ionicons name={showCurrent ? 'eye-off' : 'eye'} size={18} color={colors.textMuted} />
+                <AppIcon name={showCurrent ? 'visibility-off' : 'visibility'} size="md" color={colors.textMuted} />
               </TouchableOpacity>
             </View>
             <View style={[styles.inputWrapper, { borderTopWidth: 1, borderTopColor: colors.border }]}>
               <TextInput style={styles.input} value={next} onChangeText={setNext} placeholder="New password (min 8 chars)" placeholderTextColor={colors.textMuted} secureTextEntry={!showNext} />
               <TouchableOpacity onPress={() => setShowNext(p => !p)} hitSlop={8}>
-                <Ionicons name={showNext ? 'eye-off' : 'eye'} size={18} color={colors.textMuted} />
+                <AppIcon name={showNext ? 'visibility-off' : 'visibility'} size="md" color={colors.textMuted} />
               </TouchableOpacity>
             </View>
             <View style={[styles.inputWrapper, { borderTopWidth: 1, borderTopColor: colors.border }]}>
@@ -148,7 +148,7 @@ export default function SecurityScreen() {
           <Text style={styles.sectionTitle}>Danger Zone</Text>
           <View style={styles.card}>
             <TouchableOpacity style={[styles.dangerRow, { borderBottomWidth: 0 }]} onPress={handleDeleteAccount}>
-              <Ionicons name="trash-outline" size={18} color={colors.accentRed} />
+              <AppIcon name="delete-outline" size="md" color={colors.accentRed} />
               <Text style={styles.dangerText}>Delete Account</Text>
             </TouchableOpacity>
           </View>

@@ -4,10 +4,10 @@ import {
   TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
+import { AppIcon } from '../components/icons';
 
 const STORAGE_KEY = '@black94/muted_words';
 
@@ -41,7 +41,7 @@ export default function MutedWordsScreen() {
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Muted Words</Text>
           <View style={{ width: 22 }} />
@@ -58,11 +58,11 @@ export default function MutedWordsScreen() {
             autoCapitalize="none"
           />
           <TouchableOpacity style={styles.addBtn} onPress={addWord}>
-            <Ionicons name="add" size={22} color={colors.bg} />
+            <AppIcon name="add" size="lg" color={colors.bg} />
           </TouchableOpacity>
         </View>
         <View style={styles.infoBox}>
-          <Ionicons name="eye-off-outline" size={14} color={colors.textMuted} />
+          <AppIcon name="visibility-off" size="sm" color={colors.textMuted} />
           <Text style={styles.infoText}>Posts containing these words will be hidden from your feed.</Text>
         </View>
         <FlatList
@@ -77,7 +77,7 @@ export default function MutedWordsScreen() {
             <View style={styles.wordRow}>
               <Text style={styles.word}>{item}</Text>
               <TouchableOpacity onPress={() => removeWord(item)} hitSlop={8}>
-                <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+                <AppIcon name="cancel" size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
           )}

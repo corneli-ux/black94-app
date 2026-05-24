@@ -19,6 +19,7 @@ import { checkPlanLimit } from '../lib/payments';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { optimizeImage } from '../utils/imageOptimizer';
 import { colors } from '../theme/colors';
+import { AppIcon } from '../components/icons';
 
 type StoryFormat = 'text' | 'image' | 'poll';
 
@@ -355,7 +356,7 @@ export default function StoryCreatorScreen({ navigation }: any) {
                       format === f && styles.formatButtonTextSelected,
                     ]}
                   >
-                    {f === 'text' ? '📝 Text' : f === 'image' ? '🖼️ Image' : '📊 Poll'}
+                    {f === 'text' ? 'Text' : f === 'image' ? 'Image' : 'Poll'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -524,7 +525,7 @@ export default function StoryCreatorScreen({ navigation }: any) {
                         style={styles.removePollOption}
                         activeOpacity={0.7}
                       >
-                        <Text style={styles.removePollOptionText}>✕</Text>
+                        <AppIcon name="close" size="sm" color={colors.text} />
                       </TouchableOpacity>
                     )}
                   </View>

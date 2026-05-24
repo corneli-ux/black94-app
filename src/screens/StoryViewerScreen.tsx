@@ -15,6 +15,7 @@ import { tsToMillis } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { timeAgo } from '../utils/timeAgo';
+import { AppIcon } from '../components/icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const STORY_DURATION = 5000;
@@ -381,7 +382,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
             {timeAgo(currentStory.createdAt)}
           </Text>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.7}>
-            <Text style={styles.closeButtonText}>✕</Text>
+            <AppIcon name="close" size="lg" color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>

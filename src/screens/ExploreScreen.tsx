@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -9,6 +8,7 @@ import { auth, firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
 import { User } from '../lib/api';
 import { toggleFollow } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 /* ── Trending Topics (fetched live from Firestore) ────────────────────────── */
 interface TrendingTopic {
@@ -228,7 +228,7 @@ export default function ExploreScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => (navigation as any).openDrawer()} hitSlop={8}>
-            <Ionicons name="menu" size={22} color={colors.text} />
+            <AppIcon name="menu" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Explore</Text>
           <View style={{ width: 22 }} />
@@ -255,7 +255,7 @@ export default function ExploreScreen() {
           onPress={() => navigation.navigate('Search' as never)}
           activeOpacity={0.7}
         >
-          <Ionicons name="search" size={20} color={colors.textSecondary} />
+          <AppIcon name="search" size={20} color={colors.textSecondary} />
           <Text style={styles.searchPlaceholder}>Search</Text>
         </TouchableOpacity>
 
@@ -331,7 +331,7 @@ export default function ExploreScreen() {
           ) : recommendedUsers.length === 0 ? (
             <View style={styles.emptyUsersWrap}>
               <View style={styles.emptyUsersIcon}>
-                <Ionicons name="people-outline" size={28} color={colors.textTertiary} />
+                <AppIcon name="groups" size="xxl" color={colors.textTertiary} />
               </View>
               <Text style={styles.emptyUsersText}>
                 Suggestions will appear as more people join.

@@ -12,11 +12,11 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { Avatar } from '../components/Avatar';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, assignAffiliateBadge, searchUsers, User } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 /* ── Types ──────────────────────────────────────────────────────────────── */
 
@@ -276,7 +276,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
     return (
       <View style={styles.badgeStatsBar}>
         <View style={styles.badgeStatsItem}>
-          <Ionicons name="ribbon-outline" size={16} color={colors.accentGold} />
+          <AppIcon name="ribbon-outline" size={16} color={colors.accentGold} />
           <Text style={styles.badgeStatsText}>
             {assignedBadges} badge{assignedBadges !== 1 ? 's' : ''} assigned
           </Text>
@@ -381,7 +381,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
           {/* Modal Header */}
           <View style={styles.addModalHeader}>
             <TouchableOpacity onPress={() => setAddModalVisible(false)} hitSlop={8}>
-              <Ionicons name="close" size={24} color={colors.text} />
+              <AppIcon name="close" size="xl" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.addModalTitle}>Add Team Member</Text>
             <View style={{ width: 24 }} />
@@ -389,7 +389,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
 
           {/* Search */}
           <View style={styles.addSearchContainer}>
-            <Ionicons name="search" size={18} color={colors.textTertiary} />
+            <AppIcon name="search" size="md" color={colors.textTertiary} />
             <TextInput
               style={styles.addSearchInput}
               placeholder="Search by username or name..."
@@ -409,7 +409,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
           <View style={styles.addResultsContainer}>
             {addSearch.trim().length >= 2 && !addSearching && addResults.length === 0 && (
               <View style={styles.addEmptyContainer}>
-                <Ionicons name="person-add-outline" size={36} color={colors.textTertiary} />
+                <AppIcon name="person-add-outline" size="4xl" color={colors.textTertiary} />
                 <Text style={styles.addEmptyText}>No users found</Text>
                 <Text style={styles.addEmptySubtext}>Try a different search term</Text>
               </View>
@@ -417,7 +417,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
 
             {addSearch.trim().length < 2 && (
               <View style={styles.addEmptyContainer}>
-                <Ionicons name="people-outline" size={36} color={colors.textTertiary} />
+                <AppIcon name="groups" size="4xl" color={colors.textTertiary} />
                 <Text style={styles.addEmptyText}>Find a user to add</Text>
                 <Text style={styles.addEmptySubtext}>Enter a username or display name (min. 2 characters)</Text>
               </View>
@@ -439,7 +439,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
                 {addingUserId === user.id ? (
                   <ActivityIndicator size="small" color={colors.accent} />
                 ) : (
-                  <Ionicons name="add-circle-outline" size={28} color={colors.accentGreen} />
+                  <AppIcon name="add-circle-outline" size="xxl" color={colors.accentGreen} />
                 )}
               </TouchableOpacity>
             ))}
@@ -456,7 +456,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
+              <AppIcon name="arrow-back" size="lg" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Assign Badges</Text>
             <View style={{ width: 32 }} />
@@ -476,14 +476,14 @@ export default function AssignBadgeScreen({ navigation }: any) {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
+              <AppIcon name="arrow-back" size="lg" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Assign Badges</Text>
             <View style={{ width: 32 }} />
           </View>
         </SafeAreaView>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
-          <Ionicons name="lock-closed-outline" size={48} color={colors.textMuted} />
+          <AppIcon name="lock" size="hero" color={colors.textMuted} />
           <Text style={styles.emptyTitle}>Admin Only</Text>
           <Text style={styles.emptyText}>This feature is restricted to admin users only.</Text>
         </View>
@@ -497,7 +497,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
+              <AppIcon name="arrow-back" size="lg" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Assign Badges</Text>
             <View style={{ width: 32 }} />
@@ -515,7 +515,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Assign Badges</Text>
           <View style={{ width: 32 }} />
@@ -528,7 +528,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
       {/* Add team member button */}
       <View style={styles.addBtnContainer}>
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddModalVisible(true)} activeOpacity={0.7}>
-          <Ionicons name="person-add-outline" size={18} color={colors.accent} />
+          <AppIcon name="person-add-outline" size="md" color={colors.accent} />
           <Text style={styles.addBtnText}>Add Team Member</Text>
         </TouchableOpacity>
       </View>

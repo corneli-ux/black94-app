@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../components/icons';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -300,7 +300,7 @@ export default function ArticleViewScreen({ route, navigation }: any) {
         {/* Fact check badge */}
         {article.factCheck ? (
           <View style={styles.factCheckBadge}>
-            <Ionicons name="shield-checkmark" size={14} color={colors.accentGreen} />
+            <AppIcon name="verified-user" size="sm" color={colors.accentGreen} />
             <Text style={styles.factCheckText}>Fact Checked</Text>
           </View>
         ) : null}
@@ -334,7 +334,7 @@ export default function ArticleViewScreen({ route, navigation }: any) {
 
         {/* Views count */}
         <View style={styles.viewsRow}>
-          <Ionicons name="eye-outline" size={14} color={colors.textMuted} />
+          <AppIcon name="visibility" size="sm" color={colors.textMuted} />
           <Text style={styles.viewsText}>
             {article.views.toLocaleString()} views
           </Text>
@@ -347,9 +347,9 @@ export default function ArticleViewScreen({ route, navigation }: any) {
           style={styles.actionBtn}
           onPress={handleLike}
           activeOpacity={0.7}>
-          <Ionicons
-            name={isLiked ? 'heart' : 'heart-outline'}
-            size={22}
+          <AppIcon
+            name={isLiked ? 'favorite' : 'favorite-border'}
+            size="lg"
             color={isLiked ? colors.error : colors.textSecondary}
           />
           <Text style={[styles.actionCount, isLiked && { color: colors.error }]}>
@@ -363,7 +363,7 @@ export default function ArticleViewScreen({ route, navigation }: any) {
           onPress={() => {
             Alert.alert('Comments', `${commentCount} comments`);
           }}>
-          <Ionicons name="chatbubble-outline" size={22} color={colors.textSecondary} />
+          <AppIcon name="chat-bubble-outline" size="lg" color={colors.textSecondary} />
           <Text style={styles.actionCount}>{commentCount}</Text>
         </TouchableOpacity>
 
@@ -371,16 +371,16 @@ export default function ArticleViewScreen({ route, navigation }: any) {
           style={styles.actionBtn}
           onPress={handleShare}
           activeOpacity={0.7}>
-          <Ionicons name="share-outline" size={22} color={colors.textSecondary} />
+          <AppIcon name="share" size="lg" color={colors.textSecondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.actionBtn}
           onPress={handleBookmark}
           activeOpacity={0.7}>
-          <Ionicons
-            name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
-            size={22}
+          <AppIcon
+            name={isBookmarked ? 'bookmark' : 'bookmark-border'}
+            size="lg"
             color={isBookmarked ? colors.accentGold : colors.textSecondary}
           />
         </TouchableOpacity>

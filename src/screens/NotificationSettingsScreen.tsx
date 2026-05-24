@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
+import { AppIcon } from '../components/icons';
 
 const STORAGE_KEY = '@black94/notification_settings';
 
@@ -73,7 +73,7 @@ export default function NotificationSettingsScreen() {
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={{ width: 22 }} />
@@ -81,7 +81,7 @@ export default function NotificationSettingsScreen() {
 
       {saved && (
         <View style={styles.savedBanner}>
-          <Ionicons name="checkmark-circle" size={14} color={colors.accentGreen} />
+          <AppIcon name="check-circle" size="sm" color={colors.accentGreen} />
           <Text style={styles.savedText}>Saved</Text>
         </View>
       )}

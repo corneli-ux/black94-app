@@ -5,10 +5,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { parseMediaUrls } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const GAP = 2;
@@ -102,7 +102,7 @@ export default function MediaPostsScreen() {
         {item.isVideo && (
           <View style={styles.playOverlay}>
             <View style={styles.playCircle}>
-              <Ionicons name="play" size={20} color={colors.white} />
+              <AppIcon name="play-arrow" size={20} color={colors.white} />
             </View>
           </View>
         )}
@@ -115,7 +115,7 @@ export default function MediaPostsScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Media</Text>
           <View style={{ width: 22 }} />
@@ -129,7 +129,7 @@ export default function MediaPostsScreen() {
       ) : posts.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Ionicons name="images-outline" size={32} color={colors.textSecondary} />
+            <AppIcon name="photo-library" size="3xl" color={colors.textSecondary} />
           </View>
           <Text style={styles.emptyTitle}>No media posts</Text>
           <Text style={styles.emptySubtitle}>
@@ -139,7 +139,7 @@ export default function MediaPostsScreen() {
       ) : (
         <>
           <View style={styles.countBar}>
-            <Ionicons name="grid-outline" size={14} color={colors.textMuted} />
+            <AppIcon name="grid-view" size="sm" color={colors.textMuted} />
             <Text style={styles.countText}>
               {posts.length} post{posts.length !== 1 ? 's' : ''}
             </Text>

@@ -11,10 +11,10 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { deliverPendingFollowUps } from '../lib/crm';
+import { AppIcon } from '../components/icons';
 
 /* ── Theme compat (mirrors source theme tokens) ─────────────────────────────── */
 
@@ -195,12 +195,12 @@ const CrmLeadsScreen: React.FC = () => {
 
       <View style={styles.leadMeta}>
         <View style={styles.leadSourceRow}>
-          <Ionicons name="link-outline" size={12} color={C.textSecondary} />
+          <AppIcon name="link" size="xs" color={C.textSecondary} />
           <Text style={styles.leadSource}>{item.source || 'Direct'}</Text>
         </View>
         {item.phone ? (
           <View style={styles.leadPhoneRow}>
-            <Ionicons name="call-outline" size={12} color={C.textSecondary} />
+            <AppIcon name="call" size="xs" color={C.textSecondary} />
             <Text style={styles.leadPhone}>{item.phone}</Text>
           </View>
         ) : null}
@@ -291,7 +291,7 @@ const CrmLeadsScreen: React.FC = () => {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={48} color={C.white20} />
+            <AppIcon name="groups" size="hero" color={C.white20} />
             <Text style={styles.emptyTitle}>No leads</Text>
             <Text style={styles.emptySubtitle}>
               {activeStatus === 'all'
@@ -325,7 +325,7 @@ const CrmLeadsScreen: React.FC = () => {
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Lead Details</Text>
                   <TouchableOpacity onPress={() => setSelectedLead(null)}>
-                    <Ionicons name="close" size={24} color={C.white} />
+                    <AppIcon name="close" size="xl" color={C.white} />
                   </TouchableOpacity>
                 </View>
 

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { Avatar } from '../components/Avatar';
 import { auth, firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 interface TeamMember {
   id: string;
@@ -187,7 +188,7 @@ export default function SalaryScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Salary</Text>
           <TouchableOpacity onPress={openAddModal} style={styles.addBtn}>
@@ -212,7 +213,7 @@ export default function SalaryScreen({ navigation }: any) {
       >
         {members.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>💰</Text>
+            <AppIcon name="payments" size="hero" color={colors.accent} />
             <Text style={styles.emptyTitle}>No team members</Text>
             <Text style={styles.emptyText}>
               Add team members to manage their payroll and commissions.
@@ -255,7 +256,7 @@ export default function SalaryScreen({ navigation }: any) {
                     </Text>
                   </View>
                   <TouchableOpacity onPress={() => handleDeleteMember(member)} hitSlop={8}>
-                    <Text style={styles.deleteIcon}>✕</Text>
+                    <AppIcon name="close" size="sm" color={colors.like} />
                   </TouchableOpacity>
                 </View>
               </View>

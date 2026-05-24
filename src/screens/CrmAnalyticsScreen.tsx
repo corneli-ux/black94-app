@@ -7,9 +7,9 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
+import { AppIcon } from '../components/icons';
 
 /* ── Theme compat (mirrors source theme tokens) ─────────────────────────────── */
 
@@ -221,12 +221,12 @@ const CrmAnalyticsScreen: React.FC = () => {
         {/* KPI Cards */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons name="grid-outline" size={18} color={C.primary} />
+            <AppIcon name="grid-view" size="md" color={C.primary} />
             <Text style={styles.sectionTitle}>Key Metrics</Text>
           </View>
           <View style={styles.kpiGrid}>
             <View style={styles.kpiCard}>
-              <Ionicons name="wallet-outline" size={20} color={C.success} />
+              <AppIcon name="account-balance-wallet" size={20} color={C.success} />
               <View style={styles.kpiInfo}>
                 <Text style={styles.kpiValue}>
                   ₹{(data?.totalRevenue ?? 0).toLocaleString('en-IN')}
@@ -235,14 +235,14 @@ const CrmAnalyticsScreen: React.FC = () => {
               </View>
             </View>
             <View style={styles.kpiCard}>
-              <Ionicons name="receipt-outline" size={20} color={C.primary} />
+              <AppIcon name="receipt" size={20} color={C.primary} />
               <View style={styles.kpiInfo}>
                 <Text style={styles.kpiValue}>{data?.totalOrders ?? 0}</Text>
                 <Text style={styles.kpiLabel}>Total Orders</Text>
               </View>
             </View>
             <View style={styles.kpiCard}>
-              <Ionicons name="analytics-outline" size={20} color={C.warning} />
+              <AppIcon name="analytics-outline" size={20} color={C.warning} />
               <View style={styles.kpiInfo}>
                 <Text style={styles.kpiValue}>
                   ₹{Math.round(data?.avgOrderValue ?? 0).toLocaleString('en-IN')}
@@ -251,7 +251,7 @@ const CrmAnalyticsScreen: React.FC = () => {
               </View>
             </View>
             <View style={styles.kpiCard}>
-              <Ionicons name="people-outline" size={20} color={C.info} />
+              <AppIcon name="groups" size={20} color={C.info} />
               <View style={styles.kpiInfo}>
                 <Text style={styles.kpiValue}>{data?.totalLeads ?? 0}</Text>
                 <Text style={styles.kpiLabel}>Total Leads</Text>
@@ -263,7 +263,7 @@ const CrmAnalyticsScreen: React.FC = () => {
         {/* Revenue Trend Chart */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons name="trending-up-outline" size={18} color={C.success} />
+            <AppIcon name="trending-up" size="md" color={C.success} />
             <Text style={styles.sectionTitle}>Revenue Trend (Last 6 Months)</Text>
           </View>
           <View style={styles.chartCard}>
@@ -292,7 +292,7 @@ const CrmAnalyticsScreen: React.FC = () => {
         {/* Top Products */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons name="pricetag-outline" size={18} color={C.warning} />
+            <AppIcon name="pricetag-outline" size="md" color={C.warning} />
             <Text style={styles.sectionTitle}>Top Products</Text>
           </View>
           <View style={styles.card}>
@@ -324,7 +324,7 @@ const CrmAnalyticsScreen: React.FC = () => {
         {/* Lead Conversion Funnel */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons name="funnel-outline" size={18} color={C.info} />
+            <AppIcon name="funnel-outline" size="md" color={C.info} />
             <Text style={styles.sectionTitle}>Lead Conversion Funnel</Text>
           </View>
           <View style={styles.card}>
@@ -362,7 +362,7 @@ const CrmAnalyticsScreen: React.FC = () => {
         {/* Customer Demographics */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons name="people-circle-outline" size={18} color={C.badgeQualified} />
+            <AppIcon name="people-circle-outline" size="md" color={C.badgeQualified} />
             <Text style={styles.sectionTitle}>Customer Demographics</Text>
           </View>
           <View style={styles.card}>

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Image, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
@@ -9,6 +8,7 @@ import { parseMediaUrls } from '../lib/api';
 import { checkPlanLimit } from '../lib/payments';
 import { optimizeImage } from '../utils/imageOptimizer';
 import { uploadOptimizedImage } from '../utils/imageUpload';
+import { AppIcon } from '../components/icons';
 
 const CATEGORIES = [
   'Electronics',
@@ -493,7 +493,7 @@ export default function AddProductScreen({ route, navigation }: any) {
             }}
             style={styles.backBtn}
           >
-            <Text style={styles.backArrow}>←</Text>
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{editProductId ? 'Edit Product' : 'Add Product'}</Text>
           <View style={{ width: 36 }} />
@@ -626,7 +626,7 @@ export default function AddProductScreen({ route, navigation }: any) {
                     <View key={`img-${i}-${uri}`} style={styles.imageCard}>
                       {imageLoadErrors.has(i) ? (
                         <View style={styles.imageThumbError}>
-                          <Ionicons name="image-outline" size={28} color={colors.textMuted} />
+                          <AppIcon name="image" size="xxl" color={colors.textMuted} />
                         </View>
                       ) : (
                         <Image source={{ uri }} style={styles.imageThumb} resizeMode="cover" onError={() => {
@@ -659,7 +659,7 @@ export default function AddProductScreen({ route, navigation }: any) {
                           onPress={() => handleRemoveImage(i)}
                           activeOpacity={0.7}
                         >
-                          <Text style={styles.imageRemoveText}>✕</Text>
+                          <AppIcon name="close" size="sm" color={colors.text} />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -672,11 +672,11 @@ export default function AddProductScreen({ route, navigation }: any) {
             {!saving && form.images.length < MAX_PRODUCT_IMAGES && (
               <View style={styles.imageActions}>
                 <TouchableOpacity style={styles.addPhotoBtn} onPress={handleAddImages} activeOpacity={0.7}>
-                  <Text style={styles.addPhotoIcon}>🖼</Text>
+                  <AppIcon name="image" size="xxl" color={colors.textMuted} />
                   <Text style={styles.addPhotoText}>Gallery</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.addPhotoBtn} onPress={handleCamera} activeOpacity={0.7}>
-                  <Text style={styles.addPhotoIcon}>📷</Text>
+                  <AppIcon name="camera-alt" size="xxl" color={colors.textMuted} />
                   <Text style={styles.addPhotoText}>Camera</Text>
                 </TouchableOpacity>
               </View>

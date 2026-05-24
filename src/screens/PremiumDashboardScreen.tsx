@@ -23,7 +23,6 @@ import { WebView } from 'react-native-webview';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { scale } from '../theme/responsive';
-import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import {
   PLANS,
@@ -41,6 +40,7 @@ import {
   isRazorpayConfigured,
 } from '../lib/razorpay';
 import type { RazorpayResult } from '../lib/razorpay';
+import { AppIcon } from '../components/icons';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -374,9 +374,9 @@ export default function PremiumDashboardScreen() {
   // ── Visual helpers ──
   const planIcon = (plan: PlanType, size: number = 36) => {
     switch (plan) {
-      case 'free': return <Ionicons name="fitness-outline" size={size} color={planColor(plan)} />;
-      case 'premium': return <Ionicons name="star" size={size} color={planColor(plan)} />;
-      case 'business': return <Ionicons name="rocket" size={size} color={planColor(plan)} />;
+      case 'free': return <AppIcon name="fitness-center" size={size} color={planColor(plan)} />;
+      case 'premium': return <AppIcon name="star" size={size} color={planColor(plan)} />;
+      case 'business': return <AppIcon name="rocket" size={size} color={planColor(plan)} />;
     }
   };
 
@@ -484,9 +484,9 @@ export default function PremiumDashboardScreen() {
                         : colors.verified,
                   },
                 ]}>
-                <Ionicons
+                <AppIcon
                   name={currentPlan === 'premium' ? 'star' : 'rocket'}
-                  size={12}
+                  size="xs"
                   color={
                     currentPlan === 'premium'
                       ? colors.accentGold
@@ -512,8 +512,8 @@ export default function PremiumDashboardScreen() {
           {/* Badge info line for subscribed users */}
           {planBadgeLabel(currentPlan) && (
             <View style={styles.badgeInfoRow}>
-              <Ionicons
-                name="shield-checkmark"
+              <AppIcon
+                name="verified-user"
                 size={16}
                 color={planColor(currentPlan)}
               />
@@ -528,7 +528,7 @@ export default function PremiumDashboardScreen() {
           {currentPlan === 'business' && (
             <View style={styles.affiliateInfoCard}>
               <View style={styles.affiliateInfoHeader}>
-                <Ionicons name="people" size={16} color={colors.verified} />
+                <AppIcon name="groups" size={16} color={colors.verified} />
                 <Text style={styles.affiliateInfoTitle}>Affiliate Badges</Text>
               </View>
               <Text style={styles.affiliateInfoDesc}>
@@ -536,11 +536,11 @@ export default function PremiumDashboardScreen() {
               </Text>
               <View style={styles.affiliateBadgeRow}>
                 <View style={styles.affiliateBadgeSlot}>
-                  <Ionicons name="medal" size={20} color={colors.verifiedGold} />
+                  <AppIcon name="medal" size={20} color={colors.verifiedGold} />
                   <Text style={styles.affiliateBadgeLabel}>Badge Slot 1</Text>
                 </View>
                 <View style={styles.affiliateBadgeSlot}>
-                  <Ionicons name="medal" size={20} color={colors.verifiedGold} />
+                  <AppIcon name="medal" size={20} color={colors.verifiedGold} />
                   <Text style={styles.affiliateBadgeLabel}>Badge Slot 2</Text>
                 </View>
               </View>
@@ -556,7 +556,7 @@ export default function PremiumDashboardScreen() {
                 activeOpacity={0.7}
                 disabled={paymentLoading}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="star" size={16} color={colors.accentGold} />
+                  <AppIcon name="star" size={16} color={colors.accentGold} />
                   <Text style={styles.upgradeBtnTitle}>Premium</Text>
                 </View>
                 <Text style={styles.upgradeBtnPrice}>{formatAmount(PLANS[0].amount)}/mo</Text>
@@ -567,7 +567,7 @@ export default function PremiumDashboardScreen() {
                 activeOpacity={0.7}
                 disabled={paymentLoading}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="rocket" size={16} color={colors.accentGold} />
+                  <AppIcon name="rocket" size={16} color={colors.accentGold} />
                   <Text style={styles.upgradeBtnOutlineTitle}>Business</Text>
                 </View>
                 <Text style={styles.upgradeBtnOutlinePrice}>{formatAmount(PLANS[1].amount)}/mo</Text>
@@ -575,7 +575,7 @@ export default function PremiumDashboardScreen() {
             </View>
           ) : (
             <View style={styles.billingRow}>
-              <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
+              <AppIcon name="calendar-today" size={16} color={colors.textMuted} />
               <Text style={styles.billingText}>
                 Billing period: Monthly · Renews automatically
               </Text>
@@ -594,7 +594,7 @@ export default function PremiumDashboardScreen() {
         {/* ═══ Usage meter ═══ */}
         <View style={styles.usageCard}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons name="pie-chart-outline" size={18} color={colors.primary} />
+            <AppIcon name="pie-chart" size="md" color={colors.primary} />
             <Text style={styles.sectionTitle}>Usage This Month</Text>
           </View>
           {renderUsageBar('Storage (MB)', usage.storage.current, usage.storage.limit)}
@@ -603,7 +603,7 @@ export default function PremiumDashboardScreen() {
         {/* ═══ Feature comparison table ═══ */}
         <View style={styles.tableCard}>
           <View style={styles.sectionTitleRow}>
-            <Ionicons name="list-outline" size={18} color={colors.primary} />
+            <AppIcon name="view-list" size="md" color={colors.primary} />
             <Text style={styles.sectionTitle}>Feature Comparison</Text>
           </View>
           <View style={styles.tableHeader}>
@@ -657,9 +657,9 @@ export default function PremiumDashboardScreen() {
             style={styles.manageBtn}
             onPress={handleManagePlan}
             activeOpacity={0.7}>
-            <Ionicons name="settings-outline" size={20} color={colors.textSecondary} />
+            <AppIcon name="settings" size={20} color={colors.textSecondary} />
             <Text style={styles.manageBtnText}>Manage Subscription</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            <AppIcon name="chevron-right" size="md" color={colors.textMuted} />
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -688,7 +688,7 @@ export default function PremiumDashboardScreen() {
               }}
               hitSlop={8}
               style={{ padding: 8 }}>
-              <Ionicons name="close" size={24} color={colors.text} />
+              <AppIcon name="close" size="xl" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.razorpayModalTitle}>Payment</Text>
             <View style={{ width: 40 }} />
@@ -720,7 +720,7 @@ export default function PremiumDashboardScreen() {
           onPress={() => setSuccessModalVisible(false)}>
           <Pressable style={styles.modalCard} onPress={() => {}}>
             <View style={styles.modalIconWrap}>
-              <Ionicons name="checkmark-circle" size={56} color={colors.accentGreen} />
+              <AppIcon name="check-circle" size={56} color={colors.accentGreen} />
             </View>
             <Text style={styles.modalTitle}>Welcome to {activatedPlan?.name}!</Text>
             <Text style={styles.modalDesc}>

@@ -6,6 +6,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls } from '../lib/api';
 import { User } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_GAP = 10;
@@ -183,7 +184,7 @@ export default function StorefrontScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backArrow}>←</Text>
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {owner?.displayName || 'Store'}

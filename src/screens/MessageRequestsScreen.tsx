@@ -15,7 +15,7 @@ import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../components/icons';
 
 interface MessageRequest {
   id: string;
@@ -331,7 +331,7 @@ export default function MessageRequestsScreen() {
               <ActivityIndicator size="small" color={colors.primaryForeground} />
             ) : (
               <>
-                <Ionicons name="checkmark" size={16} color={colors.primaryForeground} style={{ marginRight: 4 }} />
+                <AppIcon name="check" size={16} color={colors.primaryForeground} style={{ marginRight: 4 }} />
                 <Text style={styles.acceptText}>Accept</Text>
               </>
             )}
@@ -350,7 +350,7 @@ export default function MessageRequestsScreen() {
             disabled={isBusy}
             activeOpacity={0.7}
           >
-            <Ionicons name="ban-outline" size={16} color={colors.delete} />
+            <AppIcon name="block" size={16} color={colors.delete} />
           </TouchableOpacity>
         </View>
       </View>
@@ -360,7 +360,7 @@ export default function MessageRequestsScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIcon}>
-        <Ionicons name="mail-outline" size={32} color={colors.textSecondary} />
+        <AppIcon name="mail-outline" size="3xl" color={colors.textSecondary} />
       </View>
       <Text style={styles.emptyTitle}>No message requests</Text>
       <Text style={styles.emptySubtitle}>
@@ -379,7 +379,7 @@ export default function MessageRequestsScreen() {
             hitSlop={8}
             style={styles.backBtn}
           >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Message Requests</Text>
           <TouchableOpacity

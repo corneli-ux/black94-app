@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -13,6 +12,7 @@ import { auth, firestore } from '../lib/firebase';
 import { parseMediaUrls } from '../lib/api';
 import { tsToMillis } from '../utils/datetime';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
+import { AppIcon } from '../components/icons';
 
 interface MentionedPost {
   id: string;
@@ -121,7 +121,7 @@ export default function MentionedPostsScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Mentions</Text>
           <View style={{ width: 22 }} />
@@ -147,7 +147,7 @@ export default function MentionedPostsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
-                <Ionicons name="at-outline" size={32} color={colors.textSecondary} />
+                <AppIcon name="alternate-email" size="3xl" color={colors.textSecondary} />
               </View>
               <Text style={styles.emptyTitle}>No mentions yet</Text>
               <Text style={styles.emptySubtitle}>

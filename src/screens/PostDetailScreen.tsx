@@ -10,7 +10,6 @@ import {
   Share,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -28,6 +27,7 @@ import { useAppStore } from '../stores/app';
 import { useOptimisticAction } from '../hooks/useOptimisticAction';
 import FeedMedia from '../components/FeedMedia';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
+import { AppIcon } from '../components/icons';
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -289,14 +289,14 @@ export default function PostDetailScreen() {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
+              <AppIcon name="arrow-back" size="lg" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Post</Text>
             <View style={{ width: 22 }} />
           </View>
         </SafeAreaView>
         <View style={styles.centered}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
+          <AppIcon name="error-outline" size="hero" color={colors.textMuted} />
           <Text style={styles.errorText}>{error || 'Post not found'}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadPost}>
             <Text style={styles.retryBtnText}>Retry</Text>
@@ -314,7 +314,7 @@ export default function PostDetailScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Post</Text>
           <View style={{ width: 22 }} />
@@ -330,7 +330,7 @@ export default function PostDetailScreen() {
         {/* Repost indicator */}
         {post.repostedByDisplayName ? (
           <View style={styles.repostBar}>
-            <Ionicons name="repeat" size={14} color={colors.textSecondary} />
+            <AppIcon name="repeat" size="sm" color={colors.textSecondary} />
             <Text style={styles.repostText}>
               {post.repostedByUid === currentUser?.uid ? 'You' : post.repostedByDisplayName} reposted
             </Text>
@@ -378,7 +378,7 @@ export default function PostDetailScreen() {
           {/* Comment */}
           <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
             <View style={styles.actionIconWrap}>
-              <Ionicons name="chatbubble-outline" size={18} color={colors.textMuted} />
+              <AppIcon name="chat-bubble-outline" size="md" color={colors.textMuted} />
             </View>
             {formatCount(post.commentCount) ? (
               <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
@@ -388,7 +388,7 @@ export default function PostDetailScreen() {
           {/* Repost */}
           <TouchableOpacity style={styles.actionBtn} onPress={handleRepost}>
             <View style={styles.actionIconWrap}>
-              <Ionicons name="repeat" size={18} color={reposted ? colors.repost : colors.textMuted} />
+              <AppIcon name="repeat" size="md" color={reposted ? colors.repost : colors.textMuted} />
             </View>
             {formatCount(repostCount) ? (
               <Text style={[styles.actionCount, reposted && { color: colors.repost }]}>
@@ -400,7 +400,7 @@ export default function PostDetailScreen() {
           {/* Like */}
           <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
             <View style={styles.actionIconWrap}>
-              <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? colors.like : colors.textMuted} />
+              <AppIcon name={liked ? 'favorite' : 'favorite-border'} size="md" color={liked ? colors.like : colors.textMuted} />
             </View>
             {formatCount(likeCount) ? (
               <Text style={[styles.actionCount, liked && { color: colors.like }]}>
@@ -412,7 +412,7 @@ export default function PostDetailScreen() {
           {/* Views */}
           <TouchableOpacity style={styles.actionBtn} disabled>
             <View style={styles.actionIconWrap}>
-              <Ionicons name="trending-up-outline" size={18} color={colors.textMuted} />
+              <AppIcon name="trending-up" size="md" color={colors.textMuted} />
             </View>
           </TouchableOpacity>
 
@@ -420,16 +420,16 @@ export default function PostDetailScreen() {
           <View style={styles.actionPair}>
             <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
               <View style={styles.actionIconWrap}>
-                <Ionicons
-                  name={bookmarked ? 'bookmark' : 'bookmark-outline'}
-                  size={18}
+                <AppIcon
+                  name={bookmarked ? 'bookmark' : 'bookmark-border'}
+                  size="md"
                   color={bookmarked ? colors.bookmark : colors.textMuted}
                 />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name="share-outline" size={18} color={colors.textMuted} />
+                <AppIcon name="share" size="md" color={colors.textMuted} />
               </View>
             </TouchableOpacity>
           </View>

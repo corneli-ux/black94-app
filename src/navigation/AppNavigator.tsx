@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { signOutUser } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { AppIcon } from '../components/icons';
 
 /* ── Dark Navigation Theme — prevents white flash on transitions ── */
 const DarkTheme = {
@@ -153,55 +153,31 @@ function LazyScreen(Component: any) {
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   const tabColor = focused ? colors.white : colors.textMuted;
-  const iconProps: { size: number; color: string } = {
-    size: 24,
-    color: tabColor,
-  };
 
-  // Match web's Lucide icons with Ionicons equivalents
   switch (name) {
     case 'Home':
       return (
         <Text style={{ fontSize: 24, fontWeight: '900', color: tabColor }}>94</Text>
       );
     case 'Search':
-      return (
-        <Ionicons
-          {...iconProps}
-          name={focused ? 'search' : 'search-outline'}
-        />
-      );
+      return <AppIcon name="search" size="xl" color={tabColor} />;
     case 'Messages':
-      return (
-        <Ionicons
-          {...iconProps}
-          name={focused ? 'chatbubble' : 'chatbubble-outline'}
-        />
-      );
+      return <AppIcon name={focused ? 'chat' : 'chat-bubble-outline'} size="xl" color={tabColor} />;
     case 'Notifications':
-      return (
-        <Ionicons
-          {...iconProps}
-          name={focused ? 'notifications' : 'notifications-outline'}
-        />
-      );
+      return <AppIcon name={focused ? 'notifications' : 'notifications-outlined'} size="xl" color={tabColor} />;
     case 'AnonymousChat':
       return (
-        <MaterialCommunityIcons
-          {...iconProps}
-          name='incognito'
+        <AppIcon
+          name="incognito"
+          size="xl"
+          color={tabColor}
           style={focused ? { opacity: 1 } : { opacity: 0.5 }}
         />
       );
     case 'Stories':
-      return (
-        <Ionicons
-          {...iconProps}
-          name={focused ? 'add-circle' : 'add-circle-outline'}
-        />
-      );
+      return <AppIcon name={focused ? 'add-circle' : 'add-circle-outline'} size="xl" color={tabColor} />;
     default:
-      return <Ionicons {...iconProps} name="ellipse" />;
+      return <AppIcon name="circle" size="xl" color={tabColor} />;
   }
 }
 
@@ -269,9 +245,9 @@ function CustomDrawerContent({ navigation }: any) {
 
   // Drawer only has items NOT already in the bottom tab bar
   const navItems = [
-    { label: 'Explore', icon: 'search-outline', screen: 'Explore' },
+    { label: 'Explore', icon: 'search', screen: 'Explore' },
     { label: 'Profile', icon: 'person-outline', screen: 'ProfileSelf' },
-    { label: 'Bookmarks', icon: 'bookmark-outline', screen: 'Bookmarks' },
+    { label: 'Bookmarks', icon: 'bookmark-border', screen: 'Bookmarks' },
     { label: 'Upgrade', icon: 'diamond-outline', screen: 'PremiumDashboard' },
   ];
 
@@ -320,7 +296,7 @@ function CustomDrawerContent({ navigation }: any) {
           style={styles.drawerItem}
           onPress={() => handleNavigate(item.screen)}
         >
-          <Ionicons name={item.icon as any} size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
+          <AppIcon name={item.icon} size="lg" color={colors.text} style={{ width: 30, textAlign: 'center' }} />
           <Text style={styles.drawerLabel}>{item.label}</Text>
         </TouchableOpacity>
       ))}
@@ -333,7 +309,7 @@ function CustomDrawerContent({ navigation }: any) {
           navigation.navigate('Settings');
         }}
       >
-        <Ionicons name="settings-outline" size={22} color={colors.text} style={{ width: 30, textAlign: 'center' }} />
+        <AppIcon name="settings" size="lg" color={colors.text} style={{ width: 30, textAlign: 'center' }} />
         <Text style={styles.drawerLabel}>Settings</Text>
       </TouchableOpacity>
 
@@ -360,7 +336,7 @@ function CustomDrawerContent({ navigation }: any) {
       {/* Logout button — always visible when user is logged in */}
       {user && (
         <TouchableOpacity style={styles.drawerLogoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={22} color={colors.accent} style={{ width: 30, textAlign: 'center' }} />
+          <AppIcon name="logout" size="lg" color={colors.accent} style={{ width: 30, textAlign: 'center' }} />
           <Text style={styles.drawerLogoutText}>Log Out</Text>
         </TouchableOpacity>
       )}

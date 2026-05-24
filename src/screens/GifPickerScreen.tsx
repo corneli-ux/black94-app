@@ -20,7 +20,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,6 +32,7 @@ interface GifItem {
 // ── API ───────────────────────────────────────────────────────────────────
 
 import Constants from 'expo-constants';
+import { AppIcon } from '../components/icons';
 
 const TENOR_KEY = (Constants.expoConfig?.extra?.tenorApiKey as string) || '';
 const PAGE_SIZE = 30;
@@ -231,10 +231,10 @@ export default function GifPickerScreen() {
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
           activeOpacity={0.6}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <View style={styles.searchInputWrap}>
-          <Ionicons name="search" size={16} color={colors.textMuted} style={styles.searchIcon} />
+          <AppIcon name="search" size={16} color={colors.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search GIFs..."
@@ -250,7 +250,7 @@ export default function GifPickerScreen() {
               style={styles.clearBtn}
               onPress={() => handleSearch('')}
               activeOpacity={0.6}>
-              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+              <AppIcon name="cancel" size="md" color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -263,7 +263,7 @@ export default function GifPickerScreen() {
         </View>
       ) : error ? (
         <View style={styles.centerLoader}>
-          <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
+          <AppIcon name="cloud-off" size="hero" color={colors.textMuted} />
           <Text style={styles.errorText}>Failed to load GIFs</Text>
           <Text style={styles.errorSubtext}>{error}</Text>
           <TouchableOpacity
@@ -287,7 +287,7 @@ export default function GifPickerScreen() {
           ListFooterComponent={ListFooter}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="search" size={40} color={colors.textMuted} />
+              <AppIcon name="search" size={40} color={colors.textMuted} />
               <Text style={styles.emptyText}>
                 {query.trim() ? `No GIFs found for "${query.trim()}"` : 'No trending GIFs available'}
               </Text>

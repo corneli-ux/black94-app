@@ -5,10 +5,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
 import { useAppStore } from '../stores/app';
+import { AppIcon } from '../components/icons';
 
 interface Highlight {
   id: string;
@@ -87,12 +87,12 @@ export default function ProfileHighlightsScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Highlights</Text>
           {isOwnProfile ? (
             <TouchableOpacity onPress={handleCreateHighlight} hitSlop={8}>
-              <Ionicons name="add-circle-outline" size={22} color={colors.accent} />
+              <AppIcon name="add-circle-outline" size="lg" color={colors.accent} />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 22 }} />
@@ -107,7 +107,7 @@ export default function ProfileHighlightsScreen() {
       ) : highlights.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Ionicons name="images-outline" size={32} color={colors.textSecondary} />
+            <AppIcon name="photo-library" size="3xl" color={colors.textSecondary} />
           </View>
           <Text style={styles.emptyTitle}>No highlights yet</Text>
           <Text style={styles.emptySubtitle}>
@@ -138,7 +138,7 @@ export default function ProfileHighlightsScreen() {
                   />
                 ) : (
                   <View style={styles.coverPlaceholder}>
-                    <Ionicons name="image-outline" size={24} color={colors.textMuted} />
+                    <AppIcon name="image" size="xl" color={colors.textMuted} />
                   </View>
                 )}
                 {/* Circular ring effect */}
@@ -154,8 +154,6 @@ export default function ProfileHighlightsScreen() {
     </View>
   );
 }
-
-
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },

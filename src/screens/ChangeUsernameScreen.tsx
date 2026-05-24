@@ -4,12 +4,12 @@ import {
   TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 const USERNAME_REGEX = /^[a-z0-9_]{3,30}$/;
 const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
@@ -104,7 +104,7 @@ export default function ChangeUsernameScreen() {
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Change Username</Text>
           <TouchableOpacity onPress={handleSave} disabled={!canSave} hitSlop={8}>
@@ -131,14 +131,14 @@ export default function ChangeUsernameScreen() {
               maxLength={30}
             />
             {checking && <ActivityIndicator size="small" color={colors.textMuted} style={{ marginLeft: 8 }} />}
-            {!checking && available === true && <Ionicons name="checkmark-circle" size={20} color={colors.accentGreen} />}
-            {!checking && available === false && <Ionicons name="close-circle" size={20} color={colors.accentRed} />}
+            {!checking && available === true && <AppIcon name="check-circle" size={20} color={colors.accentGreen} />}
+            {!checking && available === false && <AppIcon name="cancel" size={20} color={colors.accentRed} />}
           </View>
           {value.length > 0 && error && <Text style={styles.errorText}>{error}</Text>}
           {!checking && available === false && <Text style={styles.errorText}>That username is already taken</Text>}
           {!checking && available === true && <Text style={styles.availableText}>Available</Text>}
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+            <AppIcon name="info-outline" size={16} color={colors.textMuted} />
             <Text style={styles.infoText}>You can change your username once every 30 days. Your old @handle will be released.</Text>
           </View>
         </View>

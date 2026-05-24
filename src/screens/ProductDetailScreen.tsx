@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { Avatar } from '../components/Avatar';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls, submitProductReview, fetchProductReviews } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -268,7 +268,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Product Details</Text>
           <View style={{ width: 36 }} />

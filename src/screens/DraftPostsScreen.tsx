@@ -8,10 +8,10 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
+import { AppIcon } from '../components/icons';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -151,7 +151,7 @@ export default function DraftPostsScreen() {
       <View style={[styles.container, styles.centered]}>
         {/* Use a subtle indicator instead of large spinner */}
         <View style={styles.loadingWrap}>
-          <Ionicons name="document-text-outline" size={32} color={colors.textMuted} />
+          <AppIcon name="description" size="3xl" color={colors.textMuted} />
         </View>
       </View>
     );
@@ -164,12 +164,12 @@ export default function DraftPostsScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Drafts</Text>
           {drafts.length > 0 ? (
             <TouchableOpacity onPress={handleClearAll} hitSlop={8}>
-              <Ionicons name="trash-outline" size={20} color={colors.textMuted} />
+              <AppIcon name="delete-outline" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 20 }} />
@@ -188,7 +188,7 @@ export default function DraftPostsScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.draftIconWrap}>
-              <Ionicons name="document-text-outline" size={20} color={colors.accent} />
+              <AppIcon name="description" size={20} color={colors.accent} />
             </View>
             <View style={styles.draftContent}>
               <View style={styles.draftMeta}>
@@ -208,7 +208,7 @@ export default function DraftPostsScreen() {
               )}
               {item.mediaUrls && item.mediaUrls.length > 0 && (
                 <View style={styles.mediaCountRow}>
-                  <Ionicons name="image-outline" size={12} color={colors.textMuted} />
+                  <AppIcon name="image" size="xs" color={colors.textMuted} />
                   <Text style={styles.mediaCountText}>{item.mediaUrls.length}</Text>
                 </View>
               )}
@@ -218,14 +218,14 @@ export default function DraftPostsScreen() {
               hitSlop={10}
               style={styles.deleteBtn}
             >
-              <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+              <AppIcon name="cancel" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           </TouchableOpacity>
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="document-text-outline" size={32} color={colors.textSecondary} />
+              <AppIcon name="description" size="3xl" color={colors.textSecondary} />
             </View>
             <Text style={styles.emptyTitle}>No drafts</Text>
             <Text style={styles.emptySubtitle}>

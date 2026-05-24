@@ -7,7 +7,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
@@ -15,6 +14,7 @@ import { checkPlanLimit } from '../lib/payments';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
+import { AppIcon } from '../components/icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -486,7 +486,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="close" size={22} color={COLORS.textPrimary} />
+            <AppIcon name="close" size="lg" color={COLORS.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>New Post</Text>
           <TouchableOpacity
@@ -571,10 +571,10 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                           </>
                         )}
                         {status === 'done' && (
-                          <Ionicons name="checkmark-circle" size={24} color={COLORS.green} />
+                          <AppIcon name="check-circle" size="xl" color={COLORS.green} />
                         )}
                         {status === 'failed' && (
-                          <Ionicons name="alert-circle" size={24} color={COLORS.red} />
+                          <AppIcon name="error-outline" size="xl" color={COLORS.red} />
                         )}
                       </View>
                     )}
@@ -586,7 +586,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                         onPress={() => handleRemoveImage(i)}
                         activeOpacity={0.7}
                       >
-                        <Ionicons name="close" size={14} color={COLORS.white} />
+                        <AppIcon name="close" size="sm" color={COLORS.white} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -604,14 +604,14 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                       onPress={() => handleRemoveGif(i)}
                       activeOpacity={0.7}
                     >
-                      <Ionicons name="close" size={14} color={COLORS.white} />
+                      <AppIcon name="close" size="sm" color={COLORS.white} />
                     </TouchableOpacity>
                   )}
                 </View>
               ))}
               {!posting && mediaCount < MAX_IMAGES && (
                 <TouchableOpacity style={styles.addMediaCard} onPress={handleAddImages} activeOpacity={0.7}>
-                  <Ionicons name="add" size={28} color={COLORS.white50} />
+                  <AppIcon name="add" size="xxl" color={COLORS.white50} />
                 </TouchableOpacity>
               )}
             </View>
@@ -629,10 +629,10 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
           {pollData && (
             <View style={styles.pollPreview}>
               <View style={styles.pollHeader}>
-                <MaterialCommunityIcons name="poll" size={20} color={COLORS.gold} />
+                <AppIcon name="poll" size={20} color={COLORS.gold} />
                 <Text style={styles.pollTitle}>Poll</Text>
                 <TouchableOpacity onPress={removePoll} hitSlop={8}>
-                  <Ionicons name="close" size={18} color={colors.textSecondary} />
+                  <AppIcon name="close" size="md" color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.pollQuestionText}>{pollData.question || 'Untitled poll'}</Text>
@@ -655,13 +655,13 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                 <View key={opt.id} style={styles.pollOptionRow}>
                   <Text style={styles.pollOptionNumber}>{i + 1}.</Text>
                   <Text style={styles.pollOptionLabel}>{opt.text}</Text>
-                  <TouchableOpacity onPress={() => removePollOption(opt.id)} hitSlop={8}><Ionicons name="close-circle" size={18} color={colors.like} /></TouchableOpacity>
+                  <TouchableOpacity onPress={() => removePollOption(opt.id)} hitSlop={8}><AppIcon name="cancel" size="md" color={colors.like} /></TouchableOpacity>
                 </View>
               ))}
               <View style={styles.pollAddRow}>
                 <TextInput style={styles.pollAddInput} value={pollOptionText} onChangeText={setPollOptionText} placeholder="Add option..." placeholderTextColor={COLORS.textMuted} maxLength={40} onSubmitEditing={addPollOption} />
                 <TouchableOpacity onPress={addPollOption} disabled={!pollOptionText.trim() || (pollData?.options.length ?? 0) >= 4} style={styles.pollAddBtn}>
-                  <Ionicons name="add" size={20} color={COLORS.gold} />
+                  <AppIcon name="add" size={20} color={COLORS.gold} />
                 </TouchableOpacity>
               </View>
               <View style={styles.pollDurationRow}>
@@ -684,10 +684,10 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
           {scheduleMode && (
             <View style={styles.scheduleSection}>
               <View style={styles.scheduleHeader}>
-                <Ionicons name="time-outline" size={18} color={COLORS.gold} />
+                <AppIcon name="schedule" size="md" color={COLORS.gold} />
                 <Text style={styles.scheduleTitle}>Schedule Post</Text>
                 <TouchableOpacity onPress={() => setScheduleMode(false)} hitSlop={8}>
-                  <Ionicons name="close" size={16} color={colors.textSecondary} />
+                  <AppIcon name="close" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.scheduleHint}>
@@ -708,10 +708,10 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
           {showLocationInput && (
             <View style={styles.locationSection}>
               <View style={styles.locationHeader}>
-                <Ionicons name="location-outline" size={18} color={COLORS.green} />
+                <AppIcon name="location-on" size="md" color={COLORS.green} />
                 <Text style={styles.locationTitle}>Add Location</Text>
                 <TouchableOpacity onPress={() => { setShowLocationInput(false); setLocationTag(''); }} hitSlop={8}>
-                  <Ionicons name="close" size={16} color={colors.textSecondary} />
+                  <AppIcon name="close" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <TextInput
@@ -730,12 +730,12 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
           {threadMode && (
             <View style={styles.threadSection}>
               <View style={styles.threadHeader}>
-                <Ionicons name="git-branch-outline" size={18} color={COLORS.accent} />
+                <AppIcon name="call-split" size="md" color={COLORS.accent} />
                 <Text style={styles.threadTitle}>
                   {threadId ? `Thread — Post ${threadPosition + 1}` : 'Thread Mode'}
                 </Text>
                 <TouchableOpacity onPress={() => setThreadMode(false)} hitSlop={8}>
-                  <Ionicons name="close" size={16} color={colors.textSecondary} />
+                  <AppIcon name="close" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.threadHint}>
@@ -783,7 +783,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <MaterialCommunityIcons name="image-multiple-outline" size={22} color={posting ? COLORS.textMuted : COLORS.gold} />
+              <AppIcon name="photo-library" size="lg" color={posting ? COLORS.textMuted : COLORS.gold} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -791,7 +791,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <Ionicons name="camera-outline" size={22} color={posting ? COLORS.textMuted : COLORS.green} />
+              <AppIcon name="camera-alt" size="lg" color={posting ? COLORS.textMuted : COLORS.green} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -799,7 +799,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <MaterialCommunityIcons name="gif" size={22} color={posting ? COLORS.textMuted : COLORS.amber} />
+              <AppIcon name="gif" size="lg" color={posting ? COLORS.textMuted : COLORS.amber} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -807,7 +807,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <Ionicons name="poll-outline" size={22} color={posting ? COLORS.textMuted : (pollData ? COLORS.gold : colors.textSecondary)} />
+              <AppIcon name="poll-outline" size="lg" color={posting ? COLORS.textMuted : (pollData ? COLORS.gold : colors.textSecondary)} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -819,9 +819,9 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <Ionicons
-                name="time-outline"
-                size={22}
+              <AppIcon
+                name="schedule"
+                size="lg"
                 color={posting ? COLORS.textMuted : (scheduleMode ? COLORS.gold : colors.textSecondary)}
               />
             </TouchableOpacity>
@@ -835,9 +835,9 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <Ionicons
-                name="location-outline"
-                size={22}
+              <AppIcon
+                name="location-on"
+                size="lg"
                 color={posting ? COLORS.textMuted : (locationTag ? COLORS.green : colors.textSecondary)}
               />
             </TouchableOpacity>
@@ -856,9 +856,9 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <Ionicons
-                name="git-branch-outline"
-                size={22}
+              <AppIcon
+                name="call-split"
+                size="lg"
                 color={posting ? COLORS.textMuted : (threadMode ? COLORS.accent : colors.textSecondary)}
               />
             </TouchableOpacity>
@@ -881,9 +881,9 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <Ionicons
-                name={visibility === 'public' ? 'globe-outline' : 'people-outline'}
-                size={22}
+              <AppIcon
+                name={visibility === 'public' ? 'public' : 'groups'}
+                size="lg"
                 color={posting ? COLORS.textMuted : (visibility === 'public' ? colors.accentGreen : COLORS.gold)}
               />
             </TouchableOpacity>

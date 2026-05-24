@@ -12,9 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { firestore } from '../lib/firebase';
 import { colors } from '../theme/colors';
+import { AppIcon } from '../components/icons';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
@@ -80,7 +80,7 @@ function FullScreenViewer({
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           activeOpacity={0.7}
         >
-          <Ionicons name="close" size={28} color={colors.white} />
+          <AppIcon name="close" size="xxl" color={colors.white} />
         </TouchableOpacity>
 
         <Image
@@ -221,7 +221,7 @@ export default function MediaGalleryScreen() {
         {item.isVideo && (
           <View style={styles.playOverlay}>
             <View style={styles.playCircle}>
-              <Ionicons name="play" size={22} color={colors.white} />
+              <AppIcon name="play-arrow" size="lg" color={colors.white} />
             </View>
           </View>
         )}
@@ -239,7 +239,7 @@ export default function MediaGalleryScreen() {
           onPress={() => navigation.goBack()}
           hitSlop={8}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Shared Media</Text>
         <View style={{ width: 22 }} />
@@ -248,7 +248,7 @@ export default function MediaGalleryScreen() {
       {/* Media count */}
       {!loading && media.length > 0 && (
         <View style={styles.countBar}>
-          <Ionicons name="images-outline" size={16} color={colors.textMuted} />
+          <AppIcon name="photo-library" size={16} color={colors.textMuted} />
           <Text style={styles.countText}>
             {media.length} item{media.length !== 1 ? 's' : ''}
           </Text>
@@ -262,7 +262,7 @@ export default function MediaGalleryScreen() {
         </View>
       ) : media.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="images-outline" size={48} color={colors.textMuted} />
+          <AppIcon name="photo-library" size="hero" color={colors.textMuted} />
           <Text style={styles.emptyText}>No shared media</Text>
           <Text style={styles.emptySubtext}>
             Photos and videos shared in this chat will appear here.

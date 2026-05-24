@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -19,6 +18,7 @@ import { auth, firestore } from '../lib/firebase';
 import { tsToMillis, parseMediaUrls, Post } from '../lib/api';
 import FeedMedia from '../components/FeedMedia';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
+import { AppIcon } from '../components/icons';
 
 /* ── Constants ──────────────────────────────────────────────────────────────── */
 
@@ -261,7 +261,7 @@ export default function HashtagScreen() {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
+              <AppIcon name="arrow-back" size="lg" color={colors.text} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>#{tag}</Text>
@@ -270,7 +270,7 @@ export default function HashtagScreen() {
           </View>
         </SafeAreaView>
         <View style={styles.centered}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
+          <AppIcon name="error-outline" size="hero" color={colors.textMuted} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={fetchPosts}>
             <Text style={styles.retryBtnText}>Retry</Text>
@@ -286,7 +286,7 @@ export default function HashtagScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>#{tag}</Text>
@@ -333,7 +333,7 @@ export default function HashtagScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="hash" size={32} color={colors.textSecondary} />
+              <AppIcon name="hash" size="3xl" color={colors.textSecondary} />
             </View>
             <Text style={styles.emptyTitle}>No posts with #{tag} yet</Text>
             <Text style={styles.emptySubtitle}>

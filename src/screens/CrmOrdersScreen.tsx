@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import { auth } from '../lib/firebase';
+import { auth } from '../lib/firebase';import { AppIcon } from '../components/icons';
+
 import {
   ShopOrder,
   fetchBusinessOrders,
@@ -181,7 +181,7 @@ const CrmOrdersScreen: React.FC = () => {
         <View style={styles.orderBody}>
           <View style={styles.orderInfo}>
             <View style={styles.orderBuyerRow}>
-              <Ionicons name="person-outline" size={14} color={C.textSecondary} />
+              <AppIcon name="person-outline" size="sm" color={C.textSecondary} />
               <Text style={styles.orderBuyer}>{item.buyerName}</Text>
             </View>
             <Text style={styles.orderItems}>
@@ -259,7 +259,7 @@ const CrmOrdersScreen: React.FC = () => {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={48} color={C.white20} />
+            <AppIcon name="receipt" size="hero" color={C.white20} />
             <Text style={styles.emptyTitle}>No orders</Text>
             <Text style={styles.emptySubtitle}>
               {activeTab === 'all'
@@ -295,7 +295,7 @@ const CrmOrdersScreen: React.FC = () => {
                     Order #{selectedOrder.id.slice(-8)}
                   </Text>
                   <TouchableOpacity onPress={() => setSelectedOrder(null)}>
-                    <Ionicons name="close" size={24} color={C.white} />
+                    <AppIcon name="close" size="xl" color={C.white} />
                   </TouchableOpacity>
                 </View>
 

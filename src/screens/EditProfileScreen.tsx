@@ -14,13 +14,13 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore, updateAuthUser } from '../lib/firebase';
 import { fetchUserProfile, User } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { optimizeImage } from '../utils/imageOptimizer';
+import { AppIcon } from '../components/icons';
 
 type Role = 'personal' | 'creator' | 'professional' | 'business';
 
@@ -109,7 +109,7 @@ export default function EditProfileScreen({ navigation }: any) {
       ),
       headerLeft: () => (
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={{ marginLeft: 8 }}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <AppIcon name="arrow-back" size="xl" color={colors.text} />
         </TouchableOpacity>
       ),
     });
@@ -455,7 +455,7 @@ export default function EditProfileScreen({ navigation }: any) {
                 </View>
               )}
               <View style={styles.avatarEditOverlay}>
-                <Text style={styles.avatarEditText}>📷</Text>
+                <AppIcon name="camera-alt" size="md" color={colors.accent} />
               </View>
             </TouchableOpacity>
             <Text style={styles.avatarLabel}>Profile Photo</Text>

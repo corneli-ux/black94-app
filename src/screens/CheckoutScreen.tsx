@@ -12,6 +12,7 @@ import {
   isRazorpayConfigured,
 } from '../lib/razorpay';
 import type { RazorpayResult } from '../lib/razorpay';
+import { AppIcon } from '../components/icons';
 
 const SHIPPING_PARTNERS = [
   { id: 'standard', name: 'Standard Shipping', price: 99, days: '5-7 days' },
@@ -291,7 +292,7 @@ export default function CheckoutScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backArrow}>←</Text>
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Checkout</Text>
           <View style={{ width: 36 }} />
@@ -504,7 +505,7 @@ export default function CheckoutScreen({ route, navigation }: any) {
               }}
               hitSlop={8}
               style={{ padding: 8 }}>
-              <Text style={styles.backArrow}>←</Text>
+              <AppIcon name="arrow-back" size="xl" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Pay {formatINR(total)}</Text>
             <View style={{ width: 36 }} />

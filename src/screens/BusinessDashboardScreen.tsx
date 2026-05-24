@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 32 - 12) / 2;
@@ -91,7 +91,7 @@ export default function BusinessDashboardScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Business Dashboard</Text>
           <View style={{ width: 32 }} />
@@ -101,22 +101,22 @@ export default function BusinessDashboardScreen({ navigation }: any) {
       {/* KPI Cards */}
       <View style={styles.kpiGrid}>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
-          <Ionicons name="cash-outline" size={20} color={colors.accentGreen} />
+          <AppIcon name="payments" size={20} color={colors.accentGreen} />
           <Text style={styles.kpiLabel}>Total Revenue</Text>
           <Text style={styles.kpiValue}>{formatINR(kpi.totalRevenue)}</Text>
         </View>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
-          <Ionicons name="cart-outline" size={20} color={colors.primary} />
+          <AppIcon name="cart-outline" size={20} color={colors.primary} />
           <Text style={styles.kpiLabel}>Total Orders</Text>
           <Text style={styles.kpiValue}>{kpi.totalOrders}</Text>
         </View>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
-          <Ionicons name="people-outline" size={20} color={colors.accent} />
+          <AppIcon name="groups" size={20} color={colors.accent} />
           <Text style={styles.kpiLabel}>Active Customers</Text>
           <Text style={styles.kpiValue}>{kpi.activeCustomers}</Text>
         </View>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
-          <Ionicons name="trending-up-outline" size={20} color={colors.accentGold} />
+          <AppIcon name="trending-up" size={20} color={colors.accentGold} />
           <Text style={styles.kpiLabel}>Conversion Rate</Text>
           <Text style={styles.kpiValue}>{kpi.conversionRate}%</Text>
         </View>
@@ -133,7 +133,7 @@ export default function BusinessDashboardScreen({ navigation }: any) {
               onPress={() => navigation.navigate(action.screen)}
               activeOpacity={0.7}
             >
-              <Ionicons name={action.icon as any} size={28} color={action.color} />
+              <AppIcon name={action.icon} size="xxl" color={action.color} />
               <Text style={styles.actionLabel}>{action.label}</Text>
             </TouchableOpacity>
           ))}

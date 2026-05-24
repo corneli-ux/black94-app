@@ -23,8 +23,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
-import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { AppIcon } from '../components/icons';
 
 const MAX_FREE_DURATION = 60 * 60; // 60 minutes in seconds
 
@@ -143,13 +143,13 @@ export default function VideoCallScreen() {
 
         {!endedEarly && !isCameraOff ? (
           <View style={styles.videoPlaceholder}>
-            <Ionicons name="videocam" size={64} color={colors.border} />
+            <AppIcon name="videocam" size={64} color={colors.border} />
             <Text style={styles.placeholderLabel}>Remote Video</Text>
             <Text style={styles.placeholderSub}>WebRTC integration coming soon</Text>
           </View>
         ) : !endedEarly ? (
           <View style={styles.videoPlaceholder}>
-            <Ionicons name="videocam-off" size={64} color={colors.border} />
+            <AppIcon name="videocam-off" size={64} color={colors.border} />
             <Text style={styles.placeholderLabel}>Camera Off</Text>
           </View>
         ) : null}
@@ -159,11 +159,11 @@ export default function VideoCallScreen() {
           <View style={styles.selfViewContainer}>
             {isCameraOff ? (
               <View style={styles.selfViewPlaceholder}>
-                <Ionicons name="videocam-off" size={24} color={colors.border} />
+                <AppIcon name="videocam-off" size="xl" color={colors.border} />
               </View>
             ) : (
               <View style={styles.selfViewPlaceholder}>
-                <Ionicons name="camera" size={24} color={colors.border} />
+                <AppIcon name="camera-alt" size="xl" color={colors.border} />
               </View>
             )}
             <View style={styles.selfViewLabel}>
@@ -176,7 +176,7 @@ export default function VideoCallScreen() {
       {/* ── Header (caller info + timer) ──────────────────────────────── */}
       <View style={[styles.header, { top: insets.top || 12 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={handleEndCall} hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color={colors.white} />
+          <AppIcon name="chevron-left" size="xl" color={colors.white} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -201,7 +201,7 @@ export default function VideoCallScreen() {
           onPress={handleEndCall}
           hitSlop={8}
         >
-          <Ionicons name="call" size={22} color={colors.white} style={styles.endCallIcon} />
+          <AppIcon name="call" size="lg" color={colors.white} style={styles.endCallIcon} />
         </TouchableOpacity>
       </View>
 
@@ -214,7 +214,7 @@ export default function VideoCallScreen() {
           activeOpacity={0.7}
         >
           <View style={[styles.controlCircle, isMuted && styles.controlCircleActive]}>
-            <Ionicons
+            <AppIcon
               name={isMuted ? 'mic-off' : 'mic'}
               size={26}
               color={isMuted ? colors.primaryForeground : colors.text}
@@ -232,7 +232,7 @@ export default function VideoCallScreen() {
           activeOpacity={0.7}
         >
           <View style={[styles.controlCircle, isCameraOff && styles.controlCircleActive]}>
-            <Ionicons
+            <AppIcon
               name={isCameraOff ? 'videocam-off' : 'videocam'}
               size={26}
               color={isCameraOff ? colors.primaryForeground : colors.text}
@@ -250,7 +250,7 @@ export default function VideoCallScreen() {
           activeOpacity={0.7}
         >
           <View style={[styles.controlCircle, isFlipped && styles.controlCircleActive]}>
-            <Ionicons
+            <AppIcon
               name="camera-reverse"
               size={26}
               color={isFlipped ? colors.primaryForeground : colors.text}
@@ -268,7 +268,7 @@ export default function VideoCallScreen() {
           activeOpacity={0.8}
         >
           <View style={styles.endCallCircle}>
-            <Ionicons name="call" size={28} color={colors.white} style={styles.endCallIcon} />
+            <AppIcon name="call" size="xxl" color={colors.white} style={styles.endCallIcon} />
           </View>
           <Text style={styles.endCallLabel}>End</Text>
         </TouchableOpacity>
@@ -277,9 +277,9 @@ export default function VideoCallScreen() {
       {/* ── Premium time remaining (free users) ────────────────────────── */}
       {!isPremium && callActive && remainingLabel && (
         <View style={[styles.remainingBar, isLowTime && styles.remainingBarWarning]}>
-          <Ionicons
+          <AppIcon
             name={isLowTime ? 'warning' : 'time'}
-            size={14}
+            size="sm"
             color={isLowTime ? colors.error : colors.accent}
           />
           <Text style={[styles.remainingText, isLowTime && styles.remainingTextWarning]}>

@@ -11,11 +11,11 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 /* ── Constants ──────────────────────────────────────────────────────────────── */
 
@@ -169,14 +169,14 @@ export default function EditPostScreen() {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
+              <AppIcon name="arrow-back" size="lg" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Edit Post</Text>
             <View style={{ width: 40 }} />
           </View>
         </SafeAreaView>
         <View style={styles.centered}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
+          <AppIcon name="error-outline" size="hero" color={colors.textMuted} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadPost}>
             <Text style={styles.retryBtnText}>Retry</Text>
@@ -201,7 +201,7 @@ export default function EditPostScreen() {
             style={styles.headerBtn}
             activeOpacity={0.7}
           >
-            <Ionicons name="close" size={22} color={colors.text} />
+            <AppIcon name="close" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Post</Text>
           <TouchableOpacity

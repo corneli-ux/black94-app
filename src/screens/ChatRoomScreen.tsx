@@ -5,8 +5,8 @@ import { colors } from '../theme/colors';
 import { Message } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
-import { Ionicons } from '@expo/vector-icons';
 import { useChatRoom } from '../hooks/useChatRoom';
+import { AppIcon } from '../components/icons';
 
 // ── Error Boundary: catches any render crash and shows recovery UI instead of
 //    a white/red React Native crash screen. This is the #1 defense against the
@@ -38,7 +38,7 @@ class ChatErrorBoundary extends Component<
     if (this.state.hasError) {
       return (
         <View style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
-          <Ionicons name="alert-triangle" size={48} color={colors.like} />
+          <AppIcon name="alert-triangle" size="hero" color={colors.like} />
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
             Something went wrong loading this chat
           </Text>
@@ -163,7 +163,7 @@ function ChatRoomContent({ route, navigation }: any) {
           {!isMine && <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={28} />}
           <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs, styles.deletedBubble]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="ban-outline" size={14} color={isMine ? colors.overlayLight : colors.textMuted} />
+              <AppIcon name="block" size="sm" color={isMine ? colors.overlayLight : colors.textMuted} />
               <Text style={[styles.bubbleText, isMine ? { color: colors.overlayLight } : { color: colors.textMuted }, { fontStyle: 'italic' }]}>
                 This message was deleted
               </Text>
@@ -222,9 +222,9 @@ function ChatRoomContent({ route, navigation }: any) {
               onPress={() => handlePlayVoice(item)}
               activeOpacity={0.7}
             >
-              <Ionicons
+              <AppIcon
                 name={playingVoiceId === item.id ? 'pause-circle' : 'play-circle'}
-                size={36}
+                size="4xl"
                 color={isMine ? colors.primaryForeground : colors.text}
               />
               <View style={styles.voiceWaveform}>
@@ -261,11 +261,11 @@ function ChatRoomContent({ route, navigation }: any) {
           {isMine && (
             <View style={styles.receiptRow}>
               {item.status === 'read' ? (
-                <Ionicons name="checkmark-done" size={14} color="#38bdf8" />
+                <AppIcon name="task-alt" size="sm" color="#38bdf8" />
               ) : item.status === 'delivered' ? (
-                <Ionicons name="checkmark-done" size={14} color={colors.overlayLight} />
+                <AppIcon name="task-alt" size="sm" color={colors.overlayLight} />
               ) : (
-                <Ionicons name="checkmark" size={14} color={colors.overlayLight} />
+                <AppIcon name="check" size="sm" color={colors.overlayLight} />
               )}
             </View>
           )}
@@ -295,7 +295,7 @@ function ChatRoomContent({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
       <View style={[styles.header]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color={colors.text} />
+          <AppIcon name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         {chat ? (
           <>
@@ -320,7 +320,7 @@ function ChatRoomContent({ route, navigation }: any) {
             onPress={() => setShowMenu(!showMenu)}
             activeOpacity={0.7}
           >
-            <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
+            <AppIcon name="more-horiz" size={20} color={colors.text} />
           </TouchableOpacity>
 
           {/* Dropdown menu */}
@@ -393,7 +393,7 @@ function ChatRoomContent({ route, navigation }: any) {
               </Text>
             </View>
             <TouchableOpacity onPress={() => setReplyTo(null)} hitSlop={8}>
-              <Ionicons name="close" size={16} color={colors.textSecondary} />
+              <AppIcon name="close" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         )}
@@ -406,7 +406,7 @@ function ChatRoomContent({ route, navigation }: any) {
             onPress={() => setShowAttachMenu(!showAttachMenu)}
             activeOpacity={0.6}
           >
-            <Ionicons name="add-circle-outline" size={22} color={showAttachMenu ? colors.accent : colors.textMuted} />
+            <AppIcon name="add-circle-outline" size="lg" color={showAttachMenu ? colors.accent : colors.textMuted} />
           </TouchableOpacity>
 
           <View style={styles.inputPill}>
@@ -431,7 +431,7 @@ function ChatRoomContent({ route, navigation }: any) {
           >
             {sending || uploading
               ? <ActivityIndicator color={colors.accent} size="small" />
-              : <Ionicons name="send" size={18} color={text.trim() ? colors.white : colors.border} />
+              : <AppIcon name="send" size="md" color={text.trim() ? colors.white : colors.border} />
             }
           </TouchableOpacity>
         </View>
@@ -448,25 +448,25 @@ function ChatRoomContent({ route, navigation }: any) {
           <View style={styles.attachMenu}>
             <TouchableOpacity style={styles.attachItem} onPress={handlePickImage} activeOpacity={0.7}>
               <View style={[styles.attachIcon, { backgroundColor: 'rgba(59,130,246,0.15)' }]}>
-                <Ionicons name="image-outline" size={22} color="#3B82F6" />
+                <AppIcon name="image" size="lg" color="#3B82F6" />
               </View>
               <Text style={styles.attachLabel}>Photo</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachItem} onPress={handleCamera} activeOpacity={0.7}>
               <View style={[styles.attachIcon, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
-                <Ionicons name="camera-outline" size={22} color={colors.accentGreen} />
+                <AppIcon name="camera-alt" size="lg" color={colors.accentGreen} />
               </View>
               <Text style={styles.attachLabel}>Camera</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachItem} onPress={handleOpenGifPicker} activeOpacity={0.7}>
               <View style={[styles.attachIcon, { backgroundColor: 'rgba(168,85,247,0.15)' }]}>
-                <Ionicons name="film-outline" size={22} color="#A855F7" />
+                <AppIcon name="film-outline" size="lg" color="#A855F7" />
               </View>
               <Text style={styles.attachLabel}>GIF</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachItem} onPress={handleStartVoiceRecord} activeOpacity={0.7}>
               <View style={[styles.attachIcon, { backgroundColor: 'rgba(239,68,68,0.15)' }]}>
-                <Ionicons name="mic-outline" size={22} color={colors.error} />
+                <AppIcon name="mic" size="lg" color={colors.error} />
               </View>
               <Text style={styles.attachLabel}>Voice</Text>
             </TouchableOpacity>
@@ -492,7 +492,7 @@ function ChatRoomContent({ route, navigation }: any) {
         <View style={styles.nuclearOverlay}>
           <View style={styles.nuclearDialog}>
             <View style={styles.nuclearIconContainer}>
-              <Ionicons name="alert-circle" size={48} color={colors.like} />
+              <AppIcon name="error-outline" size="hero" color={colors.like} />
             </View>
             <Text style={styles.nuclearTitle}>💣 Nuclear Block</Text>
             <Text style={styles.nuclearMessage}>
@@ -535,7 +535,7 @@ function ChatRoomContent({ route, navigation }: any) {
                 setReactionMsg(contextMsg!);
               }}
             >
-              <Ionicons name="happy-outline" size={20} color={colors.text} />
+              <AppIcon name="happy-outline" size={20} color={colors.text} />
               <Text style={styles.contextMenuText}>React</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -547,7 +547,7 @@ function ChatRoomContent({ route, navigation }: any) {
                 }
               }}
             >
-              <Ionicons name="return-down-left" size={20} color={colors.text} />
+              <AppIcon name="return-down-left" size={20} color={colors.text} />
               <Text style={styles.contextMenuText}>Reply</Text>
             </TouchableOpacity>
             {contextMsg?.senderId === currentUser?.uid && (
@@ -557,7 +557,7 @@ function ChatRoomContent({ route, navigation }: any) {
                   style={[styles.contextMenuItem, { opacity: 0.7 }]}
                   onPress={() => handleDeleteMessage('me')}
                 >
-                  <Ionicons name="trash-outline" size={20} color={colors.text} />
+                  <AppIcon name="delete-outline" size={20} color={colors.text} />
                   <Text style={styles.contextMenuText}>Delete for Me</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -573,7 +573,7 @@ function ChatRoomContent({ route, navigation }: any) {
                     );
                   }}
                 >
-                  <Ionicons name="trash" size={20} color={colors.like} />
+                  <AppIcon name="delete" size={20} color={colors.like} />
                   <Text style={[styles.contextMenuText, { color: colors.like }]}>Delete for Everyone</Text>
                 </TouchableOpacity>
               </>
@@ -612,7 +612,7 @@ function ChatRoomContent({ route, navigation }: any) {
               />
             ) : null}
             <TouchableOpacity style={styles.imageViewerClose} onPress={() => setFullscreenImage(null)} hitSlop={16}>
-              <Ionicons name="close" size={28} color={colors.white} />
+              <AppIcon name="close" size="xxl" color={colors.white} />
             </TouchableOpacity>
           </SafeAreaView>
         </TouchableOpacity>
@@ -630,7 +630,7 @@ function ChatRoomContent({ route, navigation }: any) {
               onPress={handleStopVoiceRecord}
               activeOpacity={0.7}
             >
-              <Ionicons name="stop-circle" size={48} color={colors.like} />
+              <AppIcon name="stop-circle" size="hero" color={colors.like} />
             </TouchableOpacity>
             <Text style={styles.recordingHint}>Tap to stop</Text>
           </View>

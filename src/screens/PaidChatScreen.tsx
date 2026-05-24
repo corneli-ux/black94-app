@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 import {
@@ -29,6 +28,7 @@ import {
 } from '../lib/razorpay';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { scale } from '../theme/responsive';
+import { AppIcon } from '../components/icons';
 
 // ── Payment flow states ──
 type PaymentPhase = 'idle' | 'opening_gateway' | 'processing' | 'success' | 'error';
@@ -307,7 +307,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
           hitSlop={8}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Paid Chat</Text>
         <View style={{ width: 22 }} />
@@ -346,9 +346,9 @@ export default function PaidChatScreen({ route, navigation }: any) {
 
         {/* Price Card */}
         <View style={styles.priceCard}>
-          <Ionicons
-            name="lock-closed-outline"
-            size={24}
+          <AppIcon
+            name="lock"
+            size="xl"
             color={colors.accent}
             style={{ marginBottom: 12 }}
           />
@@ -358,15 +358,15 @@ export default function PaidChatScreen({ route, navigation }: any) {
           <View style={styles.priceDivider} />
           <View style={styles.priceDetails}>
             <View style={styles.detailRow}>
-              <Ionicons name="checkmark-circle-outline" size={16} color={colors.accentGreen} />
+              <AppIcon name="checkmark-circle-outline" size={16} color={colors.accentGreen} />
               <Text style={styles.detailText}>One-time payment for chat access</Text>
             </View>
             <View style={styles.detailRow}>
-              <Ionicons name="checkmark-circle-outline" size={16} color={colors.accentGreen} />
+              <AppIcon name="checkmark-circle-outline" size={16} color={colors.accentGreen} />
               <Text style={styles.detailText}>Chat stays open after payment</Text>
             </View>
             <View style={styles.detailRow}>
-              <Ionicons name="shield-checkmark-outline" size={16} color={colors.accentGreen} />
+              <AppIcon name="verified-user" size={16} color={colors.accentGreen} />
               <Text style={styles.detailText}>Secure payment via Razorpay</Text>
             </View>
           </View>
@@ -375,7 +375,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
         {/* Payment Error Banner */}
         {paymentError && paymentPhase === 'error' && (
           <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+            <AppIcon name="error-outline" size="md" color={colors.error} />
             <Text style={styles.errorText}>{paymentError}</Text>
             <TouchableOpacity onPress={handleRetry} style={styles.retryBtn}>
               <Text style={styles.retryText}>Retry</Text>
@@ -411,7 +411,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
                 </>
               ) : (
                 <>
-                  <Ionicons name="card-outline" size={20} color={colors.white} style={{ marginRight: 8 }} />
+                  <AppIcon name="credit-card" size={20} color={colors.white} style={{ marginRight: 8 }} />
                   <Text style={styles.payButtonText}>Pay {'\u20B9'}{price} & Start Chat</Text>
                 </>
               )}
@@ -456,7 +456,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
               hitSlop={8}
               style={{ padding: 8 }}
             >
-              <Ionicons name="close" size={24} color={colors.text} />
+              <AppIcon name="close" size="xl" color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.webviewTitle}>Secure Payment</Text>
             <View style={{ width: 40 }} />
@@ -488,7 +488,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
         <Pressable style={styles.successOverlay}>
           <View style={styles.successCard}>
             <View style={styles.successIconWrap}>
-              <Ionicons name="checkmark-circle" size={56} color={colors.accentGreen} />
+              <AppIcon name="check-circle" size={56} color={colors.accentGreen} />
             </View>
             <Text style={styles.successTitle}>Payment Successful!</Text>
             <Text style={styles.successDesc}>Opening your chat now...</Text>

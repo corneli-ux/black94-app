@@ -10,18 +10,7 @@ import { Avatar, VerifiedBadge } from './Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { CommentData, fetchPostComments, addPostComment, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark } from '../lib/api';
 import { useAppStore } from '../stores/app';
-import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
-import { Ionicons } from '@expo/vector-icons';
-import Svg, { Path, Polyline } from 'react-native-svg';
-
-function RepostIcon({ size = 16, color = colors.textSecondary }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="23 4 23 10 17 10" />
-      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-    </Svg>
-  );
-}
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';import { AppIcon, RepostIcon } from './icons';
 
 const SHEET_HEIGHT_RATIO = 0.75;
 
@@ -146,7 +135,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
             <View style={styles.handleWrap}><View style={styles.handle} /></View>
             {/* Header */}
             <View style={styles.header}>
-              <TouchableOpacity onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={colors.text} /></TouchableOpacity>
+              <TouchableOpacity onPress={onClose} hitSlop={8}><AppIcon name="close" size="lg" color={colors.text} /></TouchableOpacity>
               <Text style={styles.headerTitle}>Post</Text>
               <View style={{ width: 22 }} />
             </View>
@@ -167,7 +156,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                   <View style={styles.emptyWrap}><ActivityIndicator color={colors.textSecondary} size="small" /></View>
                 ) : commentsError ? (
                   <View style={styles.emptyWrap}>
-                    <Ionicons name="alert-circle-outline" size={40} color={colors.like} />
+                    <AppIcon name="error-outline" size={40} color={colors.like} />
                     <Text style={styles.emptyTitle}>Could not load comments</Text>
                     <Text style={styles.emptySub}>{commentsError}</Text>
                     <TouchableOpacity onPress={loadComments} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 14, backgroundColor: colors.borderSubtle }}>
@@ -176,7 +165,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                   </View>
                 ) : (
                   <View style={styles.emptyWrap}>
-                    <Ionicons name="chatbubble-outline" size={40} color={colors.textTertiary} />
+                    <AppIcon name="chat-bubble-outline" size={40} color={colors.textTertiary} />
                     <Text style={styles.emptyTitle}>No comments yet</Text>
                     <Text style={styles.emptySub}>Be the first to share your thoughts.</Text>
                   </View>
@@ -210,7 +199,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                         });
                       }}>
                         <View style={styles.actionIconWrap}>
-                          <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
+                          <AppIcon name="chat-bubble-outline" size="md" color={colors.textSecondary} />
                         </View>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
@@ -234,7 +223,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                         });
                       }}>
                         <View style={styles.actionIconWrap}>
-                          <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={18} color={likeMap[item.id] ? colors.like : colors.textSecondary} />
+                          <AppIcon name={likeMap[item.id] ? "favorite" : "favorite-border"} size="md" color={likeMap[item.id] ? colors.like : colors.textSecondary} />
                         </View>
                       </TouchableOpacity>
                       {/* Share — opens native share sheet */}
@@ -245,7 +234,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                         } catch {}
                       }}>
                         <View style={styles.actionIconWrap}>
-                          <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
+                          <AppIcon name="share" size="md" color={colors.textSecondary} />
                         </View>
                       </TouchableOpacity>
                       <View style={styles.actionPair}>
@@ -258,7 +247,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                           });
                         }}>
                           <View style={styles.actionIconWrap}>
-                            <Ionicons name={bookmarkMap[item.id] ? "bookmark" : "bookmark-outline"} size={18} color={bookmarkMap[item.id] ? colors.white : colors.textSecondary} />
+                            <AppIcon name={bookmarkMap[item.id] ? "bookmark" : "bookmark-border"} size="md" color={bookmarkMap[item.id] ? colors.white : colors.textSecondary} />
                           </View>
                         </TouchableOpacity>
                       </View>
@@ -272,7 +261,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
               <View style={styles.replyingBar}>
                 <Text style={styles.replyingBarText}>Replying to <Text style={styles.replyingBarName}>@{replyingTo.username}</Text></Text>
                 <TouchableOpacity onPress={() => setReplyingTo(null)} hitSlop={8}>
-                  <Ionicons name="close" size={16} color={colors.textSecondary} />
+                  <AppIcon name="close" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -297,7 +286,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                   onPress={handleSend}
                   disabled={!text.trim() || sending}
                 >
-                  {sending ? <ActivityIndicator size="small" color={colors.bg} /> : <Ionicons name="send" size={18} color={text.trim() ? colors.primaryForeground : colors.textMuted} />}
+                  {sending ? <ActivityIndicator size="small" color={colors.bg} /> : <AppIcon name="send" size="md" color={text.trim() ? colors.primaryForeground : colors.textMuted} />}
                 </TouchableOpacity>
               </View>
             </SafeAreaView>

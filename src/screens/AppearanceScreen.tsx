@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useThemeStore } from '../stores/theme';
+import { AppIcon } from '../components/icons';
 
 const FONT_SIZES = [
   { label: 'Small', value: 14 },
@@ -28,7 +28,7 @@ export default function AppearanceScreen() {
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Appearance</Text>
         <View style={{ width: 22 }} />
@@ -43,10 +43,10 @@ export default function AppearanceScreen() {
               style={[styles.row, i === themes.length - 1 && { borderBottomWidth: 0 }]}
               onPress={() => setMode(t.key)}
             >
-              <Ionicons name={t.icon} size={20} color={colors.textSecondary} style={{ marginRight: 14 }} />
+              <AppIcon name={t.icon} size={20} color={colors.textSecondary} style={{ marginRight: 14 }} />
               <Text style={styles.rowLabel}>{t.label}</Text>
               {mode === t.key && (
-                <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+                <AppIcon name="check-circle" size={20} color={colors.accent} />
               )}
             </TouchableOpacity>
           ))}
@@ -62,7 +62,7 @@ export default function AppearanceScreen() {
             >
               <Text style={[styles.rowLabel, { fontSize: fs.value }]}>{fs.label}</Text>
               {fontSize === fs.value && (
-                <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+                <AppIcon name="check-circle" size={20} color={colors.accent} />
               )}
             </TouchableOpacity>
           ))}

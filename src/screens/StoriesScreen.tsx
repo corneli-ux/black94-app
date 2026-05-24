@@ -16,7 +16,6 @@ import {
   Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
@@ -28,6 +27,7 @@ import { uploadOptimizedImage } from '../utils/imageUpload';
 import { useAppStore } from '../stores/app';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlatList } from 'react-native';
+import { AppIcon } from '../components/icons';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
@@ -46,8 +46,6 @@ const STORY_CATEGORIES = [
   { id: 'cricket', label: 'Cricket', icon: 'fitness' },
   { id: 'festival', label: 'Festival', icon: 'flower' },
 ];
-
-
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPES
@@ -195,7 +193,7 @@ function HeartOverlay({
         },
       ]}
     >
-      <Ionicons name="heart" size={80} color={colors.like} />
+      <AppIcon name="favorite" size="overlay" color={colors.like} />
     </Animated.View>
   );
 }
@@ -756,7 +754,7 @@ export default function StoriesScreen({ navigation }: any) {
         <View style={styles.header}>
           <View style={{ flex: 1 }} />
           <TouchableOpacity onPress={openCameraForStory} style={styles.headerBtn}>
-            <Ionicons name="camera-outline" size={24} color={colors.text} />
+            <AppIcon name="camera-alt" size="xl" color={colors.text} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -787,7 +785,7 @@ export default function StoriesScreen({ navigation }: any) {
                   />
                 </View>
                 <View style={styles.plusBadge}>
-                  <Ionicons name="add" size={14} color={colors.accent} />
+                  <AppIcon name="add" size="sm" color={colors.accent} />
                 </View>
                 <Text style={styles.highlightLabel} numberOfLines={1}>
                   Your story
@@ -833,9 +831,9 @@ export default function StoriesScreen({ navigation }: any) {
                 ]}
                 onPress={() => filterCategory(cat.id)}
               >
-                <Ionicons
-                  name={cat.icon as any}
-                  size={14}
+                <AppIcon
+                  name={cat.icon}
+                  size="sm"
                   color={activeCategory === cat.id ? colors.primary : colors.textSecondary}
                   style={{ marginRight: 4 }}
                 />
@@ -854,7 +852,7 @@ export default function StoriesScreen({ navigation }: any) {
           {/* ── Recent Stories Grid ──────────────────────────────────────── */}
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <Ionicons name="grid-outline" size={18} color={colors.accent} />
+              <AppIcon name="grid-view" size="md" color={colors.accent} />
               <Text style={styles.sectionTitle}>Recent</Text>
             </View>
             <Text style={styles.storyCountText}>{filtered.length} stories</Text>
@@ -862,7 +860,7 @@ export default function StoriesScreen({ navigation }: any) {
 
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="images-outline" size={56} color={colors.textMuted} />
+              <AppIcon name="photo-library" size={56} color={colors.textMuted} />
               <Text style={styles.emptyText}>No stories yet</Text>
               <Text style={styles.emptySubtext}>Be the first to share a moment</Text>
             </View>
@@ -908,9 +906,9 @@ export default function StoriesScreen({ navigation }: any) {
                       </Text>
                     </View>
                     <View style={styles.storyCardStats}>
-                      <Ionicons name="eye-outline" size={11} color={'#e7e9ea'} />
+                      <AppIcon name="visibility" size={11} color={'#e7e9ea'} />
                       <Text style={styles.storyCardStat}>{story.viewCount}</Text>
-                      <Ionicons name="heart-outline" size={11} color={'#e7e9ea'} style={{ marginLeft: 6 }} />
+                      <AppIcon name="favorite-border" size={11} color={'#e7e9ea'} style={{ marginLeft: 6 }} />
                       <Text style={styles.storyCardStat}>{story.likeCount}</Text>
                       <Text style={styles.storyCardTime}>{timeAgo(story.createdAt)}</Text>
                     </View>
@@ -975,7 +973,7 @@ export default function StoriesScreen({ navigation }: any) {
                 {/* Pause indicator */}
                 {paused && (
                   <View style={styles.pausedIndicator}>
-                    <Ionicons name="pause" size={10} color={colors.white} />
+                    <AppIcon name="pause" size={10} color={colors.white} />
                   </View>
                 )}
                 <TouchableOpacity
@@ -983,7 +981,7 @@ export default function StoriesScreen({ navigation }: any) {
                   onPress={closeStoryViewer}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Ionicons name="close" size={24} color={colors.white} />
+                  <AppIcon name="close" size="xl" color={colors.white} />
                 </TouchableOpacity>
               </View>
             </SafeAreaView>
@@ -1038,8 +1036,8 @@ export default function StoriesScreen({ navigation }: any) {
                 {/* Action buttons row */}
                 <View style={styles.reactionActions}>
                   <TouchableOpacity style={styles.reactionBtn} onPress={toggleLike}>
-                    <Ionicons
-                      name={liked ? 'heart' : 'heart-outline'}
+                    <AppIcon
+                      name={liked ? 'favorite' : 'favorite-border'}
                       size={26}
                       color={liked ? colors.like : colors.primary}
                     />
@@ -1048,19 +1046,19 @@ export default function StoriesScreen({ navigation }: any) {
                     style={styles.reactionBtn}
                     onPress={() => setShowCommentInput(!showCommentInput)}
                   >
-                    <Ionicons name="chatbubble-outline" size={24} color={colors.white} />
+                    <AppIcon name="chat-bubble-outline" size="xl" color={colors.white} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.reactionBtn}>
-                    <Ionicons name="send-outline" size={24} color={colors.white} />
+                    <AppIcon name="send-outline" size="xl" color={colors.white} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.reactionBtn}>
-                    <Ionicons name="ellipsis-horizontal" size={24} color={colors.white} />
+                    <AppIcon name="more-horiz" size="xl" color={colors.white} />
                   </TouchableOpacity>
                 </View>
 
                 {/* Stats row */}
                 <View style={styles.reactionStats}>
-                  <Ionicons name="heart" size={14} color={colors.like} />
+                  <AppIcon name="favorite" size="sm" color={colors.like} />
                   <Text style={styles.reactionStatText}>
                     {viewingStory.likeCount}
                   </Text>
@@ -1075,7 +1073,7 @@ export default function StoriesScreen({ navigation }: any) {
                     }}
                     style={{ flexDirection: 'row', alignItems: 'center' }}
                   >
-                    <Ionicons name="eye" size={14} color={colors.textSecondary} />
+                    <AppIcon name="visibility" size="sm" color={colors.textSecondary} />
                     <Text style={styles.reactionStatTextMuted}>
                       {viewingStory.viewCount}
                     </Text>
@@ -1114,9 +1112,9 @@ export default function StoriesScreen({ navigation }: any) {
                       }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Ionicons
+                      <AppIcon
                         name="send"
-                        size={22}
+                        size="lg"
                         color={commentText.trim() ? colors.accent : colors.textMuted}
                       />
                     </TouchableOpacity>
@@ -1136,12 +1134,12 @@ export default function StoriesScreen({ navigation }: any) {
               <View style={styles.viewersHeader}>
                 <Text style={styles.viewersTitle}>Story Views</Text>
                 <TouchableOpacity onPress={() => setShowViewers(false)}>
-                  <Ionicons name="close" size={24} color={colors.text} />
+                  <AppIcon name="close" size="xl" color={colors.text} />
                 </TouchableOpacity>
               </View>
               {viewers.length === 0 ? (
                 <View style={styles.viewersEmpty}>
-                  <Ionicons name="eye-outline" size={40} color={colors.textMuted} />
+                  <AppIcon name="visibility" size={40} color={colors.textMuted} />
                   <Text style={styles.viewersEmptyText}>No views yet</Text>
                 </View>
               ) : (

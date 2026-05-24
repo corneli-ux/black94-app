@@ -11,18 +11,7 @@ import FactCheckBottomSheet from './FactCheckBottomSheet';
 import { useAppStore } from '../stores/app';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 import { auth, firestore } from '../lib/firebase';
-import { colors } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
-import Svg, { Path, Polyline } from 'react-native-svg';
-
-function RepostIcon({ size = 16, color = colors.textSecondary }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="23 4 23 10 17 10" />
-      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-    </Svg>
-  );
-}
+import { colors } from '../theme/colors';import { AppIcon, RepostIcon } from '../components/icons';
 
 interface PostCommentsScreenProps {
   route?: any;
@@ -225,7 +214,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               });
             }}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
+                <AppIcon name="chat-bubble-outline" size="md" color={colors.textSecondary} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
@@ -247,12 +236,12 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               });
             }}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name={likeMap[item2.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[item2.id] ? colors.like : colors.textSecondary} />
+                <AppIcon name={likeMap[item2.id] ? 'favorite' : 'favorite-border'} size="md" color={likeMap[item2.id] ? colors.like : colors.textSecondary} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn} disabled>
               <View style={styles.actionIconWrap}>
-                <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
+                <AppIcon name="trending-up" size="md" color={colors.textSecondary} />
               </View>
             </TouchableOpacity>
             <View style={styles.actionPair}>
@@ -264,12 +253,12 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
                 });
               }}>
                 <View style={styles.actionIconWrap}>
-                  <Ionicons name={bookmarkMap[item2.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item2.id] ? colors.white : colors.textSecondary} />
+                  <AppIcon name={bookmarkMap[item2.id] ? 'bookmark' : 'bookmark-border'} size="md" color={bookmarkMap[item2.id] ? colors.white : colors.textSecondary} />
                 </View>
               </TouchableOpacity>
               <TouchableOpacity style={styles.commentActionBtn}>
                 <View style={styles.actionIconWrap}>
-                  <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
+                  <AppIcon name="share" size="md" color={colors.textSecondary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -289,7 +278,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Replies</Text>
           <View style={{ width: 22 }} />
@@ -331,7 +320,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             </View>
           ) : commentsError ? (
             <View style={styles.emptyWrap}>
-              <Ionicons name="alert-circle-outline" size={48} color={colors.like} />
+              <AppIcon name="error-outline" size="hero" color={colors.like} />
               <Text style={styles.emptyTitle}>Could not load replies</Text>
               <Text style={styles.emptySub}>{commentsError}</Text>
               <TouchableOpacity onPress={loadComments} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.bgInput }}>
@@ -340,7 +329,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             </View>
           ) : (
             <View style={styles.emptyWrap}>
-              <Ionicons name="chatbubble-outline" size={48} color={colors.textTertiary} />
+              <AppIcon name="chat-bubble-outline" size="hero" color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>No replies yet</Text>
               <Text style={styles.emptySub}>Be the first to share your thoughts.</Text>
             </View>
@@ -355,7 +344,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         <View style={styles.replyingBar}>
           <Text style={styles.replyingBarText}>Replying to <Text style={styles.replyingBarName}>@{replyingTo.username}</Text></Text>
           <TouchableOpacity onPress={() => setReplyingTo(null)} hitSlop={8}>
-            <Ionicons name="close" size={16} color={colors.textSecondary} />
+            <AppIcon name="close" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -382,7 +371,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         >
           {sending
             ? <ActivityIndicator size="small" color={colors.primaryForeground} />
-            : <Ionicons name="send" size={18} color={text.trim() ? colors.primaryForeground : colors.textMuted} />
+            : <AppIcon name="send" size="md" color={text.trim() ? colors.primaryForeground : colors.textMuted} />
           }
         </TouchableOpacity>
         <TouchableOpacity
@@ -391,7 +380,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           hitSlop={8}
           activeOpacity={0.7}
         >
-          <Ionicons name={'shield-checkmark-outline' as any} size={20} color={colors.accent} />
+          <AppIcon name={'verified-user'} size={20} color={colors.accent} />
         </TouchableOpacity>
       </View>
       <FactCheckBottomSheet

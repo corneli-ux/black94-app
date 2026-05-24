@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { firestore } from '../lib/firebase';
 import { auth } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
-import { colors } from '../theme/colors';
+import { colors } from '../theme/colors';import { AppIcon } from '../components/icons';
+
 interface FollowerUser {
   id: string;
   username: string;
@@ -91,7 +91,7 @@ export default function FollowersScreen({ route, navigation }: any) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}><Ionicons name="arrow-back" size={22} color={colors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}><AppIcon name="arrow-back" size="lg" color={colors.text} /></TouchableOpacity>
         <Text style={styles.headerTitle}>{targetUserId === currentUser?.uid ? 'Your ' : ''}{title}</Text>
         <View style={{ width: 22 }} />
       </View>
@@ -108,7 +108,7 @@ export default function FollowersScreen({ route, navigation }: any) {
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
       ) : users.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="people-outline" size={48} color={colors.textTertiary} />
+          <AppIcon name="groups" size="hero" color={colors.textTertiary} />
           <Text style={styles.emptyText}>No {title.toLowerCase()} yet</Text>
         </View>
       ) : (

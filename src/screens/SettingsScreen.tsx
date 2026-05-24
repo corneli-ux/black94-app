@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, TextInput, Alert, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../components/icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
@@ -138,11 +138,11 @@ export default function SettingsScreen() {
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => { try { navigation.goBack(); } catch { navigation.navigate('ProfileSelf'); } }} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
         <TouchableOpacity onPress={() => navigation.navigate('PremiumDashboard' as never)} hitSlop={8}>
-          <Ionicons name="diamond" size={22} color={colors.accent} />
+          <AppIcon name="diamond" size="lg" color={colors.accent} />
         </TouchableOpacity>
       </View>
 
@@ -178,7 +178,7 @@ export default function SettingsScreen() {
             <Text style={styles.infoLabel}>Username</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.infoValue}>@{user?.username}</Text>
-              <Ionicons name="chevron-forward" size={14} color={colors.accent} />
+              <AppIcon name="chevron-right" size="sm" color={colors.accent} />
             </View>
           </TouchableOpacity>
 
@@ -189,7 +189,7 @@ export default function SettingsScreen() {
 
           {/* Save button moved here from header */}
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
-            <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
+            <AppIcon name="check-circle" size="md" color={colors.accent} />
             <Text style={[styles.saveBtnText, saving && { opacity: 0.5 }]}>
               {saving ? 'Saving...' : 'Save Changes'}
             </Text>
@@ -199,13 +199,13 @@ export default function SettingsScreen() {
         {/* Upgrade Section */}
         <View style={styles.section}>
           <View style={styles.upgradeHeader}>
-            <Ionicons name="diamond" size={18} color={colors.accent} />
+            <AppIcon name="diamond" size="md" color={colors.accent} />
             <Text style={styles.sectionTitle}>Upgrade</Text>
           </View>
           <View style={styles.upgradeCard}>
             <View style={styles.upgradeCardTop}>
               <View style={styles.upgradeIconWrap}>
-                <Ionicons name="diamond" size={28} color={colors.accent} />
+                <AppIcon name="diamond" size="xxl" color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.upgradeTitle}>Go Premium</Text>
@@ -237,14 +237,14 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
-            <SettingsLink icon="lock-closed-outline" label="Privacy Settings" onPress={() => navigation.navigate('PrivacySettings' as never)} />
-            <SettingsLink icon="notifications-outline" label="Notification Settings" onPress={() => navigation.navigate('NotificationSettings' as never)} />
-            <SettingsLink icon="sunny-outline" label="Appearance" onPress={() => navigation.navigate('Appearance' as never)} />
-            <SettingsLink icon="at-outline" label="Change Username" onPress={() => navigation.navigate('ChangeUsername' as never)} />
-            <SettingsLink icon="shield-checkmark-outline" label="Security" onPress={() => navigation.navigate('Security' as never)} />
+            <SettingsLink icon="lock-outline" label="Privacy Settings" onPress={() => navigation.navigate('PrivacySettings' as never)} />
+            <SettingsLink icon="notifications-outlined" label="Notification Settings" onPress={() => navigation.navigate('NotificationSettings' as never)} />
+            <SettingsLink icon="wb-sunny" label="Appearance" onPress={() => navigation.navigate('Appearance' as never)} />
+            <SettingsLink icon="alternate-email" label="Change Username" onPress={() => navigation.navigate('ChangeUsername' as never)} />
+            <SettingsLink icon="verified-user" label="Security" onPress={() => navigation.navigate('Security' as never)} />
             <SettingsLink icon="mail-outline" label="Change Email" onPress={() => navigation.navigate('ChangeEmail' as never)} />
-            <SettingsLink icon="key-outline" label="Change Password" onPress={() => navigation.navigate('ChangePassword' as never)} />
-            <SettingsLink icon="share-social-outline" label="Share Profile" onPress={() => navigation.navigate('ShareProfile' as never)} />
+            <SettingsLink icon="vpn-key" label="Change Password" onPress={() => navigation.navigate('ChangePassword' as never)} />
+            <SettingsLink icon="share" label="Share Profile" onPress={() => navigation.navigate('ShareProfile' as never)} />
           </View>
         </View>
 
@@ -252,9 +252,9 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Privacy & Moderation</Text>
           <View style={styles.card}>
-            <SettingsLink icon="ban-outline" label="Blocked Accounts" onPress={() => navigation.navigate('BlockedUsers' as never)} />
-            <SettingsLink icon="volume-mute-outline" label="Muted Accounts" onPress={() => navigation.navigate('MutedUsers' as never)} />
-            <SettingsLink icon="eye-off-outline" label="Muted Words" onPress={() => navigation.navigate('MutedWords' as never)} />
+            <SettingsLink icon="block" label="Blocked Accounts" onPress={() => navigation.navigate('BlockedUsers' as never)} />
+            <SettingsLink icon="volume-off" label="Muted Accounts" onPress={() => navigation.navigate('MutedUsers' as never)} />
+            <SettingsLink icon="visibility-off" label="Muted Words" onPress={() => navigation.navigate('MutedWords' as never)} />
           </View>
         </View>
 
@@ -262,18 +262,18 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Management</Text>
           <View style={styles.card}>
-            <SettingsLink icon="link-outline" label="Linked Accounts" onPress={() => navigation.navigate('LinkedAccounts' as never)} />
-            <SettingsLink icon="phone-portrait-outline" label="Active Sessions" onPress={() => navigation.navigate('Sessions' as never)} />
-            <SettingsLink icon="download-outline" label="Export My Data" onPress={() => navigation.navigate('DataExport' as never)} />
-            <SettingsLink icon="checkmark-done-outline" label="Request Verification" onPress={() => navigation.navigate('VerificationRequest' as never)} />
+            <SettingsLink icon="link" label="Linked Accounts" onPress={() => navigation.navigate('LinkedAccounts' as never)} />
+            <SettingsLink icon="phone-android" label="Active Sessions" onPress={() => navigation.navigate('Sessions' as never)} />
+            <SettingsLink icon="download" label="Export My Data" onPress={() => navigation.navigate('DataExport' as never)} />
+            <SettingsLink icon="task-alt" label="Request Verification" onPress={() => navigation.navigate('VerificationRequest' as never)} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Content</Text>
           <View style={styles.card}>
-            <SettingsLink icon="newspaper-outline" label="Write Article" onPress={() => navigation.navigate('WriteArticle' as never)} />
-            <SettingsLink icon="bookmark-outline" label="Bookmarks" onPress={() => navigation.navigate('Bookmarks' as never)} />
+            <SettingsLink icon="article" label="Write Article" onPress={() => navigation.navigate('WriteArticle' as never)} />
+            <SettingsLink icon="bookmark-border" label="Bookmarks" onPress={() => navigation.navigate('Bookmarks' as never)} />
           </View>
         </View>
 
@@ -293,7 +293,7 @@ export default function SettingsScreen() {
                 thumbColor={pushEnabled ? colors.accent : colors.textMuted}
               />
             </View>
-            <SettingsLink icon="notifications-outline" label="Notification Settings" onPress={() => navigation.navigate('NotificationSettings' as never)} />
+            <SettingsLink icon="notifications-outlined" label="Notification Settings" onPress={() => navigation.navigate('NotificationSettings' as never)} />
           </View>
         </View>
 
@@ -301,9 +301,9 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Legal</Text>
           <View style={styles.card}>
-            <SettingsLink icon="shield-checkmark-outline" label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy' as never)} />
-            <SettingsLink icon="document-text-outline" label="Terms & Conditions" onPress={() => navigation.navigate('Terms' as never)} />
-            <SettingsLink icon="people-outline" label="Community Guidelines" onPress={() => navigation.navigate('CommunityGuidelines' as never)} />
+            <SettingsLink icon="verified-user" label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy' as never)} />
+            <SettingsLink icon="description" label="Terms & Conditions" onPress={() => navigation.navigate('Terms' as never)} />
+            <SettingsLink icon="groups" label="Community Guidelines" onPress={() => navigation.navigate('CommunityGuidelines' as never)} />
           </View>
         </View>
 
@@ -312,7 +312,7 @@ export default function SettingsScreen() {
         {/* Logout */}
         <View style={styles.section}>
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={18} color={colors.accent} />
+            <AppIcon name="logout" size="md" color={colors.accent} />
             <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
         </View>
@@ -328,7 +328,7 @@ export default function SettingsScreen() {
               <Text style={styles.deleteAccountText}>Deleting...</Text>
             ) : (
               <>
-                <Ionicons name="trash-outline" size={18} color={colors.like} />
+                <AppIcon name="delete-outline" size="md" color={colors.like} />
                 <Text style={styles.deleteAccountText}>Delete Account</Text>
               </>
             )}
@@ -350,9 +350,9 @@ export default function SettingsScreen() {
 function SettingsLink({ icon, label, onPress }: { icon: string; label: string; onPress?: () => void }) {
   return (
     <TouchableOpacity style={styles.linkItem} onPress={onPress} disabled={!onPress}>
-      <Ionicons name={icon as any} size={18} color={colors.accent} />
+      <AppIcon name={icon} size="md" color={colors.accent} />
       <Text style={styles.linkText}>{label}</Text>
-      <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+      <AppIcon name="chevron-right" size="md" color={colors.textTertiary} />
     </TouchableOpacity>
   );
 }

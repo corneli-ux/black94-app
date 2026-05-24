@@ -25,7 +25,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { firestore, auth } from '../lib/firebase';
 import { fetchUserProfile, blockUser, sendMessage } from '../lib/api';
 
@@ -39,6 +38,7 @@ function safeImageSource(uri: string | null | undefined): { uri: string } | unde
 }
 import { decryptMessage } from '../lib/e2ee';
 import { colors } from '../theme/colors';
+import { AppIcon } from '../components/icons';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -626,7 +626,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
     if (!selectedChat) {
       return (
         <View style={styles.emptyRoom}>
-          <Ionicons name="chatbubbles-outline" size={56} color={colors.textMuted} />
+          <AppIcon name="forum" size={56} color={colors.textMuted} />
           <Text style={styles.emptyRoomText}>Select a conversation</Text>
         </View>
       );
@@ -637,7 +637,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
         {/* Room header — stays fixed above KAV */}
         <View style={styles.roomHeader}>
           <TouchableOpacity onPress={() => { if (!IS_TABLET) { setSelectedChatId(null); setPhoneTab('list'); } }}>
-            {!IS_TABLET && <Ionicons name="arrow-back" size={22} color={colors.text} />}
+            {!IS_TABLET && <AppIcon name="arrow-back" size="lg" color={colors.text} />}
           </TouchableOpacity>
           <Text style={styles.roomName}>
             {selectedChat.otherUser?.displayName ?? 'Chat'}
@@ -648,7 +648,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
             onPress={() => setShowNuclearConfirm(true)}
             hitSlop={8}
           >
-            <Ionicons name="alert-circle-outline" size={22} color={colors.like} />
+            <AppIcon name="error-outline" size="lg" color={colors.like} />
           </TouchableOpacity>
         </View>
 
@@ -682,7 +682,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           {/* Input bar */}
           <View style={styles.inputRow}>
             <TouchableOpacity onPress={handleOpenGifPicker} hitSlop={8} style={{ marginRight: 6 }}>
-              <Ionicons name="happy-outline" size={24} color={colors.textMuted} />
+              <AppIcon name="happy-outline" size="xl" color={colors.textMuted} />
             </TouchableOpacity>
             <TextInput
               style={styles.input}
@@ -700,7 +700,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
               ]}
               onPress={handleSend}
               disabled={!messageText.trim() || sending}>
-              <Ionicons name="send" size={20} color={colors.white} />
+              <AppIcon name="send" size={20} color={colors.white} />
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -733,7 +733,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           <View style={styles.nuclearOverlay}>
             <View style={styles.nuclearDialog}>
               <View style={styles.nuclearIconContainer}>
-                <Ionicons name="alert-circle" size={48} color={colors.like} />
+                <AppIcon name="error-outline" size="hero" color={colors.like} />
               </View>
               <Text style={styles.nuclearTitle}>💣 Nuclear Block</Text>
               <Text style={styles.nuclearMessage}>
@@ -797,7 +797,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           }
           ListEmptyComponent={
             <View style={styles.emptyList}>
-              <Ionicons name="chatbubble-ellipses-outline" size={48} color={colors.textMuted} />
+              <AppIcon name="forum" size="hero" color={colors.textMuted} />
               <Text style={styles.emptyListText}>No conversations yet</Text>
             </View>
           }

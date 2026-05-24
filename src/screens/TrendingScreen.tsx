@@ -10,9 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 /* ── Types ──────────────────────────────────────────────────────────────────── */
 
@@ -90,7 +90,7 @@ function TrendRow({
           {item.count.toLocaleString()} {item.count === 1 ? 'post' : 'posts'}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      <AppIcon name="chevron-right" size="md" color={colors.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -149,7 +149,7 @@ export default function TrendingScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Trending</Text>
           <View style={{ width: 22 }} />
@@ -179,7 +179,7 @@ export default function TrendingScreen() {
             {error ? (
               <>
                 <View style={styles.emptyIcon}>
-                  <Ionicons name="alert-circle-outline" size={32} color={colors.textSecondary} />
+                  <AppIcon name="error-outline" size="3xl" color={colors.textSecondary} />
                 </View>
                 <Text style={styles.emptyTitle}>Something went wrong</Text>
                 <Text style={styles.emptySubtitle}>{error}</Text>
@@ -190,7 +190,7 @@ export default function TrendingScreen() {
             ) : (
               <>
                 <View style={styles.emptyIcon}>
-                  <Ionicons name="trending-up-outline" size={32} color={colors.textSecondary} />
+                  <AppIcon name="trending-up" size="3xl" color={colors.textSecondary} />
                 </View>
                 <Text style={styles.emptyTitle}>No trending topics right now</Text>
                 <Text style={styles.emptySubtitle}>

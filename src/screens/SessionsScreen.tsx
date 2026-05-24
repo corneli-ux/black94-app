@@ -27,7 +27,7 @@ import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../stores/app';
 import { firestore } from '../lib/firebase';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../components/icons';
 
 interface Session {
   id: string;
@@ -219,7 +219,7 @@ export default function SessionsScreen() {
           onPress={() => navigation.goBack()}
           hitSlop={8}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Active Sessions</Text>
         <View style={{ width: 22 }} />
@@ -229,7 +229,7 @@ export default function SessionsScreen() {
       {otherSessions.length > 0 && (
         <View style={styles.bulkActionRow}>
           <View style={styles.bulkInfo}>
-            <Ionicons name="shield-checkmark-outline" size={16} color={colors.accentGreen} />
+            <AppIcon name="verified-user" size={16} color={colors.accentGreen} />
             <Text style={styles.bulkInfoText}>
               {sessions.length} session{sessions.length > 1 ? 's' : ''} active
             </Text>
@@ -243,7 +243,7 @@ export default function SessionsScreen() {
               <ActivityIndicator size="small" color={colors.accentRed} />
             ) : (
               <>
-                <Ionicons name="log-out-outline" size={16} color={colors.accentRed} />
+                <AppIcon name="logout" size={16} color={colors.accentRed} />
                 <Text style={styles.bulkBtnText}>
                   Sign Out Others
                 </Text>
@@ -265,7 +265,7 @@ export default function SessionsScreen() {
           </View>
         ) : sessions.length === 0 ? (
           <View style={styles.center}>
-            <Ionicons name="phone-portrait-outline" size={48} color={colors.textMuted} />
+            <AppIcon name="phone-android" size="hero" color={colors.textMuted} />
             <Text style={styles.emptyTitle}>No Active Sessions</Text>
             <Text style={styles.emptySub}>
               Your login sessions will appear here.
@@ -279,9 +279,9 @@ export default function SessionsScreen() {
               .map((session) => (
                 <View key={session.id} style={styles.sessionCard}>
                   <View style={styles.sessionIcon}>
-                    <Ionicons
-                      name={getPlatformIcon(session.platform) as any}
-                      size={24}
+                    <AppIcon
+                      name={getPlatformIcon(session.platform)}
+                      size="xl"
                       color={colors.accent}
                     />
                   </View>
@@ -309,7 +309,7 @@ export default function SessionsScreen() {
                     </View>
                   </View>
                   <View style={styles.sessionAction}>
-                    <Ionicons name="checkmark-circle" size={20} color={colors.accentGreen} />
+                    <AppIcon name="check-circle" size={20} color={colors.accentGreen} />
                   </View>
                 </View>
               ))}
@@ -323,9 +323,9 @@ export default function SessionsScreen() {
                 {otherSessions.map((session) => (
                   <View key={session.id} style={styles.sessionCard}>
                     <View style={styles.sessionIcon}>
-                      <Ionicons
-                        name={getPlatformIcon(session.platform) as any}
-                        size={24}
+                      <AppIcon
+                        name={getPlatformIcon(session.platform)}
+                        size="xl"
                         color={colors.textSecondary}
                       />
                     </View>

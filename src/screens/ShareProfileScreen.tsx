@@ -8,6 +8,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
 import { User } from '../lib/api';
+import { AppIcon } from '../components/icons';
 
 const LINK_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -184,7 +185,7 @@ export default function ShareProfileScreen({ route, navigation }: any) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
+            <AppIcon name="arrow-back" size="xl" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Share Profile</Text>
           <View style={{ width: 32 }} />

@@ -28,8 +28,8 @@ import { colors } from '../theme/colors';
 import { initiateCall, answerCall, endCall as endCallApi, pollCallStatus, CallData } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
-import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { AppIcon } from '../components/icons';
 
 type CallRole = 'caller' | 'receiver';
 type CallStatus = 'initiating' | 'ringing' | 'connected' | 'ended';
@@ -303,7 +303,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
 
       {/* Audio streaming notice */}
       <View style={styles.audioNotice}>
-        <Ionicons name="information-circle" size={14} color={colors.white50} />
+        <AppIcon name="info" size="sm" color={colors.white50} />
         <Text style={styles.audioNoticeText}>Audio streaming coming soon — call signaling is active</Text>
       </View>
 
@@ -374,7 +374,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
             onPress={() => setIsMuted((prev) => !prev)}
             activeOpacity={0.7}>
             <View style={[styles.actionCircle, isMuted && styles.actionCircleActive]}>
-              <Ionicons
+              <AppIcon
                 name={isMuted ? 'mic-off' : 'mic'}
                 size={26}
                 color={isMuted ? colors.primaryForeground : colors.text}
@@ -390,8 +390,8 @@ export default function AudioCallScreen({ route, navigation }: any) {
             onPress={() => setIsSpeaker((prev) => !prev)}
             activeOpacity={0.7}>
             <View style={[styles.actionCircle, isSpeaker && styles.actionCircleActive]}>
-              <Ionicons
-                name={isSpeaker ? 'volume-high' : 'volume-medium'}
+              <AppIcon
+                name={isSpeaker ? 'volume-up' : 'volume-down'}
                 size={26}
                 color={isSpeaker ? colors.primaryForeground : colors.text}
               />
@@ -406,7 +406,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
             onPress={handleEnd}
             activeOpacity={0.8}>
             <View style={styles.endCircle}>
-              <Ionicons name="call" size={28} color={colors.white} />
+              <AppIcon name="call" size="xxl" color={colors.white} />
             </View>
             <Text style={styles.endLabel}>End</Text>
           </TouchableOpacity>
@@ -421,7 +421,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
                 onPress={handleDecline}
                 activeOpacity={0.8}>
                 <View style={styles.declineCircle}>
-                  <Ionicons name="call" size={30} color={colors.white} />
+                  <AppIcon name="call" size={30} color={colors.white} />
                 </View>
                 <Text style={styles.declineLabel}>Decline</Text>
               </TouchableOpacity>
@@ -431,7 +431,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
                 onPress={handleAccept}
                 activeOpacity={0.8}>
                 <View style={styles.acceptCircle}>
-                  <Ionicons name="call" size={30} color={colors.white} />
+                  <AppIcon name="call" size={30} color={colors.white} />
                 </View>
                 <Text style={styles.acceptLabel}>Accept</Text>
               </TouchableOpacity>
@@ -442,7 +442,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
               onPress={handleEnd}
               activeOpacity={0.8}>
               <View style={styles.endCircle}>
-                <Ionicons name="call" size={28} color={colors.white} />
+                <AppIcon name="call" size="xxl" color={colors.white} />
               </View>
               <Text style={styles.endLabel}>Cancel</Text>
             </TouchableOpacity>

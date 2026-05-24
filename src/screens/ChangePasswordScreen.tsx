@@ -4,11 +4,11 @@ import {
   TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { colors } from '../theme/colors';
 import { auth, firestore, getValidToken } from '../lib/firebase';
+import { AppIcon } from '../components/icons';
 
 const API_KEY = Constants.expoConfig?.extra?.firebaseApiKey as string || '';
 
@@ -92,7 +92,7 @@ export default function ChangePasswordScreen() {
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Change Password</Text>
           <View style={{ width: 22 }} />
@@ -113,7 +113,7 @@ export default function ChangePasswordScreen() {
               autoCorrect={false}
             />
             <TouchableOpacity onPress={() => setShowCurrent(p => !p)} hitSlop={8}>
-              <Ionicons name={showCurrent ? 'eye-off' : 'eye'} size={18} color={colors.textMuted} />
+              <AppIcon name={showCurrent ? 'visibility-off' : 'visibility'} size="md" color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -131,7 +131,7 @@ export default function ChangePasswordScreen() {
               autoCorrect={false}
             />
             <TouchableOpacity onPress={() => setShowNew(p => !p)} hitSlop={8}>
-              <Ionicons name={showNew ? 'eye-off' : 'eye'} size={18} color={colors.textMuted} />
+              <AppIcon name={showNew ? 'visibility-off' : 'visibility'} size="md" color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -149,7 +149,7 @@ export default function ChangePasswordScreen() {
               autoCorrect={false}
             />
             <TouchableOpacity onPress={() => setShowConfirm(p => !p)} hitSlop={8}>
-              <Ionicons name={showConfirm ? 'eye-off' : 'eye'} size={18} color={colors.textMuted} />
+              <AppIcon name={showConfirm ? 'visibility-off' : 'visibility'} size="md" color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -172,7 +172,7 @@ export default function ChangePasswordScreen() {
           </TouchableOpacity>
 
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+            <AppIcon name="info-outline" size={16} color={colors.textMuted} />
             <Text style={styles.infoText}>
               Your password must be at least 8 characters long. For best security, use a mix of uppercase letters, lowercase letters, numbers, and symbols. You'll be signed out on all other devices after changing your password.
             </Text>

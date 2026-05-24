@@ -35,9 +35,9 @@ import { useNavigation } from '@react-navigation/native';
 import { firestore, auth } from '../lib/firebase';
 import { encryptMessage, decryptMessage, initE2EE } from '../lib/e2ee';
 import { colors } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '../stores/app';
+import { AppIcon } from '../components/icons';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -882,11 +882,11 @@ export default function AnonymousChatScreen() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.landingContainer}>
           <View style={styles.landingIcon}>
-            <Ionicons name="eye-off-outline" size={64} color={colors.accent} />
+            <AppIcon name="visibility-off" size={64} color={colors.accent} />
           </View>
           <Text style={styles.landingTitle}>Anonymous Chat</Text>
           <View style={styles.infoBanner}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+            <AppIcon name="info-outline" size={16} color={colors.textSecondary} />
             <Text style={styles.infoText}>You must be signed in to use anonymous chat.</Text>
           </View>
         </View>
@@ -914,7 +914,7 @@ export default function AnonymousChatScreen() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.paywallContainer}>
           <View style={styles.paywallIconWrap}>
-            <Ionicons name="eye-off-outline" size={56} color={colors.accent} />
+            <AppIcon name="visibility-off" size={56} color={colors.accent} />
           </View>
           <Text style={styles.paywallTitle}>Free Chats Used</Text>
           <Text style={styles.paywallSubtitle}>
@@ -923,19 +923,19 @@ export default function AnonymousChatScreen() {
 
           <View style={styles.paywallBenefits}>
             <View style={styles.paywallBenefitRow}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <AppIcon name="check-circle" size={20} color={colors.accent} />
               <Text style={styles.paywallBenefitText}>Connect with random people anonymously</Text>
             </View>
             <View style={styles.paywallBenefitRow}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <AppIcon name="check-circle" size={20} color={colors.accent} />
               <Text style={styles.paywallBenefitText}>Your identity is always hidden</Text>
             </View>
             <View style={styles.paywallBenefitRow}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <AppIcon name="check-circle" size={20} color={colors.accent} />
               <Text style={styles.paywallBenefitText}>Real-time typing indicators</Text>
             </View>
             <View style={styles.paywallBenefitRow}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+              <AppIcon name="check-circle" size={20} color={colors.accent} />
               <Text style={styles.paywallBenefitText}>Instant matching</Text>
             </View>
           </View>
@@ -944,7 +944,7 @@ export default function AnonymousChatScreen() {
             style={styles.paywallUpgradeBtn}
             onPress={() => navigation.navigate('PremiumDashboard' as never)}
             activeOpacity={0.8}>
-            <Ionicons name="diamond" size={20} color={colors.white} />
+            <AppIcon name="diamond" size={20} color={colors.white} />
             <Text style={styles.paywallUpgradeBtnText}>Upgrade to Premium</Text>
           </TouchableOpacity>
 
@@ -965,7 +965,7 @@ export default function AnonymousChatScreen() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.landingContainer}>
           <View style={styles.landingIcon}>
-            <Ionicons name="eye-off-outline" size={64} color={colors.accent} />
+            <AppIcon name="visibility-off" size={64} color={colors.accent} />
           </View>
           <Text style={styles.landingTitle}>Anonymous Chat</Text>
           <Text style={styles.landingSubtitle}>
@@ -974,7 +974,7 @@ export default function AnonymousChatScreen() {
 
           {/* Safety disclaimer — compliance requirement */}
           <View style={styles.safetyBanner}>
-            <Ionicons name="shield-checkmark-outline" size={14} color={colors.accentGold} />
+            <AppIcon name="verified-user" size="sm" color={colors.accentGold} />
             <Text style={styles.safetyBannerText}>
               Anonymous chat is for users aged 18+. Be respectful. Inappropriate behaviour will be reported and may result in a ban.
             </Text>
@@ -982,14 +982,14 @@ export default function AnonymousChatScreen() {
 
           <Text style={styles.yourNameLabel}>Your anonymous name:</Text>
           <View style={styles.nameTag}>
-            <Ionicons name="at" size={16} color={colors.accent} />
+            <AppIcon name="alternate-email" size={16} color={colors.accent} />
             <Text style={styles.nameTagText}>{myName}</Text>
           </View>
 
           {/* Info banner — friendly message (not a red error) */}
           {error && (
             <View style={styles.infoBanner}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+              <AppIcon name="info-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.infoText}>{error}</Text>
             </View>
           )}
@@ -1000,7 +1000,7 @@ export default function AnonymousChatScreen() {
               style={styles.findBtnInner}
               onPress={handleFindStranger}
               activeOpacity={0.8}>
-              <Ionicons name="flash" size={24} color={colors.white} />
+              <AppIcon name="flash-on" size="xl" color={colors.white} />
               <Text style={styles.findBtnText}>Find Stranger</Text>
             </TouchableOpacity>
           </Animated.View>
@@ -1034,7 +1034,7 @@ export default function AnonymousChatScreen() {
           {/* Info banner — no one online (not a red error) */}
           {error && (
             <View style={styles.infoBanner}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+              <AppIcon name="info-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.infoText}>{error}</Text>
             </View>
           )}
@@ -1043,7 +1043,7 @@ export default function AnonymousChatScreen() {
             style={styles.cancelBtn}
             onPress={handleDisconnect}
             activeOpacity={0.7}>
-            <Ionicons name="close" size={18} color={colors.textSecondary} />
+            <AppIcon name="close" size="md" color={colors.textSecondary} />
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -1062,7 +1062,7 @@ export default function AnonymousChatScreen() {
         <View style={styles.chatHeader}>
           <View style={styles.chatHeaderInfo}>
             <View style={styles.anonAvatar}>
-              <Ionicons name="eye-off" size={18} color={colors.white} />
+              <AppIcon name="visibility-off" size="md" color={colors.white} />
             </View>
             <View>
               <Text style={styles.chatHeaderName}>
@@ -1077,7 +1077,7 @@ export default function AnonymousChatScreen() {
             </View>
           </View>
           <View style={styles.timerBadge}>
-            <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+            <AppIcon name="schedule" size="sm" color={colors.textSecondary} />
             <Text style={styles.timerText}>{formatDuration(elapsed)}</Text>
           </View>
           {/* Report button — compliance requirement for anonymous chat */}
@@ -1124,7 +1124,7 @@ export default function AnonymousChatScreen() {
             }}
             hitSlop={8}
             activeOpacity={0.7}>
-            <Ionicons name="flag-outline" size={18} color="#f43f5e" />
+            <AppIcon name="outlined-flag" size="md" color="#f43f5e" />
           </TouchableOpacity>
         </View>
 
@@ -1139,8 +1139,8 @@ export default function AnonymousChatScreen() {
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.emptyMsg}>
-              <Ionicons
-                name="chatbubble-ellipses-outline"
+              <AppIcon
+                name="forum"
                 size={40}
                 color={colors.textMuted}
               />
@@ -1165,7 +1165,7 @@ export default function AnonymousChatScreen() {
         {/* Error banner */}
         {error && (
           <View style={styles.errorBannerInline}>
-            <Ionicons name="alert-circle-outline" size={14} color={colors.error} />
+            <AppIcon name="error-outline" size="sm" color={colors.error} />
             <Text style={styles.errorTextInline}>{error}</Text>
           </View>
         )}
@@ -1177,14 +1177,14 @@ export default function AnonymousChatScreen() {
               style={styles.nextBtn}
               onPress={handleNext}
               activeOpacity={0.7}>
-              <Ionicons name="play-forward-outline" size={20} color={colors.accent} />
+              <AppIcon name="play-forward-outline" size={20} color={colors.accent} />
               <Text style={styles.nextBtnText}>Next</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.disconnectBtn}
               onPress={handleDisconnect}
               activeOpacity={0.7}>
-              <Ionicons name="close" size={20} color={colors.error} />
+              <AppIcon name="close" size={20} color={colors.error} />
               <Text style={styles.disconnectBtnText}>Disconnect</Text>
             </TouchableOpacity>
           </View>
@@ -1205,7 +1205,7 @@ export default function AnonymousChatScreen() {
               style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
               onPress={handleSend}
               disabled={!inputText.trim()}>
-              <Ionicons name="send" size={20} color={colors.white} />
+              <AppIcon name="send" size={20} color={colors.white} />
             </TouchableOpacity>
           </View>
         </View>

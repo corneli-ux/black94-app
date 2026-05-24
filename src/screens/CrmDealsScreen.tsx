@@ -11,9 +11,9 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { auth, firestore } from '../lib/firebase';
 import { deliverPendingFollowUps } from '../lib/crm';
+import { AppIcon } from '../components/icons';
 
 /* ── Theme compat (mirrors source theme tokens) ─────────────────────────────── */
 
@@ -141,7 +141,7 @@ const CrmDealsScreen: React.FC = () => {
       <View style={styles.dealMeta}>
         {deal.leadName ? (
           <View style={styles.dealLeadRow}>
-            <Ionicons name="person-outline" size={12} color={C.textSecondary} />
+            <AppIcon name="person-outline" size="xs" color={C.textSecondary} />
             <Text style={styles.dealLead}>{deal.leadName}</Text>
           </View>
         ) : null}
@@ -203,12 +203,12 @@ const CrmDealsScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.viewToggle, viewMode === 'list' && styles.viewToggleActive]}
             onPress={() => setViewMode('list')}>
-            <Ionicons name="list" size={18} color={viewMode === 'list' ? C.primary : C.textTertiary} />
+            <AppIcon name="list" size="md" color={viewMode === 'list' ? C.primary : C.textTertiary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.viewToggle, viewMode === 'kanban' && styles.viewToggleActive]}
             onPress={() => setViewMode('kanban')}>
-            <Ionicons name="grid-outline" size={18} color={viewMode === 'kanban' ? C.primary : C.textTertiary} />
+            <AppIcon name="grid-view" size="md" color={viewMode === 'kanban' ? C.primary : C.textTertiary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -261,7 +261,7 @@ const CrmDealsScreen: React.FC = () => {
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Ionicons name="briefcase-outline" size={48} color={C.white20} />
+                <AppIcon name="briefcase-outline" size="hero" color={C.white20} />
                 <Text style={styles.emptyTitle}>No deals</Text>
                 <Text style={styles.emptySubtitle}>
                   {activeStage === 'all'
@@ -308,7 +308,7 @@ const CrmDealsScreen: React.FC = () => {
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Deal Details</Text>
                   <TouchableOpacity onPress={() => setSelectedDeal(null)}>
-                    <Ionicons name="close" size={24} color={C.white} />
+                    <AppIcon name="close" size="xl" color={C.white} />
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.modalBody}>

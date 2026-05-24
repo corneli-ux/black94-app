@@ -10,11 +10,11 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
 import { useAppStore } from '../stores/app';
+import { AppIcon } from '../components/icons';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -163,7 +163,7 @@ export default function ScheduledPostsScreen() {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Scheduled Posts</Text>
           <View style={{ width: 22 }} />
@@ -181,7 +181,7 @@ export default function ScheduledPostsScreen() {
           >
             <View style={styles.postContent}>
               <View style={styles.dateRow}>
-                <Ionicons name="calendar-outline" size={16} color={colors.accent} style={{ marginRight: 6 }} />
+                <AppIcon name="calendar-today" size={16} color={colors.accent} style={{ marginRight: 6 }} />
                 <Text style={styles.dateText}>{formatScheduledDate(item.scheduledDate)}</Text>
               </View>
               {item.caption ? (
@@ -201,7 +201,7 @@ export default function ScheduledPostsScreen() {
                 hitSlop={10}
                 style={styles.deleteBtn}
               >
-                <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+                <AppIcon name="cancel" size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -216,7 +216,7 @@ export default function ScheduledPostsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="calendar-outline" size={32} color={colors.textSecondary} />
+              <AppIcon name="calendar-today" size="3xl" color={colors.textSecondary} />
             </View>
             <Text style={styles.emptyTitle}>No scheduled posts</Text>
             <Text style={styles.emptySubtitle}>

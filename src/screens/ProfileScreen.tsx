@@ -2,26 +2,14 @@ import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, ScrollView, Alert, Share, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon, RepostIcon } from '../components/icons';
 import { colors } from '../theme/colors';
 import { fetchUserProfile, toggleFollow, checkFollowing, toggleLike, toggleBookmark, toggleRepost, getUserDmPermission, getPaidChatPrice, hasPaidChatAccess, fetchActiveAdCampaigns, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import FeedMedia from '../components/FeedMedia';
-import Svg, { Path, Polyline } from 'react-native-svg';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
-
-/* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
-function RepostIcon({ size = 16, color = colors.textSecondary }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="23 4 23 10 17 10" />
-      <Path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-    </Svg>
-  );
-}
-
 
 /* ── Replies type ──────────────────────────────────────────────── */
 interface Reply {
@@ -148,7 +136,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
                   { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
                 ])}
               >
-                <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
+                <AppIcon name="more-horiz" size="md" color={colors.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
@@ -189,7 +177,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             {/* Comment */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
               <View style={profileCardStyles.actionIconWrap}>
-                <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
+                <AppIcon name="chat-bubble-outline" size="md" color={colors.textSecondary} />
               </View>
               {formatCount(post.commentCount) ? <Text style={profileCardStyles.actionCount}>{formatCount(post.commentCount)}</Text> : null}
             </TouchableOpacity>
@@ -204,9 +192,9 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
               <View style={profileCardStyles.actionIconWrap}>
                 {post.liked ? (
-                  <Ionicons name="heart" size={18} color={colors.like} />
+                  <AppIcon name="favorite" size="md" color={colors.like} />
                 ) : (
-                  <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
+                  <AppIcon name="favorite-border" size="md" color={colors.textSecondary} />
                 )}
               </View>
               {post.likeCount > 0 ? <Text style={[profileCardStyles.actionCount, post.liked && { color: colors.like }]}>{post.likeCount}</Text> : null}
@@ -214,7 +202,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             {/* Views */}
             <TouchableOpacity style={profileCardStyles.actionBtn} disabled>
               <View style={profileCardStyles.actionIconWrap}>
-                <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
+                <AppIcon name="trending-up" size="md" color={colors.textSecondary} />
               </View>
             </TouchableOpacity>
             {/* Bookmark + Share */}
@@ -222,15 +210,15 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleBookmarkPress}>
                 <View style={profileCardStyles.actionIconWrap}>
                   {isBookmarked ? (
-                    <Ionicons name="bookmark" size={18} color={colors.bookmark} />
+                    <AppIcon name="bookmark" size="md" color={colors.bookmark} />
                   ) : (
-                    <Ionicons name="bookmark-outline" size={18} color={colors.textSecondary} />
+                    <AppIcon name="bookmark-border" size="md" color={colors.textSecondary} />
                   )}
                 </View>
               </TouchableOpacity>
               <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleShare}>
                 <View style={profileCardStyles.actionIconWrap}>
-                  <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
+                  <AppIcon name="share" size="md" color={colors.textSecondary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -240,7 +228,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
       {/* Double-tap heart overlay */}
       {showHeart && (
         <View style={profileCardStyles.heartOverlay} pointerEvents="none">
-          <Ionicons name="heart" size={80} color={colors.like} />
+          <AppIcon name="favorite" size="overlay" color={colors.like} />
         </View>
       )}
     </View>
@@ -357,7 +345,7 @@ function RepliesList({ replies }: { replies: Reply[]; navigation?: any }) {
 
   if (filteredReplies.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
-      <Ionicons name="chatbubble-outline" size={48} color={colors.textTertiary} style={{ marginBottom: 12 }} />
+      <AppIcon name="chat-bubble-outline" size="hero" color={colors.textTertiary} style={{ marginBottom: 12 }} />
       <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No replies yet</Text>
     </View>
   );
@@ -396,7 +384,7 @@ function LikedPostsGrid({ posts, navigation, onLike, onBookmark, onDelete, onRep
 }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
-      <Ionicons name="heart-outline" size={48} color={colors.textTertiary} style={{ marginBottom: 12 }} />
+      <AppIcon name="favorite-border" size="hero" color={colors.textTertiary} style={{ marginBottom: 12 }} />
       <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No liked posts yet</Text>
     </View>
   );
@@ -409,7 +397,7 @@ function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
   if (postsWithMedia.length === 0) {
     return (
       <View style={{ alignItems: 'center', paddingTop: 60 }}>
-        <Ionicons name="images-outline" size={48} color={colors.textSecondary} style={{ marginBottom: 12 }} />
+        <AppIcon name="photo-library" size="hero" color={colors.textSecondary} style={{ marginBottom: 12 }} />
         <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No media yet</Text>
       </View>
     );
@@ -429,7 +417,7 @@ function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
           />
           {post.mediaUrls.length > 1 && (
             <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: colors.overlayDark, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
-              <Ionicons name="images-outline" size={12} color={colors.white} />
+              <AppIcon name="photo-library" size="xs" color={colors.white} />
             </View>
           )}
         </TouchableOpacity>
@@ -861,16 +849,16 @@ export default function ProfileScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <AppIcon name="arrow-back" size="lg" color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.topLogo}>Profile</Text>
           {isOwnProfile ? (
             <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
               <TouchableOpacity onPress={() => navigation.navigate('Settings')} hitSlop={8}>
-                <Ionicons name="settings-outline" size={22} color={colors.text} />
+                <AppIcon name="settings" size="lg" color={colors.text} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => navigation.navigate('PremiumDashboard')} hitSlop={8}>
-                <Ionicons name="diamond-outline" size={22} color={colors.accent} />
+                <AppIcon name="diamond-outline" size="lg" color={colors.accent} />
               </TouchableOpacity>
             </View>
           ) : (
@@ -895,7 +883,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           <View style={[styles.cover, styles.coverPlaceholder]}>
             {coverImageError && user?.coverImage && (
               <View style={styles.coverErrorOverlay}>
-                <Ionicons name="image-outline" size={24} color={colors.textMuted} />
+                <AppIcon name="image" size="xl" color={colors.textMuted} />
               </View>
             )}
           </View>
@@ -940,7 +928,7 @@ export default function ProfileScreen({ route, navigation }: any) {
               {messaging ? (
                 <ActivityIndicator size="small" color={colors.white} />
               ) : (
-                <Ionicons name="chatbubble-outline" size={18} color={colors.white} />
+                <AppIcon name="chat-bubble-outline" size="md" color={colors.white} />
               )}
               <Text style={styles.messageBtnText}>Message</Text>
             </TouchableOpacity>
@@ -974,7 +962,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       {profileAd && (
         <View style={styles.adBanner}>
           <View style={styles.adBannerBadgeRow}>
-            <Ionicons name="megaphone-outline" size={14} color={colors.accentGold} />
+            <AppIcon name="megaphone-outline" size="sm" color={colors.accentGold} />
             <Text style={styles.adBannerBadgeText}>Promoted</Text>
           </View>
           <Text style={styles.adBannerHeadline} numberOfLines={1}>{profileAd.headline || 'Ad'}</Text>
@@ -1019,7 +1007,7 @@ export default function ProfileScreen({ route, navigation }: any) {
       {tab === 'reposts' && <PostGrid posts={repostPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
       {tab === 'store' && (
         <View style={{ alignItems: 'center', paddingTop: 60 }}>
-          <Ionicons name="storefront-outline" size={48} color={colors.textSecondary} style={{ marginBottom: 12 }} />
+          <AppIcon name="storefront-outline" size="hero" color={colors.textSecondary} style={{ marginBottom: 12 }} />
           <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No products listed yet</Text>
         </View>
       )}
