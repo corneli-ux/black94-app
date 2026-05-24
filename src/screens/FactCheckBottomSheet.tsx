@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(148,163,184,0.08)',
+    backgroundColor: colors.accentFaint,
     borderRadius: 8,
   },
   aiDisclaimerFooterText: {

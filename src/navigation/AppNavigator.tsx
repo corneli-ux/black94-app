@@ -69,6 +69,7 @@ const PostCommentsScreen = lazy(() => import('../screens/PostCommentsScreen'));
 const PaidChatScreen = lazy(() => import('../screens/PaidChatScreen'));
 const PrivacyPolicyScreen = lazy(() => import('../screens/PrivacyPolicyScreen'));
 const TermsScreen = lazy(() => import('../screens/TermsScreen'));
+const CommunityGuidelinesScreen = lazy(() => import('../screens/CommunityGuidelinesScreen'));
 const SignupScreen = lazy(() => import('../screens/SignupScreen'));
 const AppearanceScreen = lazy(() => import('../screens/AppearanceScreen'));
 const BlockedUsersScreen = lazy(() => import('../screens/BlockedUsersScreen'));
@@ -423,6 +424,7 @@ function AppStack() {
       {/* Legal pages — accessible without login on web */}
       <Stack.Screen name="PrivacyPolicy" component={LazyScreen(PrivacyPolicyScreen)} />
       <Stack.Screen name="Terms" component={LazyScreen(TermsScreen)} />
+      <Stack.Screen name="CommunityGuidelines" component={LazyScreen(CommunityGuidelinesScreen)} />
     </Stack.Navigator>
   );
 }

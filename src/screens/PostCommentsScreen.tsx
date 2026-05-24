@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   adSponsored: {
-    color: 'rgba(113,118,123,0.6)',
+    color: colors.textSecondary,
     fontSize: 11,
     marginTop: 6,
   },

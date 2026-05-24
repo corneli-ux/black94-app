@@ -30,7 +30,7 @@ const GRADIENTS: { key: string; color: string; label: string }[] = [
   { key: 'fire', color: '#fa709a', label: 'Fire' },
   { key: 'night', color: '#a18cd1', label: 'Night' },
   { key: 'blue', color: '#2193b0', label: 'Blue' },
-  { key: 'dark', color: '#232526', label: 'Dark' },
+  { key: 'dark', color: colors.bg, label: 'Dark' },
 ];
 
 const FONT_SIZES = [

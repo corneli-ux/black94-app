@@ -34,11 +34,11 @@ interface Affiliate {
 }
 
 const BADGE_TIERS: { value: Affiliate['badge']; label: string; color: string; bg: string }[] = [
-  { value: 'None', label: 'None', color: colors.textSecondary, bg: 'rgba(148,163,184,0.15)' },
+  { value: 'None', label: 'None', color: colors.textSecondary, bg: colors.accentBgStrong },
   { value: 'Bronze', label: 'Bronze', color: colors.bronze, bg: 'rgba(205,127,50,0.15)' },
   { value: 'Silver', label: 'Silver', color: colors.silver, bg: colors.accentBg },
   { value: 'Gold', label: 'Gold', color: colors.verifiedGold, bg: 'rgba(255,215,0,0.15)' },
-  { value: 'Platinum', label: 'Platinum', color: colors.textSecondary, bg: 'rgba(229,228,226,0.15)' },
+  { value: 'Platinum', label: 'Platinum', color: colors.textSecondary, bg: colors.accentBgStrong },
 ];
 
 const FREE_BADGE_LIMIT = 2;

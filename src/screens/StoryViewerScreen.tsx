@@ -485,7 +485,7 @@ function getGradientColor(mediaUrl: string): string {
     night: '#a18cd1',
     purple: '#667eea',
     blue: '#2193b0',
-    dark: '#232526',
+    dark: colors.bg,
   };
   return map[mediaUrl] ?? '#667eea';
 }
@@ -608,7 +608,7 @@ const styles = StyleSheet.create({
   },
   authorUsername: {
     fontSize: 11,
-    color: '#e7e9ea',
+    color: colors.text,
   },
   authorMeta: {
     flexDirection: 'row',
@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
   },
   storyTime: {
     fontSize: 12,
-    color: '#e7e9ea',
+    color: colors.text,
   },
   closeButton: {
     width: 32,
@@ -692,11 +692,11 @@ const styles = StyleSheet.create({
   pollVotePercent: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#e7e9ea',
+    color: colors.text,
   },
   pollVoteCount: {
     fontSize: 12,
-    color: '#e7e9ea',
+    color: colors.text,
     textAlign: 'center',
     marginTop: 8,
   },
@@ -722,6 +722,6 @@ const styles = StyleSheet.create({
   },
   pauseText: {
     fontSize: 16,
-    color: '#e7e9ea',
+    color: colors.text,
   },
 });

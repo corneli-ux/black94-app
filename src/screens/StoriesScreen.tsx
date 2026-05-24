@@ -26,6 +26,8 @@ import { timeAgo } from '../utils/timeAgo';
 import { tsToMillis } from '../lib/api';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { useAppStore } from '../stores/app';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FlatList } from 'react-native';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
@@ -240,8 +242,24 @@ export default function StoriesScreen({ navigation }: any) {
   useEffect(() => {
     return () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
   }, []);
+  const VIEWED_STORIES_KEY = 'stories_viewed_ids';
   const viewedStoriesRef = useRef<Set<string>>(new Set());
   const currentUser = auth()?.currentUser;
+
+  // Load previously viewed story IDs from AsyncStorage on mount (survives remounts)
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(VIEWED_STORIES_KEY);
+        if (stored) {
+          const ids: string[] = JSON.parse(stored);
+          viewedStoriesRef.current = new Set(ids);
+        }
+      } catch (e) {
+        if (__DEV__) console.warn('[StoriesScreen] Failed to load viewed stories from AsyncStorage:', e);
+      }
+    })();
+  }, []);
 
   // ── Get user profile from Zustand store (Firestore data, not just auth) ──
   const storeUser = useAppStore((s) => s.user);
@@ -441,10 +459,17 @@ export default function StoriesScreen({ navigation }: any) {
 }
   }, [currentUser, activeCategory, loadStories, storeUser, userDisplayName, userProfileImage]);
 
-  /* ── Increment view count (once per story per session) ────────────────── */
+  /* ── Increment view count (once per story, persisted across remounts) ── */
   const incrementViewCount = useCallback(async (storyId: string) => {
     if (viewedStoriesRef.current.has(storyId)) return;
     viewedStoriesRef.current.add(storyId);
+    // Persist viewed story ID to AsyncStorage so it survives remounts
+    try {
+      const ids = Array.from(viewedStoriesRef.current);
+      await AsyncStorage.setItem(VIEWED_STORIES_KEY, JSON.stringify(ids));
+    } catch (e) {
+      if (__DEV__) console.warn('[StoriesScreen] Failed to save viewed story to AsyncStorage:', e);
+    }
     // BUG FIX: Update local story state so highlight ring turns gray after viewing
     setStories(prev => prev.map(s => s.id === storyId ? { ...s, viewed: true } : s));
     try {
@@ -492,19 +517,26 @@ export default function StoriesScreen({ navigation }: any) {
     }
   }, []);
 
-  /* ── Like a story ─────────────────────────────────────────────────────── */
-  const doLike = useCallback(async () => {
-    if (!viewingStory || !currentUser || liked) return; // BUG FIX: skip if already liked (prevents double-increment)
-    try {
-      await firestore()
-        .collection('stories')
-        .doc(viewingStory.id)
-        .update({ likeCount: firestore.FieldValue.increment(1) });
-      setLiked(true);
-    } catch (e) {
-      if (__DEV__) console.warn('[StoriesScreen] Failed to like story:', e);
+  /* ── Check if current user already liked a story (from Firestore) ─────── */
+  const checkStoryLiked = useCallback(async (storyId: string) => {
+    const userId = currentUser?.uid;
+    if (!userId) {
+      setLiked(false);
+      return;
     }
-  }, [viewingStory, currentUser]);
+    try {
+      const doc = await firestore()
+        .collection('stories')
+        .doc(storyId)
+        .collection('likes')
+        .doc(userId)
+        .get();
+      setLiked(doc.exists);
+    } catch (e) {
+      if (__DEV__) console.warn('[StoriesScreen] Failed to check liked status:', e);
+      setLiked(false);
+    }
+  }, [currentUser]);
 
   const toggleLike = useCallback(async () => {
     if (!viewingStory || !currentUser || likingRef.current) return;
@@ -514,12 +546,26 @@ export default function StoriesScreen({ navigation }: any) {
     const newLiked = !currentLiked;
     setLiked(newLiked);
     try {
-      await firestore()
-        .collection('stories')
-        .doc(viewingStory.id)
-        .update({ likeCount: firestore.FieldValue.increment(newLiked ? 1 : -1) });
+      const storyRef = firestore().collection('stories').doc(viewingStory.id);
+      const likeDocRef = storyRef.collection('likes').doc(currentUser.uid);
+      if (newLiked) {
+        const batch = firestore().batch();
+        batch.update(storyRef, { likeCount: firestore.FieldValue.increment(1) });
+        batch.set(likeDocRef, {
+          uid: currentUser.uid,
+          likedAt: firestore.FieldValue.serverTimestamp(),
+        });
+        await batch.commit();
+      } else {
+        const batch = firestore().batch();
+        batch.update(storyRef, { likeCount: firestore.FieldValue.increment(-1) });
+        batch.delete(likeDocRef);
+        await batch.commit();
+      }
+      // Update local story state so grid card reflects new count
+      setStories(prev => prev.map(s => s.id === viewingStory.id ? { ...s, likeCount: s.likeCount + (newLiked ? 1 : -1) } : s));
     } catch (e) {
-      if (__DEV__) console.warn('[StoriesScreen] Failed to like story:', e);
+      if (__DEV__) console.warn('[StoriesScreen] Failed to toggle like:', e);
       setLiked(currentLiked); // rollback on failure
     } finally {
       likingRef.current = false;
@@ -550,8 +596,10 @@ export default function StoriesScreen({ navigation }: any) {
       setCommentText('');
       pausedElapsedRef.current = 0;
       incrementViewCount(authorStoryList[startIndex].id);
+      // Check if user already liked this story (persists across opens)
+      checkStoryLiked(authorStoryList[startIndex].id);
     },
-    [stories, incrementViewCount],
+    [stories, incrementViewCount, checkStoryLiked],
   );
 
   const goToNextStory = useCallback(() => {
@@ -564,10 +612,11 @@ export default function StoriesScreen({ navigation }: any) {
       setPaused(false);
       pausedElapsedRef.current = 0;
       incrementViewCount(authorStories[next].id);
+      checkStoryLiked(authorStories[next].id);
     } else {
       closeStoryViewer();
     }
-  }, [storyIndex, authorStories, incrementViewCount]);
+  }, [storyIndex, authorStories, incrementViewCount, checkStoryLiked]);
 
   const goToPrevStory = useCallback(() => {
     if (storyIndex > 0) {
@@ -578,8 +627,9 @@ export default function StoriesScreen({ navigation }: any) {
       setLiked(false);
       setPaused(false);
       pausedElapsedRef.current = 0;
+      checkStoryLiked(authorStories[prev].id);
     }
-  }, [storyIndex, authorStories]);
+  }, [storyIndex, authorStories, checkStoryLiked]);
 
   const closeStoryViewer = useCallback(() => {
     setViewingStory(null);
@@ -667,7 +717,7 @@ export default function StoriesScreen({ navigation }: any) {
         setHeartPos({ x, y });
         setHeartVisible(false);
         setTimeout(() => setHeartVisible(true), 10);
-        doLike();
+        toggleLike();
       } else {
         lastTapRef.current = now;
 
@@ -684,7 +734,7 @@ export default function StoriesScreen({ navigation }: any) {
         }, DOUBLE_TAP_DELAY);
       }
     },
-    [goToNextStory, goToPrevStory, doLike],
+    [goToNextStory, goToPrevStory, toggleLike],
   );
 
   const handleStoryTouchMove = useCallback(() => {
@@ -832,7 +882,7 @@ export default function StoriesScreen({ navigation }: any) {
                     />
                   ) : (
                     <LinearGradient
-                      colors={[colors.accent, '#1a1a2e']}
+                      colors={[colors.accent, colors.bg]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={[styles.storyCardBg, styles.storyCardTextBg]}
@@ -1012,7 +1062,7 @@ export default function StoriesScreen({ navigation }: any) {
                 <View style={styles.reactionStats}>
                   <Ionicons name="heart" size={14} color={colors.like} />
                   <Text style={styles.reactionStatText}>
-                    {viewingStory.likeCount + (liked ? 1 : 0)}
+                    {viewingStory.likeCount}
                   </Text>
                   <View style={{ width: 16 }} />
                   <TouchableOpacity

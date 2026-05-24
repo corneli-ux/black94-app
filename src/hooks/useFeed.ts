@@ -473,7 +473,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   // (e.g. after creating a post). Avoids unnecessary full re-fetch on every tab switch.
   const feedRefreshKey = useAppStore(s => s.feedRefreshKey);
   useEffect(() => {
-    if (hasMountedRef.current && feedRefreshKey > 0 && !loading) {
+    if (hasMountedRef.current && feedRefreshKey > 0) {
       lastDocRef.current = null;
       setAllLoaded(false);
       loadFeed(false);

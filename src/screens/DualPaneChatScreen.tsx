@@ -118,6 +118,12 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
 
   const messagesEndRef = useRef<FlatList>(null);
   const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // BUG FIX: Use a ref for reactionMsg to avoid stale closure in handleReaction.
+  // The handleReaction callback depends on reactionMsg from the enclosing scope,
+  // but useCallback memoization means it captures a stale value. The ref pattern
+  // (same as useChatRoom.ts) ensures handleReaction always reads the latest value.
+  const reactionMsgRef = useRef(reactionMsg);
+  reactionMsgRef.current = reactionMsg;
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.id === selectedChatId) ?? null,
@@ -464,7 +470,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
   // with nested mapValues can accidentally overwrite sibling fields (e.g.,
   // deleting other users' reactions when updating one user's reaction).
   const handleReaction = useCallback(async (emoji: string) => {
-    const target = reactionMsg;
+    const target = reactionMsgRef.current;
     if (!target || !selectedChatId) return;
     const currentUserId = auth().currentUser?.uid;
     if (!currentUserId) return;
@@ -497,7 +503,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
       console.error('[DualPaneChat] Reaction failed:', e);
     }
     setReactionMsg(null);
-  }, [reactionMsg, selectedChatId]);
+  }, [selectedChatId]);
 
   // ── Render chat list item ──────────────────────────────────────────────
   const renderChatItem = ({ item }: { item: ChatItem }) => {
@@ -1129,7 +1135,9 @@ const styles = StyleSheet.create({
   },
   reactionPicker: {
     flexDirection: 'row',
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
     borderRadius: 24,
     padding: 8,
     gap: 4,

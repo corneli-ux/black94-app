@@ -73,7 +73,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
   shipped: { color: colors.accent, bg: 'rgba(6, 182, 212, 0.15)' },
   delivered: { color: colors.accentGreen, bg: 'rgba(34, 197, 94, 0.15)' },
   cancelled: { color: colors.error, bg: 'rgba(239, 68, 68, 0.15)' },
-  refunded: { color: colors.textMuted, bg: 'rgba(113, 118, 123, 0.15)' },
+  refunded: { color: colors.textMuted, bg: colors.accentBgStrong },
 };
 
 const FILTERS = [

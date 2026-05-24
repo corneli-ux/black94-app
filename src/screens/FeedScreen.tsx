@@ -19,6 +19,7 @@ import { useAppStore } from '../stores/app';
 import Svg, { Path, Polyline } from 'react-native-svg';
 import { useFeed, Tab } from '../hooks/useFeed';
 import { FeedSkeleton } from '../components/SkeletonLoader';
+import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 
 const SCREEN_W = scale(390);
 
@@ -725,6 +726,19 @@ const StoriesRow = React.memo(function StoriesRow({ navigation }: { navigation: 
       } catch {}
     })();
   }, [currentUser?.uid]);
+
+  // Enrich story author profiles so name/avatar changes reflect immediately
+  // (same enrichment used by feed posts — backed by userCache with 2-min TTL)
+  useEffect(() => {
+    if (bubbles.length === 0) return;
+    (async () => {
+      try {
+        await enrichAuthorProfiles(bubbles);
+        // Trigger re-render with enriched data (spread to create new refs)
+        setBubbles(prev => prev.map(b => ({ ...b })));
+      } catch {}
+    })();
+  }, [bubbles.length]);
 
   if (bubbles.length === 0) return null;
 

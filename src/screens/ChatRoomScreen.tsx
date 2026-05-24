@@ -160,7 +160,6 @@ function ChatRoomContent({ route, navigation }: any) {
   const renderMessage = ({ item }: { item: Message }) => {
     const isMine = item.senderId === currentUser?.uid;
     const msgType = item.messageType || 'text';
-    const myReaction = item.reactions?.[currentUser?.uid || ''] || null;
     const reactionEntries = item.reactions ? Object.values(item.reactions) as string[] : [];
 
     // Deleted message placeholder

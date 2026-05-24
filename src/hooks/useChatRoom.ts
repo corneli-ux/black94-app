@@ -649,12 +649,19 @@ export function useChatRoom({
     // Check if already has same reaction — toggle off
     const existingReaction = target.reactions?.[currentUser.uid];
     if (existingReaction === emoji) {
-      // Remove reaction
+      // Remove reaction — use read-then-update (consistent with DualPaneChatScreen)
+      // Dot-notation + FieldValue.delete() is fragile via REST wrapper
       try {
+        const msgSnap = await firestore()
+          .collection('chats').doc(chatId)
+          .collection('messages').doc(target.id)
+          .get();
+        const currentReactions = (msgSnap.exists ? msgSnap.data()?.reactions : null) || {};
+        delete currentReactions[currentUser.uid];
         await firestore()
           .collection('chats').doc(chatId)
           .collection('messages').doc(target.id)
-          .update({ [`reactions.${currentUser.uid}`]: firestore.FieldValue.delete() });
+          .update({ reactions: currentReactions });
         setMessages(prev => prev.map(m =>
           m.id === target.id
             ? { ...m, reactions: { ...Object.fromEntries(Object.entries(m.reactions || {}).filter(([k]) => k !== currentUser.uid)) } }
@@ -664,20 +671,18 @@ export function useChatRoom({
         if (__DEV__) console.warn('[Chat] Remove reaction failed:', e?.message || e);
       }
     } else {
-      // Add/update reaction — use dot-notation via REST wrapper
+      // Add/update reaction — read-then-update for safety
       try {
-        // Read current reactions first (dot-notation not supported by REST wrapper)
         const msgSnap = await firestore()
           .collection('chats').doc(chatId)
           .collection('messages').doc(target.id)
           .get();
         const currentReactions = (msgSnap.exists ? msgSnap.data()?.reactions : null) || {};
+        currentReactions[currentUser.uid] = emoji;
         await firestore()
           .collection('chats').doc(chatId)
           .collection('messages').doc(target.id)
-          .update({
-            reactions: { ...currentReactions, [currentUser.uid]: emoji },
-          });
+          .update({ reactions: currentReactions });
         setMessages(prev => prev.map(m =>
           m.id === target.id
             ? { ...m, reactions: { ...m.reactions, [currentUser.uid]: emoji } }

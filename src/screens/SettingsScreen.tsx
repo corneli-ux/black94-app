@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, TextInput, Alert, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -9,6 +9,7 @@ import { useAppStore } from '../stores/app';
 import { signOutUser } from '../lib/api';
 import { auth, updateAuthUser, firestore } from '../lib/firebase';
 import { deleteAccountServer } from '../lib/cloudFunctions';
+import { clearPushToken, requestNotificationPermissions } from '../services/pushNotifications';
 import { Avatar } from '../components/Avatar';
 import { PLANS, formatAmount } from '../lib/payments';
 
@@ -76,6 +77,26 @@ export default function SettingsScreen() {
   };
 
   const [deleting, setDeleting] = React.useState(false);
+  const [pushEnabled, setPushEnabled] = React.useState(true);
+
+  // Load master push notification preference
+  React.useEffect(() => {
+    AsyncStorage.getItem('@black94/push_master_enabled').then(val => {
+      if (val !== null) setPushEnabled(val === 'true');
+    }).catch(() => {});
+  }, []);
+
+  const handlePushToggle = async (value: boolean) => {
+    setPushEnabled(value);
+    await AsyncStorage.setItem('@black94/push_master_enabled', String(value)).catch(() => {});
+    if (!value) {
+      // Disable all push notifications by clearing the push token
+      try { await clearPushToken(); } catch {}
+    } else {
+      // Re-register push token
+      try { await requestNotificationPermissions(); } catch {}
+    }
+  };
 
   const handleDeleteAccount = async () => {
     Alert.alert(
@@ -256,12 +277,33 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Notifications — Master Toggle */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          <View style={styles.card}>
+            <View style={styles.pushToggleRow}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={styles.pushToggleLabel}>Push Notifications</Text>
+                <Text style={styles.pushToggleSub}>Master toggle for all push alerts</Text>
+              </View>
+              <Switch
+                value={pushEnabled}
+                onValueChange={handlePushToggle}
+                trackColor={{ false: colors.surface, true: 'rgba(212,175,55,0.4)' }}
+                thumbColor={pushEnabled ? colors.accent : colors.textMuted}
+              />
+            </View>
+            <SettingsLink icon="notifications-outline" label="Notification Settings" onPress={() => navigation.navigate('NotificationSettings' as never)} />
+          </View>
+        </View>
+
         {/* Legal — moved from drawer to settings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Legal</Text>
           <View style={styles.card}>
             <SettingsLink icon="shield-checkmark-outline" label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy' as never)} />
             <SettingsLink icon="document-text-outline" label="Terms & Conditions" onPress={() => navigation.navigate('Terms' as never)} />
+            <SettingsLink icon="people-outline" label="Community Guidelines" onPress={() => navigation.navigate('CommunityGuidelines' as never)} />
           </View>
         </View>
 
@@ -408,4 +450,11 @@ const styles = StyleSheet.create({
   },
   deleteAccountText: { color: colors.like, fontSize: 15, fontWeight: '600' },
   deleteAccountHint: { color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 },
+  pushToggleRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  pushToggleLabel: { fontSize: 15, color: colors.text, fontWeight: '500' },
+  pushToggleSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
 });
