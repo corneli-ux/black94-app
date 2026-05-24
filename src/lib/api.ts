@@ -1755,6 +1755,50 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
       } catch {}
     }
 
+    // ZUSTAND FALLBACK: If cache recovery also failed, try the Zustand store.
+    // This matches the fallback pattern used in createPost() and getActorData().
+    if (!data?.username && !data?.displayName) {
+      try {
+        const { useAppStore } = await import('../stores/app');
+        const storeUser = useAppStore.getState().user;
+        if (storeUser && storeUser.id === userId && (storeUser.username || storeUser.displayName)) {
+          if (__DEV__) console.log('[User] Recovered profile from Zustand store:', storeUser.displayName, '@' + storeUser.username);
+          // Proactively repair the corrupted Firestore doc
+          try {
+            await firestore().collection('users').doc(userId).update({
+              username: storeUser.username || '',
+              usernameLower: (storeUser.username || '').toLowerCase(),
+              displayName: storeUser.displayName || 'User',
+              displayNameLower: (storeUser.displayName || 'User').toLowerCase(),
+              profileImage: storeUser.profileImage || null,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+            if (__DEV__) console.log('[User] Repaired corrupted Firestore doc from Zustand store');
+          } catch (repairErr) {
+            if (__DEV__) console.warn('[User] Failed to repair Firestore doc from Zustand:', repairErr);
+          }
+          // Update cache too
+          try {
+            await AsyncStorage.setItem('@black94/user_cache', JSON.stringify(storeUser));
+          } catch {}
+          return {
+            id: userId,
+            email: storeUser.email || data?.email || '',
+            username: storeUser.username || '',
+            displayName: storeUser.displayName || 'User',
+            bio: storeUser.bio || data?.bio || '',
+            profileImage: typeof storeUser.profileImage === 'string' ? storeUser.profileImage : null,
+            coverImage: typeof storeUser.coverImage === 'string' ? storeUser.coverImage : null,
+            role: storeUser.role || data?.role || 'personal',
+            badge: storeUser.badge || data?.badge || '',
+            subscription: storeUser.subscription || data?.subscription || 'free',
+            isVerified: storeUser.isVerified || data?.isVerified || false,
+            createdAt: storeUser.createdAt || Date.now(),
+          };
+        }
+      } catch {}
+    }
+
     // CRITICAL: Fallback displayName → username → 'User' so the Avatar component
     // never renders the "?" placeholder (empty string is falsy → shows "?").
     const displayName = data?.displayName || data?.username || 'User';

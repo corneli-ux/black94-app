@@ -1049,11 +1049,13 @@ class CompatDocRef {
         await _firestoreCommitUpdate(this._path, fields, transforms, preToken);
       } else {
         // BUG FIX: set(merge) must use updateMask to preserve existing fields.
-        // Without updateMask, Firestore REST PATCH replaces the entire document,
-        // deleting fields not in the payload. Use empty updateMask (fieldPaths=)
-        // to get true merge behavior: update only fields in request, keep rest.
+        // Derive field paths from the data keys so Firestore knows which fields
+        // to update. Empty updateMask causes a silent no-op.
+        const fieldPaths = Object.keys(fields);
+        if (fieldPaths.length === 0) return; // Nothing to write
         const token = await _getValidToken();
-        const url = `${FIRESTORE_BASE}/${this._path}?key=${API_KEY}&updateMask.fieldPaths=`;
+        const maskParam = fieldPaths.map(p => `updateMask.fieldPaths=${encodeURIComponent(p)}`).join('&');
+        const url = `${FIRESTORE_BASE}/${this._path}?key=${API_KEY}&${maskParam}`;
         const resp = await fetch(url, {
           method: 'PATCH',
           headers: {
