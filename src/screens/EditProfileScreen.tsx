@@ -372,6 +372,12 @@ export default function EditProfileScreen({ navigation }: any) {
             // BUG FIX: Trigger feed refresh so FeedScreen reloads posts
             // and runs enrichment with the new name/avatar.
             try { triggerFeedRefresh(); } catch {}
+            // PERF: Invalidate userCache so enrichment picks up new name/avatar
+            // immediately instead of serving stale cached data for 2 minutes.
+            try { 
+              const { invalidateUserCache } = require('../lib/userCache');
+              invalidateUserCache(currentUid);
+            } catch {}
             // BUG FIX: Sync Firebase auth user object with new profile data.
             // Without this, auth().currentUser stays stale (old name/avatar)
             // and any code reading from auth (e.g., getActorData) uses wrong data.

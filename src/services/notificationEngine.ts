@@ -15,7 +15,7 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { firestore, auth } from '../lib/firebase';
 
-const POLL_INTERVAL = 15000; // 15 seconds — was 5s, reduced Firestore reads
+const POLL_INTERVAL = 30000; // 30 seconds — was 15s, reduced Firestore reads
 let listenUnsub: (() => void) | null = null;
 let initialDefer: ReturnType<typeof setTimeout> | null = null;
 let appStateSubscription: { remove: () => void } | null = null;

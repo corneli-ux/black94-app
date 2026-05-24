@@ -561,6 +561,12 @@ export async function signOutUser(): Promise<void> {
   } catch {}
   // Clear actor data cache — stale data could leak between users
   invalidateActorCache();
+  // PERF: Clear in-memory userCache to free memory and prevent stale data
+  // from being served to the next user who logs in on the same device.
+  try {
+    const { clearUserCache } = await import('./userCache');
+    clearUserCache();
+  } catch {}
 }
 
 /* ── Posts ────────────────────────────────────────────────────────────────── */
@@ -1101,36 +1107,19 @@ export async function fetchChatList(): Promise<Chat[]> {
       return data.user1Id === userId ? data.user2Id : data.user1Id;
     }))];
 
-    // Batch fetch all user profiles in parallel (chunks of 10)
-    const CHUNK_SIZE = 10;
-    const userMap: Record<string, any> = {};
+    // PERF: Use getUserProfilesBatch() instead of raw Firestore reads.
+    // The cache has a 2-min TTL, so repeated fetchChatList calls (every 30s)
+    // will hit cache for most users instead of making individual doc reads.
+    const { getUserProfilesBatch } = await import('./userCache');
+    const profileMap = await getUserProfilesBatch(otherUserIds);
 
-    for (let i = 0; i < otherUserIds.length; i += CHUNK_SIZE) {
-      const chunk = otherUserIds.slice(i, i + CHUNK_SIZE);
-      try {
-        const userResults = await Promise.all(
-          chunk.map(async uid => {
-            try {
-              const snap = await firestore().collection('users').doc(uid).get();
-              return snap.exists ? { id: uid, data: snap.data() } : null;
-            } catch { return null; }
-          })
-        );
-        for (const r of userResults) {
-          if (r) userMap[r.id] = r.data;
-        }
-      } catch (e) {
-        console.warn('[Chat] Batch user fetch failed for chunk:', e);
-      }
-    }
-
-    // Build chat objects using batched userMap
+    // Build chat objects using cached userMap
     const chats: Chat[] = validDocs.map(docSnap => {
       const data = docSnap.data();
       const otherId = data.user1Id === userId ? data.user2Id : data.user1Id;
       const isUser1 = data.user1Id === userId;
       const unreadCount = isUser1 ? (data.unreadUser1 || 0) : (data.unreadUser2 || 0);
-      const otherData = userMap[otherId];
+      const otherData = profileMap.get(otherId);
 
       return {
         id: docSnap.id,
@@ -1147,12 +1136,12 @@ export async function fetchChatList(): Promise<Chat[]> {
           displayName: otherData.displayName || '',
           bio: otherData.bio || '',
           profileImage: otherData.profileImage || null,
-          coverImage: otherData.coverImage || null,
+          coverImage: null,
           role: otherData.role || 'personal',
           badge: otherData.badge || '',
           subscription: otherData.subscription || 'free',
           isVerified: otherData.isVerified || false,
-          createdAt: (() => { try { return tsToMillis(otherData.createdAt); } catch { return Date.now(); } })(),
+          createdAt: Date.now(),
         } : null,
       };
     });

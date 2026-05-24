@@ -72,13 +72,15 @@ export default function ChatListScreen({ navigation, route }: any) {
     }, [load]),
   );
 
-  // Initial load on mount + polling every 15 seconds.
-  // PERF: Was 5 seconds — too aggressive. Each poll calls fetchChatList which
-  // makes Firestore reads. 15s is a good balance between freshness and cost.
+  // Initial load on mount + polling every 30 seconds.
+  // PERF: Was 15 seconds — still too aggressive for chat list. Each poll calls
+  // fetchChatList which does 2 Firestore queries + user profile enrichment.
+  // With the userCache (2-min TTL), repeated polls are mostly cache hits,
+  // so 30s is a good balance between freshness and battery/network cost.
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     load();
-    pollRef.current = setInterval(load, 15000);
+    pollRef.current = setInterval(load, 30000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [load]);
 

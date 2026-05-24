@@ -248,27 +248,19 @@ export function useChatRoom({
     };
     resetUnread();
     load();
-    // Use listen() for change-based updates instead of polling every 2s.
-    // This eliminates stale closures, scroll yanking, and reduces Firestore reads
-    // by only triggering re-renders when messages actually change.
-    const colRef = firestore().collection('chats').doc(chat.id).collection('messages')
-      .orderBy('createdAt', 'asc');
-    unsubRef.current = colRef.listen(
-      ({ docs }) => {
-        // Merge: keep temp messages that haven't appeared in server results yet
-        const serverIds = new Set(docs.map(m => m.id));
-        const stillPending = messagesRef.current.filter(
-          m => m.id.startsWith('tmp-') && !serverIds.has(m.id)
-        );
-        const merged = [...stillPending, ...docs.map(d => ({
-          id: d.id,
-          ...d.data(),
-          chatId: chat.id,
-        }))];
-        setMessages(merged);
-      },
-      { pollInterval: 3000 }, // Chat: poll every 3 seconds
-    );
+    // BUG FIX: Replaced listen() with simple load() polling.
+    // The old listen() had TWO critical bugs:
+    //   1. No .limit() — fetched ALL messages (could be 1000+), causing memory
+    //      explosion and OS killing the app on every 3-second poll cycle.
+    //   2. Raw Firestore data spread WITHOUT E2EE decryption — replaced properly
+    //      decrypted messages with encrypted E2EE:... ciphertext, causing data
+    //      corruption and potential rendering crashes.
+    // Now we just re-use fetchMessages() (which properly decrypts + limits to 50)
+    // via loadRef, keeping the same silent-merge logic for optimistic messages.
+    const pollTimer = setInterval(() => {
+      loadRef.current(true);
+    }, 5000); // Poll every 5 seconds (was 3s — less aggressive)
+    unsubRef.current = () => clearInterval(pollTimer);
     return () => {
       if (unsubRef.current) unsubRef.current();
     };

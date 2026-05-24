@@ -65,45 +65,62 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   const PAGE_SIZE = 10;
 
   // ── Enrichment: author profiles ─────────────────────────────────────────
-  // Uses the shared enrichAuthorProfiles utility to fetch latest user docs
-  // and apply displayName, username, profileImage, badge, isVerified to posts.
-  // Also includes self-repair logic for corrupted user docs.
+  // Uses the shared enrichAuthorProfiles utility (backed by userCache with
+  // 2-min TTL) to fetch latest user docs and apply displayName, username,
+  // profileImage, badge, isVerified to posts.
+  //
+  // PERF: Removed redundant self-repair loop that duplicated ALL user doc
+  // fetches already done by enrichAuthorProfiles. The old code fetched each
+  // user doc TWICE per page load — once for enrichment, once for repair.
+  // Self-repair is now handled lazily: only the CURRENT USER's doc is checked,
+  // and only if enrichment shows it's corrupted (empty displayName/username).
   const enrichAuthorProfilesWithRepair = useCallback(async (postsToEnrich: Post[]) => {
     await enrichAuthorProfiles(postsToEnrich);
 
-    // Self-repair: check if any user docs were corrupted (empty displayName/username)
-    // and try to fix them from the Zustand store
-    const uniqueAuthorIds = [...new Set(postsToEnrich.map(p => p.authorId).filter(Boolean))];
-    const CHUNK_SIZE = 10;
-    for (let i = 0; i < uniqueAuthorIds.length; i += CHUNK_SIZE) {
-      const chunk = uniqueAuthorIds.slice(i, i + CHUNK_SIZE);
-      const userDocs = await Promise.all(
-        chunk.map(uid => firestore().collection('users').doc(uid).get().catch(() => null))
-      );
-      for (const docSnap of userDocs) {
-        if (!docSnap || !docSnap.exists) continue;
-        const d = docSnap.data()!;
-        if (d.username && d.displayName) continue; // not corrupted
-        if (__DEV__) console.warn(`[Feed] User doc ${docSnap.id} appears corrupted (username="${d.username}", displayName="${d.displayName}") — attempting self-repair`);
-        try {
-          const { useAppStore } = await import('../stores/app');
-          const storeUser = useAppStore.getState().user;
-          if (storeUser && storeUser.id === docSnap.id && (storeUser.username || storeUser.displayName)) {
-            await firestore().collection('users').doc(docSnap.id).update({
-              username: storeUser.username || '',
-              displayName: storeUser.displayName || 'User',
-              profileImage: storeUser.profileImage || null,
-            });
-            if (__DEV__) console.log(`[Feed] Repaired user doc ${docSnap.id}: ${storeUser.displayName} @${storeUser.username}`);
-          }
-        } catch (repairErr) {
-          if (__DEV__) console.warn(`[Feed] Failed to repair user doc ${docSnap.id}:`, repairErr);
+    // Lightweight self-repair: only check if the CURRENT USER's own doc is
+    // corrupted (visible in their own posts). Skip other users' docs to
+    // avoid redundant Firestore reads — enrichAuthorProfiles already fetched them.
+    const myId = auth()?.currentUser?.uid;
+    if (!myId) return;
+    const myPosts = postsToEnrich.filter(p => p.authorId === myId);
+    if (myPosts.length === 0) return;
+
+    // If any of our own posts still have empty displayName after enrichment,
+    // our user doc might be corrupted. Repair it from the Zustand store.
+    const needsRepair = myPosts.some(p => !p.authorDisplayName || !p.authorUsername);
+    if (!needsRepair) return;
+
+    if (__DEV__) console.warn('[Feed] Current user doc appears corrupted — attempting self-repair');
+    try {
+      const { useAppStore } = await import('../stores/app');
+      const storeUser = useAppStore.getState().user;
+      if (storeUser && (storeUser.username || storeUser.displayName)) {
+        await firestore().collection('users').doc(myId).update({
+          username: storeUser.username || '',
+          displayName: storeUser.displayName || 'User',
+          profileImage: storeUser.profileImage || null,
+        });
+        // Re-enrich our own posts after repair
+        for (const post of myPosts) {
+          if (storeUser.displayName) post.authorDisplayName = storeUser.displayName;
+          if (storeUser.username) post.authorUsername = storeUser.username;
+          if (storeUser.profileImage) post.authorProfileImage = storeUser.profileImage;
         }
+        // Invalidate cache so next enrichment picks up the repaired doc
+        const { invalidateUserCache } = await import('../lib/userCache');
+        invalidateUserCache(myId);
+        if (__DEV__) console.log(`[Feed] Repaired user doc ${myId}: ${storeUser.displayName} @${storeUser.username}`);
       }
+    } catch (repairErr) {
+      if (__DEV__) console.warn('[Feed] Failed to repair user doc:', repairErr);
     }
   }, []);
 
   // ── Enrichment: user interactions (likes, bookmarks, reposts, poll votes) ─
+  // PERF: Fetches all interaction docs in parallel batches of 10.
+  // Each post needs 3 checks (like, bookmark, repost) = 30 individual reads
+  // per page. This is the minimum possible with the REST API since Firestore
+  // doesn't support "key-in" queries for subcollections.
   const enrichInteractions = useCallback(async (postsToEnrich: Post[], userId: string) => {
     const postIds = postsToEnrich.map(p => p.repostOf || p.id);
     const likedIds = new Set<string>();
@@ -126,6 +143,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
       post.bookmarked = bookmarkedIds.has(iid);
       post.reposted = repostedIds.has(iid);
     }
+    // PERF: Only fetch poll votes for posts that actually have polls
     const pollPostIds = postsToEnrich.filter(p => p.pollData).map(p => p.id);
     if (pollPostIds.length > 0) {
       const pollVotedIds = new Set<string>();
