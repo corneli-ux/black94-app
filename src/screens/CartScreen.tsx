@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   itemName: { color: colors.text, fontSize: 15, fontWeight: '600', lineHeight: 21, marginBottom: 2 },
   itemOwner: { color: colors.textMuted, fontSize: 12, marginBottom: 2 },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  itemPrice: { color: colors.textSecondary, fontSize: 14 },
+  itemPrice: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   itemComparePrice: { color: colors.textMuted, fontSize: 12, textDecorationLine: 'line-through' },
   itemActions: {
     justifyContent: 'space-between',

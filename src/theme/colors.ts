@@ -74,4 +74,54 @@ export const colors = {
   composeBorder: 'rgba(255,255,255,0.08)',   // web: border-white/[0.08]
   composeDisabled: 'rgba(255,255,255,0.08)',  // web: bg-white/[0.08]
   composeDisabledText: '#64748b',             // web: text-[#64748b]
+
+  // ── Surfaces (semi-transparent) ──
+  bgSubtle: 'rgba(255,255,255,0.04)',          // subtle elevated surface
+  bgSubtleAlt: 'rgba(255,255,255,0.05)',       // slightly more visible surface
+  white25: 'rgba(255,255,255,0.25)',
+  white50: 'rgba(255,255,255,0.5)',
+  borderSubtle: 'rgba(255,255,255,0.08)',
+  borderSubtleAlt: 'rgba(255,255,255,0.12)',
+  borderSubtleStrong: 'rgba(255,255,255,0.15)',
+  borderWhite40: 'rgba(255,255,255,0.4)',
+
+  // ── Overlays ──
+  overlay: 'rgba(0,0,0,0.5)',
+  overlayMedium: 'rgba(0,0,0,0.55)',
+  overlayDark: 'rgba(0,0,0,0.6)',
+  overlayHeavy: 'rgba(0,0,0,0.7)',
+  overlayDarker: 'rgba(0,0,0,0.75)',
+  drawerOverlay: 'rgba(0,0,0,0.7)',
+
+  // ── Accent tints (for badges, chips, highlights) ──
+  accentFaint: 'rgba(212,175,55,0.08)',
+  accentBg: 'rgba(212,175,55,0.1)',
+  accentBgStrong: 'rgba(212,175,55,0.15)',
+  accentBorder: 'rgba(212,175,55,0.2)',
+  accentBorderStrong: 'rgba(212,175,55,0.25)',
+  accentBorderHeavy: 'rgba(212,175,55,0.3)',
+
+  // ── Destructive tints ──
+  destructiveFaint: 'rgba(244,63,94,0.08)',
+  destructiveBg: 'rgba(244,63,94,0.15)',
+  destructiveBorder: 'rgba(244,63,94,0.2)',
+
+  // ── Green tints ──
+  greenBg: 'rgba(16,185,129,0.1)',          // matches accentGreen
+  greenFaint: 'rgba(34,197,94,0.1)',
+
+  // ── Row highlights ──
+  rowUnreadBg: 'rgba(255,255,255,0.03)',
+  rowPressed: 'rgba(255,255,255,0.04)',
+
+  // ── Skeleton shimmer ──
+  skeleton: '#2a2d33',                       // visible on pure black
+  skeletonFaint: 'rgba(255,255,255,0.15)',
+  skeletonBright: 'rgba(255,255,255,0.35)',
+
+  // ── Fact check ──
+  factCheckBg: 'rgba(16,185,129,0.1)',       // matches accentGreen (#10b981)
+
+  // ── Stars ──
+  starEmpty: '#374151',                       // visible empty star on dark bg
 };

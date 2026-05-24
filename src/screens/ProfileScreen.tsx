@@ -239,7 +239,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
       {/* Double-tap heart overlay */}
       {showHeart && (
         <View style={profileCardStyles.heartOverlay} pointerEvents="none">
-          <Ionicons name="heart" size={80} color="rgba(249,24,128,0.85)" />
+          <Ionicons name="heart" size={80} color={colors.like} />
         </View>
       )}
     </View>
@@ -427,7 +427,7 @@ function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
             resizeMode="cover"
           />
           {post.mediaUrls.length > 1 && (
-            <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+            <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: colors.overlayDark, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
               <Ionicons name="copy-outline" size={12} color={colors.white} />
             </View>
           )}
@@ -1058,7 +1058,7 @@ const styles = StyleSheet.create({
   /* Message button: border border-[#FFFFFF]/40 text-[#FFFFFF] px-5 py-2 rounded-full text-[15px] font-bold */
   messageBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 999,
+    borderWidth: 1, borderColor: colors.borderWhite40, borderRadius: 999,
     paddingHorizontal: 16, paddingVertical: 6,
   },
   messageBtnText: { color: colors.white, fontWeight: '700', fontSize: 14 },
@@ -1108,7 +1108,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSubtle,
   },
   adBannerBadgeRow: {
     flexDirection: 'row',
@@ -1145,7 +1145,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   adBannerSponsored: {
-    color: 'rgba(113,118,123,0.6)',
+    color: colors.textMuted,
     fontSize: 11,
   },
   adSeparator: {

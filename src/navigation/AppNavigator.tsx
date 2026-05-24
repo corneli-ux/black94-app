@@ -122,16 +122,17 @@ function LazyScreen(Component: any) {
 }
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
+  const tabColor = focused ? colors.white : colors.textMuted;
   const iconProps: { size: number; color: string } = {
     size: 24,
-    color: colors.white,
+    color: tabColor,
   };
 
   // Match web's Lucide icons with Ionicons equivalents
   switch (name) {
     case 'Home':
       return (
-        <Text style={{ fontSize: 20, fontWeight: '900', color: colors.white }}>94</Text>
+        <Text style={{ fontSize: 24, fontWeight: '900', color: tabColor }}>94</Text>
       );
     case 'Search':
       return (
@@ -158,7 +159,8 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       return (
         <MaterialCommunityIcons
           {...iconProps}
-          name={focused ? 'incognito' : 'incognito'}
+          name='incognito'
+          style={focused ? { opacity: 1 } : { opacity: 0.5 }}
         />
       );
     case 'Stories':
@@ -204,7 +206,7 @@ const MainTabs = memo(function MainTabs() {
           borderTopColor: colors.separator,
           height: tabBarHeight,
           paddingBottom: insets.bottom || 0,
-          elevation: 8,
+          elevation: 0,
         },
         tabBarShowLabel: false,
         sceneStyle: { paddingBottom: tabBarHeight },
@@ -344,7 +346,7 @@ function DrawerNavigator() {
         headerShown: false,
         drawerStyle: { backgroundColor: colors.bg, width: '72%' },
         sceneStyle: { backgroundColor: colors.bg },
-        overlayColor: 'rgba(0,0,0,0.7)',
+        overlayColor: colors.drawerOverlay,
       }}
     >
       <Drawer.Screen name="MainTabs" component={MainTabs} />
@@ -506,7 +508,7 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  drawer: { flex: 1, backgroundColor: colors.bg, paddingTop: 20 },
+  drawer: { flex: 1, backgroundColor: colors.bg },
   drawerLogo: { paddingHorizontal: 20, paddingVertical: 16, marginBottom: 8 },
   drawerLogoText: { color: colors.text, fontSize: 24, fontWeight: '800' },
   drawerItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 18 },

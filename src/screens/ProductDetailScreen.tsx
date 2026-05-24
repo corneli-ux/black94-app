@@ -73,20 +73,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   const [reviews, setReviews] = useState<any[]>([]);
   const [avgRating, setAvgRating] = useState(0);
 
-  // BUG FIX: Early return AFTER all hooks to avoid "Rendered fewer hooks
-  // than expected" crash. Guard against missing productId (navigation bug).
-  if (!productId) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: colors.textMuted, fontSize: 15 }}>Product not found</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 12 }}>
-          <Text style={{ color: colors.accent, fontSize: 14 }}>Go back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   const load = useCallback(async () => {
+    if (!productId) return;
     try {
       const docSnap = await firestore().collection('products').doc(productId).get();
       if (!docSnap.exists) {
@@ -163,6 +151,18 @@ export default function ProductDetailScreen({ route, navigation }: any) {
       }
     }).catch(() => {});
   }, [productId]);
+
+  // Guard: no productId — show fallback AFTER all hooks
+  if (!productId) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: colors.textMuted, fontSize: 15 }}>Product not found</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 12 }}>
+          <Text style={{ color: colors.accent, fontSize: 14 }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const handleReview = async (rating: number) => {
     Alert.alert(
@@ -433,8 +433,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             {avgRating > 0 && (
               <View style={styles.avgRatingRow}>
                 <Text style={styles.avgRatingNum}>{avgRating.toFixed(1)}</Text>
-                <Text style={styles.avgRatingStars}>
-                  {'★'.repeat(Math.round(avgRating))}{'☆'.repeat(5 - Math.round(avgRating))}
+                <Text style={[styles.avgRatingStars, { color: colors.accentGold }]}>
+                  {'★'.repeat(Math.round(avgRating))}<Text style={{ color: colors.starEmpty }}>{'☆'.repeat(5 - Math.round(avgRating))}</Text>
                 </Text>
                 <Text style={styles.reviewCount}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</Text>
               </View>
@@ -446,7 +446,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
                   <Avatar uri={review.profileImage} name={review.displayName} size={32} />
                   <View style={styles.reviewAuthorInfo}>
                     <Text style={styles.reviewAuthor}>{review.displayName}</Text>
-                    <Text style={styles.reviewStars}>{'★'.repeat(review.rating || 0)}{'☆'.repeat(5 - (review.rating || 0))}</Text>
+                    <Text style={styles.reviewStars}>{'★'.repeat(review.rating || 0)}<Text style={{ color: colors.starEmpty }}>{'☆'.repeat(5 - (review.rating || 0))}</Text></Text>
                   </View>
                 </View>
                 {review.text ? <Text style={styles.reviewText}>{review.text}</Text> : null}
@@ -554,14 +554,14 @@ const styles = StyleSheet.create({
   ownerName: { color: colors.text, fontSize: 15, fontWeight: '600' },
   ownerHandle: { color: colors.textSecondary, fontSize: 13 },
   section: { marginBottom: 20 },
-  sectionTitle: { color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 10 },
+  sectionTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 10 },
   description: { color: colors.textSecondary, fontSize: 14, lineHeight: 22 },
   variantRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   variantChip: {
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
     borderWidth: 1, borderColor: colors.border,
   },
-  variantChipActive: { borderColor: colors.accent, backgroundColor: 'rgba(42,127,255,0.1)' },
+  variantChipActive: { borderColor: colors.accent, backgroundColor: colors.accentBg },
   variantText: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
   variantTextActive: { color: colors.accent },
   tagChip: { backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },

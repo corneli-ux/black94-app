@@ -1012,7 +1012,7 @@ export default function FeedScreen({ navigation }: any) {
 
       {/* Edit post modal */}
       <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setEditingPost(null)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: colors.overlay }} activeOpacity={1} onPress={() => setEditingPost(null)}>
           <View style={styles.editModal}>
             <Text style={styles.editModalTitle}>Edit Post</Text>
             <TextInput
@@ -1191,7 +1191,7 @@ const styles = StyleSheet.create({
   },
   mediaErrorOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: colors.overlayDarker,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
@@ -1232,7 +1232,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: 'rgba(34,197,94,0.1)',
+    backgroundColor: colors.greenFaint,
     borderRadius: 6,
     alignSelf: 'flex-start',
   },
@@ -1285,7 +1285,7 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     alignItems: 'center', justifyContent: 'center',
   },
 
@@ -1315,7 +1315,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   adBody: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.separator,
@@ -1356,7 +1356,7 @@ const styles = StyleSheet.create({
 
   /* ── Inline Poll ── */
   pollCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     borderRadius: scale(16),
     padding: scale(16),
     marginTop: scale(12),
@@ -1397,11 +1397,11 @@ const styles = StyleSheet.create({
     minHeight: 100,
     maxHeight: 200,
     textAlignVertical: 'top',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: colors.bgSubtleAlt,
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.borderSubtleStrong,
   },
   editCharCount: {
     color: colors.textMuted,
@@ -1421,17 +1421,17 @@ const styles = StyleSheet.create({
   },
   pollOptionBtn: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: colors.borderSubtleAlt,
     borderRadius: 10,
     paddingVertical: 11,
     paddingHorizontal: 12,
     marginBottom: 8,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: colors.rowUnreadBg,
     overflow: 'hidden',
     position: 'relative',
   },
   pollOptionVoted: {
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    backgroundColor: colors.rowUnreadBg,
   },
   pollOptionFill: {
     position: 'absolute',
@@ -1442,7 +1442,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   pollOptionFillSelected: {
-    backgroundColor: 'rgba(212,175,55,0.18)',
+    backgroundColor: colors.accentBorderStrong,
   },
   pollOptionContent: {
     flexDirection: 'row',

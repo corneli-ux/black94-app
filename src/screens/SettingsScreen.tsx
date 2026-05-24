@@ -326,14 +326,14 @@ const styles = StyleSheet.create({
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 20, paddingVertical: 12, borderRadius: 12,
-    backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',
+    backgroundColor: colors.accentBg, borderWidth: 1, borderColor: colors.accentBorderStrong,
   },
   saveBtnText: { color: colors.accent, fontWeight: '600', fontSize: 15 },
   profileSection: { alignItems: 'center', paddingVertical: 20 },
   upgradeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   upgradeCard: {
     backgroundColor: colors.surface, borderRadius: 16,
-    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', overflow: 'hidden',
+    borderWidth: 1, borderColor: colors.accentBorderHeavy, overflow: 'hidden',
   },
   upgradeCardTop: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   },
   upgradeIconWrap: {
     width: 52, height: 52, borderRadius: 14,
-    backgroundColor: 'rgba(212,175,55,0.1)',
+    backgroundColor: colors.accentBg,
     alignItems: 'center', justifyContent: 'center',
   },
   upgradeTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: 16,
-    backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',
+    backgroundColor: colors.accentBg, borderWidth: 1, borderColor: colors.accentBorderStrong,
     marginBottom: 40,
   },
   logoutText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
@@ -402,9 +402,9 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: 'rgba(244, 63, 94, 0.08)',
+    backgroundColor: colors.destructiveFaint,
     borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.2)',
+    borderColor: colors.destructiveBorder,
   },
   deleteAccountText: { color: colors.like, fontSize: 15, fontWeight: '600' },
   deleteAccountHint: { color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 },

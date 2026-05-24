@@ -221,7 +221,7 @@ export default function NotificationsScreen({ navigation }: any) {
           ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: colors.border }} />}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
-              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.bgSubtle, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                 <Ionicons name="notifications-outline" size={28} color={colors.textSecondary} />
               </View>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 6 }}>Nothing to see here — yet</Text>
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   headerTitle: { color: colors.text, fontSize: 20, fontWeight: '700' },
   markAllText: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   row: { flexDirection: 'row', padding: 12, paddingHorizontal: 16, gap: 12 },
-  rowUnread: { backgroundColor: 'rgba(255,255,255,0.03)' },
+  rowUnread: { backgroundColor: colors.rowUnreadBg },
   iconWrap: { position: 'relative' },
   typeIcon: {
     position: 'absolute', bottom: -2, right: -4,

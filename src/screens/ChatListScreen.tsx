@@ -417,7 +417,7 @@ export default function ChatListScreen({ navigation, route }: any) {
             size={18}
             color={activeTab === 'chat' ? colors.white : colors.textSecondary}
           />
-          <Text style={[styles.tabText, styles.tabTextActive]}>
+          <Text style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>
             Chats
           </Text>
         </View>
@@ -568,6 +568,7 @@ export default function ChatListScreen({ navigation, route }: any) {
       {renderTabHeader()}
 
       {/* Tab Content */}
+      {activeTab === 'chat' ? (
       <>
           {/* Search */}
           <View style={styles.searchContainer}>
@@ -657,6 +658,7 @@ export default function ChatListScreen({ navigation, route }: any) {
             />
           )}
       </>
+      ) : renderChatAds()}
       {/* Compose Modal */}
       {renderComposeModal()}
 
@@ -784,9 +786,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 4,
     height: 44,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSubtle,
     borderRadius: 12,
     paddingHorizontal: 12,
     gap: 8,
@@ -913,13 +915,14 @@ const styles = StyleSheet.create({
   searchIcon: {
     position: 'absolute',
     left: 12,
+    top: 12,
     zIndex: 1,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSubtle,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -939,8 +942,7 @@ const styles = StyleSheet.create({
   },
   avatarWrap: {
     position: 'relative',
-    // @ts-expect-error shrink not in RN 0.81 ViewStyle
-    shrink: 0,
+    flexShrink: 0,
   },
   chatInfo: {
     flex: 1,
@@ -1016,7 +1018,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -1060,7 +1062,7 @@ const styles = StyleSheet.create({
   },
   groupModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: colors.overlayHeavy,
     justifyContent: 'flex-end',
   },
   groupModal: {
@@ -1092,10 +1094,10 @@ const styles = StyleSheet.create({
     marginVertical: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.bgSubtle,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSubtle,
   },
   groupNameText: {
     flex: 1,

@@ -255,7 +255,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
       {/* Double-tap heart overlay */}
       {showHeart && (
         <View style={profileCardStyles.heartOverlay} pointerEvents="none">
-          <Ionicons name="heart" size={80} color="rgba(249,24,128,0.85)" />
+          <Ionicons name="heart" size={80} color={colors.like} />
         </View>
       )}
     </View>
@@ -418,7 +418,7 @@ function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
           {post.mediaUrls!.length > 1 && (
             <View style={{
               position: 'absolute', top: 6, right: 6,
-              backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4,
+              backgroundColor: colors.overlayDark, borderRadius: 4,
               paddingHorizontal: 5, paddingVertical: 2,
             }}>
               <Ionicons name="copy-outline" size={10} color={colors.white} />
@@ -981,7 +981,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: '700' }}>Unable to load profile</Text>
           <Text style={{ color: colors.textMuted, fontSize: 14, marginTop: 8 }}>Check your connection and try again.</Text>
           <TouchableOpacity
-            style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: 'rgba(212,175,55,0.15)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)' }}
+            style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.accentBgStrong, borderRadius: 12, borderWidth: 1, borderColor: colors.accentBorderHeavy }}
             onPress={() => loadData()}
             activeOpacity={0.7}
           >
@@ -1279,7 +1279,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   coverPlaceholderText: {
-    color: 'rgba(255,255,255,0.08)',
+    color: colors.borderSubtle,
     fontSize: 60,
     fontWeight: '800',
   },
@@ -1289,7 +1289,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 40,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: colors.overlayDark,
   },
   backButton: {
     position: 'absolute',
@@ -1297,7 +1297,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
@@ -1390,7 +1390,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: colors.borderWhite40,
   },
   moreOptionsBtn: {
     width: 36,
@@ -1400,7 +1400,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: colors.borderWhite40,
     marginLeft: 8,
   },
   messageBtnText: {
@@ -1457,7 +1457,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSubtle,
   },
   adBannerBadgeRow: {
     flexDirection: 'row',
@@ -1494,7 +1494,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   adBannerSponsored: {
-    color: 'rgba(113,118,123,0.6)',
+    color: colors.textMuted,
     fontSize: 11,
   },
   adSeparator: {

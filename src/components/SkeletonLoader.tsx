@@ -17,18 +17,18 @@ function SkeletonBox({
   borderRadius?: number;
   style?: any;
 }) {
-  const opacity = useRef(new Animated.Value(0.08)).current;
+  const opacity = useRef(new Animated.Value(0.15)).current;
 
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, {
-          toValue: 0.18,
+          toValue: 0.35,
           duration: 800,
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
-          toValue: 0.08,
+          toValue: 0.15,
           duration: 800,
           useNativeDriver: true,
         }),
@@ -45,7 +45,7 @@ function SkeletonBox({
           width,
           height,
           borderRadius: borderRadius ?? height / 2,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.skeleton,
         },
         { opacity },
         style,
