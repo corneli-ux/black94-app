@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useRef, memo } from 'react';
+import React, { Component, Suspense, lazy, useEffect, useRef, memo } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
@@ -112,12 +112,41 @@ function LazyFallback() {
   );
 }
 
+// BUG FIX: Error boundary for lazy-loaded screens. If a lazy import fails
+// (missing module, native module crash, syntax error), React shows
+// Suspense fallback forever. This error boundary catches the error and
+// shows a recovery UI instead. Critical for ChatRoomScreen which loads
+// many native modules (expo-av, expo-image-picker, expo-file-system).
+class LazyScreenErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  state = { hasError: false, error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Text style={{ color: colors.text, fontSize: 16, textAlign: 'center' }}>
+            Failed to load screen. Please restart the app.
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function LazyScreen(Component: any) {
   return function Wrapped(props: any) {
     return (
-      <Suspense fallback={<LazyFallback />}>
-        <Component {...props} />
-      </Suspense>
+      <LazyScreenErrorBoundary>
+        <Suspense fallback={<LazyFallback />}>
+          <Component {...props} />
+        </Suspense>
+      </LazyScreenErrorBoundary>
     );
   };
 }

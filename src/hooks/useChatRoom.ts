@@ -36,7 +36,22 @@ async function getImagePicker() {
 }
 import { fetchMessages, sendMessage, blockUser, deleteMessage, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
-import { uploadOptimizedImage } from '../utils/imageUpload';
+// BUG FIX: Lazy-load imageUpload — expo-file-system is only used inside
+// functions (not at module load), but making the import dynamic
+// ensures the module tree stays lightweight and resilient to native
+// module failures on specific devices/configurations.
+let _uploadModule: any = null;
+async function getUploadOptimizedImage() {
+  if (!_uploadModule) {
+    try {
+      _uploadModule = await import('../utils/imageUpload');
+    } catch (e) {
+      console.error('[ChatRoom] Failed to load imageUpload module:', e);
+      return null;
+    }
+  }
+  return (_uploadModule as any).uploadOptimizedImage || null;
+}
 import { tsToMillis } from '../utils/datetime';
 // BUG FIX: Import initE2EE to ensure encryption keys are initialized
 // before fetchMessages calls decryptMessage. Without this, the first message
@@ -477,7 +492,12 @@ export function useChatRoom({
 
       // Upload to Firebase Storage
       const storagePath = `chats/${chat.id}/${Date.now()}_${asset.fileName || 'photo.jpg'}`;
-      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+      const uploadFn = await getUploadOptimizedImage();
+      if (!uploadFn) {
+        Alert.alert('Error', 'Image upload is not available. Please update the app.');
+        return;
+      }
+      const uploadResult = await uploadFn(asset.uri, storagePath, {
         mimeType: asset.mimeType || 'image/jpeg',
       });
 
@@ -518,7 +538,12 @@ export function useChatRoom({
       setUploading(true);
 
       const storagePath = `chats/${chat.id}/${Date.now()}_camera.jpg`;
-      const uploadResult = await uploadOptimizedImage(asset.uri, storagePath, {
+      const uploadFn = await getUploadOptimizedImage();
+      if (!uploadFn) {
+        Alert.alert('Error', 'Image upload is not available. Please update the app.');
+        return;
+      }
+      const uploadResult = await uploadFn(asset.uri, storagePath, {
         mimeType: asset.mimeType || 'image/jpeg',
       });
 
@@ -609,7 +634,12 @@ export function useChatRoom({
       const storagePath = `chats/${chat.id}/${fileName}`;
       let audioUrl = '';
       try {
-        const uploadResult = await uploadOptimizedImage(uri, storagePath, {
+        const uploadFn = await getUploadOptimizedImage();
+        if (!uploadFn) {
+          console.error('[ChatRoom] Voice upload: imageUpload module not available');
+          return;
+        }
+        const uploadResult = await uploadFn(uri, storagePath, {
           mimeType: 'audio/mp4',
           skipImageValidation: true,
         });
