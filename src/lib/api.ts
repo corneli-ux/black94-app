@@ -1728,8 +1728,8 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
     // GUARD: If the user doc is corrupted (empty username + displayName from the old
     // _firestoreCommitUpdate write.update bug), try to recover from AsyncStorage cache.
     // This prevents returning a corrupted profile to the Zustand store and UI.
-    if (!data?.username && !data?.displayName) {
-      if (__DEV__) console.warn('[User] User doc appears corrupted (empty username/displayName) — attempting cache recovery');
+    if (!data?.username || !data?.displayName) {
+      if (__DEV__) console.warn('[User] User doc appears corrupted (missing username or displayName) — attempting cache recovery');
       try {
         const raw = await AsyncStorage.getItem('@black94/user_cache');
         if (raw) {
@@ -1757,7 +1757,7 @@ export async function fetchUserProfile(userId: string): Promise<User | null> {
 
     // ZUSTAND FALLBACK: If cache recovery also failed, try the Zustand store.
     // This matches the fallback pattern used in createPost() and getActorData().
-    if (!data?.username && !data?.displayName) {
+    if (!data?.username || !data?.displayName) {
       try {
         const { useAppStore } = await import('../stores/app');
         const storeUser = useAppStore.getState().user;

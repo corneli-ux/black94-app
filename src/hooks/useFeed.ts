@@ -78,6 +78,8 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
           if (docSnap && docSnap.exists) {
             const d = docSnap.data()!;
             authorProfileMap[docSnap.id] = {
+              username: d.username || '',
+              displayName: d.displayName || '',
               profileImage: d.profileImage || null,
               badge: d.badge || '',
               isVerified: d.isVerified || false,
@@ -91,6 +93,8 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
     for (const post of postsToEnrich) {
       const fresh = authorProfileMap[post.authorId];
       if (!fresh) continue;
+      if (fresh.username) post.authorUsername = fresh.username;
+      if (fresh.displayName) post.authorDisplayName = fresh.displayName;
       if (fresh.profileImage) post.authorProfileImage = fresh.profileImage;
       if (fresh.badge) post.authorBadge = fresh.badge;
       post.authorIsVerified = fresh.isVerified;
