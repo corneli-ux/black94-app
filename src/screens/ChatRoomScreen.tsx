@@ -152,6 +152,14 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             </TouchableOpacity>
           )}
 
+          {/* Reply indicator — shown BEFORE message content */}
+          {item.replyToContent && (
+            <View style={styles.replyIndicator}>
+              <Text style={styles.replyIndicatorName}>{item.replyToSenderName || 'Reply'}</Text>
+              <Text style={styles.replyIndicatorText} numberOfLines={1}>{item.replyToContent}</Text>
+            </View>
+          )}
+
           {/* Text content (for text messages or captions) */}
           {item.content && msgType === 'text' ? (
             <Text style={[styles.bubbleText, isMine && { color: colors.primaryForeground }]}>{item.content}</Text>
@@ -177,13 +185,6 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           {reactionEntries.length > 0 && (
             <View style={styles.reactionBadge}>
               <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
-            </View>
-          )}
-          {/* Reply indicator */}
-          {item.replyToContent && (
-            <View style={styles.replyIndicator}>
-              <Text style={styles.replyIndicatorName}>{item.replyToSenderName || 'Reply'}</Text>
-              <Text style={styles.replyIndicatorText} numberOfLines={1}>{item.replyToContent}</Text>
             </View>
           )}
         </View>

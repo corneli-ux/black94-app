@@ -710,7 +710,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {IS_TABLET ? (
         // Tablet: side by side
         <View style={styles.tabletLayout}>

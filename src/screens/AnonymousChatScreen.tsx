@@ -616,7 +616,35 @@ export default function AnonymousChatScreen() {
             style: 'default',
             onPress: async () => {
               await AsyncStorage.setItem('@black94/age_verified', 'true').catch(() => {});
-              handleFindStranger();
+              // BUG FIX: After age verification, proceed directly to queue join
+              // instead of calling handleFindStranger() recursively (which
+              // could re-trigger this Alert on fast devices).
+              setError(null);
+              setChatState('searching');
+              setMessages([]);
+              setRoom(null);
+              roomRef.current = null;
+              setElapsed(0);
+              setSearchElapsed(0);
+              setIsPartnerTyping(false);
+              lastMsgTimestampRef.current = null;
+              try {
+                await firestore().collection('anonQueue').doc(myUserId).set({
+                  userId: myUserId,
+                  anonymousName: myName,
+                  status: 'waiting',
+                  partnerId: null,
+                  createdAt: nowISO(),
+                });
+                startSearchTimer();
+                if (queuePollRef.current) clearInterval(queuePollRef.current);
+                queuePollRef.current = setInterval(pollQueue, QUEUE_POLL_INTERVAL);
+                pollQueue();
+              } catch (e: any) {
+                console.error('[AnonChat] Failed to join queue:', e?.message);
+                setError(ANON_CHAT_UNAVAILABLE_MSG);
+                setChatState('landing');
+              }
             },
           },
         ],

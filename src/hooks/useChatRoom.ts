@@ -207,6 +207,10 @@ export function useChatRoom({
         }
       };
       fetchChat();
+    } else if (!routeChat && !routeChatId) {
+      // BUG FIX: If BOTH routeChat and routeChatId are missing, stop loading
+      // immediately and navigate back instead of showing infinite spinner.
+      setLoading(false);
     }
   }, [routeChatId, routeChat]);
 
@@ -263,7 +267,7 @@ export function useChatRoom({
     // via loadRef, keeping the same silent-merge logic for optimistic messages.
     const pollTimer = setInterval(() => {
       loadRef.current(true);
-    }, 5000); // Poll every 5 seconds (was 3s — less aggressive)
+    }, 8000); // Poll every 8 seconds (was 5s — less aggressive, fewer Firestore reads)
     unsubRef.current = () => clearInterval(pollTimer);
     return () => {
       if (unsubRef.current) unsubRef.current();
@@ -289,7 +293,7 @@ export function useChatRoom({
   // ── Send text message ─────────────────────────────────────────────────────
 
   const handleSend = async () => {
-    if (!text.trim() || sending) return;
+    if (!text.trim() || sending || !chat) return;
     const content = text.trim();
     setText('');
     setSending(true);
@@ -335,6 +339,10 @@ export function useChatRoom({
 
   const handlePickImage = async () => {
     setShowAttachMenu(false);
+    if (!chat) {
+      Alert.alert('Error', 'Chat not loaded yet. Please try again.');
+      return;
+    }
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
@@ -371,6 +379,10 @@ export function useChatRoom({
 
   const handleCamera = async () => {
     setShowAttachMenu(false);
+    if (!chat) {
+      Alert.alert('Error', 'Chat not loaded yet. Please try again.');
+      return;
+    }
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -413,6 +425,10 @@ export function useChatRoom({
 
   const handleStartVoiceRecord = async () => {
     setShowAttachMenu(false);
+    if (!chat) {
+      Alert.alert('Error', 'Chat not loaded yet. Please try again.');
+      return;
+    }
     try {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,

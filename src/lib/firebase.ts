@@ -395,9 +395,11 @@ function _increment(n: number) {
 function _parseFields(data: Record<string, any>): {
   fields: Record<string, any>;
   transforms: any[];
+  deletePaths: string[];
 } {
   const fields: Record<string, any> = {};
   const transforms: any[] = [];
+  const deletePaths: string[] = [];
 
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined) continue;
@@ -418,6 +420,11 @@ function _parseFields(data: Record<string, any>): {
           ? { integerValue: String(n) }
           : { doubleValue: n };
         transforms.push({ fieldPath: key, increment: fsVal });
+      } else if (sentinel.__sentinel === 'delete') {
+        // FieldValue.delete() — remove the field from the document.
+        // In Firestore REST PATCH, including a field in updateMask but
+        // NOT in the fields object deletes it. We track these paths separately.
+        deletePaths.push(key);
       } else {
         // Unknown sentinel — fall through to normal field encoding
         if (__DEV__) console.warn(`[Firestore] Unknown sentinel type: ${sentinel.__sentinel} for field ${key}`);
@@ -428,7 +435,7 @@ function _parseFields(data: Record<string, any>): {
     }
   }
 
-  return { fields, transforms };
+  return { fields, transforms, deletePaths };
 }
 
 /**
@@ -492,6 +499,7 @@ async function _firestoreCommitUpdate(
   fields: Record<string, any>,
   transforms: Array<{ fieldPath: string; setToServerValue?: string; increment?: any }>,
   preFetchedToken?: string,
+  deletePaths?: string[],
 ): Promise<void> {
   // Separate dot-notation fields from regular top-level fields.
   // Dot-notation fields require special handling (updateMask) to avoid
@@ -505,6 +513,9 @@ async function _firestoreCommitUpdate(
       regularFields[key] = value;
     }
   }
+  const delPaths = deletePaths || [];
+  const deleteDotPaths = delPaths.filter(p => p.includes('.'));
+  const deleteRegularPaths = delPaths.filter(p => !p.includes('.'));
 
   // Step 1a: Write regular (non-dot-notation) field updates via PATCH with updateMask.
   // CRITICAL BUG FIX: Without updateMask, Firestore REST PATCH replaces the ENTIRE
@@ -512,11 +523,14 @@ async function _firestoreCommitUpdate(
   // to lose user1Id/user2Id when sendMessage() updated lastMessage/unreadCount,
   // making chats invisible to fetchChatList() queries. Now we include updateMask
   // to ensure only the specified fields are updated, preserving all other fields.
-  if (Object.keys(regularFields).length > 0) {
-    const regularPaths = Object.keys(regularFields);
-    if (__DEV__) console.log(`[Firestore] commit step 1a: PATCH regular fields to ${docPath}: ${regularPaths.join(', ')}`);
+  // Step 1a: Write regular field updates + delete regular fields via PATCH.
+  // Including a path in updateMask but NOT in the fields body deletes it.
+  const regularPaths = Object.keys(regularFields);
+  const allRegularPaths = [...regularPaths, ...deleteRegularPaths];
+  if (allRegularPaths.length > 0) {
+    if (__DEV__) console.log(`[Firestore] commit step 1a: PATCH regular fields to ${docPath}: ${allRegularPaths.join(', ')}`);
     const authHeader = preFetchedToken || (await _getValidToken());
-    const url = `${FIRESTORE_BASE}/${docPath}?key=${API_KEY}&updateMask.fieldPaths=${regularPaths.map(encodeURIComponent).join('&updateMask.fieldPaths=')}`;
+    const url = `${FIRESTORE_BASE}/${docPath}?key=${API_KEY}&updateMask.fieldPaths=${allRegularPaths.map(encodeURIComponent).join('&updateMask.fieldPaths=')}`;
     const resp = await fetch(url, {
       method: 'PATCH',
       headers: {
@@ -536,13 +550,12 @@ async function _firestoreCommitUpdate(
     }
   }
 
-  // Step 1b: Write dot-notation field updates via PATCH with updateMask.
-  // The updateMask ensures only the specified subfield paths are updated,
-  // preserving sibling fields in the same parent map.
-  if (Object.keys(dotFields).length > 0) {
-    const dotPaths = Object.keys(dotFields);
+  // Step 1b: Write dot-notation field updates + delete dot-notation fields via PATCH.
+  const dotPaths = Object.keys(dotFields);
+  const allDotPaths = [...dotPaths, ...deleteDotPaths];
+  if (allDotPaths.length > 0) {
     const nestedFields = _dotNotationToNestedMap(dotFields);
-    if (__DEV__) console.log(`[Firestore] commit step 1b: PATCH dot-notation fields to ${docPath}: ${dotPaths.join(', ')}`);
+    if (__DEV__) console.log(`[Firestore] commit step 1b: PATCH dot-notation fields to ${docPath}: ${allDotPaths.join(', ')}`);
 
     // BUG FIX: Reuse the already-fetched token from the caller scope instead of
     // calling _getValidToken() again. The caller (CompatDocRef.set/update) already
@@ -551,7 +564,7 @@ async function _firestoreCommitUpdate(
     // BUG FIX: Use pre-fetched token from caller instead of fetching a new one.
     // Falls back to _getValidToken() if no pre-fetched token was provided.
     const authHeader = preFetchedToken || (await _getValidToken());
-    const url = `${FIRESTORE_BASE}/${docPath}?key=${API_KEY}&updateMask.fieldPaths=${dotPaths.map(encodeURIComponent).join(',')}`;
+    const url = `${FIRESTORE_BASE}/${docPath}?key=${API_KEY}&updateMask.fieldPaths=${allDotPaths.map(encodeURIComponent).join(',')}`;
     const resp = await fetch(url, {
       method: 'PATCH',
       headers: {
@@ -1035,7 +1048,7 @@ class CompatDocRef {
   }
 
   async set(data: any, options?: any) {
-    const { fields, transforms } = _parseFields(data);
+    const { fields, transforms, deletePaths } = _parseFields(data);
     const body: any = { fields };
 
     if (options?.merge) {
@@ -1044,9 +1057,9 @@ class CompatDocRef {
       // BUG FIX: Fetch a valid token BEFORE calling _firestoreCommitUpdate.
       // The old code referenced an undefined `token` variable, causing
       // ReferenceError at runtime for any merge+transform operation.
-      if (transforms.length > 0) {
+      if (transforms.length > 0 || deletePaths.length > 0) {
         const preToken = await _getValidToken();
-        await _firestoreCommitUpdate(this._path, fields, transforms, preToken);
+        await _firestoreCommitUpdate(this._path, fields, transforms, preToken, deletePaths);
       } else {
         // BUG FIX: set(merge) must use updateMask to preserve existing fields.
         // Derive field paths from the data keys so Firestore knows which fields
@@ -1092,13 +1105,13 @@ class CompatDocRef {
   }
 
   async update(data: any) {
-    const { fields, transforms } = _parseFields(data);
-    if (transforms.length > 0) {
+    const { fields, transforms, deletePaths } = _parseFields(data);
+    if (transforms.length > 0 || deletePaths.length > 0) {
       // PATCH endpoint does NOT support fieldTransforms — use commit API.
       // BUG FIX: Fetch a valid token BEFORE calling _firestoreCommitUpdate.
       // The old code referenced an undefined `token` variable.
       const preToken = await _getValidToken();
-      await _firestoreCommitUpdate(this._path, fields, transforms, preToken);
+      await _firestoreCommitUpdate(this._path, fields, transforms, preToken, deletePaths);
     } else {
       // CRITICAL BUG FIX: Always include updateMask in PATCH requests.
       // Without updateMask, Firestore REST PATCH replaces the ENTIRE document,
@@ -1193,7 +1206,13 @@ const firestore: any = function firestore(): any {
 };
 
 // Static access: api.ts uses firestore.FieldValue.serverTimestamp()
-firestore.FieldValue = { serverTimestamp: _serverTimestamp, increment: _increment };
+firestore.FieldValue = {
+  serverTimestamp: _serverTimestamp,
+  increment: _increment,
+  // Sentinel for deleting a field — recognized by _parseFields and
+  // converted to a special updateMask in _firestoreCommitUpdate.
+  delete: () => ({ __sentinel: 'delete' }),
+};
 
 /* ═══════════════════════════════════════════════════════════════════════════
    HELPERS

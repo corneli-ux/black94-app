@@ -241,14 +241,7 @@ export default function GroupInfoScreen() {
     if (!chatId || !currentUserId || !chatData) return;
     setMuted(value);
     try {
-      const mutedString = chatData.participants
-        ? []
-        : [];
-      // Read current mutedUsers, then add/remove the current user
-      const currentMuted = chatData.participants || [];
-      const currentMutedUsers: string[] = [];
-      // We'll use a separate approach — toggle in a mutedUsers array field
-      // Read the current doc's mutedUsers
+      // Read the current doc's mutedUsers array
       const chatSnap = await firestore().collection('chats').doc(chatId).get();
       const data = chatSnap.exists ? chatSnap.data() : {};
       let mutedUsers: string[] = Array.isArray(data.mutedUsers) ? [...data.mutedUsers] : [];
