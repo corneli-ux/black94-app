@@ -222,7 +222,7 @@ export default function ShareProfileScreen({ route, navigation }: any) {
                   {row.map((cell, x) => (
                     <View key={x} style={{
                       width: cellSize, height: cellSize,
-                      backgroundColor: cell ? '#FFFFFF' : '#16181c',
+                      backgroundColor: cell ? colors.white : colors.surface,
                     }} />
                   ))}
                 </View>
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   joinedText: { color: colors.textSecondary, fontSize: 13, marginTop: 8 },
   qrSection: { paddingHorizontal: 16, marginTop: 24 },
   sectionLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 10, textTransform: 'uppercase' },
-  qrContainer: { padding: 12, backgroundColor: '#16181c', borderRadius: 12, alignSelf: 'center' },
+  qrContainer: { padding: 12, backgroundColor: colors.surface, borderRadius: 12, alignSelf: 'center' },
   linkSection: { paddingHorizontal: 16, marginTop: 28 },
   linkRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   linkBox: {
@@ -339,11 +339,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent, borderRadius: 10,
     paddingHorizontal: 20, paddingVertical: 10,
   },
-  regenerateBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  regenerateBtnText: { color: colors.primaryForeground, fontSize: 14, fontWeight: '700' },
   shareBtn: {
     marginHorizontal: 16, marginTop: 24, borderRadius: 12,
     backgroundColor: colors.accent, paddingVertical: 16, alignItems: 'center',
   },
   shareBtnDisabled: { opacity: 0.4 },
-  shareBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  shareBtnText: { color: colors.primaryForeground, fontSize: 16, fontWeight: '700' },
 });

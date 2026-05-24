@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 20,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.bgInput,
     borderRadius: 20,
   },
   emptyCtaText: {

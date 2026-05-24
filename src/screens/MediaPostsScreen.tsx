@@ -102,7 +102,7 @@ export default function MediaPostsScreen() {
         {item.isVideo && (
           <View style={styles.playOverlay}>
             <View style={styles.playCircle}>
-              <Ionicons name="play" size={20} color="#fff" />
+              <Ionicons name="play" size={20} color={colors.white} />
             </View>
           </View>
         )}
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomWidth: 0.5, borderBottomColor: colors.separator,
   },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },

@@ -218,11 +218,11 @@ export default function SearchScreen({ route, navigation }: any) {
 
       {/* Search Bar */}
       <View style={[styles.searchBarWrap, focused && styles.searchBarFocused]}>
-        <Ionicons name="search" size={20} color="#94a3b8" />
+        <Ionicons name="search" size={20} color={colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search"
-          placeholderTextColor="#64748b"
+          placeholderTextColor={colors.textTertiary}
           value={query}
           onChangeText={q => setQuery(q)}
           returnKeyType="search"
@@ -233,7 +233,7 @@ export default function SearchScreen({ route, navigation }: any) {
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => { setQuery(''); setUsers([]); setPosts([]); setWebResults([]); setSearched(false); }} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color="#64748b" />
+            <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
           </TouchableOpacity>
         )}
       </View>
@@ -264,10 +264,10 @@ export default function SearchScreen({ route, navigation }: any) {
               renderItem={renderUserItem}
               ListEmptyComponent={
                 <View style={styles.emptyResults}>
-                  <Text style={{ color: '#94a3b8', fontSize: 15 }}>No users found</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No users found</Text>
                 </View>
               }
-              ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)', marginHorizontal: 16 }} />}
+              ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: colors.bgInput, marginHorizontal: 16 }} />}
             />
           ) : tab === 'web' ? (
             <FlatList
@@ -286,10 +286,10 @@ export default function SearchScreen({ route, navigation }: any) {
               )}
               ListEmptyComponent={
                 <View style={styles.emptyResults}>
-                  <Text style={{ color: '#94a3b8', fontSize: 15 }}>No web results found</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No web results found</Text>
                 </View>
               }
-              ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)', marginHorizontal: 16 }} />}
+              ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: colors.bgInput, marginHorizontal: 16 }} />}
             />
           ) : (
             <FlatList
@@ -298,10 +298,10 @@ export default function SearchScreen({ route, navigation }: any) {
               renderItem={renderPostItem}
               ListEmptyComponent={
                 <View style={styles.emptyResults}>
-                  <Text style={{ color: '#94a3b8', fontSize: 15 }}>No posts found</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No posts found</Text>
                 </View>
               }
-              ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)', marginHorizontal: 16 }} />}
+              ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: colors.bgInput, marginHorizontal: 16 }} />}
             />
           )}
         </View>
@@ -324,13 +324,13 @@ export default function SearchScreen({ route, navigation }: any) {
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="time-outline" size={18} color="#71767b" />
+                <Ionicons name="time-outline" size={18} color={colors.textMuted} />
                 <Text style={styles.historyText}>{term}</Text>
                 <TouchableOpacity
                   onPress={() => removeHistoryItem(term)}
                   hitSlop={8}
                 >
-                  <Ionicons name="close" size={16} color="#536471" />
+                  <Ionicons name="close" size={16} color={colors.textMuted} />
                 </TouchableOpacity>
               </TouchableOpacity>
             ))}
@@ -338,7 +338,7 @@ export default function SearchScreen({ route, navigation }: any) {
         ) : (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="search" size={32} color="#64748b" />
+              <Ionicons name="search" size={32} color={colors.textTertiary} />
             </View>
             <Text style={styles.emptyTitle}>Search for people and posts</Text>
             <Text style={styles.emptySubtitle}>Find users, posts, and topics across Black94.</Text>
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   /* Search bar: bg-white/[0.06], border border-white/[0.08], focus: border-white/50 */
   searchBarWrap: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: 25,
@@ -369,20 +369,20 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 10,
   },
-  searchInput: { flex: 1, color: '#e7e9ea', fontSize: 15, padding: 0 },
+  searchInput: { flex: 1, color: colors.text, fontSize: 15, padding: 0 },
   searchBarFocused: {
     borderColor: 'rgba(255,255,255,0.5)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.bgInput,
   },
   /* Search tabs: same as profile tabs */
   searchTabs: {
     flexDirection: 'row',
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   searchTab: { flex: 1, alignItems: 'center', paddingVertical: 14, position: 'relative' as const },
-  searchTabText: { color: '#94a3b8', fontWeight: '500', fontSize: 15 },
-  searchTabTextActive: { color: '#e7e9ea', fontWeight: '700' },
+  searchTabText: { color: colors.textSecondary, fontWeight: '500', fontSize: 15 },
+  searchTabTextActive: { color: colors.text, fontWeight: '700' },
   searchTabIndicator: {
     position: 'absolute' as const,
     bottom: 0,
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     right: 24,
     height: 1,
     borderRadius: 0.5,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   /* Results */
   resultsWrap: { flex: 1 },
@@ -401,14 +401,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12, paddingHorizontal: 16,
   },
   userTextWrap: { marginLeft: 12, flex: 1 },
-  userName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  userHandle: { color: '#94a3b8', fontSize: 14 },
-  userBio: { color: '#94a3b8', fontSize: 13, marginTop: 2 },
+  userName: { color: colors.text, fontWeight: '700', fontSize: 15 },
+  userHandle: { color: colors.textSecondary, fontSize: 14 },
+  userBio: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
   /* Post row: caption 15px, author handle 13px */
   postRow: { paddingHorizontal: 16, paddingVertical: 12 },
   postTextWrap: {},
-  postCaption: { color: '#e7e9ea', fontSize: 15, lineHeight: 22 },
-  postAuthor: { color: '#94a3b8', fontSize: 13, marginTop: 4 },
+  postCaption: { color: colors.text, fontSize: 15, lineHeight: 22 },
+  postAuthor: { color: colors.textSecondary, fontSize: 13, marginTop: 4 },
   /* Empty state: icon in 64x64 circle, bg white/4%, title, subtitle */
   emptyState: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
@@ -421,16 +421,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyTitle: {
-    color: '#e7e9ea', fontSize: 15, fontWeight: '700',
+    color: colors.text, fontSize: 15, fontWeight: '700',
     marginBottom: 4,
   },
   emptySubtitle: {
-    color: '#94a3b8', fontSize: 14, textAlign: 'center',
+    color: colors.textSecondary, fontSize: 14, textAlign: 'center',
   },
   webResultRow: { paddingHorizontal: 16, paddingVertical: 12 },
-  webResultName: { color: '#1d9bf0', fontSize: 15, fontWeight: '600', lineHeight: 20, marginBottom: 2 },
-  webResultHost: { color: '#94a3b8', fontSize: 12, marginBottom: 4 },
-  webResultSnippet: { color: '#e7e9ea', fontSize: 14, lineHeight: 20 },
+  webResultName: { color: colors.accent, fontSize: 15, fontWeight: '600', lineHeight: 20, marginBottom: 2 },
+  webResultHost: { color: colors.textSecondary, fontSize: 12, marginBottom: 4 },
+  webResultSnippet: { color: colors.text, fontSize: 14, lineHeight: 20 },
   historySection: {
     marginTop: 12,
   },
@@ -442,12 +442,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   historyTitle: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '700',
   },
   historyClear: {
-    color: '#1d9bf0',
+    color: colors.accent,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -458,11 +458,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 11,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   historyText: {
     flex: 1,
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
   },
 });

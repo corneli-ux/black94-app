@@ -49,11 +49,11 @@ const SOURCE_CONFIG: Record<string, { color: string; icon: string; label: string
 
 const STATUS_COLORS: Record<string, string> = {
   new: colors.accent,
-  contacted: '#f59e0b',
+  contacted: colors.accentGold,
   qualified: '#8b5cf6',
-  converted: '#22c55e',
-  unqualified: '#64748b',
-  lost: '#ef4444',
+  converted: colors.accentGreen,
+  unqualified: colors.textTertiary,
+  lost: colors.error,
 };
 
 function formatRelativeDate(ts: number): string {
@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
   // Leads list
   leadsList: { gap: 10 },
   leadCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 12 },
-  leadAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' },
+  leadAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.bgInput, justifyContent: 'center', alignItems: 'center' },
   leadAvatarText: { color: colors.primary, fontSize: 17, fontWeight: '700' },
   leadInfo: { flex: 1 },
   leadName: { fontSize: 14, fontWeight: '600', color: colors.text },

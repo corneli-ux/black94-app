@@ -298,26 +298,26 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
           )}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
-              <View style={styles.actionIconWrap}><Ionicons name="chatbubble-outline" size={18} color="#71767b" /></View>
+              <View style={styles.actionIconWrap}><Ionicons name="chatbubble-outline" size={18} color={colors.textMuted} /></View>
               {formatCount(commentCount) ? <Text style={styles.actionCount}>{formatCount(commentCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={handleRepost}>
-              <View style={styles.actionIconWrap}><Ionicons name="repeat" size={18} color={reposted ? '#10b981' : '#71767b'} /></View>
-              {formatCount(repostCount) ? <Text style={[styles.actionCount, reposted && { color: '#10b981' }]}>{formatCount(repostCount)}</Text> : null}
+              <View style={styles.actionIconWrap}><Ionicons name="repeat" size={18} color={reposted ? colors.accentGreen : colors.textMuted} /></View>
+              {formatCount(repostCount) ? <Text style={[styles.actionCount, reposted && { color: colors.accentGreen }]}>{formatCount(repostCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-              <View style={styles.actionIconWrap}><Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? '#f43f5e' : '#71767b'} /></View>
-              {formatCount(likeCount) ? <Text style={[styles.actionCount, liked && { color: '#f43f5e' }]}>{formatCount(likeCount)}</Text> : null}
+              <View style={styles.actionIconWrap}><Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? colors.like : colors.textMuted} /></View>
+              {formatCount(likeCount) ? <Text style={[styles.actionCount, liked && { color: colors.like }]}>{formatCount(likeCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} disabled>
-              <View style={styles.actionIconWrap}><Ionicons name="trending-up-outline" size={18} color="#71767b" /></View>
+              <View style={styles.actionIconWrap}><Ionicons name="trending-up-outline" size={18} color={colors.textMuted} /></View>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
-                <View style={styles.actionIconWrap}><Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarked ? '#FFFFFF' : '#71767b'} /></View>
+                <View style={styles.actionIconWrap}><Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarked ? colors.white : colors.textMuted} /></View>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-                <View style={styles.actionIconWrap}><Ionicons name="share-outline" size={18} color="#71767b" /></View>
+                <View style={styles.actionIconWrap}><Ionicons name="share-outline" size={18} color={colors.textMuted} /></View>
               </TouchableOpacity>
             </View>
           </View>
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: colors.border,
   },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  postCard: { backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12 },
+  postCard: { backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.separator, paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12 },
   contentRow: { flexDirection: 'row', gap: 12 },
   contentColumn: { flex: 1, minWidth: 0 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -348,12 +348,12 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center', marginTop: 12, marginLeft: 0, maxWidth: 440, justifyContent: 'space-between' },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  actionCount: { color: '#94a3b8', fontSize: 13, marginLeft: 2 },
+  actionCount: { color: colors.textSecondary, fontSize: 13, marginLeft: 2 },
   emptyState: { alignItems: 'center', paddingTop: 100 },
   emptyList: { flexGrow: 1 },
   emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 4 },
   emptySubtitle: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', paddingHorizontal: 50, lineHeight: 22 },
-  emptyCta: { marginTop: 16, paddingHorizontal: 20, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20 },
+  emptyCta: { marginTop: 16, paddingHorizontal: 20, paddingVertical: 8, backgroundColor: colors.bgInput, borderRadius: 20 },
   emptyCtaText: { color: colors.accent, fontSize: 14, fontWeight: '600' },
 });

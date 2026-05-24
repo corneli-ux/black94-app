@@ -479,7 +479,7 @@ export default function OrderTrackingScreen() {
                 onPress={handleSubmitRefund}
                 disabled={!refundReason || refundSubmitting}>
                 {refundSubmitting
-                  ? <ActivityIndicator color="#fff" size="small" />
+                  ? <ActivityIndicator color={colors.white} size="small" />
                   : <Text style={styles.refundSubmitText}>Submit</Text>
                 }
               </TouchableOpacity>
@@ -815,7 +815,7 @@ const styles = StyleSheet.create({
   },
   refundReasonSelected: {
     borderColor: colors.primary,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.bgInput,
   },
   refundReasonText: {
     color: colors.text,
@@ -855,7 +855,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   refundSubmitText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 15,
     fontWeight: '700',
   },

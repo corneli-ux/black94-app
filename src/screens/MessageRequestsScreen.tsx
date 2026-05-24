@@ -328,10 +328,10 @@ export default function MessageRequestsScreen() {
             activeOpacity={0.7}
           >
             {isBusy ? (
-              <ActivityIndicator size="small" color="#000000" />
+              <ActivityIndicator size="small" color={colors.primaryForeground} />
             ) : (
               <>
-                <Ionicons name="checkmark" size={16} color="#000000" style={{ marginRight: 4 }} />
+                <Ionicons name="checkmark" size={16} color={colors.primaryForeground} style={{ marginRight: 4 }} />
                 <Text style={styles.acceptText}>Accept</Text>
               </>
             )}
@@ -350,7 +350,7 @@ export default function MessageRequestsScreen() {
             disabled={isBusy}
             activeOpacity={0.7}
           >
-            <Ionicons name="ban-outline" size={16} color="#f4212e" />
+            <Ionicons name="ban-outline" size={16} color={colors.delete} />
           </TouchableOpacity>
         </View>
       </View>
@@ -360,7 +360,7 @@ export default function MessageRequestsScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIcon}>
-        <Ionicons name="mail-outline" size={32} color="#94a3b8" />
+        <Ionicons name="mail-outline" size={32} color={colors.textSecondary} />
       </View>
       <Text style={styles.emptyTitle}>No message requests</Text>
       <Text style={styles.emptySubtitle}>
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.text,
   },
   acceptText: {
-    color: '#000000',
+    color: colors.primaryForeground,
     fontSize: 13,
     fontWeight: '700',
   },

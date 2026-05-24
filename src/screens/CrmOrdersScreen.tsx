@@ -1,3 +1,4 @@
+import { colors } from '../theme/colors';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -24,17 +25,17 @@ import {
 /* ── Theme compat (mirrors source theme tokens) ─────────────────────────────── */
 
 const C = {
-  black: '#000000',
-  white: '#ffffff',
-  surface: '#16181c',
-  surfaceBorder: '#374151',
-  primary: '#FFFFFF',
-  textPrimary: '#e7e9ea',
-  textSecondary: '#a1a1aa',
-  textTertiary: '#71767b',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  danger: '#ef4444',
+  black: colors.bg,
+  white: colors.white,
+  surface: colors.surface,
+  surfaceBorder: colors.border,
+  primary: colors.white,
+  textPrimary: colors.text,
+  textSecondary: colors.textSecondary,
+  textTertiary: colors.textMuted,
+  success: colors.accentGreen,
+  warning: colors.accentGold,
+  danger: colors.error,
   info: '#06b6d4',
   white20: 'rgba(255,255,255,0.2)',
 };

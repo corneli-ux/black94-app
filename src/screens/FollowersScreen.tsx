@@ -108,7 +108,7 @@ export default function FollowersScreen({ route, navigation }: any) {
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
       ) : users.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="people-outline" size={48} color="#64748b" />
+          <Ionicons name="people-outline" size={48} color={colors.textTertiary} />
           <Text style={styles.emptyText}>No {title.toLowerCase()} yet</Text>
         </View>
       ) : (
@@ -141,21 +141,21 @@ export default function FollowersScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.separator },
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  tabs: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  tabs: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: colors.separator },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 14, position: 'relative' as const },
   tabActive: {},
-  tabText: { color: '#94a3b8', fontSize: 15, fontWeight: '500' },
-  tabTextActive: { color: '#e7e9ea', fontWeight: '700' },
+  tabText: { color: colors.textSecondary, fontSize: 15, fontWeight: '500' },
+  tabTextActive: { color: colors.text, fontWeight: '700' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
-  emptyText: { color: '#94a3b8', fontSize: 15, marginTop: 12 },
+  emptyText: { color: colors.textSecondary, fontSize: 15, marginTop: 12 },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.04)' },
   userInfo: { flex: 1, minWidth: 0 },
-  name: { color: '#e7e9ea', fontSize: 15, fontWeight: '700' },
-  handle: { color: '#94a3b8', fontSize: 14 },
-  followBtn: { backgroundColor: '#e7e9ea', borderRadius: 999, paddingHorizontal: 20, paddingVertical: 6 },
-  followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#64748b' },
-  followBtnText: { color: '#000000', fontWeight: '700', fontSize: 14 },
-  followingBtnText: { color: '#e7e9ea' },
+  name: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  handle: { color: colors.textSecondary, fontSize: 14 },
+  followBtn: { backgroundColor: colors.text, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 6 },
+  followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.textTertiary },
+  followBtnText: { color: colors.primaryForeground, fontWeight: '700', fontSize: 14 },
+  followingBtnText: { color: colors.text },
 });

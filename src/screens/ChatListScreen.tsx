@@ -368,7 +368,7 @@ export default function ChatListScreen({ navigation, route }: any) {
   const renderNoResults = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIcon}>
-        <Ionicons name="search-outline" size={32} color="#94a3b8" />
+        <Ionicons name="search-outline" size={32} color={colors.textSecondary} />
       </View>
       <Text style={styles.emptyTitle}>No results</Text>
       <Text style={styles.emptySubtitle}>No chats found matching "{search}"</Text>
@@ -378,7 +378,7 @@ export default function ChatListScreen({ navigation, route }: any) {
   const renderNoChats = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIcon}>
-        <Ionicons name="chatbubble-outline" size={32} color="#94a3b8" />
+        <Ionicons name="chatbubble-outline" size={32} color={colors.textSecondary} />
       </View>
       <Text style={styles.emptyTitle}>No messages yet</Text>
       <Text style={styles.emptySubtitle}>Start a conversation to see messages here.</Text>
@@ -389,7 +389,7 @@ export default function ChatListScreen({ navigation, route }: any) {
   const renderChatAds = () => (
     <View style={styles.adsContainer}>
       <View style={styles.emptyIcon}>
-        <Ionicons name="card-outline" size={32} color="#64748b" />
+        <Ionicons name="card-outline" size={32} color={colors.textTertiary} />
       </View>
       <Text style={styles.adsEmptyText}>No ads right now</Text>
       <Text style={styles.adsEmptySubtext}>Check back later for new sponsored content</Text>
@@ -408,7 +408,7 @@ export default function ChatListScreen({ navigation, route }: any) {
           <Ionicons
             name="chatbubble-outline"
             size={18}
-            color={activeTab === 'chat' ? '#FFFFFF' : '#94a3b8'}
+            color={activeTab === 'chat' ? colors.white : colors.textSecondary}
           />
           <Text style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>
             Chats
@@ -425,7 +425,7 @@ export default function ChatListScreen({ navigation, route }: any) {
           <Ionicons
             name="card-outline"
             size={18}
-            color={activeTab === 'ads' ? '#FFFFFF' : '#94a3b8'}
+            color={activeTab === 'ads' ? colors.white : colors.textSecondary}
           />
           <Text style={[styles.tabText, activeTab === 'ads' && styles.tabTextActive]}>
             Chat Ads
@@ -466,11 +466,11 @@ export default function ChatListScreen({ navigation, route }: any) {
 
           {/* Search Input */}
           <View style={styles.composeSearchContainer}>
-            <Ionicons name="search" size={18} color="#64748b" style={styles.composeSearchIcon} />
+            <Ionicons name="search" size={18} color={colors.textTertiary} style={styles.composeSearchIcon} />
             <TextInput
               style={styles.composeSearchInput}
               placeholder="Search by username or name..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor={colors.textTertiary}
               value={composeSearch}
               onChangeText={handleComposeSearch}
               autoFocus
@@ -486,7 +486,7 @@ export default function ChatListScreen({ navigation, route }: any) {
           <View style={styles.composeResultsContainer}>
             {composeSearch.trim().length >= 2 && !composeSearching && composeResults.length === 0 && (
               <View style={styles.composeEmptyContainer}>
-                <Ionicons name="person-outline" size={36} color="#64748b" />
+                <Ionicons name="person-outline" size={36} color={colors.textTertiary} />
                 <Text style={styles.composeEmptyText}>No users found</Text>
                 <Text style={styles.composeEmptySubtext}>Try a different username or name</Text>
               </View>
@@ -494,7 +494,7 @@ export default function ChatListScreen({ navigation, route }: any) {
 
             {composeSearch.trim().length < 2 && (
               <View style={styles.composeEmptyContainer}>
-                <Ionicons name="chatbubble-ellipses-outline" size={36} color="#64748b" />
+                <Ionicons name="chatbubble-ellipses-outline" size={36} color={colors.textTertiary} />
                 <Text style={styles.composeEmptyText}>Find someone to message</Text>
                 <Text style={styles.composeEmptySubtext}>Enter a username or display name (min. 2 characters)</Text>
               </View>
@@ -521,7 +521,7 @@ export default function ChatListScreen({ navigation, route }: any) {
                 {composeChecking === user.id ? (
                   <ActivityIndicator size="small" color={colors.accent} />
                 ) : (
-                  <Ionicons name="chevron-forward" size={20} color="#64748b" />
+                  <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -544,14 +544,14 @@ export default function ChatListScreen({ navigation, route }: any) {
               activeOpacity={0.7}
               hitSlop={8}
             >
-              <Ionicons name="people-outline" size={22} color="#e7e9ea" />
+              <Ionicons name="people-outline" size={22} color={colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.newMsgBtn}
               onPress={handleCompose}
               activeOpacity={0.7}
             >
-              <Ionicons name="create-outline" size={22} color="#D4AF37" />
+              <Ionicons name="create-outline" size={22} color={colors.accent} />
             </TouchableOpacity>
           </View>
         </View>
@@ -567,11 +567,11 @@ export default function ChatListScreen({ navigation, route }: any) {
       <>
           {/* Search */}
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={16} color="#64748b" style={styles.searchIcon} />
+            <Ionicons name="search" size={16} color={colors.textTertiary} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search chats..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor={colors.textTertiary}
               value={search}
               onChangeText={onSearch}
             />
@@ -665,7 +665,7 @@ export default function ChatListScreen({ navigation, route }: any) {
             {/* Header */}
             <View style={styles.groupModalHeader}>
               <TouchableOpacity onPress={() => setShowGroupCreate(false)} hitSlop={8}>
-                <Ionicons name="close" size={22} color="#e7e9ea" />
+                <Ionicons name="close" size={22} color={colors.text} />
               </TouchableOpacity>
               <Text style={styles.groupModalTitle}>New Group</Text>
               <View style={{ width: 22 }} />
@@ -673,13 +673,13 @@ export default function ChatListScreen({ navigation, route }: any) {
 
             {/* Group name input */}
             <View style={styles.groupNameInput}>
-              <Ionicons name="chatbubbles-outline" size={20} color="#94a3b8" />
+              <Ionicons name="chatbubbles-outline" size={20} color={colors.textSecondary} />
               <TextInput
                 style={styles.groupNameText}
                 value={groupName}
                 onChangeText={setGroupName}
                 placeholder="Group name"
-                placeholderTextColor="#64748b"
+                placeholderTextColor={colors.textTertiary}
                 maxLength={40}
               />
             </View>
@@ -717,7 +717,7 @@ export default function ChatListScreen({ navigation, route }: any) {
                       <Text style={styles.groupUserHandle}>@{item.username}</Text>
                     </View>
                     <View style={[styles.groupCheckbox, isSelected && styles.groupCheckboxSelected]}>
-                      {isSelected && <Ionicons name="checkmark" size={16} color="#000" />}
+                      {isSelected && <Ionicons name="checkmark" size={16} color={colors.primaryForeground} />}
                     </View>
                   </TouchableOpacity>
                 );
@@ -753,13 +753,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
     height: 56,
   },
-  headerTitle: { color: '#e7e9ea', fontSize: 20, fontWeight: '700' },
+  headerTitle: { color: colors.text, fontSize: 20, fontWeight: '700' },
   newMsgBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 
   /* ── Compose Modal ── */
   composeModalContainer: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   composeHeader: {
     flexDirection: 'row',
@@ -768,10 +768,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   composeTitle: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '700',
   },
@@ -792,7 +792,7 @@ const styles = StyleSheet.create({
   composeSearchIcon: {},
   composeSearchInput: {
     flex: 1,
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     height: 44,
     paddingVertical: 0,
@@ -809,13 +809,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   composeEmptyText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '700',
     marginTop: 16,
   },
   composeEmptySubtext: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
     marginTop: 6,
@@ -827,20 +827,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     gap: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   composeResultInfo: {
     flex: 1,
     minWidth: 0,
   },
   composeResultName: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '700',
     flex: 1,
   },
   composeResultUsername: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     marginTop: 2,
   },
@@ -849,8 +849,8 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    borderBottomColor: colors.separator,
+    backgroundColor: colors.bg,
   },
   tabButton: {
     flex: 1,
@@ -865,11 +865,11 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 15,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   tabTextActive: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontWeight: '700',
   },
   tabIndicator: {
@@ -878,11 +878,11 @@ const styles = StyleSheet.create({
     left: '25%',
     right: '25%',
     height: 3,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 3,
   },
   newBadge: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -893,10 +893,10 @@ const styles = StyleSheet.create({
   newBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textTertiary,
   },
   newBadgeTextActive: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
 
   /* ── Search ── */
@@ -922,7 +922,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     paddingLeft: 36,
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     height: 40,
   },
@@ -950,7 +950,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 0.5,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
   },
   chatTopRow: {
     flexDirection: 'row',
@@ -959,13 +959,13 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   chatName: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontWeight: '700',
     fontSize: 15,
     flex: 1,
   },
   chatTime: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     marginLeft: 8,
   },
@@ -976,12 +976,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   chatLastMsg: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     flex: 1,
   },
   chatLastMsgUnread: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontWeight: '600',
   },
 
@@ -993,12 +993,12 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   unreadText: {
-    color: '#000000',
+    color: colors.primaryForeground,
     fontSize: 10,
     fontWeight: '700',
   },
@@ -1020,13 +1020,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyTitle: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 4,
   },
   emptySubtitle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 15,
     textAlign: 'center',
   },
@@ -1039,11 +1039,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   adsEmptyText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
   },
   adsEmptySubtext: {
-    color: '#64748b',
+    color: colors.textTertiary,
     fontSize: 12,
     marginTop: 4,
   },
@@ -1062,7 +1062,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   groupModal: {
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     height: '85%',
@@ -1075,10 +1075,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: colors.separator,
   },
   groupModalTitle: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '700',
   },
@@ -1097,7 +1097,7 @@ const styles = StyleSheet.create({
   },
   groupNameText: {
     flex: 1,
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
   },
   selectedMembersRow: {
@@ -1105,7 +1105,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   selectedMembersLabel: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '500',
   },
@@ -1116,18 +1116,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   groupUserInfo: {
     flex: 1,
   },
   groupUserName: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
   },
   groupUserHandle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
   },
   groupCheckbox: {
@@ -1135,26 +1135,26 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#64748b',
+    borderColor: colors.textTertiary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   groupCheckboxSelected: {
-    backgroundColor: '#e7e9ea',
-    borderColor: '#e7e9ea',
+    backgroundColor: colors.text,
+    borderColor: colors.text,
   },
   groupCreateBtn: {
     marginHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: '#e7e9ea',
+    backgroundColor: colors.text,
     alignItems: 'center',
   },
   groupCreateBtnDisabled: {
     opacity: 0.4,
   },
   groupCreateBtnText: {
-    color: '#000000',
+    color: colors.primaryForeground,
     fontSize: 15,
     fontWeight: '700',
   },

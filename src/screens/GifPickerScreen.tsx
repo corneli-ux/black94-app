@@ -1,3 +1,4 @@
+import { colors } from '../theme/colors';
 /**
  * GifPickerScreen.tsx — GIF picker using Tenor GIF API
  *
@@ -209,7 +210,7 @@ export default function GifPickerScreen() {
     if (loadingMore) {
       return (
         <View style={styles.footerLoader}>
-          <ActivityIndicator size="small" color="#e7e9ea" />
+          <ActivityIndicator size="small" color={colors.text} />
         </View>
       );
     }
@@ -224,14 +225,14 @@ export default function GifPickerScreen() {
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
           activeOpacity={0.6}>
-          <Ionicons name="arrow-back" size={22} color="#e7e9ea" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.searchInputWrap}>
-          <Ionicons name="search" size={16} color="#71767b" style={styles.searchIcon} />
+          <Ionicons name="search" size={16} color={colors.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search GIFs..."
-            placeholderTextColor="#71767b"
+            placeholderTextColor={colors.textMuted}
             value={query}
             onChangeText={handleSearch}
             returnKeyType="search"
@@ -243,7 +244,7 @@ export default function GifPickerScreen() {
               style={styles.clearBtn}
               onPress={() => handleSearch('')}
               activeOpacity={0.6}>
-              <Ionicons name="close-circle" size={18} color="#71767b" />
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -252,11 +253,11 @@ export default function GifPickerScreen() {
       {/* Content */}
       {loading ? (
         <View style={styles.centerLoader}>
-          <ActivityIndicator size="large" color="#e7e9ea" />
+          <ActivityIndicator size="large" color={colors.text} />
         </View>
       ) : error ? (
         <View style={styles.centerLoader}>
-          <Ionicons name="cloud-offline-outline" size={48} color="#71767b" />
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
           <Text style={styles.errorText}>Failed to load GIFs</Text>
           <Text style={styles.errorSubtext}>{error}</Text>
           <TouchableOpacity
@@ -280,7 +281,7 @@ export default function GifPickerScreen() {
           ListFooterComponent={ListFooter}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="search" size={40} color="#71767b" />
+              <Ionicons name="search" size={40} color={colors.textMuted} />
               <Text style={styles.emptyText}>
                 {query.trim() ? `No GIFs found for "${query.trim()}"` : 'No trending GIFs available'}
               </Text>
@@ -298,7 +299,7 @@ export default function GifPickerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   searchRow: {
     flexDirection: 'row',
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   backBtn: {
     width: 36,
@@ -319,7 +320,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
     borderRadius: 20,
     paddingHorizontal: 12,
     height: 38,
@@ -330,7 +331,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#e7e9ea',
+    color: colors.text,
     padding: 0,
     height: 38,
   },
@@ -364,13 +365,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
     marginTop: 16,
   },
   errorSubtext: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 13,
     marginTop: 6,
     maxWidth: 260,
@@ -384,7 +385,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
   retryBtnText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -395,7 +396,7 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   emptyText: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 14,
     marginTop: 12,
     textAlign: 'center',

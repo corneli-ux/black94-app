@@ -626,7 +626,7 @@ export default function AddProductScreen({ route, navigation }: any) {
                     <View key={`img-${i}-${uri}`} style={styles.imageCard}>
                       {imageLoadErrors.has(i) ? (
                         <View style={styles.imageThumbError}>
-                          <Ionicons name="image-outline" size={28} color="#555" />
+                          <Ionicons name="image-outline" size={28} color={colors.textMuted} />
                         </View>
                       ) : (
                         <Image source={{ uri }} style={styles.imageThumb} resizeMode="cover" onError={() => {
@@ -639,7 +639,7 @@ export default function AddProductScreen({ route, navigation }: any) {
                         <View style={[styles.uploadOverlay, status === 'failed' && styles.uploadOverlayFailed]}>
                           {status === 'uploading' && (
                             <>
-                              <ActivityIndicator size="small" color="#fff" />
+                              <ActivityIndicator size="small" color={colors.white} />
                               <Text style={styles.uploadOverlayText}>{progress}%</Text>
                             </>
                           )}
@@ -755,7 +755,7 @@ export default function AddProductScreen({ route, navigation }: any) {
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={colors.white} size="small" />
             ) : (
               <Text style={styles.saveBtnText}>
                 {editProductId ? 'Update Product' : 'Save Product'}
@@ -837,7 +837,7 @@ const styles = StyleSheet.create({
   imageThumbError: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -853,7 +853,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   imageRemoveText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -868,7 +868,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(244,33,46,0.35)',
   },
   uploadOverlayText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -929,7 +929,7 @@ const styles = StyleSheet.create({
   toggleTrackActive: { backgroundColor: colors.accent },
   toggleThumb: {
     width: 24, height: 24, borderRadius: 12,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
   },
   toggleThumbActive: { alignSelf: 'flex-end' },
   toggleLabel: { color: colors.text, fontSize: 15, fontWeight: '600' },
@@ -940,5 +940,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent, paddingVertical: 16, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center', marginTop: 8,
   },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  saveBtnText: { color: colors.white, fontSize: 16, fontWeight: '700' },
 });

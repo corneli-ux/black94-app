@@ -328,7 +328,7 @@ export default function WriteArticleScreen() {
             ]}
           >
             {saving ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={colors.white} size="small" />
             ) : (
               <Text style={styles.saveBtnText}>Publish</Text>
             )}
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   saveBtnDisabled: { opacity: 0.4 },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  saveBtnText: { color: colors.white, fontWeight: '700', fontSize: 15 },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 16,

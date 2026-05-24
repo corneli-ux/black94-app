@@ -1,3 +1,4 @@
+import { colors } from '../theme/colors';
 import { useCallback, useState } from 'react';
 import {
   View,
@@ -166,7 +167,7 @@ export default function AuthScreen() {
   if (authError) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#000000" />
+        <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
         <View style={[styles.inner, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
           <View style={styles.brandContainer}>
             <BrandLogo />
@@ -199,7 +200,7 @@ export default function AuthScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <View style={[styles.inner, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         {/* ── Brand: Logo + Title + Subtitle ─────────────────────────── */}
         <View style={styles.brandContainer}>
@@ -221,7 +222,7 @@ export default function AuthScreen() {
           disabled={isLoading}
         >
           {isLoading ? (
-            <ActivityIndicator color="#555555" size="small" />
+            <ActivityIndicator color={colors.textMuted} size="small" />
           ) : (
             <View style={styles.googleButtonContent}>
               {/* Google "G" logo — multicolor SVG rendered as 4 colored blocks */}
@@ -338,7 +339,7 @@ function sanitizeErrorMessage(raw: string): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   inner: {
     flex: 1,
@@ -360,12 +361,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 30,     // web: text-3xl
     fontWeight: '700', // web: font-bold
-    color: '#FFFFFF',
+    color: colors.white,
     letterSpacing: -0.5, // web: tracking-tight
   },
   subtitle: {
     fontSize: 14,     // web: text-sm
-    color: '#94a3b8', // web: text-[#94a3b8]
+    color: colors.textSecondary, // web: text-[#94a3b8]
     marginTop: 8,     // web: mt-2
     textAlign: 'center',
   },
@@ -374,13 +375,13 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.white,
     marginTop: 16,
     textAlign: 'center',
   },
   errorMessage: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     marginTop: 8,
     textAlign: 'center',
     maxWidth: 320,
@@ -391,7 +392,7 @@ const styles = StyleSheet.create({
   },
   supportText: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
 
@@ -400,7 +401,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 320,    // web: max-w-[320px]
     height: 52,       // web: h-[52px]
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 26,  // web: rounded-full (pill shape)
     justifyContent: 'center',
     alignItems: 'center',
@@ -413,7 +414,7 @@ const styles = StyleSheet.create({
   googleButtonText: {
     fontSize: 15,     // web: text-[15px]
     fontWeight: '600', // web: font-semibold
-    color: '#374151', // web: text-gray-700
+    color: colors.border, // web: text-gray-700
     letterSpacing: -0.1,
   },
 
@@ -445,7 +446,7 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     fontSize: 12,     // web: text-[12px]
-    color: '#64748b', // web: text-[#64748b]
+    color: colors.textTertiary, // web: text-[#64748b]
   },
 
   /* Switch text — web: mt-4 = 16px */
@@ -454,10 +455,10 @@ const styles = StyleSheet.create({
   },
   switchText: {
     fontSize: 14,     // web: text-[14px]
-    color: '#94a3b8',
+    color: colors.textSecondary,
   },
   switchLink: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '600',
   },
 
@@ -470,14 +471,14 @@ const styles = StyleSheet.create({
   },
   termsText: {
     fontSize: 11,     // web: text-[11px]
-    color: '#64748b', // web: text-[#64748b]
+    color: colors.textTertiary, // web: text-[#64748b]
     textAlign: 'center',
     lineHeight: 18,   // web: leading-relaxed
   },
   termsLink: {
-    color: '#FFFFFF',
+    color: colors.white,
     textDecorationLine: 'underline',
     textDecorationStyle: 'solid',
-    textDecorationColor: '#FFFFFF',
+    textDecorationColor: colors.white,
   },
 });

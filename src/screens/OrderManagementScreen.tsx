@@ -705,8 +705,8 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   filterChipText: { fontSize: 13, fontWeight: '500', color: colors.textSecondary },
   filterChipTextActive: { color: colors.bg, fontWeight: '600' },
-  filterCount: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
-  filterCountInactive: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  filterCount: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bgInput },
+  filterCountInactive: { backgroundColor: colors.bgInput },
   filterCountActive: { backgroundColor: colors.bg },
   filterCountText: { fontSize: 10, fontWeight: '700', color: colors.textMuted },
   filterCountTextActive: { color: colors.white },
@@ -762,7 +762,7 @@ const styles = StyleSheet.create({
   trackingNumberText: { fontSize: 14, color: colors.accent, fontWeight: '600', fontFamily: 'monospace' },
 
   // Action buttons
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.06)' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: colors.bgInput },
   actionBtnDanger: { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.2)' },
   actionBtnText: { fontSize: 13, fontWeight: '600', color: colors.primary },
   actionBtnTextDanger: { color: colors.error },

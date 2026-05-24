@@ -77,12 +77,12 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           {!isMine && <Avatar uri={chat?.otherUser?.profileImage} name={chat?.otherUser?.displayName} size={28} />}
           <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs, styles.deletedBubble]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="ban-outline" size={14} color={isMine ? 'rgba(0,0,0,0.35)' : '#4a5568'} />
-              <Text style={[styles.bubbleText, isMine ? { color: 'rgba(0,0,0,0.35)' } : { color: '#4a5568' }, { fontStyle: 'italic' }]}>
+              <Ionicons name="ban-outline" size={14} color={isMine ? 'rgba(0,0,0,0.35)' : colors.textMuted} />
+              <Text style={[styles.bubbleText, isMine ? { color: 'rgba(0,0,0,0.35)' } : { color: colors.textMuted }, { fontStyle: 'italic' }]}>
                 This message was deleted
               </Text>
             </View>
-            <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.3)' } : { color: '#4a5568' }]}>
+            <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.3)' } : { color: colors.textMuted }]}>
               {formatTime(item.createdAt)}
             </Text>
           </View>
@@ -141,7 +141,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               <Ionicons
                 name={playingVoiceId === item.id ? 'pause-circle' : 'play-circle'}
                 size={36}
-                color={isMine ? '#000000' : '#e7e9ea'}
+                color={isMine ? colors.primaryForeground : colors.text}
               />
               <View style={styles.voiceWaveform}>
                 <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.3)' } : { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
@@ -150,7 +150,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.6)' } : { backgroundColor: 'rgba(255,255,255,0.6)' }]} />
                 <View style={[styles.voiceBar, isMine ? { backgroundColor: 'rgba(0,0,0,0.2)' } : { backgroundColor: 'rgba(255,255,255,0.2)' }]} />
               </View>
-              <Text style={[styles.voiceDuration, isMine ? { color: 'rgba(0,0,0,0.6)' } : { color: '#94a3b8' }]}>
+              <Text style={[styles.voiceDuration, isMine ? { color: 'rgba(0,0,0,0.6)' } : { color: colors.textSecondary }]}>
                 {item.voiceDuration || 0}s
               </Text>
             </TouchableOpacity>
@@ -158,11 +158,11 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 
           {/* Text content (for text messages or captions) */}
           {item.content && msgType === 'text' ? (
-            <Text style={[styles.bubbleText, isMine && { color: '#000000' }]}>{item.content}</Text>
+            <Text style={[styles.bubbleText, isMine && { color: colors.primaryForeground }]}>{item.content}</Text>
           ) : null}
 
           {/* Timestamp */}
-          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }]}>
+          <Text style={[styles.bubbleTime, isMine ? { color: 'rgba(0,0,0,0.5)' } : { color: colors.textSecondary }]}>
             {formatTime(item.createdAt)}
           </Text>
           {/* Read receipt indicators — own messages only */}
@@ -210,7 +210,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
       <View style={[styles.header]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color="#e7e9ea" />
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         {chat ? (
           <>
@@ -235,7 +235,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             onPress={() => setShowMenu(!showMenu)}
             activeOpacity={0.7}
           >
-            <Ionicons name="ellipsis-horizontal" size={20} color="#e7e9ea" />
+            <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
           </TouchableOpacity>
 
           {/* Dropdown menu */}
@@ -282,7 +282,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             contentContainerStyle={{ padding: 16, gap: 4, paddingTop: 8 }}
             ListEmptyComponent={
               <View style={{ alignItems: 'center', paddingTop: 80 }}>
-                <Text style={{ color: '#94a3b8', fontSize: 15 }}>No messages yet. Say hello!</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No messages yet. Say hello!</Text>
               </View>
             }
             onContentSizeChange={() => {
@@ -308,7 +308,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               </Text>
             </View>
             <TouchableOpacity onPress={() => setReplyTo(null)} hitSlop={8}>
-              <Ionicons name="close" size={16} color="#94a3b8" />
+              <Ionicons name="close" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         )}
@@ -321,14 +321,14 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             onPress={() => setShowAttachMenu(!showAttachMenu)}
             activeOpacity={0.6}
           >
-            <Ionicons name="add-circle-outline" size={22} color={showAttachMenu ? colors.accent : '#71767b'} />
+            <Ionicons name="add-circle-outline" size={22} color={showAttachMenu ? colors.accent : colors.textMuted} />
           </TouchableOpacity>
 
           <View style={styles.inputPill}>
             <TextInput
               style={styles.pillInput}
               placeholder="Start a message"
-              placeholderTextColor="#71767b"
+              placeholderTextColor={colors.textMuted}
               value={text}
               onChangeText={setText}
               multiline
@@ -346,7 +346,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
           >
             {sending || uploading
               ? <ActivityIndicator color={colors.accent} size="small" />
-              : <Ionicons name="send" size={18} color={text.trim() ? '#FFFFFF' : '#374151'} />
+              : <Ionicons name="send" size={18} color={text.trim() ? colors.white : colors.border} />
             }
           </TouchableOpacity>
         </View>
@@ -369,7 +369,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachItem} onPress={handleCamera} activeOpacity={0.7}>
               <View style={[styles.attachIcon, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
-                <Ionicons name="camera-outline" size={22} color="#10B981" />
+                <Ionicons name="camera-outline" size={22} color={colors.accentGreen} />
               </View>
               <Text style={styles.attachLabel}>Camera</Text>
             </TouchableOpacity>
@@ -381,7 +381,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachItem} onPress={handleStartVoiceRecord} activeOpacity={0.7}>
               <View style={[styles.attachIcon, { backgroundColor: 'rgba(239,68,68,0.15)' }]}>
-                <Ionicons name="mic-outline" size={22} color="#EF4444" />
+                <Ionicons name="mic-outline" size={22} color={colors.error} />
               </View>
               <Text style={styles.attachLabel}>Voice</Text>
             </TouchableOpacity>
@@ -407,7 +407,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
         <View style={styles.nuclearOverlay}>
           <View style={styles.nuclearDialog}>
             <View style={styles.nuclearIconContainer}>
-              <Ionicons name="alert-circle" size={48} color="#f43f5e" />
+              <Ionicons name="alert-circle" size={48} color={colors.like} />
             </View>
             <Text style={styles.nuclearTitle}>💣 Nuclear Block</Text>
             <Text style={styles.nuclearMessage}>
@@ -429,7 +429,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 disabled={blocking}
               >
                 {blocking ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color={colors.white} size="small" />
                 ) : (
                   <Text style={styles.nuclearConfirmText}>Block Forever</Text>
                 )}
@@ -450,7 +450,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 setReactionMsg(contextMsg!);
               }}
             >
-              <Ionicons name="happy-outline" size={20} color="#e7e9ea" />
+              <Ionicons name="happy-outline" size={20} color={colors.text} />
               <Text style={styles.contextMenuText}>React</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -462,7 +462,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 }
               }}
             >
-              <Ionicons name="return-down-left" size={20} color="#e7e9ea" />
+              <Ionicons name="return-down-left" size={20} color={colors.text} />
               <Text style={styles.contextMenuText}>Reply</Text>
             </TouchableOpacity>
             <View style={styles.contextMenuDivider} />
@@ -470,7 +470,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               style={[styles.contextMenuItem, { opacity: 0.7 }]}
               onPress={() => handleDeleteMessage('me')}
             >
-              <Ionicons name="trash-outline" size={20} color="#e7e9ea" />
+              <Ionicons name="trash-outline" size={20} color={colors.text} />
               <Text style={styles.contextMenuText}>Delete for Me</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -486,8 +486,8 @@ export default function ChatRoomScreen({ route, navigation }: any) {
                 );
               }}
             >
-              <Ionicons name="trash" size={20} color="#f43f5e" />
-              <Text style={[styles.contextMenuText, { color: '#f43f5e' }]}>Delete for Everyone</Text>
+              <Ionicons name="trash" size={20} color={colors.like} />
+              <Text style={[styles.contextMenuText, { color: colors.like }]}>Delete for Everyone</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -522,7 +522,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               />
             ) : null}
             <TouchableOpacity style={styles.imageViewerClose} onPress={() => setFullscreenImage(null)} hitSlop={16}>
-              <Ionicons name="close" size={28} color="#fff" />
+              <Ionicons name="close" size={28} color={colors.white} />
             </TouchableOpacity>
           </SafeAreaView>
         </TouchableOpacity>
@@ -540,7 +540,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
               onPress={handleStopVoiceRecord}
               activeOpacity={0.7}
             >
-              <Ionicons name="stop-circle" size={48} color="#f43f5e" />
+              <Ionicons name="stop-circle" size={48} color={colors.like} />
             </TouchableOpacity>
             <Text style={styles.recordingHint}>Tap to stop</Text>
           </View>
@@ -551,7 +551,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#000000' },
+  safeArea: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -569,8 +569,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 6,
   },
-  headerName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15 },
-  headerHandle: { color: '#94a3b8', fontSize: 12 },
+  headerName: { color: colors.text, fontWeight: '700', fontSize: 15 },
+  headerHandle: { color: colors.textSecondary, fontSize: 12 },
   headerActionBtn: {
     width: 36,
     height: 36,
@@ -584,12 +584,12 @@ const styles = StyleSheet.create({
     right: 0,
     marginTop: 4,
     minWidth: 180,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: colors.primaryForeground,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
   },
   nuclearIcon: { fontSize: 20 },
   menuItemTextDelete: {
-    color: '#f43f5e',
+    color: colors.like,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -615,16 +615,16 @@ const styles = StyleSheet.create({
   msgRowLeft: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleMine: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderBottomRightRadius: 4,
   },
   bubbleTheirs: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.bgInput,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.separator,
   },
-  bubbleText: { color: '#e7e9ea', fontSize: 14, lineHeight: 22 },
+  bubbleText: { color: colors.text, fontSize: 14, lineHeight: 22 },
   bubbleTime: { fontSize: 11, marginTop: 4, marginRight: 2 },
   receiptRow: {
     flexDirection: 'row',
@@ -649,11 +649,11 @@ const styles = StyleSheet.create({
   },
   reactionPicker: {
     flexDirection: 'row',
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.avatarFallback,
     borderRadius: 24,
     padding: 8,
     gap: 4,
-    shadowColor: '#000',
+    shadowColor: colors.primaryForeground,
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
@@ -668,11 +668,11 @@ const styles = StyleSheet.create({
   reactionEmoji: { fontSize: 28 },
   // ── Context Menu (delete) ──
   contextMenu: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.avatarFallback,
     borderRadius: 16,
     paddingVertical: 8,
     width: 220,
-    shadowColor: '#000',
+    shadowColor: colors.primaryForeground,
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
   },
   contextMenuText: {
     fontSize: 15,
-    color: '#e7e9ea',
+    color: colors.text,
   },
   contextMenuDivider: {
     height: StyleSheet.hairlineWidth,
@@ -753,7 +753,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 0,
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
     borderRadius: 22,
     paddingLeft: 6,
     paddingRight: 6,
@@ -763,7 +763,7 @@ const styles = StyleSheet.create({
   pillInput: {
     flex: 1,
     backgroundColor: 'transparent',
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 15,
     lineHeight: 20,
     paddingVertical: 6,
@@ -790,13 +790,13 @@ const styles = StyleSheet.create({
     left: 14,
     flexDirection: 'row',
     gap: 16,
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    shadowColor: '#000',
+    shadowColor: colors.primaryForeground,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 16,
@@ -815,7 +815,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   attachLabel: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 11,
     fontWeight: '500',
   },
@@ -830,7 +830,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   uploadingText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -843,7 +843,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   nuclearDialog: {
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 28,
     width: '100%',
@@ -862,21 +862,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   nuclearTitle: {
-    color: '#f43f5e',
+    color: colors.like,
     fontSize: 20,
     fontWeight: '800',
     textAlign: 'center',
     marginBottom: 12,
   },
   nuclearMessage: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     lineHeight: 22,
     textAlign: 'center',
     marginBottom: 8,
   },
   nuclearSubtitle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     textAlign: 'center',
     marginBottom: 24,
@@ -894,7 +894,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   nuclearCancelText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -902,11 +902,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#f43f5e',
+    backgroundColor: colors.like,
     alignItems: 'center',
   },
   nuclearConfirmText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 15,
     fontWeight: '700',
   },
@@ -949,15 +949,15 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#f43f5e',
+    backgroundColor: colors.like,
   },
   recordingText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
   },
   recordingDuration: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 28,
     fontWeight: '700',
     fontFamily: 'monospace',
@@ -966,7 +966,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   recordingHint: {
-    color: '#64748b',
+    color: colors.textTertiary,
     fontSize: 13,
     marginTop: 4,
   },
@@ -1001,7 +1001,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   replyPreviewText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
   },
   replyIndicator: {
@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   replyIndicatorText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },

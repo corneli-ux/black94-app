@@ -471,7 +471,7 @@ export default function CheckoutScreen({ route, navigation }: any) {
             disabled={placingOrder}
           >
             {placingOrder ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={colors.white} size="small" />
             ) : (
               <>
                 <Text style={styles.placeOrderBtnText}>Place Order</Text>
@@ -595,8 +595,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginTop: 4,
     flexDirection: 'row', gap: 10,
   },
-  placeOrderBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  placeOrderBtnTotal: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  placeOrderBtnText: { color: colors.white, fontSize: 17, fontWeight: '700' },
+  placeOrderBtnTotal: { color: colors.white, fontSize: 17, fontWeight: '800' },
   // ── Razorpay modal ──
   razorpayModalContainer: { flex: 1, backgroundColor: colors.bg },
   razorpayModalHeader: {

@@ -17,10 +17,10 @@ interface KPIData {
 
 const QUICK_ACTIONS = [
   { label: 'CRM', icon: 'people-circle-outline', color: colors.accent, screen: 'CrmLeads' },
-  { label: 'Ads Manager', icon: 'megaphone-outline', color: '#ef4444', screen: 'AdsManager' },
-  { label: 'Salary', icon: 'wallet-outline', color: '#22c55e', screen: 'Salary' },
+  { label: 'Ads Manager', icon: 'megaphone-outline', color: colors.error, screen: 'AdsManager' },
+  { label: 'Salary', icon: 'wallet-outline', color: colors.accentGreen, screen: 'Salary' },
   { label: 'Affiliates', icon: 'share-social-outline', color: '#8b5cf6', screen: 'Affiliates' },
-  { label: 'Performance', icon: 'stats-chart-outline', color: '#f59e0b', screen: 'Performance' },
+  { label: 'Performance', icon: 'stats-chart-outline', color: colors.accentGold, screen: 'Performance' },
   { label: 'Orders', icon: 'bag-handle-outline', color: '#06b6d4', screen: 'BusinessOrders' },
 ];
 
@@ -101,7 +101,7 @@ export default function BusinessDashboardScreen({ navigation }: any) {
       {/* KPI Cards */}
       <View style={styles.kpiGrid}>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
-          <Ionicons name="cash-outline" size={20} color="#22c55e" />
+          <Ionicons name="cash-outline" size={20} color={colors.accentGreen} />
           <Text style={styles.kpiLabel}>Total Revenue</Text>
           <Text style={styles.kpiValue}>{formatINR(kpi.totalRevenue)}</Text>
         </View>
@@ -116,7 +116,7 @@ export default function BusinessDashboardScreen({ navigation }: any) {
           <Text style={styles.kpiValue}>{kpi.activeCustomers}</Text>
         </View>
         <View style={[styles.kpiCard, { width: CARD_W }]}>
-          <Ionicons name="trending-up-outline" size={20} color="#f59e0b" />
+          <Ionicons name="trending-up-outline" size={20} color={colors.accentGold} />
           <Text style={styles.kpiLabel}>Conversion Rate</Text>
           <Text style={styles.kpiValue}>{kpi.conversionRate}%</Text>
         </View>

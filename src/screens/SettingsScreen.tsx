@@ -283,7 +283,7 @@ export default function SettingsScreen() {
         {/* Logout */}
         <View style={styles.section}>
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={18} color="#D4AF37" />
+            <Ionicons name="log-out-outline" size={18} color={colors.accent} />
             <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
         </View>
@@ -299,7 +299,7 @@ export default function SettingsScreen() {
               <Text style={styles.deleteAccountText}>Deleting...</Text>
             ) : (
               <>
-                <Ionicons name="trash-outline" size={18} color="#f43f5e" />
+                <Ionicons name="trash-outline" size={18} color={colors.like} />
                 <Text style={styles.deleteAccountText}>Delete Account</Text>
               </>
             )}
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     marginTop: 20, paddingVertical: 12, borderRadius: 12,
     backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',
   },
-  saveBtnText: { color: '#D4AF37', fontWeight: '600', fontSize: 15 },
+  saveBtnText: { color: colors.accent, fontWeight: '600', fontSize: 15 },
   profileSection: { alignItems: 'center', paddingVertical: 20 },
   upgradeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   upgradeCard: {
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   planName: { fontSize: 15, fontWeight: '600', color: colors.text },
   planFeatures: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   planPriceWrap: { flexDirection: 'row', alignItems: 'baseline' },
-  planPrice: { fontSize: 17, fontWeight: '700', color: '#D4AF37' },
+  planPrice: { fontSize: 17, fontWeight: '700', color: colors.accent },
   planDuration: { fontSize: 12, color: colors.textMuted },
   formSection: { paddingHorizontal: 16, marginTop: 8 },
   label: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 16 },
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',
     marginBottom: 40,
   },
-  logoutText: { color: '#D4AF37', fontSize: 15, fontWeight: '600' },
+  logoutText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
   legalRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: 16, gap: 12,
@@ -419,6 +419,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(244, 63, 94, 0.2)',
   },
-  deleteAccountText: { color: '#f43f5e', fontSize: 15, fontWeight: '600' },
+  deleteAccountText: { color: colors.like, fontSize: 15, fontWeight: '600' },
   deleteAccountHint: { color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 6 },
 });

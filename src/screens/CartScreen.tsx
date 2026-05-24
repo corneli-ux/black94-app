@@ -207,7 +207,7 @@ export default function CartScreen({ route, navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="#e7e9ea" />
+            <Ionicons name="arrow-back" size={22} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Cart</Text>
           <View style={styles.headerBadge}>
@@ -275,7 +275,7 @@ export default function CartScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+  container: { flex: 1, backgroundColor: colors.bg },
   centerContent: { justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   backBtn: {
     width: 36,
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontWeight: '700',
     fontSize: 18,
     flex: 1,
@@ -308,18 +308,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  headerBadgeText: { color: colors.white, fontSize: 12, fontWeight: '700' },
   listContent: { padding: 16 },
-  separator: { height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 4 },
+  separator: { height: 0.5, backgroundColor: colors.bgInput, marginVertical: 4 },
   cartItem: { flexDirection: 'row', gap: 12, paddingVertical: 8 },
-  itemImage: { width: 88, height: 88, borderRadius: 10, backgroundColor: '#000000' },
+  itemImage: { width: 88, height: 88, borderRadius: 10, backgroundColor: colors.bg },
   itemImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   itemDetails: { flex: 1, justifyContent: 'center' },
-  itemName: { color: '#e7e9ea', fontSize: 15, fontWeight: '600', lineHeight: 21, marginBottom: 2 },
-  itemOwner: { color: '#71767b', fontSize: 12, marginBottom: 2 },
+  itemName: { color: colors.text, fontSize: 15, fontWeight: '600', lineHeight: 21, marginBottom: 2 },
+  itemOwner: { color: colors.textMuted, fontSize: 12, marginBottom: 2 },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  itemPrice: { color: '#94a3b8', fontSize: 14 },
-  itemComparePrice: { color: '#71767b', fontSize: 12, textDecorationLine: 'line-through' },
+  itemPrice: { color: colors.textSecondary, fontSize: 14 },
+  itemComparePrice: { color: colors.textMuted, fontSize: 12, textDecorationLine: 'line-through' },
   itemActions: {
     justifyContent: 'space-between',
     alignItems: 'flex-end',
@@ -335,20 +335,20 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
   },
   qtyValue: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '700',
     minWidth: 24,
     textAlign: 'center',
   },
-  itemTotal: { color: '#e7e9ea', fontSize: 15, fontWeight: '700', marginTop: 4 },
+  itemTotal: { color: colors.text, fontSize: 15, fontWeight: '700', marginTop: 4 },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
-  emptyTitle: { color: '#e7e9ea', fontSize: 20, fontWeight: '700', marginTop: 16, marginBottom: 8 },
+  emptyTitle: { color: colors.text, fontSize: 20, fontWeight: '700', marginTop: 16, marginBottom: 8 },
   emptySubtitle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 15,
     textAlign: 'center',
     marginBottom: 24,
@@ -360,11 +360,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 24,
   },
-  shopBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  shopBtnText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   bottomBar: {
     borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    borderTopColor: colors.separator,
+    backgroundColor: colors.bg,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -373,13 +373,13 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   summaryInfo: { flex: 1 },
-  summaryLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 2 },
-  summaryTotal: { color: '#e7e9ea', fontSize: 20, fontWeight: '800' },
+  summaryLabel: { color: colors.textSecondary, fontSize: 13, marginBottom: 2 },
+  summaryTotal: { color: colors.text, fontSize: 20, fontWeight: '800' },
   checkoutBtn: {
     backgroundColor: colors.accent,
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 24,
   },
-  checkoutBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  checkoutBtnText: { color: colors.white, fontSize: 15, fontWeight: '700' },
 });

@@ -18,7 +18,7 @@ export function Avatar({
   borderColor?: string;
 }) {
   const border = borderWidth > 0
-    ? { borderWidth, borderColor: borderColor || '#000000' }
+    ? { borderWidth, borderColor: borderColor || colors.bg }
     : {};
 
   const [imgError, setImgError] = useState(false);
@@ -83,11 +83,11 @@ export function VerifiedBadge({ badge, isVerified, size = 18 }: { badge?: string
   // Resolve color exactly like web: resolveBadgeColor
   let color: string;
   if (badge === 'gold') {
-    color = '#ffd700';
+    color = colors.verifiedGold;
   } else if (badge === 'pro' || badge === 'blue') {
     color = colors.verified;
   } else if (isVerified || !!badge) {
-    color = '#FFFFFF'; // generic verified
+    color = colors.verifiedDefault; // generic verified
   } else {
     return null;
   }
@@ -109,11 +109,11 @@ export function VerifiedBadge({ badge, isVerified, size = 18 }: { badge?: string
 }
 
 const styles = StyleSheet.create({
-  image: { backgroundColor: '#1a1a1a' },
+  image: { backgroundColor: colors.bg },
   placeholder: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  placeholderText: { color: '#000000', fontWeight: '700' },
+  placeholderText: { color: colors.primaryForeground, fontWeight: '700' },
   badge: {},
 });

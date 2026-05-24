@@ -14,23 +14,23 @@ import { colors } from '../theme/colors';
 /* ── Theme compat (mirrors source theme tokens) ─────────────────────────────── */
 
 const C = {
-  black: '#000000',
-  white: '#ffffff',
-  surface: '#16181c',
-  surfaceBorder: '#374151',
-  primary: '#FFFFFF',
-  textPrimary: '#e7e9ea',
-  textSecondary: '#a1a1aa',
-  textTertiary: '#71767b',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  danger: '#ef4444',
+  black: colors.bg,
+  white: colors.white,
+  surface: colors.surface,
+  surfaceBorder: colors.border,
+  primary: colors.white,
+  textPrimary: colors.text,
+  textSecondary: colors.textSecondary,
+  textTertiary: colors.textMuted,
+  success: colors.accentGreen,
+  warning: colors.accentGold,
+  danger: colors.error,
   info: '#06b6d4',
   badgeNew: colors.accent,
-  badgeContacted: '#f59e0b',
+  badgeContacted: colors.accentGold,
   badgeQualified: '#8b5cf6',
-  badgeConverted: '#22c55e',
-  badgeLost: '#ef4444',
+  badgeConverted: colors.accentGreen,
+  badgeLost: colors.error,
 };
 
 const S = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 };

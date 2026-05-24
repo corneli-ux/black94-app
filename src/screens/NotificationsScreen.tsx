@@ -29,12 +29,12 @@ interface Notification {
 
 /* Notification type icon mapping — matches web SVG icons */
 function NotifTypeIcon({ type }: { type: string }) {
-  const color = type === 'like' ? '#f43f5e'
-    : type === 'repost' ? '#10b981'
-    : type === 'follow' ? '#FFFFFF'
-    : type === 'comment' ? '#FFFFFF'
-    : type === 'chat' ? '#f59e0b'
-    : '#94a3b8';
+  const color = type === 'like' ? colors.like
+    : type === 'repost' ? colors.accentGreen
+    : type === 'follow' ? colors.white
+    : type === 'comment' ? colors.white
+    : type === 'chat' ? colors.accentGold
+    : colors.textSecondary;
   const name = type === 'like' ? 'heart'
     : type === 'repost' ? 'repeat'
     : type === 'follow' ? 'person-add'
@@ -222,7 +222,7 @@ export default function NotificationsScreen({ navigation }: any) {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
               <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-                <Ionicons name="notifications-outline" size={28} color="#94a3b8" />
+                <Ionicons name="notifications-outline" size={28} color={colors.textSecondary} />
               </View>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 6 }}>Nothing to see here — yet</Text>
               <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 40, fontSize: 15 }}>
@@ -250,14 +250,14 @@ const styles = StyleSheet.create({
   iconWrap: { position: 'relative' },
   typeIcon: {
     position: 'absolute', bottom: -2, right: -4,
-    width: 20, height: 20, borderRadius: 10, backgroundColor: '#000000',
+    width: 20, height: 20, borderRadius: 10, backgroundColor: colors.bg,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: colors.bg,
   },
   unreadDot: {
     position: 'absolute', top: 0, right: 0,
     width: 8, height: 8, borderRadius: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   content: { flex: 1 },
   text: { color: colors.text, fontSize: 15, lineHeight: 24 },

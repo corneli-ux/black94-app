@@ -270,7 +270,7 @@ export default function CreateAdScreen({ navigation }: any) {
           disabled={!isFormValid() || saving}
         >
           {saving ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color={colors.white} size="small" />
           ) : (
             <Text style={styles.saveBtnText}>Create Campaign</Text>
           )}
@@ -317,11 +317,11 @@ const styles = StyleSheet.create({
   },
   tagSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
   tagText: { color: colors.text, fontSize: 13, fontWeight: '500' },
-  tagTextSelected: { color: '#fff' },
+  tagTextSelected: { color: colors.white },
   saveBtn: {
     backgroundColor: colors.accent, borderRadius: 12,
     paddingVertical: 16, alignItems: 'center', marginTop: 10,
   },
   saveBtnDisabled: { opacity: 0.4 },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  saveBtnText: { color: colors.white, fontSize: 16, fontWeight: '700' },
 });

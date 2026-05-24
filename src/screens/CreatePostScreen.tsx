@@ -1,3 +1,4 @@
+import { colors } from '../theme/colors';
 import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, Alert, ScrollView,
@@ -21,21 +22,21 @@ const MAX_IMAGES = 4;
 const MAX_CAPTION_LENGTH = 500;
 
 const COLORS = {
-  bg: '#000000',
-  surface: '#16181c',
-  textPrimary: '#e7e9ea',
-  textSecondary: '#71767b',
-  textMuted: '#536471',
-  white: '#FFFFFF',
+  bg: colors.bg,
+  surface: colors.surface,
+  textPrimary: colors.text,
+  textSecondary: colors.textMuted,
+  textMuted: colors.textMuted,
+  white: colors.white,
   white25: 'rgba(255,255,255,0.25)',
   white06: 'rgba(255,255,255,0.06)',
   white08: 'rgba(255,255,255,0.08)',
   white50: 'rgba(255,255,255,0.5)',
-  accent: '#D4AF37',
-  red: '#f4212e',
+  accent: colors.accent,
+  red: colors.delete,
   green: '#00ba7c',
   amber: '#ffd400',
-  gold: '#D4AF37',
+  gold: colors.accent,
 };
 
 // ── Poll types ────────────────────────────────────────────────────────────
@@ -631,7 +632,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                 <MaterialCommunityIcons name="poll" size={20} color={COLORS.gold} />
                 <Text style={styles.pollTitle}>Poll</Text>
                 <TouchableOpacity onPress={removePoll} hitSlop={8}>
-                  <Ionicons name="close" size={18} color="#94a3b8" />
+                  <Ionicons name="close" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.pollQuestionText}>{pollData.question || 'Untitled poll'}</Text>
@@ -654,7 +655,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                 <View key={opt.id} style={styles.pollOptionRow}>
                   <Text style={styles.pollOptionNumber}>{i + 1}.</Text>
                   <Text style={styles.pollOptionLabel}>{opt.text}</Text>
-                  <TouchableOpacity onPress={() => removePollOption(opt.id)} hitSlop={8}><Ionicons name="close-circle" size={18} color="#f43f5e" /></TouchableOpacity>
+                  <TouchableOpacity onPress={() => removePollOption(opt.id)} hitSlop={8}><Ionicons name="close-circle" size={18} color={colors.like} /></TouchableOpacity>
                 </View>
               ))}
               <View style={styles.pollAddRow}>
@@ -686,7 +687,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                 <Ionicons name="time-outline" size={18} color={COLORS.gold} />
                 <Text style={styles.scheduleTitle}>Schedule Post</Text>
                 <TouchableOpacity onPress={() => setScheduleMode(false)} hitSlop={8}>
-                  <Ionicons name="close" size={16} color="#94a3b8" />
+                  <Ionicons name="close" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.scheduleHint}>
@@ -710,7 +711,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                 <Ionicons name="location-outline" size={18} color={COLORS.green} />
                 <Text style={styles.locationTitle}>Add Location</Text>
                 <TouchableOpacity onPress={() => { setShowLocationInput(false); setLocationTag(''); }} hitSlop={8}>
-                  <Ionicons name="close" size={16} color="#94a3b8" />
+                  <Ionicons name="close" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <TextInput
@@ -734,7 +735,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                   {threadId ? `Thread — Post ${threadPosition + 1}` : 'Thread Mode'}
                 </Text>
                 <TouchableOpacity onPress={() => setThreadMode(false)} hitSlop={8}>
-                  <Ionicons name="close" size={16} color="#94a3b8" />
+                  <Ionicons name="close" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.threadHint}>
@@ -805,7 +806,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <Ionicons name="poll-outline" size={22} color={posting ? COLORS.textMuted : (pollData ? COLORS.gold : '#94a3b8')} />
+              <Ionicons name="poll-outline" size={22} color={posting ? COLORS.textMuted : (pollData ? COLORS.gold : colors.textSecondary)} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -820,7 +821,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               <Ionicons
                 name="time-outline"
                 size={22}
-                color={posting ? COLORS.textMuted : (scheduleMode ? COLORS.gold : '#94a3b8')}
+                color={posting ? COLORS.textMuted : (scheduleMode ? COLORS.gold : colors.textSecondary)}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -836,7 +837,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               <Ionicons
                 name="location-outline"
                 size={22}
-                color={posting ? COLORS.textMuted : (locationTag ? COLORS.green : '#94a3b8')}
+                color={posting ? COLORS.textMuted : (locationTag ? COLORS.green : colors.textSecondary)}
               />
             </TouchableOpacity>
             {/* Thread toggle */}
@@ -857,7 +858,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               <Ionicons
                 name="git-branch-outline"
                 size={22}
-                color={posting ? COLORS.textMuted : (threadMode ? COLORS.accent : '#94a3b8')}
+                color={posting ? COLORS.textMuted : (threadMode ? COLORS.accent : colors.textSecondary)}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -882,7 +883,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               <Ionicons
                 name={visibility === 'public' ? 'globe-outline' : 'people-outline'}
                 size={22}
-                color={posting ? COLORS.textMuted : (visibility === 'public' ? '#22c55e' : COLORS.gold)}
+                color={posting ? COLORS.textMuted : (visibility === 'public' ? colors.accentGreen : COLORS.gold)}
               />
             </TouchableOpacity>
           </View>
@@ -992,7 +993,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.accent || '#1d9bf0',
+    borderLeftColor: COLORS.accent || colors.accent,
   },
   quotePreviewLine: {
     position: 'absolute',
@@ -1000,7 +1001,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 3,
-    backgroundColor: COLORS.accent || '#1d9bf0',
+    backgroundColor: COLORS.accent || colors.accent,
   },
   quotePreviewAuthor: {
     fontSize: 13,
@@ -1120,7 +1121,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: COLORS.textPrimary, fontSize: 15,
   },
-  pollOptionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, gap: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  pollOptionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, gap: 10, borderBottomWidth: 0.5, borderBottomColor: colors.separator },
   pollOptionNumber: { color: COLORS.textSecondary, fontSize: 14, width: 20 },
   pollOptionLabel: { color: COLORS.textPrimary, fontSize: 14, flex: 1 },
   pollAddRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
@@ -1131,12 +1132,12 @@ const styles = StyleSheet.create({
   pollAddBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(212,175,55,0.15)', alignItems: 'center', justifyContent: 'center' },
   pollDurationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
   pollDurationLabel: { color: COLORS.textSecondary, fontSize: 13 },
-  pollDurationBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  pollDurationBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.bgInput, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   pollDurationBtnActive: { backgroundColor: 'rgba(212,175,55,0.2)', borderColor: 'rgba(212,175,55,0.3)' },
   pollDurationBtnText: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
   pollDurationBtnTextActive: { color: COLORS.gold, fontSize: 14, fontWeight: '600' },
   pollCreateBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: COLORS.gold, alignItems: 'center', justifyContent: 'center' },
-  pollCreateBtnText: { color: '#000000', fontSize: 15, fontWeight: '700' },
+  pollCreateBtnText: { color: colors.primaryForeground, fontSize: 15, fontWeight: '700' },
   toolbar: {
     backgroundColor: COLORS.bg,
     borderTopWidth: 0.5,
@@ -1261,11 +1262,11 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     maxHeight: 200,
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    shadowColor: '#000',
+    shadowColor: colors.primaryForeground,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -1280,18 +1281,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   mentionUserInfo: {
     flex: 1,
   },
   mentionName: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '600',
   },
   mentionHandle: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 12,
   },
 });

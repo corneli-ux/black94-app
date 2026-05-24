@@ -322,7 +322,7 @@ export default function HashtagScreen() {
             disabled={followLoading}
           >
             {followLoading ? (
-              <ActivityIndicator size="small" color={isFollowing ? colors.text : '#000000'} />
+              <ActivityIndicator size="small" color={isFollowing ? colors.text : colors.bg} />
             ) : (
               <Text
                 style={[
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
   },
   /* Follow button */
   followBtn: {
-    backgroundColor: '#e7e9ea',
+    backgroundColor: colors.text,
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 6,
@@ -411,17 +411,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   followBtnText: {
-    color: '#000000',
+    color: colors.primaryForeground,
     fontSize: 14,
     fontWeight: '600',
   },
   followingBtn: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#64748b',
+    borderColor: colors.textTertiary,
   },
   followingBtnText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   postCard: {
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
     paddingLeft: 16,
     paddingRight: 16,
     paddingTop: 4,
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.bgInput,
   },
   retryBtnText: {
     color: colors.accent,

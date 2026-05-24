@@ -281,7 +281,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
 
       {/* Red flash overlay on end call */}
       {showRedFlash && <View style={styles.redFlash} />}
@@ -362,7 +362,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
               <Ionicons
                 name={isMuted ? 'mic-off' : 'mic'}
                 size={26}
-                color={isMuted ? '#000' : '#e7e9ea'}
+                color={isMuted ? colors.primaryForeground : colors.text}
               />
             </View>
             <Text style={[styles.actionLabel, isMuted && styles.actionLabelActive]}>
@@ -378,7 +378,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
               <Ionicons
                 name={isSpeaker ? 'volume-high' : 'volume-medium'}
                 size={26}
-                color={isSpeaker ? '#000' : '#e7e9ea'}
+                color={isSpeaker ? colors.primaryForeground : colors.text}
               />
             </View>
             <Text style={[styles.actionLabel, isSpeaker && styles.actionLabelActive]}>
@@ -391,7 +391,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
             onPress={handleEnd}
             activeOpacity={0.8}>
             <View style={styles.endCircle}>
-              <Ionicons name="call" size={28} color="#fff" />
+              <Ionicons name="call" size={28} color={colors.white} />
             </View>
             <Text style={styles.endLabel}>End</Text>
           </TouchableOpacity>
@@ -406,7 +406,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
                 onPress={handleDecline}
                 activeOpacity={0.8}>
                 <View style={styles.declineCircle}>
-                  <Ionicons name="call" size={30} color="#fff" />
+                  <Ionicons name="call" size={30} color={colors.white} />
                 </View>
                 <Text style={styles.declineLabel}>Decline</Text>
               </TouchableOpacity>
@@ -416,7 +416,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
                 onPress={handleAccept}
                 activeOpacity={0.8}>
                 <View style={styles.acceptCircle}>
-                  <Ionicons name="call" size={30} color="#fff" />
+                  <Ionicons name="call" size={30} color={colors.white} />
                 </View>
                 <Text style={styles.acceptLabel}>Accept</Text>
               </TouchableOpacity>
@@ -427,7 +427,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
               onPress={handleEnd}
               activeOpacity={0.8}>
               <View style={styles.endCircle}>
-                <Ionicons name="call" size={28} color="#fff" />
+                <Ionicons name="call" size={28} color={colors.white} />
               </View>
               <Text style={styles.endLabel}>Cancel</Text>
             </TouchableOpacity>
@@ -446,7 +446,7 @@ export default function AudioCallScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.primaryForeground,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
   },
   audioNoticeText: {
     color: 'rgba(255,255,255,0.5)',
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   topHint: {
-    color: '#64748b',
+    color: colors.textTertiary,
     fontSize: 13,
     fontWeight: '500',
     letterSpacing: 0.5,
@@ -505,7 +505,7 @@ const styles = StyleSheet.create({
     borderRadius: 66,
     backgroundColor: 'rgba(212, 175, 55, 0.08)',
     borderWidth: 2.5,
-    borderColor: '#D4AF37',
+    borderColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 10,
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
   callerName: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#e7e9ea',
+    color: colors.text,
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
   timerText: {
     fontSize: 18,
     fontWeight: '300',
-    color: '#94a3b8',
+    color: colors.textSecondary,
     letterSpacing: 2,
     marginTop: 4,
   },
@@ -559,23 +559,23 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   actionCircleActive: {
-    backgroundColor: '#D4AF37',
-    borderColor: '#D4AF37',
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   actionLabel: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   actionLabelActive: {
-    color: '#D4AF37',
+    color: colors.accent,
   },
 
   // ── End call ──
@@ -583,14 +583,14 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#f43f5e',
+    backgroundColor: colors.like,
     justifyContent: 'center',
     alignItems: 'center',
     transform: [{ rotate: '135deg' }],
   },
   endLabel: {
     fontSize: 12,
-    color: '#f43f5e',
+    color: colors.like,
     fontWeight: '500',
   },
 
@@ -599,13 +599,13 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#4ade80',
+    backgroundColor: colors.accentGreen,
     justifyContent: 'center',
     alignItems: 'center',
   },
   acceptLabel: {
     fontSize: 14,
-    color: '#4ade80',
+    color: colors.accentGreen,
     fontWeight: '600',
   },
 
@@ -614,14 +614,14 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#f43f5e',
+    backgroundColor: colors.like,
     justifyContent: 'center',
     alignItems: 'center',
     transform: [{ rotate: '135deg' }],
   },
   declineLabel: {
     fontSize: 14,
-    color: '#f43f5e',
+    color: colors.like,
     fontWeight: '600',
   },
 });

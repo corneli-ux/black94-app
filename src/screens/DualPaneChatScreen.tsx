@@ -509,7 +509,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
             onPress={() => setShowNuclearConfirm(true)}
             hitSlop={8}
           >
-            <Ionicons name="alert-circle-outline" size={22} color="#f43f5e" />
+            <Ionicons name="alert-circle-outline" size={22} color={colors.like} />
           </TouchableOpacity>
         </View>
 
@@ -576,7 +576,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           <View style={styles.nuclearOverlay}>
             <View style={styles.nuclearDialog}>
               <View style={styles.nuclearIconContainer}>
-                <Ionicons name="alert-circle" size={48} color="#f43f5e" />
+                <Ionicons name="alert-circle" size={48} color={colors.like} />
               </View>
               <Text style={styles.nuclearTitle}>💣 Nuclear Block</Text>
               <Text style={styles.nuclearMessage}>
@@ -598,7 +598,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
                   disabled={blocking}
                 >
                   {blocking ? (
-                    <ActivityIndicator color="#fff" size="small" />
+                    <ActivityIndicator color={colors.white} size="small" />
                   ) : (
                     <Text style={styles.nuclearConfirmText}>Block Forever</Text>
                   )}
@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   nuclearDialog: {
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 28,
     width: '100%',
@@ -961,21 +961,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   nuclearTitle: {
-    color: '#f43f5e',
+    color: colors.like,
     fontSize: 20,
     fontWeight: '800',
     textAlign: 'center',
     marginBottom: 12,
   },
   nuclearMessage: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     lineHeight: 22,
     textAlign: 'center',
     marginBottom: 8,
   },
   nuclearSubtitle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     textAlign: 'center',
     marginBottom: 24,
@@ -993,7 +993,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   nuclearCancelText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -1001,11 +1001,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#f43f5e',
+    backgroundColor: colors.like,
     alignItems: 'center',
   },
   nuclearConfirmText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 15,
     fontWeight: '700',
   },

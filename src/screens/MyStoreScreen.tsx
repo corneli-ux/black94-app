@@ -130,13 +130,13 @@ export default function MyStoreScreen({ route, navigation }: any) {
         </View>
         {item.stock > 0 && item.stock <= 5 && (
           <View style={styles.lowStockBadge}>
-            <Ionicons name="alert-circle" size={12} color="#f59e0b" />
+            <Ionicons name="alert-circle" size={12} color={colors.accentGold} />
             <Text style={styles.lowStockBadgeText}>Low Stock</Text>
           </View>
         )}
         {item.stock === 0 && (
           <View style={styles.outOfStockBadge}>
-            <Ionicons name="close-circle" size={12} color="#f43f5e" />
+            <Ionicons name="close-circle" size={12} color={colors.like} />
             <Text style={styles.outOfStockBadgeText}>Out of Stock</Text>
           </View>
         )}
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   },
   productRowInactive: { opacity: 0.5 },
   productImageWrap: { overflow: 'hidden', borderRadius: 10 },
-  productImage: { width: 68, height: 68, backgroundColor: '#000000' },
+  productImage: { width: 68, height: 68, backgroundColor: colors.bg },
   productImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   productInfo: { flex: 1, justifyContent: 'center' },
   productName: { color: colors.text, fontSize: 15, fontWeight: '600', lineHeight: 20, marginBottom: 2 },
@@ -257,11 +257,11 @@ const styles = StyleSheet.create({
   metaSep: { color: colors.textMuted, fontSize: 10 },
   featuredBadge: { marginTop: 4, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(245, 158, 11, 0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   featuredText: { color: colors.accentGold, fontSize: 11, fontWeight: '600' },
-  lowStockText: { color: '#f59e0b', fontWeight: '500' },
+  lowStockText: { color: colors.accentGold, fontWeight: '500' },
   lowStockBadge: { marginTop: 4, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(245, 158, 11, 0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  lowStockBadgeText: { color: '#f59e0b', fontSize: 11, fontWeight: '600' },
+  lowStockBadgeText: { color: colors.accentGold, fontSize: 11, fontWeight: '600' },
   outOfStockBadge: { marginTop: 4, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(244, 63, 94, 0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  outOfStockBadgeText: { color: '#f43f5e', fontSize: 11, fontWeight: '600' },
+  outOfStockBadgeText: { color: colors.like, fontSize: 11, fontWeight: '600' },
   productActions: { alignItems: 'flex-end', gap: 6 },
   actionBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
   activeBtn: { borderColor: colors.accentGreen },
@@ -279,13 +279,13 @@ const styles = StyleSheet.create({
   addBtn: {
     backgroundColor: colors.accent, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 24,
   },
-  addBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  addBtnText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   fab: {
     position: 'absolute', bottom: 28, right: 20,
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6,
+    shadowColor: colors.primaryForeground, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6,
     elevation: 8,
   },
-  fabText: { color: '#fff', fontSize: 28, fontWeight: '300', marginTop: -2 },
+  fabText: { color: colors.white, fontSize: 28, fontWeight: '300', marginTop: -2 },
 });

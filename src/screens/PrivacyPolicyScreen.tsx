@@ -1,3 +1,4 @@
+import { colors } from '../theme/colors';
 import React from 'react';
 import {
   View,
@@ -20,7 +21,7 @@ export default function PrivacyPolicyScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color="#e7e9ea" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Privacy Policy</Text>
           <View style={{ width: 40 }} />
@@ -123,11 +124,11 @@ function SubSection({ title, children }: { title: string; children: React.ReactN
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   header: {
     flexDirection: 'row',
@@ -136,7 +137,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: colors.separator,
   },
   backBtn: {
     width: 40,
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#e7e9ea',
+    color: colors.text,
   },
   content: {
     flex: 1,
@@ -162,12 +163,12 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#e7e9ea',
+    color: colors.text,
     marginBottom: 8,
   },
   lastUpdated: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textTertiary,
   },
   section: {
     marginBottom: 24,
@@ -175,7 +176,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#e7e9ea',
+    color: colors.text,
     marginBottom: 10,
   },
   subSection: {
@@ -185,12 +186,12 @@ const styles = StyleSheet.create({
   subSectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#d1d5db',
+    color: colors.text,
     marginBottom: 6,
   },
   sectionBody: {
     fontSize: 14,
     lineHeight: 22,
-    color: '#94a3b8',
+    color: colors.textSecondary,
   },
 });

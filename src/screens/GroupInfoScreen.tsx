@@ -417,7 +417,7 @@ export default function GroupInfoScreen() {
                 value={muted}
                 onValueChange={handleToggleMute}
                 trackColor={{ false: colors.border, true: colors.accent }}
-                thumbColor={muted ? '#FFFFFF' : colors.textMuted}
+                thumbColor={muted ? colors.white : colors.textMuted}
               />
             </View>
 
@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   retryText: {
-    color: '#000000',
+    color: colors.primaryForeground,
     fontSize: 14,
     fontWeight: '700',
   },

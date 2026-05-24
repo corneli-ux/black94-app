@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   headerTitle: {
     color: colors.text,
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
+    borderBottomColor: colors.separator,
   },
   countText: {
     color: colors.textMuted,
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   emptyText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 16,
     fontWeight: '600',
     marginTop: 12,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
+    borderBottomColor: colors.separator,
   },
   userInfo: {
     flex: 1,
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   handle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
   },
   separator: {

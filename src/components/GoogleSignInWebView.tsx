@@ -1,3 +1,4 @@
+import { colors } from '../theme/colors';
 /**
  * WebView-based Google Sign-In for Android (fallback).
  *
@@ -227,7 +228,7 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
     return (
       <View style={styles.container}>
         <View style={styles.loader}>
-          <ActivityIndicator size="large" color="#ffffff" />
+          <ActivityIndicator size="large" color={colors.white} />
         </View>
       </View>
     );
@@ -244,7 +245,7 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
         startInLoadingState={true}
         renderLoading={() => (
           <View style={styles.loader}>
-            <ActivityIndicator size="large" color="#ffffff" />
+            <ActivityIndicator size="large" color={colors.white} />
           </View>
         )}
         style={styles.webview}
@@ -264,11 +265,11 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   webview: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   loader: {
     position: 'absolute',
@@ -278,6 +279,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
 });

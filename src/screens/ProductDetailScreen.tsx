@@ -495,7 +495,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             disabled={product.stock <= 0 || addingToCart}
           >
             {addingToCart ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={colors.white} size="small" />
             ) : (
               <Text style={styles.addToCartText}>
                 {product.stock <= 0 ? 'Out of Stock' : 'Add to Cart'}
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   backArrow: { color: colors.text, fontSize: 22 },
   headerTitle: { color: colors.text, fontWeight: '700', fontSize: 16, flex: 1, textAlign: 'center', marginHorizontal: 8 },
-  mainImage: { width: SCREEN_W, height: SCREEN_W * 0.9, backgroundColor: '#000000' },
+  mainImage: { width: SCREEN_W, height: SCREEN_W * 0.9, backgroundColor: colors.bg },
   noImage: { alignItems: 'center', justifyContent: 'center' },
   imagePagination: {
     position: 'absolute', bottom: 12, left: 0, right: 0,
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
   price: { color: colors.accent, fontSize: 24, fontWeight: '800' },
   comparePrice: { color: colors.textSecondary, fontSize: 16, textDecorationLine: 'line-through' },
   discountBadge: { backgroundColor: colors.accentGreen, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  discountText: { color: '#000', fontSize: 12, fontWeight: '700' },
+  discountText: { color: colors.primaryForeground, fontSize: 12, fontWeight: '700' },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
   ratingValue: { color: colors.text, fontSize: 14, fontWeight: '600' },
   ratingSep: { color: colors.textMuted, fontSize: 14 },
@@ -587,13 +587,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent, paddingHorizontal: 28, paddingVertical: 14,
     borderRadius: 24, alignItems: 'center', justifyContent: 'center',
   },
-  addToCartText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  addToCartText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   reviewsSection: {
     marginTop: 24,
     paddingHorizontal: 16,
     paddingBottom: 20,
     borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: colors.separator,
     paddingTop: 16,
   },
   reviewsHeader: {
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
   reviewItem: {
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   reviewHeader: {
     flexDirection: 'row',

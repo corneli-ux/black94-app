@@ -146,7 +146,7 @@ export default function LinkedAccountsScreen() {
           <View style={styles.accountRow}>
             <View style={styles.accountIcon}>
               <View style={styles.twitterIconBg}>
-                <Ionicons name="logo-twitter" size={22} color="#fff" />
+                <Ionicons name="logo-twitter" size={22} color={colors.white} />
               </View>
             </View>
             <View style={styles.accountInfo}>
@@ -167,7 +167,7 @@ export default function LinkedAccountsScreen() {
           <View style={[styles.accountRow, { borderBottomWidth: 0 }]}>
             <View style={styles.accountIcon}>
               <View style={styles.appleIconBg}>
-                <Ionicons name="logo-apple" size={26} color="#fff" />
+                <Ionicons name="logo-apple" size={26} color={colors.white} />
               </View>
             </View>
             <View style={styles.accountInfo}>
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   connectBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#D4AF37',
+    color: colors.accent,
   },
 
   // ── Unlink row ──

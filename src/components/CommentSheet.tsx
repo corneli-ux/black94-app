@@ -1,3 +1,4 @@
+import { colors } from '../theme/colors';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -12,7 +13,7 @@ import { useAppStore } from '../stores/app';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
-function RepostIcon({ size = 16, color = '#94a3b8' }: { size?: number; color?: string }) {
+function RepostIcon({ size = 16, color = colors.textSecondary }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <Polyline points="23 4 23 10 17 10" />
@@ -135,7 +136,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
             <View style={styles.handleWrap}><View style={styles.handle} /></View>
             {/* Header */}
             <View style={styles.header}>
-              <TouchableOpacity onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color="#e7e9ea" /></TouchableOpacity>
+              <TouchableOpacity onPress={onClose} hitSlop={8}><Ionicons name="close" size={22} color={colors.text} /></TouchableOpacity>
               <Text style={styles.headerTitle}>Post</Text>
               <View style={{ width: 22 }} />
             </View>
@@ -153,19 +154,19 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
               keyExtractor={item => item.id}
               ListEmptyComponent={
                 loading ? (
-                  <View style={styles.emptyWrap}><ActivityIndicator color="#94a3b8" size="small" /></View>
+                  <View style={styles.emptyWrap}><ActivityIndicator color={colors.textSecondary} size="small" /></View>
                 ) : commentsError ? (
                   <View style={styles.emptyWrap}>
-                    <Ionicons name="alert-circle-outline" size={40} color="#f43f5e" />
+                    <Ionicons name="alert-circle-outline" size={40} color={colors.like} />
                     <Text style={styles.emptyTitle}>Could not load comments</Text>
                     <Text style={styles.emptySub}>{commentsError}</Text>
                     <TouchableOpacity onPress={loadComments} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                      <Text style={{ color: '#e7e9ea', fontSize: 13, fontWeight: '600' }}>Retry</Text>
+                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>Retry</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <View style={styles.emptyWrap}>
-                    <Ionicons name="chatbubble-outline" size={40} color="#64748b" />
+                    <Ionicons name="chatbubble-outline" size={40} color={colors.textTertiary} />
                     <Text style={styles.emptyTitle}>No comments yet</Text>
                     <Text style={styles.emptySub}>Be the first to share your thoughts.</Text>
                   </View>
@@ -199,7 +200,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                         });
                       }}>
                         <View style={styles.actionIconWrap}>
-                          <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
+                          <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
                         </View>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
@@ -211,7 +212,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                         });
                       }}>
                         <View style={styles.actionIconWrap}>
-                          {repostMap[item.id] ? <RepostIcon size={18} color="#10b981" /> : <RepostIcon size={18} color="#94a3b8" />}
+                          {repostMap[item.id] ? <RepostIcon size={18} color={colors.accentGreen} /> : <RepostIcon size={18} color={colors.textSecondary} />}
                         </View>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
@@ -223,7 +224,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                         });
                       }}>
                         <View style={styles.actionIconWrap}>
-                          <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={18} color={likeMap[item.id] ? "#f43f5e" : "#94a3b8"} />
+                          <Ionicons name={likeMap[item.id] ? "heart" : "heart-outline"} size={18} color={likeMap[item.id] ? colors.like : colors.textSecondary} />
                         </View>
                       </TouchableOpacity>
                       {/* Share — opens native share sheet */}
@@ -234,7 +235,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                         } catch {}
                       }}>
                         <View style={styles.actionIconWrap}>
-                          <Ionicons name="share-outline" size={18} color="#94a3b8" />
+                          <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
                         </View>
                       </TouchableOpacity>
                       <View style={styles.actionPair}>
@@ -247,7 +248,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                           });
                         }}>
                           <View style={styles.actionIconWrap}>
-                            <Ionicons name={bookmarkMap[item.id] ? "bookmark" : "bookmark-outline"} size={18} color={bookmarkMap[item.id] ? "#ffffff" : "#94a3b8"} />
+                            <Ionicons name={bookmarkMap[item.id] ? "bookmark" : "bookmark-outline"} size={18} color={bookmarkMap[item.id] ? colors.white : colors.textSecondary} />
                           </View>
                         </TouchableOpacity>
                       </View>
@@ -261,7 +262,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
               <View style={styles.replyingBar}>
                 <Text style={styles.replyingBarText}>Replying to <Text style={styles.replyingBarName}>@{replyingTo.username}</Text></Text>
                 <TouchableOpacity onPress={() => setReplyingTo(null)} hitSlop={8}>
-                  <Ionicons name="close" size={16} color="#94a3b8" />
+                  <Ionicons name="close" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -273,7 +274,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                   <TextInput
                     style={styles.input}
                     placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : "Add a comment..."}
-                    placeholderTextColor="#64748b"
+                    placeholderTextColor={colors.textTertiary}
                     value={text}
                     onChangeText={setText}
                     multiline
@@ -286,7 +287,7 @@ export default function CommentSheet({ visible, onClose, postId, postCaption, on
                   onPress={handleSend}
                   disabled={!text.trim() || sending}
                 >
-                  {sending ? <ActivityIndicator size="small" color="#000" /> : <Ionicons name="send" size={18} color={text.trim() ? '#000' : '#555'} />}
+                  {sending ? <ActivityIndicator size="small" color={colors.bg} /> : <Ionicons name="send" size={18} color={text.trim() ? colors.primaryForeground : colors.textMuted} />}
                 </TouchableOpacity>
               </View>
             </SafeAreaView>
@@ -301,30 +302,30 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   backdropTouch: { flex: 1 },
   sheetContainer: { justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#000000', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: Dimensions.get('window').height * 0.75, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: Dimensions.get('window').height * 0.75, overflow: 'hidden', borderWidth: 1, borderColor: colors.separator },
   handleWrap: { alignItems: 'center', paddingVertical: 10 },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
-  headerTitle: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
+  headerTitle: { color: colors.white, fontWeight: '700', fontSize: 16 },
   preview: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)' },
-  previewCaption: { color: '#94a3b8', fontSize: 14, lineHeight: 20 },
+  previewCaption: { color: colors.textSecondary, fontSize: 14, lineHeight: 20 },
   list: { flex: 1, paddingHorizontal: 16 },
   emptyWrap: { alignItems: 'center', paddingVertical: 48 },
-  emptyTitle: { color: '#e7e9ea', fontSize: 16, fontWeight: '700', marginTop: 12 },
-  emptySub: { color: '#64748b', fontSize: 14, marginTop: 4 },
+  emptyTitle: { color: colors.text, fontSize: 16, fontWeight: '700', marginTop: 12 },
+  emptySub: { color: colors.textTertiary, fontSize: 14, marginTop: 4 },
   commentRow: { flexDirection: 'row', gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
   commentBody: { flex: 1 },
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' },
-  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
-  commentHandle: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  commentTime: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
-  replyToIndicator: { color: '#71767b', fontSize: 13, lineHeight: 18, marginTop: 2 },
-  replyToName: { color: '#1d9bf0', fontWeight: '500' },
-  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: '#000000' },
-  inputWrap: { flex: 1, backgroundColor: '#16181c', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, maxHeight: 100, justifyContent: 'center' },
-  input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },
-  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  commentName: { color: colors.text, fontWeight: '700', fontSize: 15, lineHeight: 20 },
+  commentHandle: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
+  commentTime: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
+  commentContent: { color: colors.text, fontSize: 15, lineHeight: 20, marginTop: 4 },
+  replyToIndicator: { color: colors.textMuted, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  replyToName: { color: colors.accent, fontWeight: '500' },
+  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: colors.bg },
+  inputWrap: { flex: 1, backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, maxHeight: 100, justifyContent: 'center' },
+  input: { color: colors.text, fontSize: 15, lineHeight: 20, maxHeight: 80 },
+  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
   commentActions: {
     flexDirection: 'row',
@@ -348,14 +349,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   replyingBarText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
   },
   replyingBarName: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontWeight: '700',
   },
 });

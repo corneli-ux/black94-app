@@ -40,7 +40,7 @@ import Svg, { Path, Polyline } from 'react-native-svg';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
-function RepostIcon({ size = 16, color = '#71767b' }: { size?: number; color?: string }) {
+function RepostIcon({ size = 16, color = colors.textSecondary }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <Polyline points="23 4 23 10 17 10" />
@@ -73,7 +73,7 @@ function HighlightedCaption({ text, style }: { text: string; style: any }) {
     <Text style={style}>
       {parts.map((part, i) =>
         /^#[\w]+$/.test(part) || /^@[\w]+$/.test(part) ? (
-          <Text key={i} style={{ color: '#FFFFFF' }}>{part}</Text>
+          <Text key={i} style={{ color: colors.white }}>{part}</Text>
         ) : (
           <Text key={i}>{part}</Text>
         )
@@ -159,7 +159,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
           {/* Repost indicator */}
           {post.repostOf && (
             <View style={profileCardStyles.repostHeader}>
-              <RepostIcon size={14} color="#71767b" />
+              <RepostIcon size={14} color={colors.textMuted} />
               <Text style={profileCardStyles.repostHeaderText}>
                 {post.repostedByDisplayName || post.repostedByUsername || 'Someone'} reposted
               </Text>
@@ -189,7 +189,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
                   { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
                 ])}
               >
-                <Ionicons name="ellipsis-horizontal" size={18} color="#94a3b8" />
+                <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
@@ -204,14 +204,14 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             {/* Comment */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
               <View style={profileCardStyles.actionIconWrap}>
-                <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
+                <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
               </View>
               {formatCount(post.commentCount) ? <Text style={profileCardStyles.actionCount}>{formatCount(post.commentCount)}</Text> : null}
             </TouchableOpacity>
             {/* Repost */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleRepostPress}>
               <View style={profileCardStyles.actionIconWrap}>
-                <RepostIcon size={18} color={isReposted ? '#00ba7c' : '#94a3b8'} />
+                <RepostIcon size={18} color={isReposted ? '#00ba7c' : colors.textSecondary} />
               </View>
               {localRepostCount > 0 ? <Text style={[profileCardStyles.actionCount, isReposted && { color: '#00ba7c' }]}>{localRepostCount}</Text> : null}
             </TouchableOpacity>
@@ -219,17 +219,17 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
               <View style={profileCardStyles.actionIconWrap}>
                 {post.liked ? (
-                  <Ionicons name="heart" size={18} color="#f43f5e" />
+                  <Ionicons name="heart" size={18} color={colors.like} />
                 ) : (
-                  <Ionicons name="heart-outline" size={18} color="#94a3b8" />
+                  <Ionicons name="heart-outline" size={18} color={colors.textSecondary} />
                 )}
               </View>
-              {post.likeCount > 0 ? <Text style={[profileCardStyles.actionCount, post.liked && { color: '#f43f5e' }]}>{post.likeCount}</Text> : null}
+              {post.likeCount > 0 ? <Text style={[profileCardStyles.actionCount, post.liked && { color: colors.like }]}>{post.likeCount}</Text> : null}
             </TouchableOpacity>
             {/* Views */}
             <TouchableOpacity style={profileCardStyles.actionBtn} disabled>
               <View style={profileCardStyles.actionIconWrap}>
-                <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+                <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
               </View>
             </TouchableOpacity>
             {/* Bookmark + Share */}
@@ -239,13 +239,13 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
                   {isBookmarked ? (
                     <Ionicons name="bookmark" size={18} color={colors.bookmark} />
                   ) : (
-                    <Ionicons name="bookmark-outline" size={18} color="#94a3b8" />
+                    <Ionicons name="bookmark-outline" size={18} color={colors.textSecondary} />
                   )}
                 </View>
               </TouchableOpacity>
               <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleShare}>
                 <View style={profileCardStyles.actionIconWrap}>
-                  <Ionicons name="share-outline" size={18} color="#94a3b8" />
+                  <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -266,7 +266,7 @@ const profileCardStyles = StyleSheet.create({
   postCard: {
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
     paddingLeft: 16,
     paddingRight: 16,
     paddingTop: 4,
@@ -290,16 +290,16 @@ const profileCardStyles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderRadius: 16,
   },
-  displayName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
-  username: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  dot: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  time: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  caption: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
+  displayName: { color: colors.text, fontWeight: '700', fontSize: 15, lineHeight: 20 },
+  username: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
+  dot: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
+  time: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
+  caption: { color: colors.text, fontSize: 15, lineHeight: 20, marginTop: 4 },
   mediaContainer: {
     marginTop: 12, borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: colors.separator,
   },
-  media: { width: '100%', height: Math.min(SCREEN_WIDTH * 0.85, 510), backgroundColor: '#000000' },
+  media: { width: '100%', height: Math.min(SCREEN_WIDTH * 0.85, 510), backgroundColor: colors.bg },
   actions: {
     flexDirection: 'row', alignItems: 'center',
     marginTop: 8, marginLeft: -4, maxWidth: 440,
@@ -308,7 +308,7 @@ const profileCardStyles = StyleSheet.create({
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   actionPair: { flexDirection: 'row', alignItems: 'center', gap: 0 },
   actionIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  actionCount: { color: '#71767b', fontSize: 13, lineHeight: 16, marginLeft: 1 },
+  actionCount: { color: colors.textMuted, fontSize: 13, lineHeight: 16, marginLeft: 1 },
   heartOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center', zIndex: 10,
@@ -317,23 +317,23 @@ const profileCardStyles = StyleSheet.create({
   mediaErrorOverlay: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: colors.bg,
     alignItems: 'center', justifyContent: 'center',
     gap: 8,
   },
   mediaErrorText: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 12,
   },
   replyingTo: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
     marginTop: 4,
     marginBottom: 2,
   },
   replyingToName: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   /* Parent post media shown in reply cards */
@@ -342,7 +342,7 @@ const profileCardStyles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.separator,
   },
   repostHeader: {
     flexDirection: 'row',
@@ -351,7 +351,7 @@ const profileCardStyles = StyleSheet.create({
     marginBottom: 4,
   },
   repostHeaderText: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '500',
@@ -359,7 +359,7 @@ const profileCardStyles = StyleSheet.create({
   replyMedia: {
     width: '100%',
     height: Math.min(SCREEN_WIDTH * 0.65, 380),
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
 });
 
@@ -373,7 +373,7 @@ function PostGrid({ posts, navigation, onLike, onBookmark, onDelete, onRepost, o
 }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
-      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No posts yet</Text>
+      <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No posts yet</Text>
     </View>
   );
   return (
@@ -396,8 +396,8 @@ function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
 
   if (mediaPosts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
-      <Ionicons name="images-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
-      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No media yet</Text>
+      <Ionicons name="images-outline" size={48} color={colors.textTertiary} style={{ marginBottom: 12 }} />
+      <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No media yet</Text>
     </View>
   );
 
@@ -406,7 +406,7 @@ function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
       {mediaPosts.map((post, idx) => (
         <TouchableOpacity
           key={post.id + '_' + idx}
-          style={{ width: size, height: size, backgroundColor: '#1e1e1e' }}
+          style={{ width: size, height: size, backgroundColor: colors.bg }}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
         >
@@ -421,7 +421,7 @@ function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
               backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4,
               paddingHorizontal: 5, paddingVertical: 2,
             }}>
-              <Ionicons name="copy-outline" size={10} color="#fff" />
+              <Ionicons name="copy-outline" size={10} color={colors.white} />
             </View>
           )}
         </TouchableOpacity>
@@ -442,8 +442,8 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
 
   if (filteredReplies.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
-      <Ionicons name="chatbubble-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
-      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No replies yet</Text>
+      <Ionicons name="chatbubble-outline" size={48} color={colors.textTertiary} style={{ marginBottom: 12 }} />
+      <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No replies yet</Text>
     </View>
   );
   return (
@@ -478,33 +478,33 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
               <View style={profileCardStyles.actions}>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
+                    <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <RepostIcon size={18} color={repostMap[reply.id] ? '#00ba7c' : '#94a3b8'} />
+                    <RepostIcon size={18} color={repostMap[reply.id] ? '#00ba7c' : colors.textSecondary} />
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setLikeMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name={likeMap[reply.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[reply.id] ? '#f43f5e' : '#94a3b8'} />
+                    <Ionicons name={likeMap[reply.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[reply.id] ? colors.like : colors.textSecondary} />
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+                    <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
                   </View>
                 </TouchableOpacity>
                 <View style={profileCardStyles.actionPair}>
                   <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setBookmarkMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
                     <View style={profileCardStyles.actionIconWrap}>
-                      <Ionicons name={bookmarkMap[reply.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[reply.id] ? colors.bookmark : '#94a3b8'} />
+                      <Ionicons name={bookmarkMap[reply.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[reply.id] ? colors.bookmark : colors.textSecondary} />
                     </View>
                   </TouchableOpacity>
                   <TouchableOpacity style={profileCardStyles.actionBtn}>
                     <View style={profileCardStyles.actionIconWrap}>
-                      <Ionicons name="share-outline" size={18} color="#94a3b8" />
+                      <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
                     </View>
                   </TouchableOpacity>
                 </View>
@@ -528,8 +528,8 @@ function LikedPostsGrid({ posts, navigation, onLike, onBookmark, onDelete, onRep
 }) {
   if (posts.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
-      <Ionicons name="heart-outline" size={48} color="#64748b" style={{ marginBottom: 12 }} />
-      <Text style={{ color: '#94a3b8', fontSize: 15 }}>No liked posts yet</Text>
+      <Ionicons name="heart-outline" size={48} color={colors.textTertiary} style={{ marginBottom: 12 }} />
+      <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No liked posts yet</Text>
     </View>
   );
   return <PostGrid posts={posts} navigation={navigation} onLike={onLike} onBookmark={onBookmark} onDelete={onDelete} onRepost={onRepost} onComment={onComment} />;
@@ -570,7 +570,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
   if (!userId) {
     return (
       <SafeAreaView style={styles.loadingContainer} edges={['top']}>
-        <Text style={{ color: '#e7e9ea', fontSize: 16, textAlign: 'center', padding: 40 }}>
+        <Text style={{ color: colors.text, fontSize: 16, textAlign: 'center', padding: 40 }}>
           User not found
         </Text>
       </SafeAreaView>
@@ -977,22 +977,22 @@ export default function UserProfileScreen({ navigation, route }: any) {
     return (
       <SafeAreaView style={styles.loadingContainer} edges={['top']}>
         <View style={{ alignItems: 'center', padding: 40 }}>
-          <Ionicons name="alert-circle-outline" size={48} color="#94a3b8" style={{ marginBottom: 12 }} />
-          <Text style={{ color: '#e7e9ea', fontSize: 17, fontWeight: '700' }}>Unable to load profile</Text>
-          <Text style={{ color: '#71767b', fontSize: 14, marginTop: 8 }}>Check your connection and try again.</Text>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} style={{ marginBottom: 12 }} />
+          <Text style={{ color: colors.text, fontSize: 17, fontWeight: '700' }}>Unable to load profile</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 14, marginTop: 8 }}>Check your connection and try again.</Text>
           <TouchableOpacity
             style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: 'rgba(212,175,55,0.15)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)' }}
             onPress={() => loadData()}
             activeOpacity={0.7}
           >
-            <Text style={{ color: '#D4AF37', fontSize: 15, fontWeight: '600' }}>Tap to retry</Text>
+            <Text style={{ color: colors.accent, fontSize: 15, fontWeight: '600' }}>Tap to retry</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={{ marginTop: 12 }}
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
           >
-            <Text style={{ color: '#71767b', fontSize: 14 }}>Go back</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 14 }}>Go back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1187,7 +1187,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
                   ]);
                 }}
               >
-                <Ionicons name="ellipsis-horizontal" size={18} color="#94a3b8" />
+                <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           )}
@@ -1274,7 +1274,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   coverPlaceholder: {
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1329,7 +1329,7 @@ const styles = StyleSheet.create({
   },
   username: {
     fontSize: 15,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   bio: {
@@ -1353,7 +1353,7 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   actionButtons: {
@@ -1365,22 +1365,22 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#e7e9ea',
+    backgroundColor: colors.text,
     justifyContent: 'center',
     alignItems: 'center',
   },
   followingBtn: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#64748b',
+    borderColor: colors.textTertiary,
   },
   followBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#000000',
+    color: colors.primaryForeground,
   },
   followingBtnText: {
-    color: '#e7e9ea',
+    color: colors.text,
   },
   messageBtn: {
     flex: 1,
@@ -1406,13 +1406,13 @@ const styles = StyleSheet.create({
   messageBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.white,
   },
   tabBar: {
     flexDirection: 'row',
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    borderBottomColor: colors.separator,
+    backgroundColor: colors.bg,
   },
   tab: {
     flex: 1,
@@ -1423,10 +1423,10 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#94a3b8',
+    color: colors.textSecondary,
   },
   tabTextActive: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontWeight: '700',
   },
   tabIndicator: {
@@ -1436,7 +1436,7 @@ const styles = StyleSheet.create({
     right: 24,
     height: 1,
     borderRadius: 0.5,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   emptyState: {
     paddingVertical: 60,
@@ -1454,7 +1454,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
@@ -1466,20 +1466,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   adBannerBadgeText: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
   adBannerHeadline: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '700',
     lineHeight: 20,
     marginBottom: 4,
   },
   adBannerDescription: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 19,
     marginBottom: 10,

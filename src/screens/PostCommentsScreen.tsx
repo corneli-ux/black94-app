@@ -14,7 +14,7 @@ import { colors } from '../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Polyline } from 'react-native-svg';
 
-function RepostIcon({ size = 16, color = '#94a3b8' }: { size?: number; color?: string }) {
+function RepostIcon({ size = 16, color = colors.textSecondary }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <Polyline points="23 4 23 10 17 10" />
@@ -263,7 +263,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               });
             }}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name="chatbubble-outline" size={18} color="#94a3b8" />
+                <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
@@ -274,7 +274,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               });
             }}>
               <View style={styles.actionIconWrap}>
-                {repostMap[item2.id] ? <RepostIcon size={18} color="#10b981" /> : <RepostIcon size={18} color="#94a3b8" />}
+                {repostMap[item2.id] ? <RepostIcon size={18} color={colors.accentGreen} /> : <RepostIcon size={18} color={colors.textSecondary} />}
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
@@ -285,12 +285,12 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               });
             }}>
               <View style={styles.actionIconWrap}>
-                <Ionicons name={likeMap[item2.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[item2.id] ? '#f43f5e' : '#94a3b8'} />
+                <Ionicons name={likeMap[item2.id] ? 'heart' : 'heart-outline'} size={18} color={likeMap[item2.id] ? colors.like : colors.textSecondary} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn} disabled>
               <View style={styles.actionIconWrap}>
-                <Ionicons name="trending-up-outline" size={18} color="#94a3b8" />
+                <Ionicons name="trending-up-outline" size={18} color={colors.textSecondary} />
               </View>
             </TouchableOpacity>
             <View style={styles.actionPair}>
@@ -302,12 +302,12 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
                 });
               }}>
                 <View style={styles.actionIconWrap}>
-                  <Ionicons name={bookmarkMap[item2.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item2.id] ? '#ffffff' : '#94a3b8'} />
+                  <Ionicons name={bookmarkMap[item2.id] ? 'bookmark' : 'bookmark-outline'} size={18} color={bookmarkMap[item2.id] ? colors.white : colors.textSecondary} />
                 </View>
               </TouchableOpacity>
               <TouchableOpacity style={styles.commentActionBtn}>
                 <View style={styles.actionIconWrap}>
-                  <Ionicons name="share-outline" size={18} color="#94a3b8" />
+                  <Ionicons name="share-outline" size={18} color={colors.textSecondary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -327,7 +327,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color="#e7e9ea" />
+            <Ionicons name="arrow-back" size={22} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Replies</Text>
           <View style={{ width: 22 }} />
@@ -358,27 +358,27 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         ListFooterComponent={
           loadingMore ? (
             <View style={{ paddingVertical: 16, alignItems: 'center' }}>
-              <ActivityIndicator color="#94a3b8" size="small" />
+              <ActivityIndicator color={colors.textSecondary} size="small" />
             </View>
           ) : null
         }
         ListEmptyComponent={
           loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator color="#94a3b8" size="small" />
+              <ActivityIndicator color={colors.textSecondary} size="small" />
             </View>
           ) : commentsError ? (
             <View style={styles.emptyWrap}>
-              <Ionicons name="alert-circle-outline" size={48} color="#f43f5e" />
+              <Ionicons name="alert-circle-outline" size={48} color={colors.like} />
               <Text style={styles.emptyTitle}>Could not load replies</Text>
               <Text style={styles.emptySub}>{commentsError}</Text>
-              <TouchableOpacity onPress={loadComments} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                <Text style={{ color: '#e7e9ea', fontSize: 14, fontWeight: '600' }}>Retry</Text>
+              <TouchableOpacity onPress={loadComments} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.bgInput }}>
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>Retry</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.emptyWrap}>
-              <Ionicons name="chatbubble-outline" size={48} color="#64748b" />
+              <Ionicons name="chatbubble-outline" size={48} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>No replies yet</Text>
               <Text style={styles.emptySub}>Be the first to share your thoughts.</Text>
             </View>
@@ -393,7 +393,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         <View style={styles.replyingBar}>
           <Text style={styles.replyingBarText}>Replying to <Text style={styles.replyingBarName}>@{replyingTo.username}</Text></Text>
           <TouchableOpacity onPress={() => setReplyingTo(null)} hitSlop={8}>
-            <Ionicons name="close" size={16} color="#94a3b8" />
+            <Ionicons name="close" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -405,7 +405,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           <TextInput
             style={styles.input}
             placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
-            placeholderTextColor="#64748b"
+            placeholderTextColor={colors.textTertiary}
             value={text}
             onChangeText={setText}
             multiline
@@ -419,8 +419,8 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
           disabled={!text.trim() || sending}
         >
           {sending
-            ? <ActivityIndicator size="small" color="#000" />
-            : <Ionicons name="send" size={18} color={text.trim() ? '#000' : '#555'} />
+            ? <ActivityIndicator size="small" color={colors.primaryForeground} />
+            : <Ionicons name="send" size={18} color={text.trim() ? colors.primaryForeground : colors.textMuted} />
           }
         </TouchableOpacity>
         <TouchableOpacity
@@ -442,32 +442,32 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingBottom: 12,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    borderBottomWidth: 0.5, borderBottomColor: colors.separator,
+    backgroundColor: colors.bg,
   },
-  headerTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '800' },
+  headerTitle: { color: colors.text, fontSize: 18, fontWeight: '800' },
   preview: {
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    borderBottomWidth: 0.5, borderBottomColor: colors.separator,
+    backgroundColor: colors.bg,
   },
-  previewLabel: { color: '#71767b', fontSize: 13, fontWeight: '500', marginBottom: 2 },
-  previewAuthor: { color: '#e7e9ea', fontSize: 15, fontWeight: '700' },
-  previewHandle: { color: '#71767b', fontSize: 15, fontWeight: '400' },
-  previewCaption: { color: '#94a3b8', fontSize: 15, lineHeight: 21, marginTop: 4 },
+  previewLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '500', marginBottom: 2 },
+  previewAuthor: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  previewHandle: { color: colors.textMuted, fontSize: 15, fontWeight: '400' },
+  previewCaption: { color: colors.textSecondary, fontSize: 15, lineHeight: 21, marginTop: 4 },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyListContent: { flexGrow: 1 },
   emptyWrap: { alignItems: 'center', paddingTop: 100 },
-  emptyTitle: { color: '#e7e9ea', fontSize: 18, fontWeight: '700', marginTop: 12 },
-  emptySub: { color: '#64748b', fontSize: 15, marginTop: 4 },
+  emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 12 },
+  emptySub: { color: colors.textTertiary, fontSize: 15, marginTop: 4 },
   commentRow: {
     flexDirection: 'row', gap: 12,
     paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomWidth: 1, borderBottomColor: colors.separator,
   },
   commentReplyIndent: {
     paddingLeft: 44, // Indent replies under parent (16 base + 28 for child offset)
@@ -478,12 +478,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginBottom: 2, flexWrap: 'wrap',
   },
-  commentName: { color: '#e7e9ea', fontWeight: '700', fontSize: 15, lineHeight: 20 },
-  commentHandle: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  commentTime: { color: '#71767b', fontSize: 15, lineHeight: 20 },
-  commentContent: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, marginTop: 4 },
-  replyToIndicator: { color: '#71767b', fontSize: 13, lineHeight: 18, marginTop: 2 },
-  replyToName: { color: '#1d9bf0', fontWeight: '500' },
+  commentName: { color: colors.text, fontWeight: '700', fontSize: 15, lineHeight: 20 },
+  commentHandle: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
+  commentTime: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
+  commentContent: { color: colors.text, fontSize: 15, lineHeight: 20, marginTop: 4 },
+  replyToIndicator: { color: colors.textMuted, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  replyToName: { color: colors.accent, fontWeight: '500' },
   /* Action bar — matches feed PostCard exactly */
   commentActions: {
     flexDirection: 'row',
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
   commentActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   /* ── Ad Card (inline in comments) ── */
   adCard: {
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
     marginHorizontal: 16,
     marginVertical: 8,
     paddingHorizontal: 16,
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   adBadgeText: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -526,27 +526,27 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   adHeadline: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '700',
     lineHeight: 20,
     marginBottom: 4,
   },
   adDescription: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 19,
     marginBottom: 10,
   },
   adCtaBtn: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.bgInput,
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 16,
   },
   adCtaText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -559,20 +559,20 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingVertical: 10,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    borderTopWidth: 1, borderTopColor: colors.separator,
+    backgroundColor: colors.bg,
   },
   inputWrap: {
-    flex: 1, backgroundColor: '#16181c',
+    flex: 1, backgroundColor: colors.surface,
     borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
     minHeight: 36, maxHeight: 100, justifyContent: 'center',
   },
-  input: { color: '#e7e9ea', fontSize: 15, lineHeight: 20, maxHeight: 80 },
+  input: { color: colors.text, fontSize: 15, lineHeight: 20, maxHeight: 80 },
   sendBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center',
   },
-  sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  sendBtnDisabled: { backgroundColor: colors.bgInput },
   factCheckBtn: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: 'rgba(42,127,255,0.12)', alignItems: 'center', justifyContent: 'center',
@@ -584,15 +584,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#000000',
+    borderTopColor: colors.separator,
+    backgroundColor: colors.bg,
   },
   replyingBarText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
   },
   replyingBarName: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontWeight: '700',
   },
 });

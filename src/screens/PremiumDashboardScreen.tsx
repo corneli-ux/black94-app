@@ -891,7 +891,7 @@ const styles = StyleSheet.create({
   },
   upgradeBtn: {
     flex: 1,
-    backgroundColor: '#D4AF37',
+    backgroundColor: colors.accent,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
   upgradeBtnTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#000000',
+    color: colors.primaryForeground,
     fontFamily: 'Roboto-Bold',
   },
   upgradeBtnPrice: {
@@ -1125,7 +1125,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto-Regular',
   },
   modalBtn: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: colors.accent,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 32,
@@ -1135,7 +1135,7 @@ const styles = StyleSheet.create({
   modalBtnText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#000000',
+    color: colors.primaryForeground,
     fontFamily: 'Roboto-Bold',
   },
 

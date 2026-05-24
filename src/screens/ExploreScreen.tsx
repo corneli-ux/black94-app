@@ -255,7 +255,7 @@ export default function ExploreScreen() {
           onPress={() => navigation.navigate('Search' as never)}
           activeOpacity={0.7}
         >
-          <Ionicons name="search" size={20} color="#94a3b8" />
+          <Ionicons name="search" size={20} color={colors.textSecondary} />
           <Text style={styles.searchPlaceholder}>Search</Text>
         </TouchableOpacity>
 
@@ -331,7 +331,7 @@ export default function ExploreScreen() {
           ) : recommendedUsers.length === 0 ? (
             <View style={styles.emptyUsersWrap}>
               <View style={styles.emptyUsersIcon}>
-                <Ionicons name="people-outline" size={28} color="#64748b" />
+                <Ionicons name="people-outline" size={28} color={colors.textTertiary} />
               </View>
               <Text style={styles.emptyUsersText}>
                 Suggestions will appear as more people join.
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: 25,
@@ -415,34 +415,34 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   searchPlaceholder: {
-    color: '#64748b',
+    color: colors.textTertiary,
     fontSize: 15,
   },
   /* Category pills */
   categoriesWrap: { marginBottom: 4 },
   categoriesScroll: { paddingHorizontal: 16, gap: 8 },
   categoryPill: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   categoryPillActive: {
-    backgroundColor: '#e7e9ea',
+    backgroundColor: colors.text,
   },
   categoryPillText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '500',
   },
   categoryPillTextActive: {
-    color: '#000000',
+    color: colors.primaryForeground,
   },
   /* Section */
   section: { marginTop: 16 },
   /* Section title: fontSize: 18, fontWeight: 700, color: #e7e9ea */
   sectionTitle: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 20,
     fontWeight: '700',
     paddingHorizontal: 16,
@@ -457,24 +457,24 @@ const styles = StyleSheet.create({
   topicContent: {},
   /* Tag: fontSize: 15, fontWeight: 700, color: #e7e9ea */
   topicTag: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '700',
     marginTop: 2,
   },
   /* Posts count: fontSize: 13, color: #64748b */
   topicPosts: {
-    color: '#64748b',
+    color: colors.textTertiary,
     fontSize: 13,
     marginTop: 2,
   },
   topicSeparator: {
     height: 0.5,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
     marginLeft: 16,
   },
   noTopicsText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
     paddingVertical: 20,
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   emptyUsersText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
   },
@@ -513,51 +513,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   userInfo: {
     flex: 1,
     marginLeft: 12,
   },
   userName: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontWeight: '700',
     fontSize: 14,
   },
   userHandle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
   },
   userBio: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     marginTop: 2,
     lineHeight: 18,
   },
   /* Follow button: bg-[#e7e9ea] text-black text-[13px] font-semibold rounded-full */
   followBtn: {
-    backgroundColor: '#e7e9ea',
+    backgroundColor: colors.text,
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 6,
     alignSelf: 'center',
   },
   followBtnText: {
-    color: '#000000',
+    color: colors.primaryForeground,
     fontSize: 14,
     fontWeight: '600',
   },
   /* Following button: border border-[#64748b] text-[#e7e9ea] */
   followingBtn: {
     borderWidth: 1,
-    borderColor: '#64748b',
+    borderColor: colors.textTertiary,
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 6,
     alignSelf: 'center',
   },
   followingBtnText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '600',
   },

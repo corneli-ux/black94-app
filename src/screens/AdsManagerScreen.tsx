@@ -214,5 +214,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
-  fabIcon: { color: '#fff', fontSize: 28, fontWeight: '700' },
+  fabIcon: { color: colors.white, fontSize: 28, fontWeight: '700' },
 });

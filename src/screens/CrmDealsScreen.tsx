@@ -1,3 +1,4 @@
+import { colors } from '../theme/colors';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -17,17 +18,17 @@ import { deliverPendingFollowUps } from '../lib/crm';
 /* ── Theme compat (mirrors source theme tokens) ─────────────────────────────── */
 
 const C = {
-  black: '#000000',
-  white: '#ffffff',
-  surface: '#16181c',
-  surfaceBorder: '#374151',
-  primary: '#FFFFFF',
-  textPrimary: '#e7e9ea',
-  textSecondary: '#a1a1aa',
-  textTertiary: '#71767b',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  danger: '#ef4444',
+  black: colors.bg,
+  white: colors.white,
+  surface: colors.surface,
+  surfaceBorder: colors.border,
+  primary: colors.white,
+  textPrimary: colors.text,
+  textSecondary: colors.textSecondary,
+  textTertiary: colors.textMuted,
+  success: colors.accentGreen,
+  warning: colors.accentGold,
+  danger: colors.error,
   white20: 'rgba(255,255,255,0.2)',
 };
 
@@ -50,12 +51,12 @@ interface CrmDeal {
 }
 
 const STAGES: Array<{ key: CrmDeal['stage']; label: string; color: string }> = [
-  { key: 'initial', label: 'Initial', color: '#e0e0e0' },
-  { key: 'negotiation', label: 'Negotiation', color: '#f59e0b' },
+  { key: 'initial', label: 'Initial', color: colors.textSecondary },
+  { key: 'negotiation', label: 'Negotiation', color: colors.accentGold },
   { key: 'proposal', label: 'Proposal', color: '#8b5cf6' },
   { key: 'closing', label: 'Closing', color: '#06b6d4' },
-  { key: 'won', label: 'Won', color: '#22c55e' },
-  { key: 'lost', label: 'Lost', color: '#ef4444' },
+  { key: 'won', label: 'Won', color: colors.accentGreen },
+  { key: 'lost', label: 'Lost', color: colors.error },
 ];
 
 const CrmDealsScreen: React.FC = () => {
@@ -438,7 +439,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: S.lg,
     paddingVertical: S.md,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
     borderBottomWidth: 1,
     borderBottomColor: C.surfaceBorder,
   },

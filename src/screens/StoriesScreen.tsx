@@ -128,7 +128,7 @@ function StoryProgressBar({
             styles.progressFill,
             {
               width: `${progress * 100}%`,
-              backgroundColor: paused ? 'rgba(255,255,255,0.5)' : '#fff',
+              backgroundColor: paused ? 'rgba(255,255,255,0.5)' : colors.white,
             },
           ]}
         />
@@ -193,7 +193,7 @@ function HeartOverlay({
         },
       ]}
     >
-      <Ionicons name="heart" size={80} color="#ff3040" />
+      <Ionicons name="heart" size={80} color={colors.like} />
     </Animated.View>
   );
 }
@@ -786,7 +786,7 @@ export default function StoriesScreen({ navigation }: any) {
                 <Ionicons
                   name={cat.icon as any}
                   size={14}
-                  color={activeCategory === cat.id ? '#fff' : colors.textSecondary}
+                  color={activeCategory === cat.id ? colors.primary : colors.textSecondary}
                   style={{ marginRight: 4 }}
                 />
                 <Text
@@ -925,7 +925,7 @@ export default function StoriesScreen({ navigation }: any) {
                 {/* Pause indicator */}
                 {paused && (
                   <View style={styles.pausedIndicator}>
-                    <Ionicons name="pause" size={10} color="#fff" />
+                    <Ionicons name="pause" size={10} color={colors.white} />
                   </View>
                 )}
                 <TouchableOpacity
@@ -933,7 +933,7 @@ export default function StoriesScreen({ navigation }: any) {
                   onPress={closeStoryViewer}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Ionicons name="close" size={24} color="#fff" />
+                  <Ionicons name="close" size={24} color={colors.white} />
                 </TouchableOpacity>
               </View>
             </SafeAreaView>
@@ -991,20 +991,20 @@ export default function StoriesScreen({ navigation }: any) {
                     <Ionicons
                       name={liked ? 'heart' : 'heart-outline'}
                       size={26}
-                      color={liked ? colors.like : '#fff'}
+                      color={liked ? colors.like : colors.primary}
                     />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.reactionBtn}
                     onPress={() => setShowCommentInput(!showCommentInput)}
                   >
-                    <Ionicons name="chatbubble-outline" size={24} color="#fff" />
+                    <Ionicons name="chatbubble-outline" size={24} color={colors.white} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.reactionBtn}>
-                    <Ionicons name="send-outline" size={24} color="#fff" />
+                    <Ionicons name="send-outline" size={24} color={colors.white} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.reactionBtn}>
-                    <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
+                    <Ionicons name="ellipsis-horizontal" size={24} color={colors.white} />
                   </TouchableOpacity>
                 </View>
 
@@ -1025,7 +1025,7 @@ export default function StoriesScreen({ navigation }: any) {
                     }}
                     style={{ flexDirection: 'row', alignItems: 'center' }}
                   >
-                    <Ionicons name="eye" size={14} color="rgba(255,255,255,0.6)" />
+                    <Ionicons name="eye" size={14} color={colors.textSecondary} />
                     <Text style={styles.reactionStatTextMuted}>
                       {viewingStory.viewCount}
                     </Text>
@@ -1086,12 +1086,12 @@ export default function StoriesScreen({ navigation }: any) {
               <View style={styles.viewersHeader}>
                 <Text style={styles.viewersTitle}>Story Views</Text>
                 <TouchableOpacity onPress={() => setShowViewers(false)}>
-                  <Ionicons name="close" size={24} color="#e7e9ea" />
+                  <Ionicons name="close" size={24} color={colors.text} />
                 </TouchableOpacity>
               </View>
               {viewers.length === 0 ? (
                 <View style={styles.viewersEmpty}>
-                  <Ionicons name="eye-outline" size={40} color="#4a5568" />
+                  <Ionicons name="eye-outline" size={40} color={colors.textMuted} />
                   <Text style={styles.viewersEmptyText}>No views yet</Text>
                 </View>
               ) : (
@@ -1228,7 +1228,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   categoryChipTextActive: {
-    color: '#fff',
+    color: colors.white,
     fontWeight: '700',
   },
 
@@ -1364,7 +1364,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   storyCardText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
@@ -1389,7 +1389,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   storyCardAuthor: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 11,
     fontWeight: '700',
     flex: 1,
@@ -1454,7 +1454,7 @@ const styles = StyleSheet.create({
      ══════════════════════════════════════════════════════════════════════ */
   viewerContainer: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg,
   },
   viewerTopArea: {
     position: 'absolute',
@@ -1471,13 +1471,13 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     height: 2.5,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.separator,
     borderRadius: 1.5,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 1.5,
   },
   viewerHeader: {
@@ -1489,13 +1489,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   viewerUsername: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 14,
     fontWeight: '700',
     flexShrink: 1,
   },
   viewerTimestamp: {
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
     fontSize: 12,
   },
   pausedIndicator: {
@@ -1511,7 +1511,7 @@ const styles = StyleSheet.create({
   /* ── Story Content (90%) ─────────────────────────────────────────────── */
   viewerContent: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg,
   },
   viewerImage: {
     width: SCREEN_W,
@@ -1524,7 +1524,7 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   viewerStoryText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
@@ -1564,12 +1564,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reactionAuthorName: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 13,
     fontWeight: '700',
   },
   reactionAuthorUsername: {
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 1,
   },
@@ -1592,12 +1592,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   reactionStatText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '600',
   },
   reactionStatTextMuted: {
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '400',
   },
@@ -1651,7 +1651,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: colors.separator,
   },
   viewersTitle: {
     fontSize: 18,
@@ -1666,7 +1666,7 @@ const styles = StyleSheet.create({
   },
   viewersEmptyText: {
     fontSize: 15,
-    color: '#4a5568',
+    color: colors.textMuted,
   },
   viewerItem: {
     flexDirection: 'row',
@@ -1674,7 +1674,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    borderBottomColor: colors.separator,
   },
   viewerInfo: {
     flex: 1,
@@ -1687,10 +1687,10 @@ const styles = StyleSheet.create({
   },
   viewerHandle: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textTertiary,
   },
   viewerTime: {
     fontSize: 12,
-    color: '#4a5568',
+    color: colors.textMuted,
   },
 });

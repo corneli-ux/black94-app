@@ -80,7 +80,7 @@ function FullScreenViewer({
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           activeOpacity={0.7}
         >
-          <Ionicons name="close" size={28} color="#fff" />
+          <Ionicons name="close" size={28} color={colors.white} />
         </TouchableOpacity>
 
         <Image
@@ -221,7 +221,7 @@ export default function MediaGalleryScreen() {
         {item.isVideo && (
           <View style={styles.playOverlay}>
             <View style={styles.playCircle}>
-              <Ionicons name="play" size={22} color="#fff" />
+              <Ionicons name="play" size={22} color={colors.white} />
             </View>
           </View>
         )}
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   headerTitle: {
     color: colors.text,
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   emptyText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 16,
     fontWeight: '600',
     marginTop: 12,
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
   /* Fullscreen viewer */
   fullscreenBg: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },

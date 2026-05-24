@@ -16,12 +16,12 @@ const DarkTheme = {
   dark: true,
   colors: {
     ...DefaultTheme.colors,
-    primary: '#FFFFFF',
-    background: '#000000',
-    card: '#000000',
-    text: '#e7e9ea',
-    border: 'rgba(255,255,255,0.06)',
-    notification: '#FFFFFF',
+    primary: colors.primary,
+    background: colors.bg,
+    card: colors.bgCard,
+    text: colors.text,
+    border: colors.separator,
+    notification: colors.primary,
   },
   fonts: {
     regular: { fontFamily: 'Roboto-Regular', fontWeight: '400' as const },
@@ -122,8 +122,8 @@ const Stack = createNativeStackNavigator();
 
 function LazyFallback() {
   return (
-    <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
-      <ActivityIndicator color="#FFFFFF" size="large" />
+    <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator color={colors.white} size="large" />
     </View>
   );
 }
@@ -141,14 +141,14 @@ function LazyScreen(Component: any) {
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   const iconProps: { size: number; color: string } = {
     size: 24,
-    color: '#ffffff',
+    color: colors.white,
   };
 
   // Match web's Lucide icons with Ionicons equivalents
   switch (name) {
     case 'Home':
       return (
-        <Text style={{ fontSize: 20, fontWeight: '900', color: '#ffffff' }}>94</Text>
+        <Text style={{ fontSize: 20, fontWeight: '900', color: colors.white }}>94</Text>
       );
     case 'Search':
       return (
@@ -214,9 +214,9 @@ function MainTabs() {
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: '#000000',
+          backgroundColor: colors.tabBar,
           borderTopWidth: 0.5,
-          borderTopColor: 'rgba(255,255,255,0.06)',
+          borderTopColor: colors.separator,
           height: tabBarHeight,
           paddingBottom: insets.bottom || 0,
           elevation: 8,
@@ -345,7 +345,7 @@ function CustomDrawerContent({ navigation }: any) {
       {/* Logout button — always visible when user is logged in */}
       {user && (
         <TouchableOpacity style={styles.drawerLogoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={22} color="#D4AF37" style={{ width: 30, textAlign: 'center' }} />
+          <Ionicons name="log-out-outline" size={22} color={colors.accent} style={{ width: 30, textAlign: 'center' }} />
           <Text style={styles.drawerLogoutText}>Log Out</Text>
         </TouchableOpacity>
       )}
@@ -360,7 +360,7 @@ function DrawerNavigator() {
       screenOptions={{
         headerShown: false,
         drawerStyle: { backgroundColor: colors.bg, width: '72%' },
-        sceneStyle: { backgroundColor: '#000000' },
+        sceneStyle: { backgroundColor: colors.bg },
         overlayColor: 'rgba(0,0,0,0.7)',
       }}
     >
@@ -381,7 +381,7 @@ function DrawerNavigator() {
 
 function AppStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="Drawer" component={DrawerNavigator} />
       {/* Chat */}
       <Stack.Screen name="ChatRoom" component={LazyScreen(ChatRoomScreen)} />
@@ -527,8 +527,8 @@ export default function AppNavigator() {
   // While not ready, show dark splash-like screen
   if (!isReady) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: '#e7e9ea', fontSize: 28, fontWeight: '800' }}>Black94</Text>
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: colors.text, fontSize: 28, fontWeight: '800' }}>Black94</Text>
       </View>
     );
   }
@@ -541,7 +541,7 @@ export default function AppNavigator() {
       {showApp ? (
         <AppStack />
       ) : (
-        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
           <Stack.Screen name="Login" component={LazyScreen(AuthScreen)} />
           <Stack.Screen name="Signup" component={LazyScreen(SignupScreen)} />
         </Stack.Navigator>
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
   drawerUserName: { color: colors.text, fontWeight: '700', fontSize: 15 },
   drawerUserHandle: { color: colors.textSecondary, fontSize: 14 },
   drawerLogoutBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, borderTopWidth: 0.5, borderTopColor: colors.border },
-  drawerLogoutText: { color: '#D4AF37', fontSize: 17, fontWeight: '600' },
+  drawerLogoutText: { color: colors.accent, fontSize: 17, fontWeight: '600' },
   tabBadge: {
     position: 'absolute',
     top: 4,
@@ -570,13 +570,13 @@ const styles = StyleSheet.create({
     minWidth: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
   },
   tabBadgeText: {
-    color: '#000000',
+    color: colors.primaryForeground,
     fontSize: 10,
     fontWeight: '700',
   },

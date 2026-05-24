@@ -584,7 +584,7 @@ export default function StoreDashboardScreen() {
           <View style={styles.lowStockCard}>
             <View style={styles.lowStockHeader}>
               <View style={styles.lowStockTitleRow}>
-                <Ionicons name="alert-circle" size={18} color="#f59e0b" />
+                <Ionicons name="alert-circle" size={18} color={colors.accentGold} />
                 <Text style={styles.lowStockTitle}>Low Stock Alerts</Text>
               </View>
               <Text style={styles.lowStockCount}>{lowStockProducts.length} item{lowStockProducts.length !== 1 ? 's' : ''}</Text>
@@ -592,7 +592,7 @@ export default function StoreDashboardScreen() {
             {lowStockProducts.map(product => (
               <View key={product.id} style={styles.lowStockItem}>
                 <View style={styles.lowStockItemInfo}>
-                  <Ionicons name="cube-outline" size={14} color="#f59e0b" />
+                  <Ionicons name="cube-outline" size={14} color={colors.accentGold} />
                   <Text style={styles.lowStockItemName} numberOfLines={1}>{product.name}</Text>
                 </View>
                 <Text style={styles.lowStockItemStock}>{product.stock} left</Text>
@@ -676,7 +676,7 @@ export default function StoreDashboardScreen() {
               onPress={() => navigation.navigate('AddProduct' as never)}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIconBg, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
+              <View style={[styles.actionIconBg, { backgroundColor: colors.bgInput }]}>
                 <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
               </View>
               <Text style={styles.actionLabel}>Add Product</Text>
@@ -848,7 +848,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
@@ -1157,7 +1157,7 @@ const styles = StyleSheet.create({
   lowStockTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#f59e0b',
+    color: colors.accentGold,
   },
   lowStockCount: {
     fontSize: 13,
@@ -1174,7 +1174,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   lowStockItemInfo: {
     flexDirection: 'row',
@@ -1190,7 +1190,7 @@ const styles = StyleSheet.create({
   lowStockItemStock: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#f59e0b',
+    color: colors.accentGold,
   },
   lowStockAction: {
     marginTop: 12,
@@ -1202,6 +1202,6 @@ const styles = StyleSheet.create({
   lowStockActionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#f59e0b',
+    color: colors.accentGold,
   },
 });

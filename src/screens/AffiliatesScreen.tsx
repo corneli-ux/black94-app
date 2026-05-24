@@ -20,11 +20,11 @@ interface Affiliate {
 }
 
 const BADGE_CONFIG: Record<string, { color: string; bg: string; icon: string }> = {
-  None: { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', icon: 'ribbon-outline' },
+  None: { color: colors.textSecondary, bg: 'rgba(148,163,184,0.12)', icon: 'ribbon-outline' },
   Bronze: { color: '#CD7F32', bg: 'rgba(205,127,50,0.15)', icon: 'medal-outline' },
   Silver: { color: '#C0C0C0', bg: 'rgba(192,192,192,0.15)', icon: 'medal-outline' },
   Gold: { color: colors.accentGold, bg: 'rgba(255,215,0,0.15)', icon: 'trophy-outline' },
-  Platinum: { color: '#E5E4E2', bg: 'rgba(229,228,226,0.15)', icon: 'diamond-outline' },
+  Platinum: { color: colors.textSecondary, bg: 'rgba(229,228,226,0.15)', icon: 'diamond-outline' },
 };
 
 function formatINR(amount: number): string {
@@ -241,7 +241,7 @@ export default function AffiliatesScreen({ navigation }: any) {
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={48} color="#64748b" />
+              <Ionicons name="people-outline" size={48} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>No affiliates yet</Text>
               <Text style={styles.emptyText}>
                 Invite affiliates to promote your products and earn commissions.

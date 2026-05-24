@@ -116,7 +116,7 @@ export default function VideoCallScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
 
       {/* ── Remote Video (full-screen placeholder) ──────────────────── */}
       <View style={styles.remoteVideoArea}>
@@ -128,13 +128,13 @@ export default function VideoCallScreen() {
 
         {!endedEarly && !isCameraOff ? (
           <View style={styles.videoPlaceholder}>
-            <Ionicons name="videocam" size={64} color="#374151" />
+            <Ionicons name="videocam" size={64} color={colors.border} />
             <Text style={styles.placeholderLabel}>Remote Video</Text>
             <Text style={styles.placeholderSub}>WebRTC integration coming soon</Text>
           </View>
         ) : !endedEarly ? (
           <View style={styles.videoPlaceholder}>
-            <Ionicons name="videocam-off" size={64} color="#374151" />
+            <Ionicons name="videocam-off" size={64} color={colors.border} />
             <Text style={styles.placeholderLabel}>Camera Off</Text>
           </View>
         ) : null}
@@ -144,11 +144,11 @@ export default function VideoCallScreen() {
           <View style={styles.selfViewContainer}>
             {isCameraOff ? (
               <View style={styles.selfViewPlaceholder}>
-                <Ionicons name="videocam-off" size={24} color="#374151" />
+                <Ionicons name="videocam-off" size={24} color={colors.border} />
               </View>
             ) : (
               <View style={styles.selfViewPlaceholder}>
-                <Ionicons name="camera" size={24} color="#374151" />
+                <Ionicons name="camera" size={24} color={colors.border} />
               </View>
             )}
             <View style={styles.selfViewLabel}>
@@ -161,7 +161,7 @@ export default function VideoCallScreen() {
       {/* ── Header (caller info + timer) ──────────────────────────────── */}
       <View style={[styles.header, { top: insets.top || 12 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={handleEndCall} hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
+          <Ionicons name="chevron-back" size={24} color={colors.white} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -169,7 +169,7 @@ export default function VideoCallScreen() {
           <View style={styles.headerSubRow}>
             <View style={[
               styles.statusDot,
-              { backgroundColor: callActive ? '#4ade80' : '#f43f5e' },
+              { backgroundColor: callActive ? colors.accentGreen : colors.error },
             ]} />
             <Text style={styles.headerStatus}>
               {callActive ? 'Connected' : 'Ended'}
@@ -186,7 +186,7 @@ export default function VideoCallScreen() {
           onPress={handleEndCall}
           hitSlop={8}
         >
-          <Ionicons name="call" size={22} color="#fff" style={styles.endCallIcon} />
+          <Ionicons name="call" size={22} color={colors.white} style={styles.endCallIcon} />
         </TouchableOpacity>
       </View>
 
@@ -202,7 +202,7 @@ export default function VideoCallScreen() {
             <Ionicons
               name={isMuted ? 'mic-off' : 'mic'}
               size={26}
-              color={isMuted ? '#000' : '#e7e9ea'}
+              color={isMuted ? colors.primaryForeground : colors.text}
             />
           </View>
           <Text style={[styles.controlLabel, isMuted && styles.controlLabelActive]}>
@@ -220,7 +220,7 @@ export default function VideoCallScreen() {
             <Ionicons
               name={isCameraOff ? 'videocam-off' : 'videocam'}
               size={26}
-              color={isCameraOff ? '#000' : '#e7e9ea'}
+              color={isCameraOff ? colors.primaryForeground : colors.text}
             />
           </View>
           <Text style={[styles.controlLabel, isCameraOff && styles.controlLabelActive]}>
@@ -238,7 +238,7 @@ export default function VideoCallScreen() {
             <Ionicons
               name="camera-reverse"
               size={26}
-              color={isFlipped ? '#000' : '#e7e9ea'}
+              color={isFlipped ? colors.primaryForeground : colors.text}
             />
           </View>
           <Text style={[styles.controlLabel, isFlipped && styles.controlLabelActive]}>
@@ -253,7 +253,7 @@ export default function VideoCallScreen() {
           activeOpacity={0.8}
         >
           <View style={styles.endCallCircle}>
-            <Ionicons name="call" size={28} color="#fff" style={styles.endCallIcon} />
+            <Ionicons name="call" size={28} color={colors.white} style={styles.endCallIcon} />
           </View>
           <Text style={styles.endCallLabel}>End</Text>
         </TouchableOpacity>
@@ -265,7 +265,7 @@ export default function VideoCallScreen() {
           <Ionicons
             name={isLowTime ? 'warning' : 'time'}
             size={14}
-            color={isLowTime ? '#f43f5e' : '#D4AF37'}
+            color={isLowTime ? colors.error : colors.accent}
           />
           <Text style={[styles.remainingText, isLowTime && styles.remainingTextWarning]}>
             {remainingLabel}
@@ -292,13 +292,13 @@ export default function VideoCallScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
 
   // ── Remote video area ──
   remoteVideoArea: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: colors.bg,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -307,12 +307,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   placeholderLabel: {
-    color: '#374151',
+    color: colors.border,
     fontSize: 16,
     fontWeight: '600',
   },
   placeholderSub: {
-    color: '#2a2a2a',
+    color: colors.textMuted,
     fontSize: 12,
   },
   endedOverlay: {
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   endedText: {
-    color: '#f43f5e',
+    color: colors.error,
     fontSize: 22,
     fontWeight: '700',
   },
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   },
   selfViewContainer: {
     flex: 1,
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.15)',
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
   callerName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
+    color: colors.white,
   },
   headerSubRow: {
     flexDirection: 'row',
@@ -406,12 +406,12 @@ const styles = StyleSheet.create({
   },
   headerStatus: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   timerText: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontWeight: '500',
     marginLeft: 4,
   },
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#f43f5e',
+    backgroundColor: colors.error,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -445,35 +445,35 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#16181c',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   controlCircleActive: {
-    backgroundColor: '#D4AF37',
-    borderColor: '#D4AF37',
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   controlLabel: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   controlLabelActive: {
-    color: '#D4AF37',
+    color: colors.accent,
   },
   endCallCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#f43f5e',
+    backgroundColor: colors.error,
     justifyContent: 'center',
     alignItems: 'center',
   },
   endCallLabel: {
     fontSize: 11,
-    color: '#f43f5e',
+    color: colors.error,
     fontWeight: '600',
   },
 
@@ -500,14 +500,14 @@ const styles = StyleSheet.create({
   },
   remainingText: {
     fontSize: 12,
-    color: '#D4AF37',
+    color: colors.accent,
     fontWeight: '500',
   },
   remainingTextWarning: {
-    color: '#f43f5e',
+    color: colors.error,
   },
   upgradeBtn: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: colors.accent,
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -515,6 +515,6 @@ const styles = StyleSheet.create({
   upgradeBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#000',
+    color: colors.primaryForeground,
   },
 });

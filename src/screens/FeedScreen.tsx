@@ -22,7 +22,7 @@ import { useFeed, Tab } from '../hooks/useFeed';
 const SCREEN_W = scale(390);
 
 /* ── Repost Icon (matches web app SVG exactly) ──────────────────────────── */
-function RepostIcon({ size = 18, color = '#94a3b8' }: { size?: number; color?: string }) {
+function RepostIcon({ size = 18, color = colors.textSecondary }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <Polyline points="23 4 23 10 17 10" />
@@ -41,7 +41,7 @@ function HighlightedCaption({ text, style, navigation }: { text: string; style: 
           return (
             <Text
               key={i}
-              style={{ color: '#1d9bf0' }}
+              style={{ color: colors.accent }}
               onPress={() => {
                 if (navigation) {
                   // Store hashtag in Zustand and navigate to Search, which will pick it up
@@ -58,7 +58,7 @@ function HighlightedCaption({ text, style, navigation }: { text: string; style: 
           return (
             <Text
               key={i}
-              style={{ color: '#1d9bf0' }}
+              style={{ color: colors.accent }}
               onPress={async () => {
                 if (!navigation) return;
                 const username = part.slice(1);
@@ -305,7 +305,7 @@ const carouselStyles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.4)',
   },
   dotActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     width: 18,
   },
 });
@@ -458,7 +458,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
       {/* Double-tap heart overlay */}
       {showHeart && (
         <View style={styles.heartOverlay} pointerEvents="none">
-          <Ionicons name="heart" size={96} color="#f43f5e" />
+          <Ionicons name="heart" size={96} color={colors.like} />
         </View>
       )}
 
@@ -488,7 +488,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {/* Repost indicator */}
           {post.repostOf && (
             <View style={styles.repostHeader}>
-              <RepostIcon size={14} color="#71767b" />
+              <RepostIcon size={14} color={colors.textMuted} />
               <Text style={styles.repostHeaderText}>
                 {post.repostedByDisplayName || post.repostedByUsername || 'Someone'} reposted
               </Text>
@@ -610,7 +610,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           {/* Fact Check Indicator */}
           {(post.factCheckVerified || 0) > 0 && (
             <View style={styles.factCheckBadge}>
-              <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
+              <Ionicons name="checkmark-circle" size={14} color={colors.accentGreen} />
               <Text style={styles.factCheckText}>
                 Fact-checked · {post.factCheckVerified} verified
               </Text>
@@ -618,8 +618,8 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           )}
           {(post.factCheckDebunked || 0) > 0 && (
             <View style={styles.factCheckBadge}>
-              <Ionicons name="close-circle" size={14} color="#ef4444" />
-              <Text style={[styles.factCheckText, { color: '#ef4444' }]}>
+              <Ionicons name="close-circle" size={14} color={colors.error} />
+              <Text style={[styles.factCheckText, { color: colors.error }]}>
                 Debunked · {post.factCheckDebunked} flagged
               </Text>
             </View>
@@ -860,7 +860,7 @@ const storiesRowStyles = StyleSheet.create({
   container: {
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: colors.separator,
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -930,7 +930,7 @@ export default function FeedScreen({ navigation }: any) {
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-              <Ionicons name="menu" size={22} color="#e7e9ea" />
+              <Ionicons name="menu" size={22} color={colors.text} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
@@ -1009,7 +1009,7 @@ export default function FeedScreen({ navigation }: any) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-            <Ionicons name="menu" size={22} color="#e7e9ea" />
+            <Ionicons name="menu" size={22} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
@@ -1105,7 +1105,7 @@ export default function FeedScreen({ navigation }: any) {
         onPress={() => navigation.navigate('CreatePost')}
         activeOpacity={0.8}
       >
-        <Ionicons name="add" size={24} color="#000000" />
+        <Ionicons name="add" size={24} color={colors.primaryForeground} />
       </TouchableOpacity>
 
       {/* Edit post modal */}
@@ -1120,7 +1120,7 @@ export default function FeedScreen({ navigation }: any) {
               onChangeText={setEditCaption}
               maxLength={500}
               placeholder="What's happening?"
-              placeholderTextColor="#64748b"
+              placeholderTextColor={colors.textTertiary}
               autoFocus
             />
             <Text style={styles.editCharCount}>{editCaption.length}/500</Text>
@@ -1129,7 +1129,7 @@ export default function FeedScreen({ navigation }: any) {
                 <Text style={[styles.editModalBtnText, { color: colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.editModalBtn, { backgroundColor: colors.accent }]} onPress={handleSaveEdit}>
-                <Text style={[styles.editModalBtnText, { color: '#000' }]}>Save</Text>
+                <Text style={[styles.editModalBtnText, { color: colors.primaryForeground }]}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1160,7 +1160,7 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
     backgroundColor: colors.bg,
   },
   tabItem: {
@@ -1174,11 +1174,11 @@ const styles = StyleSheet.create({
     fontSize: fs(15),
   },
   tabTextActive: {
-    color: '#ffffff',
+    color: colors.white,
     fontWeight: '700',
   },
   tabTextInactive: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontWeight: '400',
   },
   tabUnderline: {
@@ -1187,14 +1187,14 @@ const styles = StyleSheet.create({
     left: 24,
     right: 24,
     height: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
   },
 
   /* ── Post Card — exact match to web UserPostCard ── */
   postCard: {
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
     paddingLeft: 16,
     paddingRight: 16,
     paddingTop: 4,
@@ -1208,7 +1208,7 @@ const styles = StyleSheet.create({
     paddingLeft: 52,
   },
   repostHeaderText: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '500',
   },
@@ -1235,23 +1235,23 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   displayName: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontWeight: '700',
     fontSize: fs(15),
     lineHeight: vs(20),
   },
   username: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: fs(15),
     lineHeight: vs(20),
   },
   dot: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: fs(15),
     lineHeight: vs(20),
   },
   time: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: fs(15),
     lineHeight: vs(20),
   },
@@ -1264,7 +1264,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   caption: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: fs(15),
     lineHeight: vs(20),
     marginTop: scale(4),
@@ -1280,12 +1280,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.separator,
   },
   media: {
     width: '100%',
     height: Math.min(SCREEN_W * 0.85, vs(510)),
-    backgroundColor: '#1a1a1a',
+    backgroundColor: colors.bg,
   },
   mediaErrorOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -1295,7 +1295,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   mediaErrorText: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '500',
   },
@@ -1316,7 +1316,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   actionCount: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: fs(13),
     lineHeight: vs(16),
     marginLeft: scale(1),
@@ -1335,7 +1335,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   factCheckText: {
-    color: '#22c55e',
+    color: colors.accentGreen,
     fontSize: fs(12),
     lineHeight: vs(16),
   },
@@ -1353,16 +1353,16 @@ const styles = StyleSheet.create({
   /* ── Skeleton ── */
   skeletonAvatar: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
   },
   skeletonLine: {
     height: 14,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
   },
   skeletonDot: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.bgInput,
   },
 
   /* ── Load more indicator ── */
@@ -1375,9 +1375,9 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute', right: 16,
     width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
     alignItems: 'center', justifyContent: 'center',
-    elevation: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    elevation: 20, shadowColor: colors.primaryForeground, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5, shadowRadius: 8,
     zIndex: 999,
   },
@@ -1391,7 +1391,7 @@ const styles = StyleSheet.create({
   adCard: {
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
     paddingLeft: 16,
     paddingRight: 16,
     paddingTop: 12,
@@ -1416,19 +1416,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.separator,
     padding: 14,
     marginBottom: 6,
   },
   adHeadline: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '700',
     lineHeight: 22,
     marginBottom: 4,
   },
   adDescription: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 19,
     marginBottom: 10,
@@ -1442,12 +1442,12 @@ const styles = StyleSheet.create({
     marginTop: scale(10),
   },
   adCtaText: {
-    color: '#000000',
+    color: colors.primaryForeground,
     fontSize: fs(14),
     fontWeight: '700',
   },
   adSponsored: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: fs(11),
     marginTop: scale(6),
   },
@@ -1459,7 +1459,7 @@ const styles = StyleSheet.create({
     padding: scale(16),
     marginTop: scale(12),
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.separator,
   },
   pollQuestion: {
     color: colors.text,
@@ -1469,7 +1469,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pollExpiredText: {
-    color: '#f43f5e',
+    color: colors.like,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1479,7 +1479,7 @@ const styles = StyleSheet.create({
     bottom: 100,
     left: 16,
     right: 16,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.avatarFallback,
     borderRadius: 16,
     padding: 20,
   },
@@ -1536,7 +1536,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.bgInput,
     borderRadius: 10,
   },
   pollOptionFillSelected: {

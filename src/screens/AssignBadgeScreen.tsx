@@ -34,11 +34,11 @@ interface Affiliate {
 }
 
 const BADGE_TIERS: { value: Affiliate['badge']; label: string; color: string; bg: string }[] = [
-  { value: 'None', label: 'None', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
+  { value: 'None', label: 'None', color: colors.textSecondary, bg: 'rgba(148,163,184,0.15)' },
   { value: 'Bronze', label: 'Bronze', color: '#CD7F32', bg: 'rgba(205,127,50,0.15)' },
   { value: 'Silver', label: 'Silver', color: '#C0C0C0', bg: 'rgba(192,192,192,0.15)' },
-  { value: 'Gold', label: 'Gold', color: '#ffd700', bg: 'rgba(255,215,0,0.15)' },
-  { value: 'Platinum', label: 'Platinum', color: '#E5E4E2', bg: 'rgba(229,228,226,0.15)' },
+  { value: 'Gold', label: 'Gold', color: colors.verifiedGold, bg: 'rgba(255,215,0,0.15)' },
+  { value: 'Platinum', label: 'Platinum', color: colors.textSecondary, bg: 'rgba(229,228,226,0.15)' },
 ];
 
 const FREE_BADGE_LIMIT = 2;
@@ -358,11 +358,11 @@ export default function AssignBadgeScreen({ navigation }: any) {
 
           {/* Search */}
           <View style={styles.addSearchContainer}>
-            <Ionicons name="search" size={18} color="#64748b" />
+            <Ionicons name="search" size={18} color={colors.textTertiary} />
             <TextInput
               style={styles.addSearchInput}
               placeholder="Search by username or name..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor={colors.textTertiary}
               value={addSearch}
               onChangeText={handleAddSearch}
               autoFocus
@@ -378,7 +378,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
           <View style={styles.addResultsContainer}>
             {addSearch.trim().length >= 2 && !addSearching && addResults.length === 0 && (
               <View style={styles.addEmptyContainer}>
-                <Ionicons name="person-add-outline" size={36} color="#64748b" />
+                <Ionicons name="person-add-outline" size={36} color={colors.textTertiary} />
                 <Text style={styles.addEmptyText}>No users found</Text>
                 <Text style={styles.addEmptySubtext}>Try a different search term</Text>
               </View>
@@ -386,7 +386,7 @@ export default function AssignBadgeScreen({ navigation }: any) {
 
             {addSearch.trim().length < 2 && (
               <View style={styles.addEmptyContainer}>
-                <Ionicons name="people-outline" size={36} color="#64748b" />
+                <Ionicons name="people-outline" size={36} color={colors.textTertiary} />
                 <Text style={styles.addEmptyText}>Find a user to add</Text>
                 <Text style={styles.addEmptySubtext}>Enter a username or display name (min. 2 characters)</Text>
               </View>
@@ -708,7 +708,7 @@ const styles = StyleSheet.create({
   /* ── Add Modal ── */
   addModalContainer: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.bg,
   },
   addModalHeader: {
     flexDirection: 'row',
@@ -717,10 +717,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   addModalTitle: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '700',
   },
@@ -740,7 +740,7 @@ const styles = StyleSheet.create({
   },
   addSearchInput: {
     flex: 1,
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     height: 44,
     paddingVertical: 0,
@@ -757,13 +757,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   addEmptyText: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '700',
     marginTop: 16,
   },
   addEmptySubtext: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
     marginTop: 6,
@@ -775,19 +775,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     gap: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: colors.separator,
   },
   addResultInfo: {
     flex: 1,
     minWidth: 0,
   },
   addResultName: {
-    color: '#e7e9ea',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '700',
   },
   addResultUsername: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     marginTop: 2,
   },

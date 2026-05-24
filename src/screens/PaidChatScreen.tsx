@@ -404,14 +404,14 @@ export default function PaidChatScreen({ route, navigation }: any) {
             >
               {isProcessing ? (
                 <>
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <ActivityIndicator color={colors.white} size="small" />
                   <Text style={styles.payButtonText}>
                     {paymentPhase === 'processing' ? 'Processing...' : 'Opening Payment...'}
                   </Text>
                 </>
               ) : (
                 <>
-                  <Ionicons name="card-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Ionicons name="card-outline" size={20} color={colors.white} style={{ marginRight: 8 }} />
                   <Text style={styles.payButtonText}>Pay {'\u20B9'}{price} & Start Chat</Text>
                 </>
               )}
@@ -470,7 +470,7 @@ export default function PaidChatScreen({ route, navigation }: any) {
             startInLoadingState={true}
             renderLoading={() => (
               <View style={styles.webviewLoader}>
-                <ActivityIndicator color="#FFFFFF" size="large" />
+                <ActivityIndicator color={colors.white} size="large" />
                 <Text style={styles.webviewLoaderText}>Opening secure payment...</Text>
               </View>
             )}
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.separator,
     padding: 16,
     marginBottom: 24,
   },
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   username: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 14,
     marginTop: 2,
   },
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.separator,
     padding: 24,
     alignItems: 'center',
     marginBottom: 24,
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   payButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   footnote: {
-    color: '#71767b',
+    color: colors.textMuted,
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 18,
@@ -704,7 +704,7 @@ const styles = StyleSheet.create({
   /* -- Razorpay WebView Modal -- */
   webviewContainer: {
     flex: 1,
-    backgroundColor: '#111111',
+    backgroundColor: colors.bg,
   },
   webviewHeader: {
     flexDirection: 'row',
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: colors.separator,
   },
   webviewTitle: {
     fontSize: 17,
@@ -724,11 +724,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#111111',
+    backgroundColor: colors.bg,
     gap: 16,
   },
   webviewLoaderText: {
-    color: '#888888',
+    color: colors.textMuted,
     fontSize: 14,
   },
   /* -- Success Modal -- */

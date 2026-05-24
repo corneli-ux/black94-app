@@ -333,7 +333,7 @@ export default function SalaryScreen({ navigation }: any) {
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSaveMember} disabled={saving}>
                 {saving ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color={colors.white} size="small" />
                 ) : (
                   <Text style={styles.modalSaveText}>Save</Text>
                 )}
@@ -397,8 +397,8 @@ const styles = StyleSheet.create({
   emptyText: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', paddingHorizontal: 40 },
   // Add/Edit modal
   addBtn: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  deleteIcon: { color: '#f43f5e', fontSize: 16, fontWeight: '700', marginLeft: 4 },
+  addBtnText: { color: colors.white, fontSize: 14, fontWeight: '700' },
+  deleteIcon: { color: colors.like, fontSize: 16, fontWeight: '700', marginLeft: 4 },
   statusAndActions: { width: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalContent: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: colors.border },
@@ -408,5 +408,5 @@ const styles = StyleSheet.create({
   modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
   modalCancelText: { color: colors.text, fontSize: 15, fontWeight: '600' },
   modalSaveBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: colors.accent, alignItems: 'center' },
-  modalSaveText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  modalSaveText: { color: colors.white, fontSize: 15, fontWeight: '700' },
 });

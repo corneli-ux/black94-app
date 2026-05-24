@@ -24,9 +24,9 @@ import { colors } from '../theme/colors';
 import { fetchPostFactChecks, submitFactCheck, FactCheckClaim } from '../lib/api';
 
 const VERDICT_CONFIG: Record<string, { color: string; icon: any; label: string }> = {
-  pending: { color: '#94a3b8', icon: 'time-outline', label: 'Pending Review' },
-  verified: { color: '#22c55e', icon: 'checkmark-circle', label: 'Verified' },
-  debunked: { color: '#ef4444', icon: 'close-circle', label: 'Debunked' },
+  pending: { color: colors.textSecondary, icon: 'time-outline', label: 'Pending Review' },
+  verified: { color: colors.accentGreen, icon: 'checkmark-circle', label: 'Verified' },
+  debunked: { color: colors.error, icon: 'close-circle', label: 'Debunked' },
   misleading: { color: '#f97316', icon: 'alert-triangle', label: 'Misleading' },
 };
 
@@ -151,12 +151,12 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
           {/* Summary */}
           <View style={styles.summaryRow}>
             <View style={[styles.summaryChip, { backgroundColor: '#22c55e20' }]}>
-              <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
-              <Text style={[styles.summaryText, { color: '#22c55e' }]}>{verifiedCount} Verified</Text>
+              <Ionicons name="checkmark-circle" size={14} color={colors.accentGreen} />
+              <Text style={[styles.summaryText, { color: colors.accentGreen }]}>{verifiedCount} Verified</Text>
             </View>
             <View style={[styles.summaryChip, { backgroundColor: '#ef444420' }]}>
-              <Ionicons name="alert-circle" size={14} color="#ef4444" />
-              <Text style={[styles.summaryText, { color: '#ef4444' }]}>{debunkedCount} Flagged</Text>
+              <Ionicons name="alert-circle" size={14} color={colors.error} />
+              <Text style={[styles.summaryText, { color: colors.error }]}>{debunkedCount} Flagged</Text>
             </View>
             <Text style={styles.totalText}>{claims.length} total claims</Text>
           </View>
@@ -194,7 +194,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
               value={claimText}
               onChangeText={setClaimText}
               placeholder="Describe the claim to fact-check..."
-              placeholderTextColor="#71767b"
+              placeholderTextColor={colors.textMuted}
               multiline
               maxLength={500}
               textAlignVertical="top"
@@ -205,7 +205,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
                 value={sourceUrl}
                 onChangeText={setSourceUrl}
                 placeholder="Source URL (optional)"
-                placeholderTextColor="#71767b"
+                placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="url"
@@ -216,7 +216,7 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
               value={sourceTitle}
               onChangeText={setSourceTitle}
               placeholder="Source title (optional)"
-              placeholderTextColor="#71767b"
+              placeholderTextColor={colors.textMuted}
             />
             <TouchableOpacity
               style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
@@ -225,10 +225,10 @@ export default function FactCheckBottomSheet({ postId, visible, onClose }: FactC
               activeOpacity={0.8}
             >
               {submitting ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <ActivityIndicator color={colors.white} size="small" />
               ) : (
                 <>
-                  <Ionicons name="flag-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Ionicons name="flag-outline" size={18} color={colors.white} style={{ marginRight: 8 }} />
                   <Text style={styles.submitBtnText}>Submit Claim</Text>
                 </>
               )}
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitBtnText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 15,
     fontWeight: '700',
   },
