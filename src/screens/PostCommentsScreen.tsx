@@ -78,11 +78,13 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
     for (const c of commentsToEnrich) {
       const p = profileMap[c.authorId];
       if (!p) continue;
-      if (p.username && !c.authorUsername) { c.authorUsername = p.username; changed = true; }
-      if (p.displayName && !c.authorDisplayName) { c.authorDisplayName = p.displayName; changed = true; }
-      if (p.profileImage && !c.authorProfileImage) { c.authorProfileImage = p.profileImage; changed = true; }
-      if (p.badge && !c.authorBadge) { c.authorBadge = p.badge; changed = true; }
-      if (p.isVerified && !c.authorIsVerified) { c.authorIsVerified = p.isVerified; changed = true; }
+      // Always use the latest user doc data (matches feed enrichment behavior)
+      // so profile name/avatar changes reflect immediately on comments.
+      if (p.displayName && p.displayName !== c.authorDisplayName) { c.authorDisplayName = p.displayName; changed = true; }
+      if (p.username && p.username !== c.authorUsername) { c.authorUsername = p.username; changed = true; }
+      if (p.profileImage && p.profileImage !== c.authorProfileImage) { c.authorProfileImage = p.profileImage; changed = true; }
+      if (p.badge && p.badge !== c.authorBadge) { c.authorBadge = p.badge; changed = true; }
+      if (p.isVerified !== c.authorIsVerified) { c.authorIsVerified = p.isVerified; changed = true; }
     }
     if (changed) setComments(prev => [...prev]);
   }, []);

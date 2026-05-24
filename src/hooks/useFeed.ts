@@ -64,11 +64,12 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   const PAGE_SIZE = 10;
 
   // ── Enrichment: author profiles ─────────────────────────────────────────
-  // IMPORTANT: Only enrich volatile fields (profileImage, badge, isVerified) from
-  // user docs. displayName and username are stamped at creation time and must NOT
-  // be overwritten — the user doc may be corrupted (historical write.update bug),
-  // which would propagate wrong data to ALL posts by that user.
-  // We only fill in displayName/username if the post has EMPTY values (legacy posts).
+  // Fetches the latest user docs for all post authors and applies profileImage,
+  // badge, isVerified, displayName, and username to posts. This ensures that
+  // profile name/avatar changes reflect immediately on the feed.
+  // Guard: if the user doc has EMPTY displayName/username (corrupted from the
+  // historical write.update bug), we skip overwriting — the post's stamped
+  // data is used as fallback instead of blank data.
   const enrichAuthorProfiles = useCallback(async (postsToEnrich: Post[]) => {
     const uniqueAuthorIds = [...new Set(postsToEnrich.map(p => p.authorId).filter(Boolean))];
     const CHUNK_SIZE = 10;
