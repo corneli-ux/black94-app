@@ -14,8 +14,7 @@ import { useChatRoom } from '../hooks/useChatRoom';
 //    module errors) is caught and shows a retry button.
 // ─────────────────────────────────────────────────────────────────────────────
 class ChatErrorBoundary extends Component<
-  { children: React.ReactNode },
-    navigation?: any;
+  { children: React.ReactNode; navigation?: any },
   { hasError: boolean; error: Error | null }
 > {
   state = { hasError: false, error: null as Error | null };
