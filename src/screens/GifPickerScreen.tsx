@@ -201,7 +201,7 @@ export default function GifPickerScreen() {
         style={styles.gifCell}
         onPress={() => handleSelect(item.fullUrl)}>
         <Image
-          source={{ uri: item.thumbnailUrl }}
+          source={item.thumbnailUrl ? { uri: item.thumbnailUrl } : undefined}
           style={styles.gifImage}
           resizeMode="cover"
         />
