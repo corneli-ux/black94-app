@@ -219,8 +219,7 @@ function ChatRoomContent({ route, navigation }: any) {
                     source={safeImageSource(item.mediaUrl)}
                     style={styles.bubbleImage}
                     resizeMode="cover"
-                    onError={() => {/* silently degrade */}
- {}}
+                    onError={() => {/* silently degrade */}}
                   />
                 </TouchableOpacity>
               ) : null}
@@ -231,8 +230,7 @@ function ChatRoomContent({ route, navigation }: any) {
                   source={safeImageSource(item.mediaUrl)}
                   style={styles.bubbleGif}
                   resizeMode="contain"
-                  onError={() => {/* silently degrade */}
-                  {}}
+                  onError={() => {/* silently degrade */}}
                 />
               ) : null}
 

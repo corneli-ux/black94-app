@@ -154,7 +154,7 @@ function DualPaneChatScreen({ navigation, route }: any) {
   const [reactionMsg, setReactionMsg] = useState<ChatMessage | null>(null);
 
   const messagesEndRef = useRef<FlatList>(null);
-  const msgPollRef = useRef<ReturnType<typeof setInterval> | null = null);
+  const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // BUG FIX: Use a ref for reactionMsg to avoid stale closure in handleReaction.
   // The handleReaction callback depends on reactionMsg from the enclosing scope,
   // but useCallback memoization means it captures a stale value. The ref pattern
