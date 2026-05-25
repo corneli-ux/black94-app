@@ -316,71 +316,76 @@ export function useChatRoom({
   }, [routeChatId, routeChat]);
 
   // ── Reset unread, load messages, start polling ────────────────────────────
+  // CRITICAL FIX: The old code fired resetUnread AND load() in parallel.
+  // resetUnread queried up to 100 messages and then sent up to 100 individual
+  // update() API calls via Promise.allSettled — a massive concurrent API storm.
+  // When the auth token was expired, ALL these calls hit _getValidToken()
+  // simultaneously. Even though token refresh is deduplicated, the concurrent
+  // Firestore calls after refresh could trigger 401 retries, overwhelming the
+  // JS thread and causing UNHANDLED promise rejections that crashed the app
+  // (no global error handler was installed).
+  // FIX: Make operations sequential. reset unread → load messages → poll.
   useEffect(() => {
     if (!chat) return;
-    const resetUnread = async () => {
+    let cancelled = false;
+    const init = async () => {
       try {
-        // BUG FIX: Guard against corrupted chat data — if user1Id/user2Id
-        // are missing (destroyed by old update() bug), skip reset entirely.
-        if (!chat.user1Id || !chat.user2Id || !chat.id) {
-          if (__DEV__) console.warn('[ChatRoom] Skipping unread reset — chat data corrupted:', { user1Id: chat.user1Id, user2Id: chat.user2Id, id: chat.id });
-          return;
-        }
-        const isUser1 = chat.user1Id === currentUser?.uid;
-        const field = isUser1 ? 'unreadUser1' : 'unreadUser2';
-        await firestore().collection('chats').doc(chat.id).update({ [field]: 0 });
-
-        // BUG FIX: Composite query (senderId + status) requires a composite index
-        // that may not exist. Fall back to single-where query + client-side filter
-        // (same pattern as ChatListScreen.createOrOpenChat) to avoid silent failures.
+        // Step 1: Reset unread count (single API call)
         try {
+          if (chat.user1Id && chat.user2Id && chat.id) {
+            const isUser1 = chat.user1Id === currentUser?.uid;
+            const field = isUser1 ? 'unreadUser1' : 'unreadUser2';
+            await firestore().collection('chats').doc(chat.id).update({ [field]: 0 });
+          }
+        } catch (e) {
+          if (__DEV__) console.warn('[ChatRoom] Unread reset failed:', e?.message || e);
+        }
+        if (cancelled) return;
+        // Step 2: Mark messages as read (single query + sequential updates)
+        try {
+          const isUser1 = chat.user1Id === currentUser?.uid;
           const otherSenderId = isUser1 ? chat.user2Id : chat.user1Id;
           if (otherSenderId) {
-            // Use single-where query (no composite index needed)
             const msgSnap = await firestore()
               .collection('chats').doc(chat.id).collection('messages')
               .where('senderId', '==', otherSenderId)
-              .limit(100)
+              .limit(50) // CRITICAL: was 100, now 50 — fewer reads
               .get();
-            // Client-side filter for unread statuses
             const unreadDocs = msgSnap.docs.filter((doc: any) => {
               const status = doc.data()?.status;
               return status === 'sent' || status === 'delivered';
             });
-            if (unreadDocs.length > 0) {
-              // Use sequential updates instead of batch (more reliable with REST wrapper)
-              await Promise.allSettled(
-                unreadDocs.map((doc: any) =>
-                  doc.ref.update({ status: 'read' })
-                )
-              );
+            // CRITICAL FIX: Sequential updates instead of Promise.allSettled.
+            // Previously up to 100 concurrent update() calls were fired simultaneously.
+            // Each one calls _getValidToken() → _doTokenRefresh() → fetch().
+            // If the token was expired, ALL calls hit refresh simultaneously,
+            // then ALL retry the original request — a request storm that crashes
+            // the JS thread with unhandled rejections.
+            for (const doc of unreadDocs) {
+              if (cancelled) break;
+              try { await doc.ref.update({ status: 'read' }); } catch { /* skip */ }
             }
           }
-        } catch { /* non-critical */ }
+        } catch (e) {
+          if (__DEV__) console.warn('[ChatRoom] Mark-as-read failed:', e?.message || e);
+        }
+        if (cancelled) return;
+        // Step 3: Load messages (after unread reset completes)
+        await loadRef.current(false);
+        // Step 4: Start polling (8s interval)
       } catch (e) {
-        if (__DEV__) console.warn('Failed to reset unread:', e);
+        if (__DEV__) console.error('[ChatRoom] Init failed:', e?.message || e);
+      } finally {
+        setLoading(false);
       }
     };
-    // BUG FIX: Add .catch() to prevent unhandled promise rejection.
-    // If resetUnread throws before its internal try/catch, it would crash
-    // the app on some React Native configurations.
-    resetUnread().catch(() => {});
-    load().catch(() => {});
-    // BUG FIX: Replaced listen() with simple load() polling.
-    // The old listen() had TWO critical bugs:
-    //   1. No .limit() — fetched ALL messages (could be 1000+), causing memory
-    //      explosion and OS killing the app on every 3-second poll cycle.
-    //   2. Raw Firestore data spread WITHOUT E2EE decryption — replaced properly
-    //      decrypted messages with encrypted E2EE:... ciphertext, causing data
-    //      corruption and potential rendering crashes.
-    // Now we just re-use fetchMessages() (which properly decrypts + limits to 50)
-    // via loadRef, keeping the same silent-merge logic for optimistic messages.
+    init();
     const pollTimer = setInterval(() => {
       loadRef.current(true);
-    }, 8000); // Poll every 8 seconds (was 5s — less aggressive, fewer Firestore reads)
-    unsubRef.current = () => clearInterval(pollTimer);
+    }, 8000);
+    unsubRef.current = () => { cancelled = true; clearInterval(pollTimer); };
     return () => {
-      if (unsubRef.current) unsubRef.current();
+      if (unsubRef.current) { unsubRef.current(); }
     };
   }, [chat?.id]);
 
