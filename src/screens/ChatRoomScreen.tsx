@@ -152,6 +152,7 @@ function ChatRoomContent({ route, navigation }: any) {
   const safeOtherUser = chat?.otherUser || { displayName: 'Chat', username: '', profileImage: null };
 
   const renderMessage = ({ item }: { item: Message }) => {
+    try {
     const isMine = item.senderId === currentUser?.uid;
     const msgType = item.messageType || 'text';
     const reactionEntries = item.reactions ? Object.values(item.reactions) as string[] : [];
@@ -250,7 +251,7 @@ function ChatRoomContent({ route, navigation }: any) {
 
           {/* Text content (for text messages or captions) */}
           {item.content && msgType === 'text' ? (
-            <Text style={[styles.bubbleText, isMine && { color: colors.primaryForeground }]}>{item.content}</Text>
+            <Text style={[styles.bubbleText, isMine && { color: colors.primaryForeground }]}>{typeof item.content === 'string' ? item.content : ''}</Text>
           ) : null}
 
           {/* Timestamp */}
@@ -279,6 +280,16 @@ function ChatRoomContent({ route, navigation }: any) {
         </TouchableOpacity>
       </View>
     );
+    } catch (renderErr) {
+      // CRASH FIX: Any rendering error in a single message bubble (corrupted data,
+      // unexpected type, undefined property access) is caught here so the
+      // entire FlatList doesn't crash. Returns a minimal safe fallback.
+      return (
+        <View key={item.id} style={[styles.msgRow, { marginVertical: 2, paddingHorizontal: 16 }]}>
+          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Message could not be displayed</Text>
+        </View>
+      );
+    }
   };
 
   if (!chat) {

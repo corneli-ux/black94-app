@@ -5,7 +5,7 @@
  * On phone: tabs to switch. On tablet: side by side.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -99,9 +99,46 @@ function formatTime(dateStr: string): string {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const IS_TABLET = SCREEN_WIDTH >= 768;
 
+// ── Error Boundary ────────────────────────────────────────────────────────
+class DualPaneErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  state = { hasError: false, error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[DualPaneChat] Render error:', error?.message, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: colors.bg }}>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '600', textAlign: 'center' }}>
+            Something went wrong
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 8, textAlign: 'center' }}>
+            {this.state.error?.message || 'Please go back and try again'}
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
-export default function DualPaneChatScreen({ navigation, route }: any) {
+export default function DualPaneChatScreenWrapper(props: any) {
+  return (
+    <DualPaneErrorBoundary>
+      <DualPaneChatScreen {...props} />
+    </DualPaneErrorBoundary>
+  );
+}
+
+function DualPaneChatScreen({ navigation, route }: any) {
   const currentUserId = auth().currentUser?.uid ?? '';
 
   const [chats, setChats] = useState<ChatItem[]>([]);
@@ -353,7 +390,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
         msgPollRef.current = null;
       }
     };
-  }, [selectedChatId]);
+  }, [selectedChatId, chats]);
 
   // ── Auto scroll to bottom ──────────────────────────────────────────────
   useEffect(() => {
@@ -591,51 +628,60 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
 
   // ── Render message bubble ──────────────────────────────────────────────
   const renderMessage = ({ item }: { item: ChatMessage }) => {
-    const isMine = item.senderId === currentUserId;
-    const msgType = item.messageType || 'text';
-    const reactionEntries = item.reactions ? Object.values(item.reactions) as string[] : [];
-    return (
-      <View
-        style={[styles.msgWrapper, isMine ? styles.msgMine : styles.msgTheirs]}>
-        <TouchableOpacity
-          onLongPress={() => setReactionMsg(item)}
-          activeOpacity={1}
-        >
-          <View
-            style={[
-              styles.msgBubble,
-              isMine ? styles.msgBubbleMine : styles.msgBubbleTheirs,
-            ]}>
-            {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
-              <Image
-                source={safeImageSource(item.mediaUrl)}
-                style={{ width: 220, height: 220, borderRadius: 14, marginBottom: 4 }}
-                resizeMode="contain"
-                onError={() => {}}
-              />
-            ) : null}
-            {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
-              <Image
-                source={safeImageSource(item.mediaUrl)}
-                style={{ width: 200, height: 160, borderRadius: 14, marginBottom: 4 }}
-                resizeMode="contain"
-                onError={() => {}}
-              />
-            ) : null}
-            {item.content && msgType === 'text' ? (
-              <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
-                {item.content}
-              </Text>
-            ) : null}
-          </View>
-          {reactionEntries.length > 0 && (
-            <View style={styles.reactionBadge}>
-              <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
+    try {
+      const isMine = item.senderId === currentUserId;
+      const msgType = item.messageType || 'text';
+      const reactionEntries = item.reactions ? Object.values(item.reactions) as string[] : [];
+      return (
+        <View
+          style={[styles.msgWrapper, isMine ? styles.msgMine : styles.msgTheirs]}>
+          <TouchableOpacity
+            onLongPress={() => setReactionMsg(item)}
+            activeOpacity={1}
+          >
+            <View
+              style={[
+                styles.msgBubble,
+                isMine ? styles.msgBubbleMine : styles.msgBubbleTheirs,
+              ]}>
+              {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
+                <Image
+                  source={safeImageSource(item.mediaUrl)}
+                  style={{ width: 220, height: 220, borderRadius: 14, marginBottom: 4 }}
+                  resizeMode="contain"
+                  onError={() => {}}
+                />
+              ) : null}
+              {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
+                <Image
+                  source={safeImageSource(item.mediaUrl)}
+                  style={{ width: 200, height: 160, borderRadius: 14, marginBottom: 4 }}
+                  resizeMode="contain"
+                  onError={() => {}}
+                />
+              ) : null}
+              {item.content && msgType === 'text' ? (
+                <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
+                  {item.content}
+                </Text>
+              ) : null}
             </View>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
+            {reactionEntries.length > 0 && (
+              <View style={styles.reactionBadge}>
+                <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      );
+    } catch (renderErr) {
+      console.warn('[DualPaneChat] renderMessage error:', renderErr);
+      return (
+        <View key={item.id} style={{ padding: 12, marginVertical: 4 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Message could not be displayed</Text>
+        </View>
+      );
+    }
   };
 
   // ── Chat room pane ─────────────────────────────────────────────────────
