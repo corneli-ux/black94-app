@@ -672,33 +672,30 @@ function DualPaneChatScreen({ navigation, route }: any) {
             onLongPress={() => setReactionMsg(item)}
             activeOpacity={1}
           >
-            <View
-              style={[
-                styles.msgBubble,
-                isMine ? styles.msgBubbleMine : styles.msgBubbleTheirs,
-              ]}>
-              {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
-                <Image
-                  source={safeImageSource(item.mediaUrl)}
-                  style={{ width: 220, height: 220, borderRadius: 14, marginBottom: 4 }}
-                  resizeMode="contain"
-                  onError={() => {}}
-                />
-              ) : null}
-              {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
-                <Image
-                  source={safeImageSource(item.mediaUrl)}
-                  style={{ width: 200, height: 160, borderRadius: 14, marginBottom: 4 }}
-                  resizeMode="contain"
-                  onError={() => {}}
-                />
-              ) : null}
-              {item.content && msgType === 'text' ? (
-                <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
-                  {item.content}
-                </Text>
-              ) : null}
-            </View>
+            {/* Image — no bubble wrapper, preserve aspect ratio */}
+            {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
+              <Image
+                source={safeImageSource(item.mediaUrl)}
+                style={styles.chatImage}
+                resizeMode="cover"
+                onError={() => {}}
+              />
+            ) : null}
+            {/* GIF — no bubble wrapper */}
+            {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
+              <Image
+                source={safeImageSource(item.mediaUrl)}
+                style={styles.chatGif}
+                resizeMode="contain"
+                onError={() => {}}
+              />
+            ) : null}
+            {/* Text — minimal: no bubble background, just white text */}
+            {item.content && msgType === 'text' ? (
+              <Text style={styles.minimalMsgText}>
+                {item.content}
+              </Text>
+            ) : null}
             {reactionEntries.length > 0 && (
               <View style={styles.reactionBadge}>
                 <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
@@ -1099,7 +1096,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   msgWrapper: {
-    marginBottom: 6,
+    marginBottom: 4,
     maxWidth: '80%',
   },
   msgMine: {
@@ -1112,14 +1109,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 18,
+    backgroundColor: 'transparent',
   },
   msgBubbleMine: {
-    backgroundColor: colors.primary,
-    borderBottomRightRadius: 4,
+    backgroundColor: 'transparent',
   },
   msgBubbleTheirs: {
-    backgroundColor: colors.surfaceLight,
-    borderBottomLeftRadius: 4,
+    backgroundColor: 'transparent',
   },
   msgText: {
     fontSize: 15,
@@ -1129,7 +1125,26 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   msgTextTheirs: {
-    color: colors.text,
+    color: colors.white,
+  },
+  minimalMsgText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.white,
+  },
+  chatImage: {
+    width: '100%',
+    maxWidth: 240,
+    aspectRatio: 1,
+    borderRadius: 16,
+    marginBottom: 2,
+  },
+  chatGif: {
+    width: '100%',
+    maxWidth: 220,
+    aspectRatio: 5 / 4,
+    borderRadius: 14,
+    marginBottom: 2,
   },
   emptyMsg: {
     flex: 1,

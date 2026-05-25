@@ -860,18 +860,12 @@ export default function AnonymousChatScreen() {
     return (
       <View
         style={[styles.msgWrapper, isMine ? styles.msgMine : styles.msgTheirs]}>
-        <View
-          style={[
-            styles.msgBubble,
-            isMine ? styles.msgBubbleMine : styles.msgBubbleTheirs,
-          ]}>
-          {!isMine && (
-            <Text style={styles.msgSenderName}>{item.senderName}</Text>
-          )}
-          <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
-            {item.content}
-          </Text>
-        </View>
+        {!isMine && (
+          <Text style={styles.msgSenderName}>{item.senderName}</Text>
+        )}
+        <Text style={styles.minimalMsgText}>
+          {item.content}
+        </Text>
       </View>
     );
   };
@@ -1583,17 +1577,16 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   msgBubble: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderRadius: 0,
+    backgroundColor: 'transparent',
   },
   msgBubbleMine: {
-    backgroundColor: colors.accent,
-    borderBottomRightRadius: 4,
+    backgroundColor: 'transparent',
   },
   msgBubbleTheirs: {
-    backgroundColor: colors.surfaceLight,
-    borderBottomLeftRadius: 4,
+    backgroundColor: 'transparent',
   },
   msgSenderName: {
     fontSize: 11,
@@ -1609,7 +1602,12 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   msgTextTheirs: {
-    color: colors.text,
+    color: colors.white,
+  },
+  minimalMsgText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.white,
   },
   emptyMsg: {
     flex: 1,
@@ -1631,7 +1629,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: 'transparent',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 18,

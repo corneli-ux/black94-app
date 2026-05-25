@@ -182,7 +182,7 @@ function ChatRoomContent({ route, navigation }: any) {
         return (
           <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
             {!isMine && <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={28} />}
-            <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs, styles.deletedBubble]}>
+            <View style={styles.deletedBubble}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <AppIcon name="block" size="sm" color={isMine ? colors.overlayLight : colors.textMuted} />
                 <Text style={[styles.bubbleText, isMine ? { color: colors.overlayLight } : { color: colors.textMuted }, { fontStyle: 'italic' }]}>
@@ -208,34 +208,34 @@ function ChatRoomContent({ route, navigation }: any) {
             activeOpacity={1}
             style={{ maxWidth: '80%' }}
           >
-            <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-              {/* Image message */}
-              {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  onPress={() => setFullscreenImage(typeof item.mediaUrl === 'string' ? item.mediaUrl : null)}
-                >
-                  <Image
-                    source={safeImageSource(item.mediaUrl)}
-                    style={styles.bubbleImage}
-                    resizeMode="cover"
-                    onError={() => {/* silently degrade */}}
-                  />
-                </TouchableOpacity>
-              ) : null}
-
-              {/* GIF message */}
-              {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
+            {/* Image message — no bubble wrapper, image only */}
+            {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => setFullscreenImage(typeof item.mediaUrl === 'string' ? item.mediaUrl : null)}
+              >
                 <Image
                   source={safeImageSource(item.mediaUrl)}
-                  style={styles.bubbleGif}
-                  resizeMode="contain"
+                  style={styles.bubbleImage}
+                  resizeMode="cover"
                   onError={() => {/* silently degrade */}}
                 />
-              ) : null}
+              </TouchableOpacity>
+            ) : null}
 
-              {/* Voice message */}
-              {msgType === 'voice' && (
+            {/* GIF message — no bubble wrapper, image only */}
+            {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
+              <Image
+                source={safeImageSource(item.mediaUrl)}
+                style={styles.bubbleGif}
+                resizeMode="contain"
+                onError={() => {/* silently degrade */}}
+              />
+            ) : null}
+
+            {/* Voice message — keep bubble for controls */}
+            {msgType === 'voice' && (
+              <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs, styles.voiceBubbleWrap]}>
                 <TouchableOpacity
                   style={styles.voiceBubble}
                   onPress={() => handlePlayVoice(item)}
@@ -257,7 +257,8 @@ function ChatRoomContent({ route, navigation }: any) {
                     {item.voiceDuration || 0}s
                   </Text>
                 </TouchableOpacity>
-              )}
+              </View>
+            )}
 
               {/* Reply indicator */}
               {item.replyToContent && (
@@ -267,38 +268,34 @@ function ChatRoomContent({ route, navigation }: any) {
                 </View>
               )}
 
-              {/* Text content */}
+              {/* Text content — minimal: no bubble background, just white text */}
               {item.content && msgType === 'text' ? (
-                <Text style={[styles.bubbleText, isMine && { color: colors.primaryForeground }]}>
+                <Text style={styles.minimalText}>
                   {typeof item.content === 'string' ? item.content : ''}
                 </Text>
               ) : null}
 
-              {/* Timestamp */}
-              <Text style={[styles.bubbleTime, isMine ? { color: colors.overlay } : { color: colors.textSecondary }]}>
-                {formatTime(item.createdAt)}
-              </Text>
+            {/* Timestamp — subtle, below content */}
 
-              {/* Read receipt */}
-              {isMine && (
-                <View style={styles.receiptRow}>
-                  {item.status === 'read' ? (
-                    <AppIcon name="task-alt" size="sm" color="#38bdf8" />
-                  ) : item.status === 'delivered' ? (
-                    <AppIcon name="task-alt" size="sm" color={colors.overlayLight} />
-                  ) : (
-                    <AppIcon name="check" size="sm" color={colors.overlayLight} />
-                  )}
-                </View>
-              )}
+            {/* Reactions */}
+            {reactionEntries.length > 0 && (
+              <View style={styles.reactionBadge}>
+                <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
+              </View>
+            )}
 
-              {/* Reactions */}
-              {reactionEntries.length > 0 && (
-                <View style={styles.reactionBadge}>
-                  <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
-                </View>
-              )}
-            </View>
+            {/* Read receipt — below text, inline */}
+            {isMine && (
+              <View style={styles.receiptRow}>
+                {item.status === 'read' ? (
+                  <AppIcon name="task-alt" size="sm" color="#38bdf8" />
+                ) : item.status === 'delivered' ? (
+                  <AppIcon name="task-alt" size="sm" color={colors.overlayLight} />
+                ) : (
+                  <AppIcon name="check" size="sm" color={colors.overlayLight} />
+                )}
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       );
@@ -717,17 +714,18 @@ const styles = StyleSheet.create({
   msgRowLeft: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleMine: {
-    backgroundColor: colors.white,
-    borderBottomRightRadius: 4,
+    backgroundColor: 'transparent',
   },
   bubbleTheirs: {
-    backgroundColor: colors.bgInput,
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.separator,
+    backgroundColor: 'transparent',
   },
   bubbleText: { color: colors.text, fontSize: 14, lineHeight: 22 },
-  bubbleTime: { fontSize: 11, marginTop: 4, marginRight: 2 },
+  minimalText: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  bubbleTime: { fontSize: 10, marginTop: 2, marginRight: 2, color: colors.textSecondary, opacity: 0.5 },
   receiptRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -796,9 +794,9 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   deletedBubble: {
-    opacity: 0.6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    opacity: 0.4,
+    paddingVertical: 4,
+    paddingHorizontal: 0,
   },
   imageViewerOverlay: {
     flex: 1,
@@ -820,16 +818,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   bubbleImage: {
-    width: 220,
-    height: 220,
-    borderRadius: 14,
-    marginBottom: 4,
+    width: '100%',
+    maxWidth: 240,
+    aspectRatio: 1,
+    borderRadius: 16,
+    marginBottom: 2,
   },
   bubbleGif: {
-    width: 200,
-    height: 160,
+    width: '100%',
+    maxWidth: 220,
+    aspectRatio: 5 / 4,
     borderRadius: 14,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   inputRow: {
     flexDirection: 'row',
@@ -1007,11 +1007,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  voiceBubbleWrap: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
   voiceBubble: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingVertical: 4,
+  },
+  minimalTime: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    opacity: 0.5,
+    marginTop: 1,
+    marginRight: 2,
   },
   voiceWaveform: {
     flexDirection: 'row',
