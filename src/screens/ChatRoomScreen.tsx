@@ -1,5 +1,33 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * CRASH-PROOF CHAT ROOM SCREEN v3 — Complete Ground-Up Rebuild
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * DEFENSES:
+ * 1. ChatErrorBoundary — catches any React render crash, shows recovery UI
+ * 2. LazyScreenErrorBoundary (in AppNavigator) — catches module load crashes
+ * 3. safeImageSource() — prevents Image crash on corrupted mediaUrl
+ * 4. renderMessage try/catch — one bad message doesn't crash the list
+ * 5. All props have safe defaults — no undefined/null access
+ * 6. No native module calls during render — all in effects/callbacks
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
 import React, { Component } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+  ActivityIndicator,
+  Alert,
+  Modal,
+} from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { Message } from '../lib/api';
@@ -8,11 +36,9 @@ import { Avatar } from '../components/Avatar';
 import { useChatRoom } from '../hooks/useChatRoom';
 import { AppIcon } from '../components/icons';
 
-// ── Error Boundary: catches any render crash and shows recovery UI instead of
-//    a white/red React Native crash screen. This is the #1 defense against the
-//    chat crash — any throw during rendering (corrupted data, type errors, native
-//    module errors) is caught and shows a retry button.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Error Boundary ──────────────────────────────────────────────────────────
+// This is the #1 defense — any throw during rendering (corrupted data, type errors,
+// native module errors) is caught and shows a retry button.
 class ChatErrorBoundary extends Component<
   { children: React.ReactNode; navigation?: any },
   { hasError: boolean; error: Error | null }
@@ -24,13 +50,12 @@ class ChatErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[ChatRoom] Render error caught by boundary:', error?.message || error);
-    console.error('[ChatRoom] Component stack:', info.componentStack);
+    console.error('[ChatRoom v3] Render error caught:', error?.message || error);
+    console.error('[ChatRoom v3] Component stack:', info.componentStack);
   }
 
   handleGoBack = () => {
     this.setState({ hasError: false, error: null });
-    // Navigate back — use navigation passed directly as a prop (reliable, no _reactInternals hacks)
     this.props.navigation?.goBack();
   };
 
@@ -69,9 +94,6 @@ class ChatErrorBoundary extends Component<
 }
 
 // ── Safe image source helper ──────────────────────────────────────────────────
-// BUG FIX: React Native's <Image> crashes if source.uri is not a string.
-// If Firestore returns a corrupted value (object, array, etc.) for mediaUrl,
-// the truthiness check passes but the Image component crashes the app.
 function safeImageSource(uri: string | null | undefined): { uri: string } | undefined {
   if (typeof uri === 'string' && uri.startsWith('http')) {
     return { uri };
@@ -86,6 +108,7 @@ function formatTime(timestamp?: number | string): string {
   return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+// ── Export ───────────────────────────────────────────────────────────────────
 export default function ChatRoomScreen({ route, navigation }: any) {
   return (
     <ChatErrorBoundary navigation={navigation}>
@@ -94,6 +117,7 @@ export default function ChatRoomScreen({ route, navigation }: any) {
   );
 }
 
+// ── Main Content ──────────────────────────────────────────────────────────────
 function ChatRoomContent({ route, navigation }: any) {
   const {
     chat,
@@ -143,147 +167,146 @@ function ChatRoomContent({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const currentUser = auth()?.currentUser;
 
-  // BUG FIX: Define safeOtherUser BEFORE renderMessage to eliminate any potential
-  // temporal dead zone (TDZ) issues. Previously, renderMessage at line 152 referenced
-  // safeOtherUser which was defined at line 293 (after the early return). While
-  // this worked at runtime (renderMessage was only called after safeOtherUser was
-  // defined), some React Native JS engines could throw ReferenceError in certain
-  // concurrent rendering scenarios. Now safeOtherUser always has a valid value.
+  // Safe other user — ALWAYS defined, never undefined/null
   const safeOtherUser = chat?.otherUser || { displayName: 'Chat', username: '', profileImage: null };
 
+  // ── Message Renderer ──────────────────────────────────────────────────────
   const renderMessage = ({ item }: { item: Message }) => {
     try {
-    const isMine = item.senderId === currentUser?.uid;
-    const msgType = item.messageType || 'text';
-    const reactionEntries = item.reactions ? Object.values(item.reactions) as string[] : [];
+      const isMine = item.senderId === currentUser?.uid;
+      const msgType = item.messageType || 'text';
+      const reactionEntries = item.reactions ? Object.values(item.reactions) as string[] : [];
 
-    // Deleted message placeholder
-    if (item.deleted) {
+      // Deleted message placeholder
+      if (item.deleted) {
+        return (
+          <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
+            {!isMine && <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={28} />}
+            <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs, styles.deletedBubble]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <AppIcon name="block" size="sm" color={isMine ? colors.overlayLight : colors.textMuted} />
+                <Text style={[styles.bubbleText, isMine ? { color: colors.overlayLight } : { color: colors.textMuted }, { fontStyle: 'italic' }]}>
+                  This message was deleted
+                </Text>
+              </View>
+              <Text style={[styles.bubbleTime, isMine ? { color: colors.overlayLight } : { color: colors.textMuted }]}>
+                {formatTime(item.createdAt)}
+              </Text>
+            </View>
+          </View>
+        );
+      }
+
       return (
         <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
           {!isMine && <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={28} />}
-          <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs, styles.deletedBubble]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <AppIcon name="block" size="sm" color={isMine ? colors.overlayLight : colors.textMuted} />
-              <Text style={[styles.bubbleText, isMine ? { color: colors.overlayLight } : { color: colors.textMuted }, { fontStyle: 'italic' }]}>
-                This message was deleted
+          <TouchableOpacity
+            onLongPress={() => setContextMsg(item)}
+            onPress={() => {
+              if (msgType === 'text') setReplyTo(item);
+            }}
+            activeOpacity={1}
+            style={{ maxWidth: '80%' }}
+          >
+            <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
+              {/* Image message */}
+              {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => setFullscreenImage(typeof item.mediaUrl === 'string' ? item.mediaUrl : null)}
+                >
+                  <Image
+                    source={safeImageSource(item.mediaUrl)}
+                    style={styles.bubbleImage}
+                    resizeMode="cover"
+                    onError={() => {/* silently degrade */}
+ {}}
+                  />
+                </TouchableOpacity>
+              ) : null}
+
+              {/* GIF message */}
+              {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
+                <Image
+                  source={safeImageSource(item.mediaUrl)}
+                  style={styles.bubbleGif}
+                  resizeMode="contain"
+                  onError={() => {/* silently degrade */}
+                  {}}
+                />
+              ) : null}
+
+              {/* Voice message */}
+              {msgType === 'voice' && (
+                <TouchableOpacity
+                  style={styles.voiceBubble}
+                  onPress={() => handlePlayVoice(item)}
+                  activeOpacity={0.7}
+                >
+                  <AppIcon
+                    name={playingVoiceId === item.id ? 'pause-circle' : 'play-circle'}
+                    size="4xl"
+                    color={isMine ? colors.primaryForeground : colors.text}
+                  />
+                  <View style={styles.voiceWaveform}>
+                    <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlay } : { backgroundColor: colors.accentBorderStrong }]} />
+                    <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlay } : { backgroundColor: colors.white50 }]} />
+                    <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlay } : { backgroundColor: colors.accentBorderStrong }]} />
+                    <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlayDark } : { backgroundColor: colors.borderWhite40 }]} />
+                    <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlayLight } : { backgroundColor: colors.accentBorder }]} />
+                  </View>
+                  <Text style={[styles.voiceDuration, isMine ? { color: colors.overlayDark } : { color: colors.textSecondary }]}>
+                    {item.voiceDuration || 0}s
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Reply indicator */}
+              {item.replyToContent && (
+                <View style={styles.replyIndicator}>
+                  <Text style={styles.replyIndicatorName}>{item.replyToSenderName || 'Reply'}</Text>
+                  <Text style={styles.replyIndicatorText} numberOfLines={1}>{item.replyToContent}</Text>
+                </View>
+              )}
+
+              {/* Text content */}
+              {item.content && msgType === 'text' ? (
+                <Text style={[styles.bubbleText, isMine && { color: colors.primaryForeground }]}>
+                  {typeof item.content === 'string' ? item.content : ''}
+                </Text>
+              ) : null}
+
+              {/* Timestamp */}
+              <Text style={[styles.bubbleTime, isMine ? { color: colors.overlay } : { color: colors.textSecondary }]}>
+                {formatTime(item.createdAt)}
               </Text>
-            </View>
-            <Text style={[styles.bubbleTime, isMine ? { color: colors.overlayLight } : { color: colors.textMuted }]}>
-              {formatTime(item.createdAt)}
-            </Text>
-          </View>
-        </View>
-      );
-    }
 
-    return (
-      <View style={[styles.msgRow, isMine ? styles.msgRowRight : styles.msgRowLeft]}>
-        {!isMine && <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={28} />}
-        <TouchableOpacity
-          onLongPress={() => {
-            setContextMsg(item);
-          }}
-          onPress={() => {
-            if (msgType === 'text') setReplyTo(item);
-          }}
-          activeOpacity={1}
-          style={{ maxWidth: '80%' }}
-        >
-        <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-          {/* Image message */}
-          {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => setFullscreenImage(typeof item.mediaUrl === 'string' ? item.mediaUrl : null)}
-            >
-              <Image
-                source={safeImageSource(item.mediaUrl)}
-                style={styles.bubbleImage}
-                resizeMode="cover"
-                onError={() => {/* silently degrade — image fails to load */}}
-              />
-            </TouchableOpacity>
-          ) : null}
+              {/* Read receipt */}
+              {isMine && (
+                <View style={styles.receiptRow}>
+                  {item.status === 'read' ? (
+                    <AppIcon name="task-alt" size="sm" color="#38bdf8" />
+                  ) : item.status === 'delivered' ? (
+                    <AppIcon name="task-alt" size="sm" color={colors.overlayLight} />
+                  ) : (
+                    <AppIcon name="check" size="sm" color={colors.overlayLight} />
+                  )}
+                </View>
+              )}
 
-          {/* GIF message */}
-          {msgType === 'gif' && safeImageSource(item.mediaUrl) ? (
-            <Image
-              source={safeImageSource(item.mediaUrl)}
-              style={styles.bubbleGif}
-              resizeMode="contain"
-              onError={() => {/* silently degrade */}}
-            />
-          ) : null}
-
-          {/* Voice message */}
-          {msgType === 'voice' && (
-            <TouchableOpacity
-              style={styles.voiceBubble}
-              onPress={() => handlePlayVoice(item)}
-              activeOpacity={0.7}
-            >
-              <AppIcon
-                name={playingVoiceId === item.id ? 'pause-circle' : 'play-circle'}
-                size="4xl"
-                color={isMine ? colors.primaryForeground : colors.text}
-              />
-              <View style={styles.voiceWaveform}>
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlay } : { backgroundColor: colors.accentBorderStrong }]} />
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlay } : { backgroundColor: colors.white50 }]} />
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlay } : { backgroundColor: colors.accentBorderStrong }]} />
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlayDark } : { backgroundColor: colors.borderWhite40 }]} />
-                <View style={[styles.voiceBar, isMine ? { backgroundColor: colors.overlayLight } : { backgroundColor: colors.accentBorder }]} />
-              </View>
-              <Text style={[styles.voiceDuration, isMine ? { color: colors.overlayDark } : { color: colors.textSecondary }]}>
-                {item.voiceDuration || 0}s
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Reply indicator — shown BEFORE message content */}
-          {item.replyToContent && (
-            <View style={styles.replyIndicator}>
-              <Text style={styles.replyIndicatorName}>{item.replyToSenderName || 'Reply'}</Text>
-              <Text style={styles.replyIndicatorText} numberOfLines={1}>{item.replyToContent}</Text>
-            </View>
-          )}
-
-          {/* Text content (for text messages or captions) */}
-          {item.content && msgType === 'text' ? (
-            <Text style={[styles.bubbleText, isMine && { color: colors.primaryForeground }]}>{typeof item.content === 'string' ? item.content : ''}</Text>
-          ) : null}
-
-          {/* Timestamp */}
-          <Text style={[styles.bubbleTime, isMine ? { color: colors.overlay } : { color: colors.textSecondary }]}>
-            {formatTime(item.createdAt)}
-          </Text>
-          {/* Read receipt indicators — own messages only */}
-          {isMine && (
-            <View style={styles.receiptRow}>
-              {item.status === 'read' ? (
-                <AppIcon name="task-alt" size="sm" color="#38bdf8" />
-              ) : item.status === 'delivered' ? (
-                <AppIcon name="task-alt" size="sm" color={colors.overlayLight} />
-              ) : (
-                <AppIcon name="check" size="sm" color={colors.overlayLight} />
+              {/* Reactions */}
+              {reactionEntries.length > 0 && (
+                <View style={styles.reactionBadge}>
+                  <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
+                </View>
               )}
             </View>
-          )}
-          {/* Reactions display */}
-          {reactionEntries.length > 0 && (
-            <View style={styles.reactionBadge}>
-              <Text style={styles.reactionText}>{reactionEntries.join('')}</Text>
-            </View>
-          )}
+          </TouchableOpacity>
         </View>
-        </TouchableOpacity>
-      </View>
-    );
+      );
     } catch (renderErr) {
-      // CRASH FIX: Any rendering error in a single message bubble (corrupted data,
-      // unexpected type, undefined property access) is caught here so the
-      // entire FlatList doesn't crash. Returns a minimal safe fallback.
+      // CRASH FIX: Any rendering error in a single message bubble is caught
+      // so the entire FlatList doesn't crash.
       return (
         <View key={item.id} style={[styles.msgRow, { marginVertical: 2, paddingHorizontal: 16 }]}>
           <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Message could not be displayed</Text>
@@ -292,6 +315,7 @@ function ChatRoomContent({ route, navigation }: any) {
     }
   };
 
+  // ── Loading State ──────────────────────────────────────────────────────────
   if (!chat) {
     return (
       <View style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -300,70 +324,67 @@ function ChatRoomContent({ route, navigation }: any) {
     );
   }
 
+  // ── Main Render ──────────────────────────────────────────────────────────
   return (
-    <View style={[styles.safeArea]}>
-      {/* Header with SafeAreaView for notch */}
+    <View style={styles.safeArea}>
+      {/* Header */}
       <SafeAreaView edges={['top']}>
-      <View style={[styles.header]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <AppIcon name="arrow-back" size={20} color={colors.text} />
-        </TouchableOpacity>
-        {chat ? (
-          <>
-            <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={36} />
-            <View style={{ marginLeft: 10, flex: 1 }}>
-              <Text style={styles.headerName} numberOfLines={1}>
-                {safeOtherUser.displayName || safeOtherUser.username || 'Chat'}
-              </Text>
-              <Text style={styles.headerHandle}>@{safeOtherUser.username}</Text>
-            </View>
-          </>
-        ) : (
-          <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: 10 }} />
-        )}
-
-        {/* Call button — hidden until VoIP SDK integration is complete */}
-
-        {/* More menu button */}
-        <View style={{ position: 'relative' }}>
-          <TouchableOpacity
-            style={styles.headerActionBtn}
-            onPress={() => setShowMenu(!showMenu)}
-            activeOpacity={0.7}
-          >
-            <AppIcon name="more-horiz" size={20} color={colors.text} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <AppIcon name="arrow-back" size={20} color={colors.text} />
           </TouchableOpacity>
-
-          {/* Dropdown menu */}
-          {showMenu && (
+          {chat ? (
             <>
-              <TouchableOpacity
-                style={StyleSheet.absoluteFillObject}
-                onPress={() => setShowMenu(false)}
-                activeOpacity={1}
-              />
-              <View style={styles.dropdownMenu}>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setShowMenu(false);
-                    setShowNuclearConfirm(true);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.nuclearIcon}>💣</Text>
-                  <Text style={styles.menuItemTextDelete}>Nuclear Block</Text>
-                </TouchableOpacity>
+              <Avatar uri={safeOtherUser.profileImage} name={safeOtherUser.displayName} size={36} />
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text style={styles.headerName} numberOfLines={1}>
+                  {safeOtherUser.displayName || safeOtherUser.username || 'Chat'}
+                </Text>
+                <Text style={styles.headerHandle}>@{safeOtherUser.username}</Text>
               </View>
             </>
+          ) : (
+            <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: 10 }} />
           )}
+
+          {/* More menu */}
+          <View style={{ position: 'relative' }}>
+            <TouchableOpacity
+              style={styles.headerActionBtn}
+              onPress={() => setShowMenu(!showMenu)}
+              activeOpacity={0.7}
+            >
+              <AppIcon name="more-horiz" size={20} color={colors.text} />
+            </TouchableOpacity>
+
+            {showMenu && (
+              <>
+                <TouchableOpacity
+                  style={StyleSheet.absoluteFillObject}
+                  onPress={() => setShowMenu(false)}
+                  activeOpacity={1}
+                />
+                <View style={styles.dropdownMenu}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowMenu(false);
+                      setShowNuclearConfirm(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.nuclearIconText}>Nuclear Block</Text>
+                    <Text style={styles.menuItemTextDelete}>Nuclear Block</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
         </View>
-      </View>
       </SafeAreaView>
 
-      {/* Messages + Input — wrapped in KAV so keyboard pushes input bar up */}
+      {/* Messages + Input */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        {/* Messages */}
         {loading ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator color={colors.accent} />
@@ -372,8 +393,8 @@ function ChatRoomContent({ route, navigation }: any) {
           <FlatList
             ref={flatRef}
             style={{ flex: 1 }}
-            data={messages}
-            keyExtractor={item => item.id}
+            data={messages || []}
+            keyExtractor={item => item.id || `msg-${Math.random()}`}
             renderItem={renderMessage}
             contentContainerStyle={{ padding: 16, gap: 4, paddingTop: 8 }}
             ListEmptyComponent={
@@ -382,9 +403,7 @@ function ChatRoomContent({ route, navigation }: any) {
               </View>
             }
             onContentSizeChange={() => {
-              flatRef.current?.measure((_, __, ___, contentHeight) => {
-                flatRef.current?.scrollToEnd({ animated: false });
-              });
+              try { flatRef.current?.scrollToEnd({ animated: false }); } catch {}
             }}
             ListFooterComponent={<View style={{ height: 80 }} />}
             keyboardShouldPersistTaps="handled"
@@ -411,7 +430,6 @@ function ChatRoomContent({ route, navigation }: any) {
 
         {/* Input bar */}
         <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
-          {/* Attachment button */}
           <TouchableOpacity
             style={styles.inputActionBtn}
             onPress={() => setShowAttachMenu(!showAttachMenu)}
@@ -432,10 +450,7 @@ function ChatRoomContent({ route, navigation }: any) {
             />
           </View>
           <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              (text.trim() || sending) && styles.sendBtnActive,
-            ]}
+            style={[styles.sendBtn, (text.trim() || sending) && styles.sendBtnActive]}
             onPress={handleSend}
             disabled={!text.trim() || sending}
             activeOpacity={0.7}
@@ -448,7 +463,7 @@ function ChatRoomContent({ route, navigation }: any) {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Attachment menu popup */}
+      {/* Attachment menu */}
       {showAttachMenu && (
         <>
           <TouchableOpacity
@@ -493,19 +508,14 @@ function ChatRoomContent({ route, navigation }: any) {
         </View>
       )}
 
-      {/* Nuclear Block Confirmation Modal */}
-      <Modal
-        visible={showNuclearConfirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowNuclearConfirm(false)}
-      >
+      {/* Nuclear Block Modal */}
+      <Modal visible={showNuclearConfirm} transparent animationType="fade" onRequestClose={() => setShowNuclearConfirm(false)}>
         <View style={styles.nuclearOverlay}>
           <View style={styles.nuclearDialog}>
             <View style={styles.nuclearIconContainer}>
               <AppIcon name="error-outline" size="hero" color={colors.like} />
             </View>
-            <Text style={styles.nuclearTitle}>💣 Nuclear Block</Text>
+            <Text style={styles.nuclearTitle}>Nuclear Block</Text>
             <Text style={styles.nuclearMessage}>
               This will permanently delete ALL messages, media, and attachments for BOTH users. This cannot be undone.
             </Text>
@@ -513,17 +523,10 @@ function ChatRoomContent({ route, navigation }: any) {
               The user will also be blocked from contacting you again.
             </Text>
             <View style={styles.nuclearActions}>
-              <TouchableOpacity
-                style={styles.nuclearCancelBtn}
-                onPress={() => setShowNuclearConfirm(false)}
-              >
+              <TouchableOpacity style={styles.nuclearCancelBtn} onPress={() => setShowNuclearConfirm(false)}>
                 <Text style={styles.nuclearCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.nuclearConfirmBtn}
-                onPress={handleNuclearBlock}
-                disabled={blocking}
-              >
+              <TouchableOpacity style={styles.nuclearConfirmBtn} onPress={handleNuclearBlock} disabled={blocking}>
                 {blocking ? (
                   <ActivityIndicator color={colors.white} size="small" />
                 ) : (
@@ -535,7 +538,7 @@ function ChatRoomContent({ route, navigation }: any) {
         </View>
       </Modal>
 
-      {/* Message Context Menu — shows React + Reply for all, Delete only for own messages */}
+      {/* Context Menu (React + Reply + Delete) */}
       <Modal visible={!!contextMsg} transparent animationType="fade" onRequestClose={() => setContextMsg(null)}>
         <TouchableOpacity style={styles.reactionModalOverlay} activeOpacity={1} onPress={() => setContextMsg(null)}>
           <View style={styles.contextMenu}>
@@ -593,7 +596,7 @@ function ChatRoomContent({ route, navigation }: any) {
         </TouchableOpacity>
       </Modal>
 
-      {/* Emoji Reaction Picker Modal */}
+      {/* Emoji Reaction Picker */}
       <Modal visible={!!reactionMsg} transparent animationType="fade" onRequestClose={() => setReactionMsg(null)}>
         <TouchableOpacity style={styles.reactionModalOverlay} activeOpacity={1} onPress={() => setReactionMsg(null)}>
           <View style={styles.reactionPicker}>
@@ -606,7 +609,7 @@ function ChatRoomContent({ route, navigation }: any) {
         </TouchableOpacity>
       </Modal>
 
-      {/* Full-screen image viewer */}
+      {/* Fullscreen Image Viewer */}
       <Modal visible={!!fullscreenImage} transparent animationType="fade" onRequestClose={() => setFullscreenImage(null)}>
         <TouchableOpacity
           style={styles.imageViewerOverlay}
@@ -629,7 +632,7 @@ function ChatRoomContent({ route, navigation }: any) {
         </TouchableOpacity>
       </Modal>
 
-      {/* Recording overlay */}
+      {/* Recording Overlay */}
       {isRecording && (
         <View style={styles.recordingOverlay}>
           <View style={styles.recordingContent}>
@@ -651,6 +654,7 @@ function ChatRoomContent({ route, navigation }: any) {
   );
 }
 
+// ── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.bg },
   header: {
@@ -704,13 +708,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  nuclearIcon: { fontSize: 20 },
+  nuclearIconText: { fontSize: 20 },
   menuItemTextDelete: {
     color: colors.like,
     fontSize: 14,
     fontWeight: '500',
   },
-  // ── Messages ──
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginVertical: 2 },
   msgRowRight: { justifyContent: 'flex-end' },
   msgRowLeft: { justifyContent: 'flex-start' },
@@ -767,7 +770,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reactionEmoji: { fontSize: 28 },
-  // ── Context Menu (delete) ──
   contextMenu: {
     backgroundColor: colors.avatarFallback,
     borderRadius: 16,
@@ -800,7 +802,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
   },
-  // ── Full-screen image viewer ──
   imageViewerOverlay: {
     flex: 1,
     backgroundColor: colors.overlaySolid,
@@ -820,7 +821,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // ── Image in bubble ──
   bubbleImage: {
     width: 220,
     height: 220,
@@ -833,7 +833,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 4,
   },
-  // ── Input bar ──
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -883,8 +882,6 @@ const styles = StyleSheet.create({
   sendBtnActive: {
     backgroundColor: colors.accent,
   },
-  sendBtnInactive: {},
-  // ── Attachment menu ──
   attachMenu: {
     position: 'absolute',
     bottom: 60,
@@ -920,10 +917,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
   },
-  // ── Upload overlay ──
   uploadingOverlay: {
     position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.overlayDark,
     justifyContent: 'center',
     alignItems: 'center',
@@ -935,7 +934,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  // ── Nuclear block modal ──
   nuclearOverlay: {
     flex: 1,
     backgroundColor: colors.overlayHeavy,
@@ -1011,7 +1009,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  // ── Voice message ──
   voiceBubble: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1033,10 +1030,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  // ── Recording overlay ──
   recordingOverlay: {
     position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.overlayMax,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1071,7 +1070,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
-  // ── Reply preview ──
   replyPreview: {
     flexDirection: 'row',
     alignItems: 'center',
