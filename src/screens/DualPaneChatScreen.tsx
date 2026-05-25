@@ -238,9 +238,13 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           ? (selectedChat.user1Id === currentUserId ? selectedChat.user2Id : selectedChat.user1Id)
           : '';
 
-        // Decrypt all messages in parallel
-        const msgs = await Promise.all(
-          snap.docs.map(async (doc) => {
+        // CRASH FIX: Decrypt messages SEQUENTIALLY (not Promise.all).
+        // Same root cause as fetchMessages in api.ts — parallel E2EE decryption
+        // of 50 messages overwhelms the JS thread with concurrent native calls.
+        const msgs: ChatMessage[] = [];
+        const skipE2EE = !otherId;
+        for (const doc of snap.docs) {
+          try {
             const data = doc.data();
             const rawContent = data.content ?? '';
             const senderId = data.senderId ?? '';
@@ -251,7 +255,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
 
             // Attempt E2E decryption; null = tampered → placeholder, NEVER raw ciphertext
             let content: string;
-            if (msgType === 'image' || msgType === 'gif' || msgType === 'voice') {
+            if (msgType === 'image' || msgType === 'gif' || msgType === 'voice' || skipE2EE) {
               content = rawContent;
             } else {
               try {
@@ -266,7 +270,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
 
             // E2EE FIX: Decrypt replyToContent if encrypted
             let replyToContent: string | undefined = data.replyToContent;
-            if (replyToContent && typeof replyToContent === 'string' && replyToContent.startsWith('E2EE:')) {
+            if (!skipE2EE && replyToContent && typeof replyToContent === 'string' && replyToContent.startsWith('E2EE:')) {
               try {
                 const dec = await decryptMessage(replyToContent, msgDecryptUid);
                 replyToContent = dec ?? '[Encrypted reply]';
@@ -277,7 +281,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
 
             // E2EE FIX: Decrypt mediaUrl if encrypted
             let mediaUrl: string | null = data.mediaUrl ?? null;
-            if (mediaUrl && typeof mediaUrl === 'string' && mediaUrl.startsWith('E2EE:')) {
+            if (!skipE2EE && mediaUrl && typeof mediaUrl === 'string' && mediaUrl.startsWith('E2EE:')) {
               try {
                 const dec = await decryptMessage(mediaUrl, msgDecryptUid);
                 mediaUrl = dec ?? null;
@@ -286,7 +290,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
               }
             }
 
-            return {
+            msgs.push({
               id: doc.id,
               chatId: data.chatId ?? '',
               senderId,
@@ -299,9 +303,22 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
               replyToId: data.replyToId,
               replyToContent,
               replyToSenderName: data.replyToSenderName,
-            };
-          }),
-        );
+            });
+          } catch (msgErr) {
+            console.warn('[DualPaneChat] Failed to process message:', doc.id, msgErr?.message || msgErr);
+            msgs.push({
+              id: doc.id,
+              chatId: selectedChatId,
+              senderId: data?.senderId ?? '',
+              receiverId: data?.receiverId ?? '',
+              content: '[Message could not be loaded]',
+              messageType: 'text',
+              mediaUrl: null,
+              status: 'sent',
+              createdAt: tsToISO(data?.createdAt),
+            });
+          }
+        }
 
         msgs.reverse();
         // Preserve temp messages that haven't appeared in server results yet

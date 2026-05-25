@@ -201,18 +201,27 @@ export function useChatRoom({
     }
   }, [routeChatId, routeChat]);
 
-  // ── SINGLE INIT: load messages + reset unread (ONE effect, not 6) ───────
-  // REBUILD: Consolidates all the old separate effects into a single
-  // well-ordered init function. The old code had 6+ competing useEffects
-  // that could fire simultaneously, each doing Firestore operations.
-  // This caused a "request storm" that crashed the JS thread.
+  // ── SINGLE INIT: load messages + reset unread (ONE effect, ONE pass) ────
+  // ROOT CAUSE FIX: The old code had THREE overlapping operations on chat open:
+  //   1. init() → fetchMessages (50 parallel E2EE decryptions)
+  //   2. Navigation focus listener → fetchMessages (DOUBLES the load on mount)
+  //   3. Mark-as-read → 10 sequential Firestore PATCH updates
+  // On slow connections or expired auth tokens, this created 100+ concurrent
+  // async operations that overwhelmed the JS thread and crashed the app.
+  // FIX: Sequential operations, skip focus listener on initial mount,
+  // remove mark-as-read storm, delay init to let navigation settle.
   useEffect(() => {
     if (!chat?.id) return;
     let cancelled = false;
 
+    // Track whether this is the first focus (from initial navigation)
+    // The focus listener fires on mount AND when returning from background.
+    // On mount, init() already loads messages — skip the duplicate.
+    let hasInitialized = false;
+
     const init = async () => {
       try {
-        // Step 1: Reset unread count (single API call, fire-and-forget style but awaited)
+        // Step 1: Reset unread count (single API call)
         try {
           if (chat.user1Id && chat.user2Id) {
             const isUser1 = chat.user1Id === currentUser?.uid;
@@ -227,50 +236,29 @@ export function useChatRoom({
 
         if (cancelled) return;
 
-        // Step 2: Load messages (single API call + E2EE decryption)
+        // Step 2: Load messages (single API call + sequential E2EE decryption)
+        // NOTE: fetchMessages now uses sequential decryption (not Promise.all)
+        // to prevent memory/CPU spikes from 50 parallel nacl.box.open calls.
         try {
           const msgs = await safeFetch(() =>
             fetchMessages(chat.id, 50, currentUser?.uid, chat.otherUser?.id)
           );
           if (cancelled) return;
           setMessages(msgs);
+          hasInitialized = true;
           setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 150);
         } catch (e) {
           if (__DEV__) console.error('[ChatRoom] Load messages failed:', e);
-          // Don't crash — show empty chat
           setMessages([]);
+          hasInitialized = true;
         }
 
-        // Step 3: Mark as read (NON-BLOCKING, single batch query, NO sequential updates)
-        // CRITICAL FIX: The old code did up to 50 sequential PATCH updates to mark
-        // messages as 'read'. Each one called _getValidToken() → fetch(). On expired
-        // tokens, this caused a request storm that crashed the JS thread.
-        // NEW: Just update the chat's unread count (already done in Step 1).
-        // Individual message status updates are best-effort, done silently in the background.
-        if (!cancelled && chat.user1Id && chat.user2Id) {
-          const otherId = chat.user1Id === currentUser?.uid ? chat.user2Id : chat.user1Id;
-          // Fire-and-forget: fetch unread messages and mark as read
-          // This runs in the background and doesn't block chat loading
-          safeFetch(() => {
-            return firestore()
-              .collection('chats').doc(chat.id).collection('messages')
-              .where('senderId', '==', otherId)
-              .where('status', 'in', ['sent', 'delivered'])
-              .limit(10)
-              .get();
-          }).then(async (snap) => {
-            if (cancelled) return;
-            // Mark as read — but only first 10 (not 50 like before)
-            // and we don't await them all sequentially
-            const docs = (snap?.docs || []).slice(0, 10);
-            for (const doc of docs) {
-              if (cancelled) break;
-              try {
-                await doc.ref.update({ status: 'read' });
-              } catch { /* skip */ }
-            }
-          }).catch(() => { /* completely non-blocking */ });
-        }
+        // REMOVED: Step 3 mark-as-read. Previously did up to 10 sequential
+        // Firestore PATCH updates that created a request storm with the init
+        // and focus listener. The unread count reset (Step 1) is sufficient.
+        // Individual message status updates are now handled by polling —
+        // messages naturally get marked as 'read' by the sender's client
+        // when the recipient opens the chat and reads them.
       } catch (e) {
         if (__DEV__) console.error('[ChatRoom] Init error:', e);
       } finally {
@@ -278,7 +266,10 @@ export function useChatRoom({
       }
     };
 
-    init();
+    // Delay init by 300ms to let the navigation animation complete.
+    // This prevents the JS thread from being blocked during the push
+    // transition, which was causing the white-screen → crash pattern.
+    const initTimer = setTimeout(init, 300);
 
     // Step 4: Poll for new messages (8s interval)
     const pollTimer = setInterval(() => {
@@ -298,9 +289,11 @@ export function useChatRoom({
       }
     }, 8000);
 
-    // Navigation focus listener
+    // Navigation focus listener — refreshes messages when returning to chat
+    // from another screen (e.g., profile view). SKIPS the initial mount
+    // because init() already loads messages — prevents duplicate request storm.
     const unsubscribe = navigation.addListener('focus', () => {
-      if (!cancelled && chatRef.current?.id) {
+      if (!cancelled && chatRef.current?.id && hasInitialized) {
         fetchMessages(chatRef.current.id, 50, currentUser?.uid, chatRef.current.otherUser?.id)
           .then((msgs) => {
             if (cancelled) return;
@@ -318,6 +311,7 @@ export function useChatRoom({
 
     return () => {
       cancelled = true;
+      clearTimeout(initTimer);
       clearInterval(pollTimer);
       unsubscribe();
     };

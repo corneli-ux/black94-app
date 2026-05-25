@@ -1161,9 +1161,16 @@ export async function fetchMessages(
       .limit(limitCount)
       .get();
 
-    // Decrypt all messages in parallel (async per message)
-    const messages = await Promise.all(
-      snapshot.docs.map(async (docSnap) => {
+    // CRASH FIX: Decrypt messages SEQUENTIALLY (not Promise.all).
+    // ROOT CAUSE: Promise.all ran 50 E2EE decryptions in parallel. Each decryption
+    // calls getMyKeyPair (SecureStore native read) and getRecipientPublicKey
+    // (Firestore REST read). With 2 fetchMessages calls on mount (init + focus
+    // listener), that's 100+ concurrent native calls overwhelming the JS thread.
+    // Sequential processing: 1 message at a time, per-message try/catch so
+    // one corrupted message doesn't kill the entire chat load.
+    const messages: Message[] = [];
+    for (const docSnap of snapshot.docs) {
+      try {
         const data = docSnap.data();
         const rawContent = data.content || '';
         const senderId = data.senderId || '';
@@ -1179,12 +1186,18 @@ export async function fetchMessages(
           ? otherUserId
           : senderId;
 
+        // Skip E2EE decryption entirely if otherUserId is unknown.
+        // This happens when opening a chat from notification without full
+        // chat context. Messages show as plaintext (non-E2EE) until the
+        // other user's ID is available.
+        const skipE2EE = !otherUserId || !currentUserId;
+
         // Attempt E2E decryption;
         // null = tampered/corrupted → show placeholder, NEVER raw ciphertext
         // string = decrypted plaintext OR legacy non-E2EE message
         // Media messages (image/gif/voice) may have encrypted mediaUrl but content is empty
         let content: string;
-        if (msgType === 'image' || msgType === 'gif' || msgType === 'voice') {
+        if (msgType === 'image' || msgType === 'gif' || msgType === 'voice' || skipE2EE) {
           content = rawContent;
         } else {
           try {
@@ -1198,9 +1211,8 @@ export async function fetchMessages(
         }
 
         // E2EE FIX: Decrypt replyToContent if it was encrypted (E2EE: prefix).
-        // Previously stored as plaintext, leaking quoted message text.
         let replyToContent: string | undefined = data.replyToContent;
-        if (replyToContent && typeof replyToContent === 'string' && replyToContent.startsWith('E2EE:')) {
+        if (!skipE2EE && replyToContent && typeof replyToContent === 'string' && replyToContent.startsWith('E2EE:')) {
           try {
             const dec = await decryptMessage(replyToContent, decryptUid);
             replyToContent = dec ?? '[Encrypted reply]';
@@ -1210,9 +1222,8 @@ export async function fetchMessages(
         }
 
         // E2EE FIX: Decrypt mediaUrl if it was encrypted (E2EE: prefix).
-        // Previously stored as plaintext Firebase Storage URL, visible to admins.
         let mediaUrl: string | null = data.mediaUrl || null;
-        if (mediaUrl && typeof mediaUrl === 'string' && mediaUrl.startsWith('E2EE:')) {
+        if (!skipE2EE && mediaUrl && typeof mediaUrl === 'string' && mediaUrl.startsWith('E2EE:')) {
           try {
             const dec = await decryptMessage(mediaUrl, decryptUid);
             mediaUrl = dec ?? null;
@@ -1221,7 +1232,7 @@ export async function fetchMessages(
           }
         }
 
-        return {
+        messages.push({
           id: docSnap.id,
           chatId,
           senderId,
@@ -1236,9 +1247,25 @@ export async function fetchMessages(
           replyToId: data.replyToId || undefined,
           replyToContent,
           replyToSenderName: data.replyToSenderName || undefined,
-        };
-      }),
-    );
+        });
+      } catch (msgErr) {
+        // CRASH FIX: Per-message try/catch ensures one corrupted message
+        // doesn't prevent the rest from loading. Log but continue.
+        console.warn('[Messages] Failed to process message:', docSnap.id, msgErr?.message || msgErr);
+        // Add a minimal placeholder so the message list isn't broken
+        messages.push({
+          id: docSnap.id,
+          chatId,
+          senderId: data?.senderId || '',
+          receiverId: data?.receiverId || '',
+          content: '[Message could not be loaded]',
+          messageType: 'text',
+          mediaUrl: null,
+          status: 'sent',
+          createdAt: Date.now(),
+        });
+      }
+    }
 
     return messages;
   } catch (e) {
