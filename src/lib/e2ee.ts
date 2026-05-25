@@ -40,10 +40,33 @@
  */
 
 import nacl from 'tweetnacl';
-import * as SecureStore from 'expo-secure-store';
 
 /* ── Polyfill ──────────────────────────────────────────────────────────────── */
 import 'react-native-get-random-values';
+
+/* ── SecureStore — lazy-loaded to prevent native crash on import ───────── */
+// CRASH FIX: Static import of expo-secure-store can crash the entire module
+// if the native binary is incompatible (e.g., SDK 55 package with SDK 54 app).
+// Lazy-loading means the crash only happens when SecureStore is actually
+// called, and we can catch it with try/catch. If SecureStore fails, we
+// use ephemeral in-memory keys (lost on restart, but chat works for the session).
+let _secureStore: any = null;
+let _secureStoreLoadAttempted = false;
+
+async function getSecureStore(): Promise<any> {
+  if (_secureStore !== null) return _secureStore;
+  if (_secureStoreLoadAttempted) return null;
+  _secureStoreLoadAttempted = true;
+  try {
+    const mod = await import('expo-secure-store');
+    _secureStore = mod || mod.default || null;
+    if (__DEV__) console.log('[E2EE] expo-secure-store loaded successfully');
+    return _secureStore;
+  } catch (e) {
+    if (__DEV__) console.warn('[E2EE] expo-secure-store failed to load (using ephemeral keys):', e?.message || e);
+    return null;
+  }
+}
 
 /* ── Constants ─────────────────────────────────────────────────────────────── */
 const E2EE_PREFIX = 'E2EE:';
@@ -107,9 +130,13 @@ async function _createOrLoadKeyPair(): Promise<KeyPair> {
   // Try to load existing private key from secure storage
   let storedSk: string | null = null;
   try {
-    storedSk = await SecureStore.getItemAsync(SK_KEY);
+    const ss = await getSecureStore();
+    if (ss) {
+      storedSk = await ss.getItemAsync(SK_KEY);
+    }
   } catch (e) {
     if (__DEV__) console.warn('[E2EE] SecureStore unavailable, generating new key pair:', e);
+    _secureStoreFailed = true;
   }
 
   if (storedSk) {
@@ -127,16 +154,19 @@ async function _createOrLoadKeyPair(): Promise<KeyPair> {
   // Generate new key pair
   const keyPair = nacl.box.keyPair();
 
-  // BUG FIX: Persist FIRST, then cache. If persistence fails, don't cache
+  // CRASH FIX: Persist FIRST, then cache. If persistence fails, don't cache
   // the ephemeral key — let the next call try again.
-  // CRITICAL FIX: SecureStore.setItemAsync was NOT wrapped in try/catch.
-  // If the native module throws (permission denied, storage full, New Arch
-  // compat issue), the error propagated up and _localKeyPair was never set,
-  // causing all subsequent E2EE operations to fail. Now we catch the error
-  // and still cache the key in memory (ephemeral — lost on restart, but
-  // chat works for this session).
+  // CRITICAL FIX: Use lazy-loaded SecureStore to prevent native crash.
+  // If the native module throws (permission denied, storage full, SDK mismatch),
+  // the error is caught and the key is still cached in memory (ephemeral —
+  // lost on restart, but chat works for this session).
   try {
-    await SecureStore.setItemAsync(SK_KEY, bytesToBase64Url(keyPair.secretKey));
+    const ss = await getSecureStore();
+    if (ss) {
+      await ss.setItemAsync(SK_KEY, bytesToBase64Url(keyPair.secretKey));
+    } else {
+      _secureStoreFailed = true;
+    }
   } catch (e) {
     if (__DEV__) console.warn('[E2EE] Failed to persist key pair to SecureStore (non-fatal):', e);
     _secureStoreFailed = true;
@@ -190,7 +220,12 @@ export async function destroyLocalKeys(): Promise<void> {
     delete _publicKeyCache[key];
   }
   // Remove from device secure storage
-  await SecureStore.deleteItemAsync(SK_KEY);
+  try {
+    const ss = await getSecureStore();
+    if (ss) await ss.deleteItemAsync(SK_KEY);
+  } catch (e) {
+    if (__DEV__) console.warn('[E2EE] Failed to delete keys from SecureStore:', e);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════

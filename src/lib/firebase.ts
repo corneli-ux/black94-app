@@ -564,7 +564,15 @@ async function _firestoreCommitUpdate(
     // BUG FIX: Use pre-fetched token from caller instead of fetching a new one.
     // Falls back to _getValidToken() if no pre-fetched token was provided.
     const authHeader = preFetchedToken || (await _getValidToken());
-    const url = `${FIRESTORE_BASE}/${docPath}?key=${API_KEY}&updateMask.fieldPaths=${allDotPaths.map(encodeURIComponent).join(',')}`;
+    // CRASH FIX: Use '&' as separator for updateMask.fieldPaths (NOT ',').
+    // The old code used ',' which caused Firestore to only apply the FIRST
+    // updateMask fieldPath and silently ignore the rest. This meant when
+    // multiple dot-notation fields were updated in a single call (e.g.,
+    // { 'privacy.dmPermission': ..., 'privacy.paidChatPrice': ... }), only
+    // 'privacy.dmPermission' got the mask, and 'privacy' was PARTIALLY
+    // overwritten (losing 'paidChatPrice'). The Firestore REST API requires
+    // each field path in its own updateMask.fieldParams parameter.
+    const url = `${FIRESTORE_BASE}/${docPath}?key=${API_KEY}&${allDotPaths.map(p => `updateMask.fieldPaths=${encodeURIComponent(p)}`).join('&')}`;
     const resp = await fetch(url, {
       method: 'PATCH',
       headers: {

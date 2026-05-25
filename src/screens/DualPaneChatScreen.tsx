@@ -36,7 +36,7 @@ function safeImageSource(uri: string | null | undefined): { uri: string } | unde
   }
   return undefined;
 }
-import { decryptMessage } from '../lib/e2ee';
+import { decryptMessage, initE2EE } from '../lib/e2ee';
 import { colors } from '../theme/colors';
 import { AppIcon } from '../components/icons';
 
@@ -154,7 +154,7 @@ function DualPaneChatScreen({ navigation, route }: any) {
   const [reactionMsg, setReactionMsg] = useState<ChatMessage | null>(null);
 
   const messagesEndRef = useRef<FlatList>(null);
-  const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const msgPollRef = useRef<ReturnType<typeof setInterval> | null = null);
   // BUG FIX: Use a ref for reactionMsg to avoid stale closure in handleReaction.
   // The handleReaction callback depends on reactionMsg from the enclosing scope,
   // but useCallback memoization means it captures a stale value. The ref pattern
@@ -162,10 +162,19 @@ function DualPaneChatScreen({ navigation, route }: any) {
   const reactionMsgRef = useRef(reactionMsg);
   reactionMsgRef.current = reactionMsg;
 
+  // CRASH FIX: Use a ref for selectedChat to avoid stale closure in the message
+  // loading effect. The loadMessages function inside the useEffect captures the
+  // selectedChat value from when the effect was set up. If chats update (e.g.,
+  // the chat list reloads and selectedChat's otherUser profile changes), the
+  // effect still uses the OLD selectedChat via closure, causing wrong otherId
+  // → wrong E2EE decryption → messages show "[Unable to decrypt]". The ref
+  // ensures loadMessages always reads the latest selectedChat value.
   const selectedChat = useMemo(
     () => chats.find((c) => c.id === selectedChatId) ?? null,
     [chats, selectedChatId],
   );
+  const selectedChatRef = useRef(selectedChat);
+  selectedChatRef.current = selectedChat;
 
   // ── Load chats ────────────────────────────────────────────────────────
   const loadChats = useCallback(async () => {
@@ -260,6 +269,18 @@ function DualPaneChatScreen({ navigation, route }: any) {
 
     const loadMessages = async () => {
       try {
+        // CRASH FIX: Pre-initialize E2EE keys BEFORE loading/decrypting messages.
+        // Without this, the first chat open triggers getMyKeyPair() → SecureStore
+        // cold read → potential native crash if the native binary has SDK mismatches.
+        // Same fix as useChatRoom.ts Phase 1b.
+        if (currentUserId) {
+          try {
+            await initE2EE(currentUserId);
+          } catch (e2eeErr) {
+            if (__DEV__) console.warn('[DualPaneChat] E2EE pre-init failed (non-blocking):', e2eeErr?.message || e2eeErr);
+          }
+        }
+
         const snap = await firestore()
           .collection('chats')
           .doc(selectedChatId)
@@ -268,11 +289,11 @@ function DualPaneChatScreen({ navigation, route }: any) {
           .limit(50)
           .get();
 
-        // E2EE FIX: Determine other user's ID for correct decryption.
-        // For own messages, nacl.box was called with (recipient_pk, sender_sk).
-        // To decrypt, nacl.box.open needs the recipient's public key.
-        const otherId = selectedChat
-          ? (selectedChat.user1Id === currentUserId ? selectedChat.user2Id : selectedChat.user1Id)
+        // CRASH FIX: Use selectedChatRef.current instead of selectedChat (closure).
+        // selectedChat is captured at effect setup time and becomes stale when
+        // the chat list reloads. selectedChatRef.current always has the latest value.
+        const otherId = selectedChatRef.current
+          ? (selectedChatRef.current.user1Id === currentUserId ? selectedChatRef.current.user2Id : selectedChatRef.current.user1Id)
           : '';
 
         // CRASH FIX: Decrypt messages SEQUENTIALLY (not Promise.all).
@@ -390,7 +411,11 @@ function DualPaneChatScreen({ navigation, route }: any) {
         msgPollRef.current = null;
       }
     };
-  }, [selectedChatId, chats]);
+  // CRASH FIX: Removed `chats` from dependency array. Including `chats` caused
+  // the entire message loading effect to re-run every time ANY chat in the
+  // list updated (e.g., lastMessage changed), triggering unnecessary Firestore
+  // reads + E2EE decryptions + message list flicker.
+  }, [selectedChatId]);
 
   // ── Auto scroll to bottom ──────────────────────────────────────────────
   useEffect(() => {
@@ -456,12 +481,20 @@ function DualPaneChatScreen({ navigation, route }: any) {
     }
   }, [messageText, selectedChat, currentUserId, sending]);
 
+  // CRASH FIX: Use a ref for chats to avoid openChat recreating on every chat list
+  // update. The old code had [chats, currentUserId] as useCallback dependencies,
+  // which caused openChat to be recreated every time ANY chat in the list changed
+  // (e.g., lastMessage updated by polling). This triggered unnecessary re-renders
+  // of the chat room pane and could cause the keyboard to dismiss.
+  const chatsRef = useRef(chats);
+  chatsRef.current = chats;
+
   const openChat = useCallback(
     (chatId: string) => {
       setSelectedChatId(chatId);
       if (!IS_TABLET) setPhoneTab('room');
       // BUG FIX: Reset unread count when selecting a chat (matches ChatRoomScreen behavior)
-      const chat = chats.find(c => c.id === chatId);
+      const chat = chatsRef.current.find(c => c.id === chatId);
       if (chat) {
         const isUser1 = chat.user1Id === currentUserId;
         const field = isUser1 ? 'unreadUser1' : 'unreadUser2';
@@ -469,7 +502,7 @@ function DualPaneChatScreen({ navigation, route }: any) {
         setChats(prev => prev.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c));
       }
     },
-    [chats, currentUserId],
+    [currentUserId],
   );
 
   // ── Nuclear Block ──────────────────────────────────────────────────────
@@ -728,7 +761,7 @@ function DualPaneChatScreen({ navigation, route }: any) {
               style={{ flex: 1 }}
               data={messages}
               renderItem={renderMessage}
-              keyExtractor={(m) => m.id}
+              keyExtractor={(m, index) => m.id || `msg-fallback-${index}`}
               contentContainerStyle={styles.msgList}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"

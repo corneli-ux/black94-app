@@ -394,7 +394,7 @@ function ChatRoomContent({ route, navigation }: any) {
             ref={flatRef}
             style={{ flex: 1 }}
             data={messages || []}
-            keyExtractor={item => item.id || `msg-${Math.random()}`}
+            keyExtractor={(item, index) => item.id || `msg-fallback-${index}`}
             renderItem={renderMessage}
             contentContainerStyle={{ padding: 16, gap: 4, paddingTop: 8 }}
             ListEmptyComponent={

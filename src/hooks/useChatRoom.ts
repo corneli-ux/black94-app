@@ -34,6 +34,7 @@ import { FlatList, Platform, Alert, Keyboard } from 'react-native';
 import { fetchMessages, sendMessage, blockUser, deleteMessage, Message } from '../lib/api';
 import { auth, firestore } from '../lib/firebase';
 import { tsToMillis } from '../utils/datetime';
+import { initE2EE } from '../lib/e2ee';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export interface UseChatRoomParams {
@@ -299,6 +300,19 @@ export function useChatRoom({
 
         __DEV__ && console.log('[ChatRoom v3] Phase 1b: Loading messages for chat:', chatId);
 
+        // CRASH FIX: Pre-initialize E2EE keys BEFORE loading messages.
+        // Without this, the first chat open after app restart triggers
+        // getMyKeyPair() → SecureStore.getItemAsync() cold during message
+        // decryption, which can crash if expo-secure-store has native issues.
+        // initE2EE() loads keys into memory so subsequent decryption is safe.
+        if (currentUser?.uid) {
+          try {
+            await initE2EE(currentUser.uid);
+          } catch (e) {
+            __DEV__ && console.warn('[ChatRoom v3] E2EE pre-init failed (non-blocking):', e?.message || e);
+          }
+        }
+
         // Reset unread count (fire-and-forget, non-critical)
         try {
           if (chat.user1Id && chat.user2Id) {
@@ -344,21 +358,26 @@ export function useChatRoom({
     // Poll for new messages every 15s
     const poll = setInterval(() => {
       if (!cancelled && chatRef.current?.id) {
-        fetchMessages(chatRef.current.id, 30, currentUser?.uid, chatRef.current.otherUser?.id)
-          .then((msgs) => {
-            if (cancelled) return;
-            const safeMsgs = msgs.map(m => ({
-              ...m,
-              content: typeof m.content === 'string' ? m.content : '',
-              mediaUrl: typeof m.mediaUrl === 'string' ? m.mediaUrl : null,
-            }));
-            setMessages(prev => {
-              const serverIds = new Set(safeMsgs.map(m => m.id));
-              const pending = prev.filter(m => m.id.startsWith('tmp-') && !serverIds.has(m.id));
-              return [...pending, ...safeMsgs];
-            });
-          })
-          .catch(() => { /* polling error — non-fatal */ });
+        // CRASH FIX: Same E2EE pre-init as initial load
+        const uid = currentUser?.uid;
+        const initPromise = uid ? initE2EE(uid).catch(() => {}) : Promise.resolve();
+        initPromise.then(() => {
+          return fetchMessages(chatRef.current.id, 30, uid, chatRef.current.otherUser?.id)
+            .then((msgs) => {
+              if (cancelled) return;
+              const safeMsgs = msgs.map(m => ({
+                ...m,
+                content: typeof m.content === 'string' ? m.content : '',
+                mediaUrl: typeof m.mediaUrl === 'string' ? m.mediaUrl : null,
+              }));
+              setMessages(prev => {
+                const serverIds = new Set(safeMsgs.map(m => m.id));
+                const pending = prev.filter(m => m.id.startsWith('tmp-') && !serverIds.has(m.id));
+                return [...pending, ...safeMsgs];
+              });
+            })
+            .catch(() => { /* polling error — non-fatal */ });
+        });
       }
     }, 15000);
 
@@ -386,8 +405,20 @@ export function useChatRoom({
       if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
       try { recordingRef.current?.stopAsync?.(); } catch {}
       recordingRef.current = null;
-      // Reset native module caches so they're re-loaded next time
-      getAudioModule().catch(() => {});
+      // CRASH FIX: Actually reset native module caches on unmount, not just call them.
+      // The old code called getAudioModule() which returns the cached module but never
+      // resets it. If the native module state becomes stale (e.g., audio playback
+      // interrupted), the next mount would reuse the stale module and crash.
+      // Reset ALL module caches so they're re-loaded fresh on next mount.
+      _audioModule = null;
+      _audioModuleLoading = false;
+      _audioModuleFailed = false;
+      _imagePickerModule = null;
+      _imagePickerLoading = false;
+      _imagePickerFailed = false;
+      _uploadModule = null;
+      _uploadLoading = false;
+      _uploadFailed = false;
     };
   }, []);
 

@@ -204,6 +204,14 @@ export default function App() {
               // The cached user data is good enough for first render; the fresh profile
               // will silently update in the background.
               setIsReady(true);
+              // CRASH FIX: Initialize E2EE keys during auth restoration.
+              // Without this, the FIRST chat open after app restart calls
+              // getMyKeyPair() → SecureStore.getItemAsync() cold, which can
+              // crash if expo-secure-store has native binary incompatibility.
+              // Pre-loading here ensures keys are in memory before any chat.
+              import('./src/lib/e2ee').then(({ initE2EE }) => {
+                initE2EE(fbUser.uid).catch((e) => { if (__DEV__) console.warn('[App] initE2EE on restore failed:', e); });
+              }).catch(() => {});
               // Re-initialize push notifications + activity tracking on auth restore
               // (token may have changed since last session)
               import('./src/lib/api').then(({ initPostSignUp }) => {
