@@ -129,6 +129,10 @@ function resolveSize(size: IconSize): number {
 /**
  * AppIcon — single icon component for the entire app.
  * Uses MaterialIcons by default, auto-falls back to MaterialCommunityIcons.
+ *
+ * SAFETY: If an icon name doesn't exist in either library, the component
+ * renders null instead of crashing. This prevents white-screen crashes from
+ * typos or Ionicons names that were missed during the icon migration.
  */
 const AppIcon = React.memo(function AppIcon({
   name,
@@ -140,9 +144,26 @@ const AppIcon = React.memo(function AppIcon({
   const resolvedSize = resolveSize(size);
   const isCommunity = COMMUNITY_ICONS.has(name);
 
-  if (isCommunity) {
+  // SAFETY NET: Catch icon-not-found errors at render time.
+  // MaterialIcons/MaterialCommunityIcons throws if the glyph name doesn't
+  // exist in their map, which crashes the entire React tree. Wrapping in
+  // try/catch at the render level ensures a missing icon shows nothing
+  // instead of crashing the screen.
+  try {
+    if (isCommunity) {
+      return (
+        <MaterialCommunityIcons
+          name={name as any}
+          size={resolvedSize}
+          color={color}
+          style={style}
+          accessibilityLabel={accessibilityLabel || name}
+        />
+      );
+    }
+
     return (
-      <MaterialCommunityIcons
+      <MaterialIcons
         name={name as any}
         size={resolvedSize}
         color={color}
@@ -150,17 +171,12 @@ const AppIcon = React.memo(function AppIcon({
         accessibilityLabel={accessibilityLabel || name}
       />
     );
+  } catch (e) {
+    if (__DEV__) {
+      console.warn(`[AppIcon] Icon "${name}" not found in ${isCommunity ? 'MaterialCommunityIcons' : 'MaterialIcons'}.`, e);
+    }
+    return null;
   }
-
-  return (
-    <MaterialIcons
-      name={name as any}
-      size={resolvedSize}
-      color={color}
-      style={style}
-      accessibilityLabel={accessibilityLabel || name}
-    />
-  );
 });
 
 export default AppIcon;

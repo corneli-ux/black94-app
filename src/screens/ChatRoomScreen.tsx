@@ -38,7 +38,7 @@ class ChatErrorBoundary extends Component<
     if (this.state.hasError) {
       return (
         <View style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }]}>
-          <AppIcon name="alert-triangle" size="hero" color={colors.like} />
+          <AppIcon name="warning-amber" size="hero" color={colors.like} />
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: '700', marginTop: 16, textAlign: 'center' }}>
             Something went wrong loading this chat
           </Text>
@@ -460,7 +460,7 @@ function ChatRoomContent({ route, navigation }: any) {
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachItem} onPress={handleOpenGifPicker} activeOpacity={0.7}>
               <View style={[styles.attachIcon, { backgroundColor: 'rgba(168,85,247,0.15)' }]}>
-                <AppIcon name="film-outline" size="lg" color="#A855F7" />
+                <AppIcon name="movie" size="lg" color="#A855F7" />
               </View>
               <Text style={styles.attachLabel}>GIF</Text>
             </TouchableOpacity>
@@ -535,7 +535,7 @@ function ChatRoomContent({ route, navigation }: any) {
                 setReactionMsg(contextMsg!);
               }}
             >
-              <AppIcon name="happy-outline" size={20} color={colors.text} />
+              <AppIcon name="emoji-emotions" size={20} color={colors.text} />
               <Text style={styles.contextMenuText}>React</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -547,7 +547,7 @@ function ChatRoomContent({ route, navigation }: any) {
                 }
               }}
             >
-              <AppIcon name="return-down-left" size={20} color={colors.text} />
+              <AppIcon name="reply" size={20} color={colors.text} />
               <Text style={styles.contextMenuText}>Reply</Text>
             </TouchableOpacity>
             {contextMsg?.senderId === currentUser?.uid && (

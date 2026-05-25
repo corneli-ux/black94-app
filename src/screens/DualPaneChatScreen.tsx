@@ -682,7 +682,7 @@ export default function DualPaneChatScreen({ navigation, route }: any) {
           {/* Input bar */}
           <View style={styles.inputRow}>
             <TouchableOpacity onPress={handleOpenGifPicker} hitSlop={8} style={{ marginRight: 6 }}>
-              <AppIcon name="happy-outline" size="xl" color={colors.textMuted} />
+              <AppIcon name="emoji-emotions" size="xl" color={colors.textMuted} />
             </TouchableOpacity>
             <TextInput
               style={styles.input}
