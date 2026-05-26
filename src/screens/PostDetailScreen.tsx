@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Share,
+  Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -122,6 +123,17 @@ export default function PostDetailScreen() {
         repostedByDisplayName: data.repostedByDisplayName || undefined,
         repostedByUsername: data.repostedByUsername || undefined,
         visibility: data.visibility || 'public',
+        // Quote repost fields
+        quotePostId: data.quotePostId || undefined,
+        quoteAuthorId: data.quoteAuthorId || undefined,
+        quoteAuthorUsername: data.quoteAuthorUsername || undefined,
+        quoteAuthorDisplayName: data.quoteAuthorDisplayName || undefined,
+        quoteAuthorProfileImage: data.quoteAuthorProfileImage || undefined,
+        quoteCaption: data.quoteCaption || undefined,
+        quoteMediaUrls: data.quoteMediaUrls || undefined,
+        quoteLikeCount: data.quoteLikeCount || 0,
+        quoteCommentCount: data.quoteCommentCount || 0,
+        quoteRepostCount: data.quoteRepostCount || 0,
       };
 
       setPost(fetched);
@@ -378,6 +390,38 @@ export default function PostDetailScreen() {
           </Text>
         ) : null}
 
+        {/* Quote repost card — embedded original post */}
+        {post.quotePostId && (
+          <TouchableOpacity
+            style={styles.quoteCard}
+            activeOpacity={0.7}
+            onPress={() => {
+              if (post.quotePostId !== post.id) {
+                navigation.navigate('PostDetail' as never, { postId: post.quotePostId });
+              }
+            }}
+          >
+            <View style={styles.quoteCardLine} />
+            <View style={styles.quoteCardContent}>
+              <Text style={styles.quoteCardAuthor}>
+                {post.quoteAuthorDisplayName || post.quoteAuthorUsername || 'User'}
+              </Text>
+              {post.quoteCaption ? (
+                <Text style={styles.quoteCardCaption} numberOfLines={3}>
+                  {post.quoteCaption}
+                </Text>
+              ) : null}
+              {post.quoteMediaUrls && post.quoteMediaUrls.length > 0 && (
+                <Image
+                  source={{ uri: post.quoteMediaUrls[0] }}
+                  style={styles.quoteCardImage}
+                  resizeMode="cover"
+                />
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Action buttons */}
         <View style={styles.actions}>
           {/* Comment */}
@@ -578,6 +622,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     paddingHorizontal: 16,
     marginTop: 8,
+  },
+  /* Quote repost card */
+  quoteCard: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  quoteCardLine: {
+    width: 2,
+    backgroundColor: colors.textMuted,
+    borderRadius: 1,
+  },
+  quoteCardContent: {
+    flex: 1,
+    padding: 10,
+    gap: 4,
+  },
+  quoteCardAuthor: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  quoteCardCaption: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  quoteCardImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 10,
+    marginTop: 6,
   },
   /* Action buttons */
   actions: {

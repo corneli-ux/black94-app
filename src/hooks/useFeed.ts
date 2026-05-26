@@ -292,6 +292,17 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
       repostedByUsername: data.repostedByUsername || undefined,
       repostedByDisplayName: data.repostedByDisplayName || undefined,
       visibility: data.visibility || 'public',
+      // Quote repost fields
+      quotePostId: data.quotePostId || undefined,
+      quoteAuthorId: data.quoteAuthorId || undefined,
+      quoteAuthorUsername: data.quoteAuthorUsername || undefined,
+      quoteAuthorDisplayName: data.quoteAuthorDisplayName || undefined,
+      quoteAuthorProfileImage: data.quoteAuthorProfileImage || undefined,
+      quoteCaption: data.quoteCaption || undefined,
+      quoteMediaUrls: data.quoteMediaUrls ? parseMediaUrls(data.quoteMediaUrls) : undefined,
+      quoteLikeCount: data.quoteLikeCount || 0,
+      quoteCommentCount: data.quoteCommentCount || 0,
+      quoteRepostCount: data.quoteRepostCount || 0,
     };
   }, []);
 

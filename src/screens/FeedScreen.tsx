@@ -578,6 +578,34 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </View>
           )}
 
+          {/* Quote repost card — embedded original post */}
+          {post.quotePostId && (
+            <TouchableOpacity
+              style={styles.quoteCard}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('PostDetail', { postId: post.quotePostId })}
+            >
+              <View style={styles.quoteCardLine} />
+              <View style={styles.quoteCardContent}>
+                <Text style={styles.quoteCardAuthor}>
+                  {post.quoteAuthorDisplayName || post.quoteAuthorUsername || 'User'}
+                </Text>
+                {post.quoteCaption ? (
+                  <Text style={styles.quoteCardCaption} numberOfLines={3}>
+                    {post.quoteCaption}
+                  </Text>
+                ) : null}
+                {post.quoteMediaUrls && post.quoteMediaUrls.length > 0 && (
+                  <Image
+                    source={{ uri: post.quoteMediaUrls[0] }}
+                    style={styles.quoteCardImage}
+                    resizeMode="cover"
+                  />
+                )}
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Action bar */}
           <View style={styles.actions}>
             {/* Comment */}
@@ -901,7 +929,7 @@ export default function FeedScreen({ navigation }: any) {
       if (followedUserIds.size === 0) {
         return []; // Empty state — user follows nobody
       }
-      filtered = posts.filter(p => followedUserIds.has(p.authorId));
+      filtered = posts.filter(p => followedUserIds.has(p.authorId) || followedUserIds.has(p.repostedByUid || ''));
     } else {
       filtered = posts;
     }
@@ -1218,6 +1246,43 @@ const styles = StyleSheet.create({
     color: colors.accentGreen,
     fontSize: fs(12),
     lineHeight: vs(16),
+  },
+
+  /* ── Quote repost card ── */
+  quoteCard: {
+    flexDirection: 'row',
+    marginTop: 10,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  quoteCardLine: {
+    width: 2,
+    backgroundColor: colors.textMuted,
+    borderRadius: 1,
+  },
+  quoteCardContent: {
+    flex: 1,
+    padding: 10,
+    gap: 4,
+  },
+  quoteCardAuthor: {
+    color: colors.text,
+    fontSize: fs(13),
+    fontWeight: '700',
+  },
+  quoteCardCaption: {
+    color: colors.textSecondary,
+    fontSize: fs(13),
+    lineHeight: vs(18),
+  },
+  quoteCardImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 10,
+    marginTop: 6,
   },
 
   /* ── Multi-image badge removed — replaced by MultiImageCarousel ── */

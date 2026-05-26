@@ -68,6 +68,17 @@ export interface Post {
   repostedByUid?: string;
   repostedByUsername?: string;
   repostedByDisplayName?: string;
+  // Quote repost fields — set when user quotes/reposts with a comment
+  quotePostId?: string;
+  quoteAuthorId?: string;
+  quoteAuthorUsername?: string;
+  quoteAuthorDisplayName?: string;
+  quoteAuthorProfileImage?: string | null;
+  quoteCaption?: string;
+  quoteMediaUrls?: string[];
+  quoteLikeCount?: number;
+  quoteCommentCount?: number;
+  quoteRepostCount?: number;
 }
 
 export interface Chat {
@@ -658,9 +669,28 @@ export async function createPost(
     };
   }
 
-  // Quote repost: reference the original post
+  // Quote repost: fetch and embed original post data for display
+  // This avoids a separate read in the feed and keeps the quoted post
+  // visible even if the original is deleted.
   if (quotePostId) {
     docData.quotePostId = quotePostId;
+    try {
+      const quoteSnap = await firestore().collection('posts').doc(quotePostId).get();
+      const qData = quoteSnap.exists ? quoteSnap.data() : null;
+      if (qData) {
+        docData.quoteAuthorId = qData.authorId || '';
+        docData.quoteAuthorUsername = qData.authorUsername || '';
+        docData.quoteAuthorDisplayName = qData.authorDisplayName || '';
+        docData.quoteAuthorProfileImage = qData.authorProfileImage || null;
+        docData.quoteCaption = qData.caption || '';
+        docData.quoteMediaUrls = qData.mediaUrls || [];
+        docData.quoteLikeCount = qData.likeCount || 0;
+        docData.quoteCommentCount = qData.commentCount || 0;
+        docData.quoteRepostCount = qData.repostCount || 0;
+      }
+    } catch (e) {
+      if (__DEV__) console.warn('[createPost] Failed to fetch quoted post:', e);
+    }
   }
 
   // Scheduled post: store scheduled date and mark status
@@ -711,6 +741,31 @@ export async function createPost(
       }
     }
   } catch {}
+
+  // ── Quote repost: increment repostCount on original + notify author ──
+  if (quotePostId) {
+    try {
+      await firestore().collection('posts').doc(quotePostId).update({
+        repostCount: firestore.FieldValue.increment(1),
+      });
+    } catch {}
+    try {
+      const { dispatchEngagementNotification, getActorData } = await import('../services/engagementEngine');
+      const quotedPostSnap = await firestore().collection('posts').doc(quotePostId).get();
+      const quotedAuthorId = quotedPostSnap.exists ? quotedPostSnap.data()?.authorId : null;
+      if (quotedAuthorId && quotedAuthorId !== userId) {
+        const actor = await getActorData(userId);
+        await dispatchEngagementNotification({
+          recipientId: quotedAuthorId,
+          type: 'repost',
+          actorId: userId,
+          ...actor,
+          postId: quotePostId,
+          postCaption: caption || '',
+        });
+      }
+    } catch {}
+  }
 
   return docRef.id;
 }
@@ -862,6 +917,30 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
         await repostRef.delete().catch(() => {});
         try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
         return { success: false };
+      }
+
+      // PRIVACY CHECK: Don't allow reposting follower-only or private posts
+      const visibility = postData.visibility || 'public';
+      if (visibility === 'private') {
+        if (__DEV__) console.warn('[Repost] Cannot repost a private post');
+        await repostRef.delete().catch(() => {});
+        try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
+        return { success: false };
+      }
+      if (visibility === 'followers') {
+        // Check if current user follows the post author (or is the author)
+        if (postData.authorId !== userId) {
+          try {
+            const followSnap = await firestore().collection('user_follows')
+              .doc(`${userId}_${postData.authorId}`).get();
+            if (!followSnap.exists) {
+              if (__DEV__) console.warn('[Repost] Cannot repost a followers-only post — not following author');
+              await repostRef.delete().catch(() => {});
+              try { await postRef.update({ repostCount: firestore.FieldValue.increment(-1) }); } catch {}
+              return { success: false };
+            }
+          } catch {}
+        }
       }
 
       // Fetch reposting user's profile for the "reposted by" header
