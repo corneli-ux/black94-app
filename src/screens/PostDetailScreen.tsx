@@ -17,15 +17,12 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
 import {
-  toggleLike,
-  toggleBookmark,
-  toggleRepost,
   Post,
   tsToMillis,
   parseMediaUrls,
 } from '../lib/api';
+import { usePostInteractions } from '../hooks/usePostInteractions';
 import { useAppStore } from '../stores/app';
-import { useOptimisticAction } from '../hooks/useOptimisticAction';
 import FeedMedia from '../components/FeedMedia';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import { AppIcon } from '../components/icons';
@@ -53,19 +50,24 @@ export default function PostDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Interaction state (optimistic) ──────────────────────────────────────
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
-  const [bookmarked, setBookmarked] = useState(false);
-  const [reposted, setReposted] = useState(false);
-  const [repostCount, setRepostCount] = useState(0);
+  // ── Interaction state: managed by usePostInteractions hook ──────────
+  // We use a wrapper array so the shared hook can manage state uniformly.
+  // The hook updates the post object in-place via setPosts.
+  const [postArr, setPostArr] = useState<Post[]>([]);
+
+  const { handlers } = usePostInteractions({
+    posts: postArr,
+    setPosts: setPostArr,
+    currentUserUid: currentUser?.uid || null,
+  });
+
+  // Convenience: get the single post from the array
+  const currentPost = postArr[0] || null;
+  const interactionId = currentPost?.repostOf || currentPost?.id;
 
   // ── Media URL refresh ───────────────────────────────────────────────────
   const [refreshedUrl, setRefreshedUrl] = useState<string | null>(null);
   const refreshAttemptedRef = useRef(false);
-
-  // ── In-flight guard ─────────────────────────────────────────────────────
-  const { guard: inflight, release: releaseInflight } = useOptimisticAction();
 
   // ── Fetch post ──────────────────────────────────────────────────────────
   const loadPost = useCallback(async () => {
@@ -137,8 +139,6 @@ export default function PostDetailScreen() {
       };
 
       setPost(fetched);
-      setLikeCount(fetched.likeCount);
-      setRepostCount(fetched.repostCount);
 
       // ── Enrich: fetch author profile for fresh avatar/badge ────────────
       try {
@@ -163,13 +163,15 @@ export default function PostDetailScreen() {
             firestore().collection('post_reposts').doc(`${targetId}_${currentUser.uid}`).get().catch(() => null),
           ]);
 
-          if (likeSnap?.exists) setLiked(true);
-          if (bookmarkSnap?.exists) setBookmarked(true);
-          if (repostSnap?.exists) setReposted(true);
+          if (likeSnap?.exists) fetched.liked = true;
+          if (bookmarkSnap?.exists) fetched.bookmarked = true;
+          if (repostSnap?.exists) fetched.reposted = true;
         } catch {}
       }
 
       setPost({ ...fetched });
+      // Set the postArr so the shared hook can manage interactions
+      setPostArr([{ ...fetched }]);
     } catch (e: any) {
       console.error('[PostDetail] Failed to load post:', e?.message);
       setError(e?.message || 'Something went wrong');
@@ -196,74 +198,26 @@ export default function PostDetailScreen() {
   }, []);
 
   // ── Interaction target ──────────────────────────────────────────────
-  // BUG FIX: For reposts, all interactions (like, comment, bookmark, repost)
-  // should target the ORIGINAL post, not the repost wrapper.
-  const interactionId = post?.repostOf || post?.id;
+  // For reposts, all interactions target the ORIGINAL post.
+  // interactionId is already computed above from currentPost.
 
-  // ── Like ────────────────────────────────────────────────────────────────
+  // ── Like (delegates to shared hook) ────────────────────────────────
   const handleLike = useCallback(async () => {
-    if (!post || !currentUser?.uid) return;
-    const key = `like_${interactionId}`;
-    if (!inflight(key)) return;
+    if (!currentPost || !interactionId) return;
+    handlers.like(interactionId, currentPost.liked);
+  }, [currentPost, interactionId, handlers]);
 
-    const next = !liked;
-    setLiked(next);
-    setLikeCount(c => c + (next ? 1 : -1));
-
-    try {
-      await toggleLike(interactionId, liked);
-    } catch {
-      setLiked(!next);
-      setLikeCount(c => c + (next ? -1 : 1));
-    } finally {
-      releaseInflight(key);
-    }
-  }, [post, liked, currentUser?.uid, inflight, releaseInflight, interactionId]);
-
-  // ── Bookmark ────────────────────────────────────────────────────────────
+  // ── Bookmark (delegates to shared hook) ────────────────────────────
   const handleBookmark = useCallback(async () => {
-    if (!post || !currentUser?.uid) return;
-    const key = `bm_${interactionId}`;
-    if (!inflight(key)) return;
+    if (!currentPost || !interactionId) return;
+    handlers.bookmark(interactionId, currentPost.bookmarked);
+  }, [currentPost, interactionId, handlers]);
 
-    const next = !bookmarked;
-    setBookmarked(next);
-
-    try {
-      await toggleBookmark(interactionId, bookmarked);
-    } catch {
-      setBookmarked(!next);
-    } finally {
-      releaseInflight(key);
-    }
-  }, [post, bookmarked, currentUser?.uid, inflight, releaseInflight, interactionId]);
-
-  // ── Repost ──────────────────────────────────────────────────────────────
+  // ── Repost (delegates to shared hook) ──────────────────────────────
   const handleRepost = useCallback(async () => {
-    if (!post || !currentUser?.uid) return;
-    const key = `rp_${interactionId}`;
-    if (!inflight(key)) return;
-
-    const next = !reposted;
-    setReposted(next);
-    setRepostCount(c => c + (next ? 1 : -1));
-
-    try {
-      const result = await toggleRepost(interactionId, reposted);
-      if (!result.success) {
-        // Revert optimistic state on failure
-        setReposted(!next);
-        setRepostCount(c => c + (next ? -1 : 1));
-      }
-      // Note: undone handling not needed here since PostDetailScreen shows
-      // a single post and doesn't maintain a list of repost cards.
-    } catch {
-      setReposted(!next);
-      setRepostCount(c => c + (next ? -1 : 1));
-    } finally {
-      releaseInflight(key);
-    }
-  }, [post, reposted, currentUser?.uid, inflight, releaseInflight, interactionId]);
+    if (!currentPost || !interactionId) return;
+    handlers.repost(interactionId, currentPost.reposted);
+  }, [currentPost, interactionId, handlers]);
 
   // ── Share ───────────────────────────────────────────────────────────────
   const handleShare = useCallback(async () => {
@@ -440,11 +394,11 @@ export default function PostDetailScreen() {
           {/* Repost */}
           <TouchableOpacity style={styles.actionBtn} onPress={handleRepost}>
             <View style={styles.actionIconWrap}>
-              <AppIcon name="repeat" size="md" color={reposted ? colors.repost : colors.textMuted} />
+              <AppIcon name="repeat" size="md" color={currentPost?.reposted ? colors.repost : colors.textMuted} />
             </View>
-            {formatCount(repostCount) ? (
-              <Text style={[styles.actionCount, reposted && { color: colors.repost }]}>
-                {formatCount(repostCount)}
+            {formatCount(currentPost?.repostCount) ? (
+              <Text style={[styles.actionCount, currentPost?.reposted && { color: colors.repost }]}>
+                {formatCount(currentPost?.repostCount)}
               </Text>
             ) : null}
           </TouchableOpacity>
@@ -452,11 +406,11 @@ export default function PostDetailScreen() {
           {/* Like */}
           <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
             <View style={styles.actionIconWrap}>
-              <AppIcon name={liked ? 'favorite' : 'favorite-border'} size="md" color={liked ? colors.like : colors.textMuted} />
+              <AppIcon name={currentPost?.liked ? 'favorite' : 'favorite-border'} size="md" color={currentPost?.liked ? colors.like : colors.textMuted} />
             </View>
-            {formatCount(likeCount) ? (
-              <Text style={[styles.actionCount, liked && { color: colors.like }]}>
-                {formatCount(likeCount)}
+            {formatCount(currentPost?.likeCount) ? (
+              <Text style={[styles.actionCount, currentPost?.liked && { color: colors.like }]}>
+                {formatCount(currentPost?.likeCount)}
               </Text>
             ) : null}
           </TouchableOpacity>
@@ -473,9 +427,9 @@ export default function PostDetailScreen() {
             <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
               <View style={styles.actionIconWrap}>
                 <AppIcon
-                  name={bookmarked ? 'bookmark' : 'bookmark-border'}
+                  name={currentPost?.bookmarked ? 'bookmark' : 'bookmark-border'}
                   size="md"
-                  color={bookmarked ? colors.bookmark : colors.textMuted}
+                  color={currentPost?.bookmarked ? colors.bookmark : colors.textMuted}
                 />
               </View>
             </TouchableOpacity>
@@ -490,9 +444,9 @@ export default function PostDetailScreen() {
         {/* Stats bar */}
         <View style={styles.statsBar}>
           <Text style={styles.statsText}>
-            {formatCount(post.repostCount) ? `${formatCount(repostCount)} Reposts` : ''}
-            {(formatCount(repostCount) && formatCount(likeCount)) ? ' · ' : ''}
-            {formatCount(likeCount) ? `${formatCount(likeCount)} Likes` : ''}
+            {formatCount(currentPost?.repostCount) ? `${formatCount(currentPost?.repostCount)} Reposts` : ''}
+            {(formatCount(currentPost?.repostCount) && formatCount(currentPost?.likeCount)) ? ' · ' : ''}
+            {formatCount(currentPost?.likeCount) ? `${formatCount(currentPost?.likeCount)} Likes` : ''}
           </Text>
         </View>
       </ScrollView>

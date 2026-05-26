@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppIcon, RepostIcon } from '../components/icons';
 import { colors } from '../theme/colors';
-import { fetchUserProfile, toggleFollow, checkFollowing, toggleLike, toggleBookmark, toggleRepost, getUserDmPermission, getPaidChatPrice, hasPaidChatAccess, fetchActiveAdCampaigns, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
+import { fetchUserProfile, toggleFollow, checkFollowing, getUserDmPermission, getPaidChatPrice, hasPaidChatAccess, fetchActiveAdCampaigns, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
+import { usePostInteractions } from '../hooks/usePostInteractions';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -734,56 +735,16 @@ export default function ProfileScreen({ route, navigation }: any) {
     })();
   }, [tab, targetUserId]);
 
-  const handleLike = async (postId: string, liked: boolean) => {
-    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-      ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
-      : p));
-    try { await toggleLike(postId, liked); } catch {}
-  };
-
-  const handleBookmark = async (postId: string, bookmarked: boolean) => {
-    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId) ? { ...p, bookmarked: !bookmarked } : p));
-    try { await toggleBookmark(postId, bookmarked); } catch {}
-  };
-
-  const handleRepost = async (postId: string, reposted: boolean) => {
-    // Match on both p.id and p.repostOf since the PostCard passes interactionId
-    // which is the ORIGINAL post ID for reposts, not the wrapper ID
-    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-      ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
-      : p));
-    try {
-      const result = await toggleRepost(postId, reposted);
-      if (!result.success) {
-        // Revert optimistic state on failure
-        setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-          ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
-          : p));
-      } else if (result.undone) {
-        // Remove the repost card from the posts list
-        const removedRepostId = `repost_${postId}_${auth()?.currentUser?.uid}`;
-        setPosts(prev => prev.filter(p => p.id !== removedRepostId));
-      }
-    } catch (e) {
-      // Revert optimistic state on error
-      setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-        ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
-        : p));
-    }
-  };
+  // ── Post interactions: like, bookmark, repost, delete ──────────────
+  // Uses shared hook — same logic as FeedScreen, UserProfileScreen, etc.
+  const { handlers } = usePostInteractions({
+    posts,
+    setPosts,
+    currentUserUid: auth()?.currentUser?.uid || null,
+  });
 
   const handleComment = (postId: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => {
     navigation.navigate('PostComments', { postId, postCaption: caption || '', postAuthorUsername: authorUsername || '', postAuthorDisplayName: authorDisplayName || '' });
-  };
-
-  const handleDelete = async (postId: string) => {
-    try {
-      await firestore().collection('posts').doc(postId).delete();
-      setPosts(prev => prev.filter(p => p.id !== postId));
-    } catch (e: any) {
-      console.error('[ProfileScreen] Delete post error:', e?.message, e?.code, e?.status);
-      Alert.alert('Error', `Failed to delete post: ${e?.message || 'Unknown error'}`);
-    }
   };
 
   const handleFollow = async () => {
@@ -1030,13 +991,13 @@ export default function ProfileScreen({ route, navigation }: any) {
         <View style={{ paddingTop: 40, alignItems: 'center' }}>
           <ActivityIndicator color={colors.accent} />
         </View>
-      ) : tab === 'posts' && <PostGrid posts={posts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
+      ) : tab === 'posts' && <PostGrid posts={posts} navigation={navigation} onLike={handlers.like} onBookmark={handlers.bookmark} onDelete={handlers.delete} onRepost={handlers.repost} onComment={handleComment} />}
       {tab === 'media' && (
         <MediaGrid posts={posts} navigation={navigation} />
       )}
       {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
-      {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
-      {tab === 'reposts' && <PostGrid posts={repostPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
+      {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handlers.like} onBookmark={handlers.bookmark} onDelete={handlers.delete} onRepost={handlers.repost} onComment={handleComment} />}
+      {tab === 'reposts' && <PostGrid posts={repostPosts} navigation={navigation} onLike={handlers.like} onBookmark={handlers.bookmark} onDelete={handlers.delete} onRepost={handlers.repost} onComment={handleComment} />}
       {tab === 'store' && (
         <View style={{ alignItems: 'center', paddingTop: 60 }}>
           <AppIcon name="storefront-outline" size="hero" color={colors.textSecondary} style={{ marginBottom: 12 }} />

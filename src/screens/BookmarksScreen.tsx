@@ -6,8 +6,8 @@ import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { auth, firestore } from '../lib/firebase';
-import { tsToMillis, parseMediaUrls, toggleRepost, toggleLike } from '../lib/api';
-import { Post } from '../lib/api';
+import { tsToMillis, parseMediaUrls, Post } from '../lib/api';
+import { usePostInteractions } from '../hooks/usePostInteractions';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import CommentSheet from '../components/CommentSheet';
 import FeedMedia from '../components/FeedMedia';
@@ -112,6 +112,13 @@ export default function BookmarksScreen() {
   useEffect(() => { loadBookmarks(); }, []);
   const handleRefresh = () => { setRefreshing(true); loadBookmarks(); };
 
+  // ── Post interactions: like, bookmark, repost ──────────────────────
+  const { handlers } = usePostInteractions({
+    posts: bookmarks,
+    setPosts: setBookmarks,
+    currentUserUid: auth()?.currentUser?.uid || null,
+  });
+
   if (loading) {
     return (<View style={[styles.container, styles.centered]}><ActivityIndicator color={colors.accent} size="large" /></View>);
   }
@@ -131,7 +138,16 @@ export default function BookmarksScreen() {
       <FlatList
         data={bookmarks}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <FullPostCard post={item} navigation={navigation} onUnbookmark={() => setBookmarks(prev => prev.filter(p => p.id !== item.id))} onComment={(id) => setCommentPostId(id)} />}
+        renderItem={({ item }) => (
+          <FullPostCard
+            post={item}
+            navigation={navigation}
+            onLike={handlers.like}
+            onRepost={handlers.repost}
+            onUnbookmark={() => setBookmarks(prev => prev.filter(p => p.id !== item.id))}
+            onComment={(id) => setCommentPostId(id)}
+          />
+        )}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={refreshing && canRefresh} onRefresh={() => { if (canRefresh) handleRefresh(); }} tintColor={colors.accent} enabled={canRefresh} />}
@@ -162,13 +178,14 @@ export default function BookmarksScreen() {
   );
 }
 
-function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Post; navigation: any; onUnbookmark: () => void; onComment: (id: string) => void }) {
-  const [liked, setLiked] = useState(post.liked);
-  const [bookmarked, setBookmarked] = useState(true);
-  const [likeCount, setLikeCount] = useState(post.likeCount);
-  const [commentCount, setCommentCount] = useState(post.commentCount);
-  const [repostCount, setRepostCount] = useState(post.repostCount);
-  const [reposted, setReposted] = useState(post.reposted);
+function FullPostCard({ post, navigation, onLike, onRepost, onUnbookmark, onComment }: {
+  post: Post;
+  navigation: any;
+  onLike: (id: string, liked: boolean) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onUnbookmark: () => void;
+  onComment: (id: string) => void;
+}) {
   const [refreshedUrls, setRefreshedUrls] = useState<Record<string, string>>({});
   const refreshAttemptedRef = useRef(false);
 
@@ -201,51 +218,22 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
 
   const interactionId = post.repostOf || post.id;
 
-  const handleLike = async () => {
-    if (!post || !post.id) return;
-    setLiked(!liked);
-    setLikeCount(prev => liked ? prev - 1 : prev + 1);
-    try {
-      await toggleLike(interactionId, liked);
-    } catch {
-      // Rollback on failure
-      setLiked(liked);
-      setLikeCount(prev => liked ? prev + 1 : prev - 1);
-    }
-  };
-
   const handleBookmark = async () => {
+    // Unbookmark: remove from parent list
+    onUnbookmark();
+    // Also clean up the Firestore doc
     try {
-      const uid = auth()?.currentUser?.uid; if (!uid) return;
-      // BUG FIX: Use deterministic doc ID instead of composite query.
-      const bookmarkDocId = `${interactionId}_${uid}`;
-      await firestore().collection('post_bookmarks').doc(bookmarkDocId).delete().catch(() => {});
-      setBookmarked(false);
-      onUnbookmark();
+      const uid = auth()?.currentUser?.uid;
+      if (uid) {
+        const bookmarkDocId = `${interactionId}_${uid}`;
+        await firestore().collection('post_bookmarks').doc(bookmarkDocId).delete().catch(() => {});
+      }
     } catch (e) {
       if (__DEV__) console.warn('[Bookmarks] Unbookmark failed:', e);
     }
   };
 
-  const handleComment = () => { onComment(interactionId); };
-
   const handleShare = async () => { try { await Share.share({ message: 'Check out this post on Black94!' }); } catch {} };
-
-  const handleRepost = async () => {
-    const next = !reposted; setReposted(next); setRepostCount(c => c + (next ? 1 : -1));
-    try {
-      const result = await toggleRepost(interactionId, reposted);
-      if (!result.success) {
-        // Revert optimistic state on failure
-        setReposted(!next);
-        setRepostCount(c => c + (next ? -1 : 1));
-      }
-    } catch (e) {
-      // Revert optimistic state on failure
-      setReposted(!next);
-      setRepostCount(c => c + (next ? -1 : 1));
-    }
-  };
 
   return (
     <View style={styles.postCard}>
@@ -280,24 +268,24 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
             />
           )}
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onComment(interactionId)}>
               <View style={styles.actionIconWrap}><AppIcon name="chat-bubble-outline" size="md" color={colors.textMuted} /></View>
-              {formatCount(commentCount) ? <Text style={styles.actionCount}>{formatCount(commentCount)}</Text> : null}
+              {formatCount(post.commentCount) ? <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text> : null}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleRepost}>
-              <View style={styles.actionIconWrap}><AppIcon name="repeat" size="md" color={reposted ? colors.accentGreen : colors.textMuted} /></View>
-              {formatCount(repostCount) ? <Text style={[styles.actionCount, reposted && { color: colors.accentGreen }]}>{formatCount(repostCount)}</Text> : null}
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onRepost(interactionId, post.reposted)}>
+              <View style={styles.actionIconWrap}><AppIcon name="repeat" size="md" color={post.reposted ? colors.accentGreen : colors.textMuted} /></View>
+              {formatCount(post.repostCount) ? <Text style={[styles.actionCount, post.reposted && { color: colors.accentGreen }]}>{formatCount(post.repostCount)}</Text> : null}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-              <View style={styles.actionIconWrap}><AppIcon name={liked ? 'favorite' : 'favorite-border'} size="md" color={liked ? colors.like : colors.textMuted} /></View>
-              {formatCount(likeCount) ? <Text style={[styles.actionCount, liked && { color: colors.like }]}>{formatCount(likeCount)}</Text> : null}
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(interactionId, post.liked)}>
+              <View style={styles.actionIconWrap}><AppIcon name={post.liked ? 'favorite' : 'favorite-border'} size="md" color={post.liked ? colors.like : colors.textMuted} /></View>
+              {formatCount(post.likeCount) ? <Text style={[styles.actionCount, post.liked && { color: colors.like }]}>{formatCount(post.likeCount)}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} disabled>
               <View style={styles.actionIconWrap}><AppIcon name="trending-up" size="md" color={colors.textMuted} /></View>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
-                <View style={styles.actionIconWrap}><AppIcon name={bookmarked ? 'bookmark' : 'bookmark-border'} size="md" color={bookmarked ? colors.white : colors.textMuted} /></View>
+                <View style={styles.actionIconWrap}><AppIcon name={post.bookmarked ? 'bookmark' : 'bookmark-border'} size="md" color={post.bookmarked ? colors.white : colors.textMuted} /></View>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
                 <View style={styles.actionIconWrap}><AppIcon name="share" size="md" color={colors.textMuted} /></View>

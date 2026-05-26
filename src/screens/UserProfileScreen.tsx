@@ -22,14 +22,12 @@ import {
   getPaidChatPrice,
   hasPaidChatAccess,
   fetchActiveAdCampaigns,
-  toggleLike,
-  toggleBookmark,
-  toggleRepost,
   User,
   Post,
   tsToMillis,
   parseMediaUrls,
 } from '../lib/api';
+import { usePostInteractions } from '../hooks/usePostInteractions';
 import { colors } from '../theme/colors';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -947,54 +945,15 @@ export default function UserProfileScreen({ navigation, route }: any) {
   }, [currentUid, userId, messageLoading, navigation]);
 
   // Interaction handlers
-  const handleLike = async (postId: string, liked: boolean) => {
-    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-      ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
-      : p));
-    try { await toggleLike(postId, liked); } catch {}
-  };
-
-  const handleBookmark = async (postId: string, bookmarked: boolean) => {
-    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId) ? { ...p, bookmarked: !bookmarked } : p));
-    try { await toggleBookmark(postId, bookmarked); } catch {}
-  };
-
-  const handleRepost = async (postId: string, reposted: boolean) => {
-    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-      ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
-      : p));
-    try {
-      const result = await toggleRepost(postId, reposted);
-      if (!result.success) {
-        // Revert optimistic state on failure
-        setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-          ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
-          : p));
-      } else if (result.undone) {
-        // Remove the repost card from the posts list
-        const removedRepostId = `repost_${postId}_${auth()?.currentUser?.uid}`;
-        setPosts(prev => prev.filter(p => p.id !== removedRepostId));
-      }
-    } catch (e) {
-      // Revert optimistic state on error
-      setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-        ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
-        : p));
-    }
-  };
+  // ── Post interactions: like, bookmark, repost, delete ──────────────
+  const { handlers } = usePostInteractions({
+    posts,
+    setPosts,
+    currentUserUid: auth()?.currentUser?.uid || null,
+  });
 
   const handleComment = (postId: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => {
     navigation.navigate('PostComments', { postId, postCaption: caption || '', postAuthorUsername: authorUsername || '', postAuthorDisplayName: authorDisplayName || '' });
-  };
-
-  const handleDelete = async (postId: string) => {
-    try {
-      await firestore().collection('posts').doc(postId).delete();
-      setPosts(prev => prev.filter(p => p.id !== postId));
-    } catch (e: any) {
-      console.error('[UserProfileScreen] Delete post error:', e?.message, e?.code, e?.status);
-      Alert.alert('Error', `Failed to delete post: ${e?.message || 'Unknown error'}`);
-    }
   };
 
   if (!user && loadError) {
@@ -1265,13 +1224,13 @@ export default function UserProfileScreen({ navigation, route }: any) {
             <ActivityIndicator color={colors.accent} />
           </View>
         ) : tab === 'posts' && (
-          <PostGrid posts={posts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />
+          <PostGrid posts={posts} navigation={navigation} onLike={handlers.like} onBookmark={handlers.bookmark} onDelete={handlers.delete} onRepost={handlers.repost} onComment={handleComment} />
         )}
         {tab === 'media' && (
           <MediaGrid posts={posts} navigation={navigation} />
         )}
         {tab === 'replies' && <RepliesList replies={replies} navigation={navigation} />}
-        {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handleLike} onBookmark={handleBookmark} onDelete={handleDelete} onRepost={handleRepost} onComment={handleComment} />}
+        {tab === 'likes' && <LikedPostsGrid posts={likedPosts} navigation={navigation} onLike={handlers.like} onBookmark={handlers.bookmark} onDelete={handlers.delete} onRepost={handlers.repost} onComment={handleComment} />}
 
         <View style={{ height: 100 }} />
       </ScrollView>
