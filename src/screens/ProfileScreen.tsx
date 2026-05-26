@@ -60,10 +60,12 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
     setIsBookmarked(post.bookmarked);
   }, [post.reposted, post.repostCount, post.bookmarked]);
 
+  const interactionId = post.repostOf || post.id;
+
   const handleDoubleTap = () => {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
-      if (!post.liked) { onLike(post.id, post.liked); }
+      if (!post.liked) { onLike(interactionId, post.liked); }
       setShowHeart(true);
       setTimeout(() => setShowHeart(false), 900);
     }
@@ -74,13 +76,13 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
     const next = !isReposted;
     setIsReposted(next);
     setLocalRepostCount(prev => prev + (next ? 1 : -1));
-    onRepost(post.id, isReposted);
+    onRepost(interactionId, isReposted);
   };
 
   const handleBookmarkPress = () => {
     const next = !isBookmarked;
     setIsBookmarked(next);
-    onBookmark(post.id, isBookmarked);
+    onBookmark(interactionId, isBookmarked);
   };
 
   const handleShare = async () => {
@@ -102,7 +104,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             }} activeOpacity={0.7} hitSlop={8}>
               <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={40} />
             </TouchableOpacity>
-        <TouchableOpacity style={profileCardStyles.contentColumn} activeOpacity={0.7} onPress={() => navigation.navigate('PostComments', { postId: post.repostOf || post.id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
+        <TouchableOpacity style={profileCardStyles.contentColumn} activeOpacity={0.7} onPress={() => navigation.navigate('PostComments', { postId: interactionId, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
           {/* Repost indicator */}
           {post.repostOf && (
             <View style={profileCardStyles.repostHeader}>
@@ -189,7 +191,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               {localRepostCount > 0 ? <Text style={[profileCardStyles.actionCount, isReposted && { color: colors.repost }]}>{localRepostCount}</Text> : null}
             </TouchableOpacity>
             {/* Like */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(post.id, post.liked)}>
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(interactionId, post.liked)}>
               <View style={profileCardStyles.actionIconWrap}>
                 {post.liked ? (
                   <AppIcon name="favorite" size="md" color={colors.like} />
@@ -722,19 +724,21 @@ export default function ProfileScreen({ route, navigation }: any) {
   }, [tab, targetUserId]);
 
   const handleLike = async (postId: string, liked: boolean) => {
-    setPosts(prev => prev.map(p => p.id === postId
+    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
       : p));
     try { await toggleLike(postId, liked); } catch {}
   };
 
   const handleBookmark = async (postId: string, bookmarked: boolean) => {
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, bookmarked: !bookmarked } : p));
+    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId) ? { ...p, bookmarked: !bookmarked } : p));
     try { await toggleBookmark(postId, bookmarked); } catch {}
   };
 
   const handleRepost = async (postId: string, reposted: boolean) => {
-    setPosts(prev => prev.map(p => p.id === postId
+    // Match on both p.id and p.repostOf since the PostCard now passes interactionId
+    // which is the ORIGINAL post ID for reposts, not the wrapper ID
+    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
       : p));
     try { await toggleRepost(postId, reposted); } catch {}

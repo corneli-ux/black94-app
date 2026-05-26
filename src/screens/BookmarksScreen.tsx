@@ -199,12 +199,14 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
     }
   }, []);
 
+  const interactionId = post.repostOf || post.id;
+
   const handleLike = async () => {
     if (!post || !post.id) return;
     setLiked(!liked);
     setLikeCount(prev => liked ? prev - 1 : prev + 1);
     try {
-      await toggleLike(post.id, liked);
+      await toggleLike(interactionId, liked);
     } catch {
       // Rollback on failure
       setLiked(liked);
@@ -216,7 +218,7 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
     try {
       const uid = auth()?.currentUser?.uid; if (!uid) return;
       // BUG FIX: Use deterministic doc ID instead of composite query.
-      const bookmarkDocId = `${post.id}_${uid}`;
+      const bookmarkDocId = `${interactionId}_${uid}`;
       await firestore().collection('post_bookmarks').doc(bookmarkDocId).delete().catch(() => {});
       setBookmarked(false);
       onUnbookmark();
@@ -225,14 +227,14 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
     }
   };
 
-  const handleComment = () => { onComment(post.id); };
+  const handleComment = () => { onComment(interactionId); };
 
   const handleShare = async () => { try { await Share.share({ message: 'Check out this post on Black94!' }); } catch {} };
 
   const handleRepost = async () => {
     const next = !reposted; setReposted(next); setRepostCount(c => c + (next ? 1 : -1));
     try {
-      await toggleRepost(post.id, reposted);
+      await toggleRepost(interactionId, reposted);
     } catch (e) {
       // Revert optimistic state on failure
       setReposted(!next);

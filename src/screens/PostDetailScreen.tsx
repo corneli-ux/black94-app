@@ -183,10 +183,15 @@ export default function PostDetailScreen() {
     }
   }, []);
 
+  // ── Interaction target ──────────────────────────────────────────────
+  // BUG FIX: For reposts, all interactions (like, comment, bookmark, repost)
+  // should target the ORIGINAL post, not the repost wrapper.
+  const interactionId = post?.repostOf || post?.id;
+
   // ── Like ────────────────────────────────────────────────────────────────
   const handleLike = useCallback(async () => {
     if (!post || !currentUser?.uid) return;
-    const key = `like_${post.id}`;
+    const key = `like_${interactionId}`;
     if (!inflight(key)) return;
 
     const next = !liked;
@@ -194,37 +199,37 @@ export default function PostDetailScreen() {
     setLikeCount(c => c + (next ? 1 : -1));
 
     try {
-      await toggleLike(post.id, liked);
+      await toggleLike(interactionId, liked);
     } catch {
       setLiked(!next);
       setLikeCount(c => c + (next ? -1 : 1));
     } finally {
       releaseInflight(key);
     }
-  }, [post, liked, currentUser?.uid, inflight, releaseInflight]);
+  }, [post, liked, currentUser?.uid, inflight, releaseInflight, interactionId]);
 
   // ── Bookmark ────────────────────────────────────────────────────────────
   const handleBookmark = useCallback(async () => {
     if (!post || !currentUser?.uid) return;
-    const key = `bm_${post.id}`;
+    const key = `bm_${interactionId}`;
     if (!inflight(key)) return;
 
     const next = !bookmarked;
     setBookmarked(next);
 
     try {
-      await toggleBookmark(post.id, bookmarked);
+      await toggleBookmark(interactionId, bookmarked);
     } catch {
       setBookmarked(!next);
     } finally {
       releaseInflight(key);
     }
-  }, [post, bookmarked, currentUser?.uid, inflight, releaseInflight]);
+  }, [post, bookmarked, currentUser?.uid, inflight, releaseInflight, interactionId]);
 
   // ── Repost ──────────────────────────────────────────────────────────────
   const handleRepost = useCallback(async () => {
     if (!post || !currentUser?.uid) return;
-    const key = `rp_${post.id}`;
+    const key = `rp_${interactionId}`;
     if (!inflight(key)) return;
 
     const next = !reposted;
@@ -232,7 +237,7 @@ export default function PostDetailScreen() {
     setRepostCount(c => c + (next ? 1 : -1));
 
     try {
-      const result = await toggleRepost(post.id, reposted);
+      const result = await toggleRepost(interactionId, reposted);
       if (!result.success) {
         setReposted(!next);
         setRepostCount(c => c + (next ? -1 : 1));
@@ -243,7 +248,7 @@ export default function PostDetailScreen() {
     } finally {
       releaseInflight(key);
     }
-  }, [post, reposted, currentUser?.uid, inflight, releaseInflight]);
+  }, [post, reposted, currentUser?.uid, inflight, releaseInflight, interactionId]);
 
   // ── Share ───────────────────────────────────────────────────────────────
   const handleShare = useCallback(async () => {
@@ -256,12 +261,12 @@ export default function PostDetailScreen() {
   const handleComment = useCallback(() => {
     if (!post) return;
     navigation.navigate('PostComments' as never, {
-      postId: post.id,
+      postId: interactionId,
       postCaption: post.caption,
       postAuthorUsername: post.authorUsername,
       postAuthorDisplayName: post.authorDisplayName,
     });
-  }, [post, navigation]);
+  }, [post, navigation, interactionId]);
 
   // ── Navigate to user profile ────────────────────────────────────────────
   const handleAuthorPress = useCallback(() => {

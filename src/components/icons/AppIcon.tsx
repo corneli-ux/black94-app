@@ -85,6 +85,28 @@ const COMMUNITY_ICONS = new Set([
   'bell-outline',
   'chevron-double-right',
   'dots-horizontal-circle-outline',
+  // Added from screen audit — MCI-only icons used across the app
+  'phone-portrait-outline',
+  'moon-outline',
+  'sunny-outline',
+  'people-circle-outline',
+  'wallet-outline',
+  'stats-chart-outline',
+  'people-outline',
+  'call-outline',
+  'ribbon-outline',
+  'medal-outline',
+  'trophy-outline',
+  'time-outline',
+  'sync-outline',
+  'briefcase-outline',
+  'hand-left',
+  'format-bold',
+  'format-italic',
+  'format-list-numbered',
+  'format-h1',
+  'format-h2',
+  'videocam-outline',
 ]);
 
 /**
@@ -95,12 +117,10 @@ const ICON_ALIASES: Record<string, string> = {
   // Navigation
   'arrow-back-ios': 'arrow-back',
   'arrow-left': 'arrow-back',
-  'chevron-left': 'arrow-back',
   'chevron-right': 'chevron-right',
   'chevron-forward': 'chevron-right',
 
   // Actions
-  'create': 'edit',
   'create-outline': 'edit',
   'add-circle': 'add-circle',
   'add-circle-outline': 'add-circle-outline',
@@ -168,7 +188,6 @@ const ICON_ALIASES: Record<string, string> = {
   'download-outline': 'download',
   'calendar': 'calendar-today',
   'calendar-outline': 'calendar-today',
-  'phone': 'phone-android',
   'phone-outline': 'phone-android',
 
   // Media

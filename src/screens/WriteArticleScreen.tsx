@@ -187,13 +187,13 @@ interface ToolbarAction {
 }
 
 const TOOLBAR_ACTIONS: ToolbarAction[] = [
-  { icon: 'bold', label: 'Bold', prefix: '**', suffix: '**' },
-  { icon: 'italic', label: 'Italic', prefix: '*', suffix: '*' },
+  { icon: 'format-bold', label: 'Bold', prefix: '**', suffix: '**' },
+  { icon: 'format-italic', label: 'Italic', prefix: '*', suffix: '*' },
   { icon: 'format-h1', label: 'H1', lineMarker: '# ' },
   { icon: 'format-h2', label: 'H2', lineMarker: '## ' },
-  { icon: 'list', label: 'Bullet', listMarker: '- ' },
-  { icon: 'list-number', label: 'Number', listMarker: '1. ' },
-  { icon: 'text', label: 'Quote', lineMarker: '> ' },
+  { icon: 'format-list-bulleted', label: 'Bullet', listMarker: '- ' },
+  { icon: 'format-list-numbered', label: 'Number', listMarker: '1. ' },
+  { icon: 'format-quote-close', label: 'Quote', lineMarker: '> ' },
 ];
 
 export default function WriteArticleScreen() {
