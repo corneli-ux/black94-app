@@ -790,7 +790,14 @@ export async function fetchThreadPosts(threadId: string): Promise<any[]> {
 export async function toggleLike(postId: string, currentlyLiked: boolean): Promise<boolean> {
   const userId = currentUser()?.uid;
   console.log('[API toggleLike] postId:', postId, 'currentlyLiked:', currentlyLiked, 'userId:', userId);
-  if (!userId) return false;
+  if (!userId) {
+    console.error('[API toggleLike] ABORTED — no authenticated user (userId is null/undefined)');
+    return false;
+  }
+  if (!postId) {
+    console.error('[API toggleLike] ABORTED — postId is null/undefined');
+    return false;
+  }
 
   const likeRef = firestore().collection('post_likes').doc(`${postId}_${userId}`);
   const postRef = firestore().collection('posts').doc(postId);
@@ -888,7 +895,14 @@ export interface ToggleRepostResult {
 export async function toggleRepost(postId: string, currentlyReposted: boolean): Promise<ToggleRepostResult> {
   const userId = currentUser()?.uid;
   console.log('[API toggleRepost] postId:', postId, 'currentlyReposted:', currentlyReposted, 'userId:', userId);
-  if (!userId) return { success: false };
+  if (!userId) {
+    console.error('[API toggleRepost] ABORTED — no authenticated user (userId is null/undefined)');
+    return { success: false };
+  }
+  if (!postId) {
+    console.error('[API toggleRepost] ABORTED — postId is null/undefined');
+    return { success: false };
+  }
 
   const repostRef = firestore().collection('post_reposts').doc(`${postId}_${userId}`);
   const postRef = firestore().collection('posts').doc(postId);

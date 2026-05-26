@@ -85,6 +85,15 @@ const PostActionsBar = React.memo(function PostActionsBar({
   variant = 'feed',
 }: PostActionsBarProps) {
 
+  // ── Safety guard: bail out if interactionId is missing ─────────────
+  // If post.id is undefined (shouldn't happen but does if Firestore doc
+  // is corrupted), ALL action callbacks would write to garbage Firestore
+  // paths like 'undefined_userId'. This guard prevents that.
+  if (!interactionId) {
+    console.warn('[PostActionsBar] RENDERED WITH UNDEFINED interactionId — post.id:', post.id, 'post.repostOf:', post.repostOf);
+    return null;
+  }
+
   // ── Repost handler: undo if already reposted, else show options ──────
   const handleRepostPress = () => {
     console.log('[PostActionsBar] Repost pressed — interactionId:', interactionId, 'currentlyReposted:', post.reposted);

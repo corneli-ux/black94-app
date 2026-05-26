@@ -532,8 +532,16 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
     try { 
       const result = await toggleLike(postId, liked);
       console.log('[useFeed handleLike] toggleLike result:', result);
-    } catch (e) {
+      if (result === false) {
+        console.error('[useFeed handleLike] toggleLike returned false — likely not authenticated');
+        Alert.alert('Error', 'Please sign in to like posts.');
+      }
+    } catch (e: any) {
       // Revert optimistic update on failure — prevents ghost likes
+      console.error('[useFeed handleLike] toggleLike error:', e);
+      if (e?.message?.includes('Not authenticated') || e?.message?.includes('PERMISSION_DENIED')) {
+        Alert.alert('Error', 'Please sign in to like posts.');
+      }
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
         ? { ...p, liked, likeCount: p.likeCount + (liked ? 1 : -1) }
         : p));

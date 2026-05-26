@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useMemo, useRef } from 'react';
+import { Alert } from 'react-native';
 import { auth, firestore } from '../lib/firebase';
 import { toggleLike, toggleBookmark, toggleRepost, ToggleRepostResult, Post, parseMediaUrls } from '../lib/api';
 
@@ -122,8 +123,17 @@ export function usePostInteractions({
     try {
       const result = await toggleLike(postId, currentlyLiked);
       console.log('[usePostInteractions] toggleLike result:', result);
-    } catch (e) {
+      if (result === false) {
+        // toggleLike returned false — user not authenticated
+        console.error('[usePostInteractions] toggleLike returned false — likely not authenticated');
+        Alert.alert('Error', 'Please sign in to like posts.');
+      }
+    } catch (e: any) {
       console.error('[usePostInteractions] toggleLike error:', e);
+      // Show user feedback for auth errors
+      if (e?.message?.includes('Not authenticated') || e?.message?.includes('PERMISSION_DENIED')) {
+        Alert.alert('Error', 'Please sign in to like posts.');
+      }
       // Revert on error
       updateMatchingPosts(p => ({
         ...p,
@@ -191,6 +201,9 @@ export function usePostInteractions({
           reposted: currentlyReposted,
           repostCount: Math.max(0, p.repostCount + (currentlyReposted ? 1 : -1)),
         }), postId);
+        console.error('[usePostInteractions] toggleRepost returned success:false');
+        // Don't show alert for expected failures (privacy, already reposted)
+        // The API handles those cases; only show for auth issues
         return;
       }
 
@@ -237,8 +250,12 @@ export function usePostInteractions({
           prev.some(p => p.id === newPost.id) ? prev : [newPost, ...prev]
         );
       }
-    } catch (e) {
+    } catch (e: any) {
       // Network/unknown error — revert
+      console.error('[usePostInteractions] toggleRepost error:', e);
+      if (e?.message?.includes('Not authenticated') || e?.message?.includes('PERMISSION_DENIED')) {
+        Alert.alert('Error', 'Please sign in to repost posts.');
+      }
       updateMatchingPosts(p => ({
         ...p,
         reposted: currentlyReposted,
