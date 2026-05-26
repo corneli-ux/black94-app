@@ -843,7 +843,6 @@ export default function ProfileScreen({ route, navigation }: any) {
       onScroll={handleScroll}
       scrollEventThrottle={16}
       refreshControl={<RefreshControl refreshing={refreshing && canRefresh} onRefresh={() => { if (canRefresh) { setRefreshing(true); load(); } }} tintColor={colors.accent} enabled={canRefresh} />}
-      stickyHeaderIndices={[3]}
     >
       {/* Top bar */}
       <SafeAreaView edges={['top']}>
@@ -981,16 +980,17 @@ export default function ProfileScreen({ route, navigation }: any) {
       {/* Separator between ad and tabs */}
       {profileAd && <View style={styles.adSeparator} />}
 
-      {/* Tabs */}
-      <View style={styles.tabBar}>
-        {tabs.map(t => (
-          <TouchableOpacity key={t} style={styles.tab} onPress={() => setTab(t)}>
-            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </Text>
-            {tab === t && <View style={styles.tabIndicator} />}
-          </TouchableOpacity>
-        ))}
+      {/* Tabs — horizontal pill/chip style */}
+      <View style={styles.tabBarContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBarScroll}>
+          {tabs.map(t => (
+            <TouchableOpacity key={t} style={[styles.tabPill, tab === t && styles.tabPillActive]} onPress={() => setTab(t)}>
+              <Text style={[styles.tabPillText, tab === t && styles.tabPillTextActive]}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {/* Tab Content */}
@@ -1074,27 +1074,39 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', gap: 20, marginTop: 16 },
   statText: { color: colors.textSecondary, fontSize: 14 },
   statNum: { color: colors.text, fontWeight: '700' },
-  /* Tab bar: sticky, bg-[#000], border-b border-white/[0.06] */
-  tabBar: {
-    flexDirection: 'row',
+  /* Tab bar: horizontal scrollable pills */
+  tabBarContainer: {
+    backgroundColor: colors.bg,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.separator,
-    backgroundColor: colors.bg,
   },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 14, position: 'relative' as const },
-  /* Active tab indicator: absolute bottom-0 inset-x-6 h-1 bg-[#FFFFFF] */
-  tabIndicator: {
-    position: 'absolute' as const,
-    bottom: 0,
-    left: 24,
-    right: 24,
-    height: 1,
-    borderRadius: 0.5,
-    backgroundColor: colors.white,
+  tabBarScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
   },
-  /* Tab text: text-[15px] font-medium, active: text-[#e7e9ea] font-bold, inactive: text-[#94a3b8] */
-  tabText: { color: colors.textSecondary, fontWeight: '500', fontSize: 15 },
-  tabTextActive: { color: colors.text, fontWeight: '700' },
+  tabPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tabPillActive: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  tabPillText: {
+    color: colors.textSecondary,
+    fontWeight: '500',
+    fontSize: 13,
+  },
+  tabPillTextActive: {
+    color: colors.bg,
+    fontWeight: '700',
+    fontSize: 13,
+  },
   /* ── Profile Ad Banner ── */
   adBanner: {
     marginHorizontal: 16,

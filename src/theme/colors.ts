@@ -1,6 +1,5 @@
-// Black94 Theme — "Pure Black Premium" — Deep Polish Pass
-// All grays eliminated. Backgrounds, surfaces, borders all pure #000000.
-// Visual hierarchy achieved through opacity layers, NOT color shifts.
+// Black94 Theme — Minimalist Dark with proper visual hierarchy
+// Pure black background with subtle gray layers for depth and readability.
 
 export const colors = {
   // ── Backgrounds ──
@@ -10,25 +9,25 @@ export const colors = {
   bgModal: '#000000',
   surface: '#000000',
   surfaceElevated: '#000000',
-  surfaceLight: '#000000',
+  surfaceLight: '#111111',           // subtle surface for cards/inputs
   background: '#000000',
 
-  // ── Text ──
-  text: '#e7e9ea',                 // primary text
+  // ── Text — proper hierarchy with opacity levels ──
+  text: '#e7e9ea',                   // primary text — full brightness
   white: '#ffffff',
-  textSecondary: '#e7e9ea',        // was #94a3b8 gray — now same as primary for readability
-  textMuted: '#e7e9ea',            // was #71767b gray — now same as primary
-  textTertiary: '#e7e9ea',         // was #64748b gray — now same as primary
+  textSecondary: '#a0a3a8',          // secondary labels, timestamps
+  textMuted: '#6e7680',              // muted hints, placeholders
+  textTertiary: '#484d54',            // tertiary — very subtle
   foreground: '#e7e9ea',
 
-  // ── Borders ──
-  border: '#000000',               // was #374151 gray — pure black
-  borderLight: '#000000',          // was #3a3f44 gray — pure black
-  separator: 'rgba(212,175,55,0.15)',  // gold-tinted separator for premium feel
-  input: '#000000',                // was #374151 gray — pure black
+  // ── Borders — subtle but visible ──
+  border: '#222528',                  // standard border — subtle dark gray
+  borderLight: '#1c1f22',            // lighter border variant
+  separator: '#1a1d20',              // dividers / section separators
+  input: '#1c1f22',                  // input field borders
 
   // ── Brand Accents ──
-  accent: '#D4AF37',               // gold accent
+  accent: '#D4AF37',                  // gold accent — primary brand color
   accentGold: '#f59e0b',
   accentRed: '#f4212e',
   accentGreen: '#10b981',
@@ -37,7 +36,7 @@ export const colors = {
 
   // ── Tab bar ──
   tabBar: '#000000',
-  tabBarBorder: '#000000',         // was #374151 gray — pure black
+  tabBarBorder: '#1a1d20',
   headerBg: '#000000',
 
   // ── Verified badges ──
@@ -47,9 +46,9 @@ export const colors = {
 
   // ── Chat ──
   chatBubbleMine: '#FFFFFF',
-  chatBubbleMineGradientEnd: '#FFFFFF',  // was #D1D5DB gray — now pure white
+  chatBubbleMineGradientEnd: '#FFFFFF',
   chatBubbleMineText: '#000000',
-  chatBubbleOther: 'rgba(212,175,55,0.08)',  // gold-tinted received bubble
+  chatBubbleOther: 'rgba(212,175,55,0.08)',
   chatBubbleOtherText: '#e7e9ea',
 
   // ── Like / Bookmark ──
@@ -67,23 +66,23 @@ export const colors = {
   muted: '#000000',
 
   // ── Avatar fallback ──
-  avatarFallback: '#000000',       // was #1e293b gray-blue — pure black
+  avatarFallback: '#1a1d20',
   avatarFallbackText: '#e7e9ea',
-  avatarGradientEnd: '#000000',    // was #9CA3AF gray — pure black
+  avatarGradientEnd: '#000000',
 
   // ── Compose ──
-  composeBorder: 'rgba(212,175,55,0.2)',   // gold-tinted border
+  composeBorder: 'rgba(212,175,55,0.2)',
   composeDisabled: 'rgba(212,175,55,0.08)',
-  composeDisabledText: '#e7e9ea',          // was #64748b gray
+  composeDisabledText: '#6e7680',
 
   // ── Surfaces (semi-transparent) ──
-  bgSubtle: 'rgba(212,175,55,0.04)',          // gold-tinted subtle surface
-  bgSubtleAlt: 'rgba(212,175,55,0.06)',       // gold-tinted
+  bgSubtle: 'rgba(255,255,255,0.03)',
+  bgSubtleAlt: 'rgba(255,255,255,0.05)',
   white25: 'rgba(255,255,255,0.25)',
   white50: 'rgba(255,255,255,0.5)',
-  borderSubtle: 'rgba(212,175,55,0.12)',      // gold-tinted
-  borderSubtleAlt: 'rgba(212,175,55,0.15)',   // gold-tinted
-  borderSubtleStrong: 'rgba(212,175,55,0.2)', // gold-tinted
+  borderSubtle: 'rgba(255,255,255,0.08)',
+  borderSubtleAlt: 'rgba(255,255,255,0.1)',
+  borderSubtleStrong: 'rgba(255,255,255,0.12)',
   borderWhite40: 'rgba(255,255,255,0.4)',
 
   // ── Overlays ──
@@ -112,21 +111,21 @@ export const colors = {
   greenFaint: 'rgba(34,197,94,0.1)',
 
   // ── Row highlights ──
-  rowUnreadBg: 'rgba(212,175,55,0.03)',
-  rowPressed: 'rgba(212,175,55,0.04)',
+  rowUnreadBg: 'rgba(255,255,255,0.03)',
+  rowPressed: 'rgba(255,255,255,0.04)',
 
   // ── Skeleton shimmer ──
-  skeleton: 'rgba(212,175,55,0.06)',          // gold-tinted shimmer
-  skeletonFaint: 'rgba(212,175,55,0.1)',
-  skeletonBright: 'rgba(212,175,55,0.2)',
+  skeleton: 'rgba(255,255,255,0.06)',
+  skeletonFaint: 'rgba(255,255,255,0.1)',
+  skeletonBright: 'rgba(255,255,255,0.2)',
 
   // ── Fact check ──
   factCheckBg: 'rgba(16,185,129,0.1)',
 
   // ── Stars ──
-  starEmpty: 'rgba(212,175,55,0.2)',           // gold-tinted empty star
+  starEmpty: 'rgba(212,175,55,0.2)',
 
-  // ── Additional tokens for hardcoded value cleanup ──
+  // ── Additional tokens ──
   overlayLight: 'rgba(0,0,0,0.35)',
   overlaySoft: 'rgba(0,0,0,0.55)',
   overlayFull: 'rgba(0,0,0,0.9)',

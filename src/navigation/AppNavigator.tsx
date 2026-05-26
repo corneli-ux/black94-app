@@ -286,7 +286,7 @@ function CustomDrawerContent({ navigation }: any) {
     <DrawerContentScrollView style={styles.drawer} contentContainerStyle={{ paddingTop: insets.top }}>
       {/* Logo */}
       <View style={styles.drawerLogo}>
-        <Image source={require('../../assets/logo.png')} style={{ width: 160, height: 52, resizeMode: 'contain' }} />
+        <Image source={require('../../assets/logo.png')} style={{ width: 140, height: 46, resizeMode: 'contain' }} />
       </View>
 
       {/* Nav items */}
@@ -487,11 +487,11 @@ export default function AppNavigator() {
     }
   }, [pendingNotificationTap]);
 
-  // While not ready, show dark splash-like screen
+  // While not ready, show dark splash-like screen with logo
   if (!isReady) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: colors.text, fontSize: 28, fontWeight: '800' }}>Black94</Text>
+        <Image source={require('../../assets/logo.png')} style={{ width: 180, height: 60, resizeMode: 'contain' }} />
       </View>
     );
   }

@@ -957,27 +957,10 @@ export default function StoriesScreen({ navigation }: any) {
                 ))}
               </View>
 
-              {/* Viewer header row */}
+              {/* Viewer header — minimal: just close button */}
               <View style={styles.viewerHeader}>
-                <Avatar
-                  uri={viewingStory.authorProfileImage}
-                  name={viewingStory.authorDisplayName}
-                  size={32}
-                />
-                <Text style={styles.viewerUsername} numberOfLines={1}>
-                  {viewingStory.authorUsername || viewingStory.authorDisplayName}
-                </Text>
-                <Text style={styles.viewerTimestamp}>
-                  {timeAgo(viewingStory.createdAt)}
-                </Text>
-                {/* Pause indicator */}
-                {paused && (
-                  <View style={styles.pausedIndicator}>
-                    <AppIcon name="pause" size={10} color={colors.white} />
-                  </View>
-                )}
+                <View style={{ flex: 1 }} />
                 <TouchableOpacity
-                  style={{ marginLeft: 'auto' }}
                   onPress={closeStoryViewer}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
@@ -1534,26 +1517,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 8,
     paddingBottom: 4,
-    gap: 8,
-  },
-  viewerUsername: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '700',
-    flexShrink: 1,
-  },
-  viewerTimestamp: {
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  pausedIndicator: {
-    backgroundColor: colors.accentBorderStrong,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
   },
 
   /* ── Story Content (90%) ─────────────────────────────────────────────── */

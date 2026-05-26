@@ -236,39 +236,58 @@ export default function EditProfileScreen({ navigation }: any) {
       try {
         let finalProfileImage = profileImage;
         let finalCoverImage = coverImage;
+        let imageWarning = '';
 
         // Upload images if they are local URIs
         // BUG FIX: Optimize before upload and use the correct MIME type
         // matching the optimized output. Previously, hardcoded mimeType
         // 'image/jpeg' was sent even when the file was PNG → Content-Type
         // mismatch → black/corrupted avatars on some devices.
-        if (profileImage && !profileImage.startsWith('http')) {
-          const optimized = await optimizeImage(profileImage, {
-            maxWidth: 800,
-            jpegQuality: 0.85,
-            generateThumbnail: false,
-          });
-          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
-          const result = await uploadOptimizedImage(
-            optimized.optimizedUri,
-            `users/${currentUid}/profile/${Date.now()}.${ext}`,
-            { mimeType: optimized.mimeType },
-          );
-          finalProfileImage = result.downloadUrl;
+        //
+        // GRACEFUL DEGRADATION: If image upload fails, we still save
+        // the text profile (name, username, bio) and keep the old image.
+        // Previously, any upload failure would abort the entire save.
+        try {
+          if (profileImage && !profileImage.startsWith('http')) {
+            const optimized = await optimizeImage(profileImage, {
+              maxWidth: 800,
+              jpegQuality: 0.85,
+              generateThumbnail: false,
+            });
+            const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+            const result = await uploadOptimizedImage(
+              optimized.optimizedUri,
+              `users/${currentUid}/profile/${Date.now()}.${ext}`,
+              { mimeType: optimized.mimeType },
+            );
+            finalProfileImage = result.downloadUrl;
+          }
+        } catch (imgErr: any) {
+          console.error('[EditProfileScreen] Profile image upload failed, keeping old image:', imgErr?.message);
+          finalProfileImage = user?.profileImage || '';
+          imageWarning = 'profile';
         }
-        if (coverImage && !coverImage.startsWith('http')) {
-          const optimized = await optimizeImage(coverImage, {
-            maxWidth: 1600,
-            jpegQuality: 0.85,
-            generateThumbnail: false,
-          });
-          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
-          const result = await uploadOptimizedImage(
-            optimized.optimizedUri,
-            `users/${currentUid}/cover/${Date.now()}.${ext}`,
-            { mimeType: optimized.mimeType },
-          );
-          finalCoverImage = result.downloadUrl;
+
+        try {
+          if (coverImage && !coverImage.startsWith('http')) {
+            const optimized = await optimizeImage(coverImage, {
+              maxWidth: 1600,
+              jpegQuality: 0.85,
+              generateThumbnail: false,
+            });
+            const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+            const result = await uploadOptimizedImage(
+              optimized.optimizedUri,
+              `users/${currentUid}/cover/${Date.now()}.${ext}`,
+              { mimeType: optimized.mimeType },
+            );
+            finalCoverImage = result.downloadUrl;
+          }
+        } catch (imgErr: any) {
+          console.error('[EditProfileScreen] Cover image upload failed, keeping old image:', imgErr?.message);
+          finalCoverImage = user?.coverImage || '';
+          if (!imageWarning) imageWarning = 'cover';
+          else imageWarning = 'both';
         }
 
         // Update username if changed
@@ -378,7 +397,11 @@ export default function EditProfileScreen({ navigation }: any) {
           }, 0);
         }
 
-        Alert.alert('Success', 'Profile updated successfully', [
+        // Show success with optional image warning
+        const successMsg = imageWarning
+          ? 'Profile updated, but image upload failed. Your text changes were saved. Please try uploading the image again.'
+          : 'Profile updated successfully';
+        Alert.alert('Success', successMsg, [
           { text: 'OK', onPress: () => {
             // Update Zustand store so sidebar/drawer shows the new profile info immediately
             setGlobalUser(updatedProfile);
@@ -405,7 +428,12 @@ export default function EditProfileScreen({ navigation }: any) {
         ]);
       } catch (e: any) {
         console.error('[EditProfileScreen] Save failed:', e?.message || e);
-        Alert.alert('Profile', 'Could not update profile. Please try again.');
+        const msg = e?.status === 403
+          ? 'Permission denied. Please check your account status and try again.'
+          : e?.message?.includes('network') || e?.message?.includes('Network')
+            ? 'Network error. Please check your connection and try again.'
+            : 'Could not update profile. Please try again.';
+        Alert.alert('Profile', msg);
       } finally {
         setSaving(false);
       }
