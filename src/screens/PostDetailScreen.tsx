@@ -251,9 +251,12 @@ export default function PostDetailScreen() {
     try {
       const result = await toggleRepost(interactionId, reposted);
       if (!result.success) {
+        // Revert optimistic state on failure
         setReposted(!next);
         setRepostCount(c => c + (next ? -1 : 1));
       }
+      // Note: undone handling not needed here since PostDetailScreen shows
+      // a single post and doesn't maintain a list of repost cards.
     } catch {
       setReposted(!next);
       setRepostCount(c => c + (next ? -1 : 1));

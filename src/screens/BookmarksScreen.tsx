@@ -12,7 +12,7 @@ import { refreshFirebaseUrl } from '../utils/imageUpload';
 import CommentSheet from '../components/CommentSheet';
 import FeedMedia from '../components/FeedMedia';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
-import { AppIcon } from '../components/icons';
+import { AppIcon, RepostIcon } from '../components/icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -234,7 +234,12 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
   const handleRepost = async () => {
     const next = !reposted; setReposted(next); setRepostCount(c => c + (next ? 1 : -1));
     try {
-      await toggleRepost(interactionId, reposted);
+      const result = await toggleRepost(interactionId, reposted);
+      if (!result.success) {
+        // Revert optimistic state on failure
+        setReposted(!next);
+        setRepostCount(c => c + (next ? -1 : 1));
+      }
     } catch (e) {
       // Revert optimistic state on failure
       setReposted(!next);
@@ -249,6 +254,15 @@ function FullPostCard({ post, navigation, onUnbookmark, onComment }: { post: Pos
           <Avatar uri={post.authorProfileImage} name={post.authorDisplayName} size={48} />
         </TouchableOpacity>
         <View style={styles.contentColumn}>
+          {/* Repost indicator */}
+          {post.repostOf && (
+            <View style={styles.repostHeader}>
+              <RepostIcon size={14} color={colors.textMuted} />
+              <Text style={styles.repostHeaderText}>
+                {post.repostedByDisplayName || post.repostedByUsername || 'Someone'} reposted
+              </Text>
+            </View>
+          )}
           <View style={styles.headerRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, flexWrap: 'nowrap', overflow: 'hidden' }}>
               <Text style={styles.displayName} numberOfLines={1}>{post.authorDisplayName}</Text>
@@ -308,6 +322,8 @@ const styles = StyleSheet.create({
   postCard: { backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.separator, paddingLeft: 16, paddingRight: 16, paddingTop: 4, paddingBottom: 12 },
   contentRow: { flexDirection: 'row', gap: 12 },
   contentColumn: { flex: 1, minWidth: 0 },
+  repostHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+  repostHeaderText: { color: colors.textMuted, fontSize: 13, fontWeight: '500' },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   displayName: { color: colors.text, fontWeight: '700', fontSize: 15 },
   handle: { color: colors.textSecondary, fontSize: 15 },

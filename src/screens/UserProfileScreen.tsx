@@ -86,22 +86,15 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   onBookmark: (id: string, bookmarked: boolean) => void;
   onDelete: (id: string) => void;
   onRepost: (id: string, reposted: boolean) => void;
-  onComment: (id: string, caption?: string) => void;
+  onComment: (id: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => void;
   navigation: any;
 }) {
   const currentUser = auth()?.currentUser;
   const [showHeart, setShowHeart] = useState(false);
   const lastTapRef = useRef(0);
-  const [isReposted, setIsReposted] = useState(post.reposted);
-  const [localRepostCount, setLocalRepostCount] = useState(post.repostCount);
-  const [isBookmarked, setIsBookmarked] = useState(post.bookmarked);
 
-  // Reset optimistic states when post prop changes
-  React.useEffect(() => {
-    setIsReposted(post.reposted);
-    setLocalRepostCount(post.repostCount);
-    setIsBookmarked(post.bookmarked);
-  }, [post.reposted, post.repostCount, post.bookmarked]);
+  // Single-layer state: all optimistic updates flow through the parent handler.
+  // Previous dual-layer state (local + parent) caused flickering races.
 
   const interactionId = post.repostOf || post.id;
 
@@ -116,16 +109,33 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
   };
 
   const handleRepostPress = () => {
-    const next = !isReposted;
-    setIsReposted(next);
-    setLocalRepostCount(prev => prev + (next ? 1 : -1));
-    onRepost(interactionId, isReposted);
+    if (post.reposted) {
+      // Already reposted — undo it (parent handler manages optimistic update)
+      onRepost(interactionId, true);
+      return;
+    }
+    // Show options: Repost or Quote Repost
+    Alert.alert('Repost', 'How would you like to repost?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Repost',
+        onPress: () => { onRepost(interactionId, false); },
+      },
+      {
+        text: 'Quote Repost',
+        onPress: () => {
+          navigation.navigate('CreatePost', {
+            quotePostId: interactionId,
+            quoteAuthor: `@${post.authorUsername || 'user'}`,
+            quoteCaption: (post.caption || '').slice(0, 100),
+          });
+        },
+      },
+    ]);
   };
 
   const handleBookmarkPress = () => {
-    const next = !isBookmarked;
-    setIsBookmarked(next);
-    onBookmark(interactionId, isBookmarked);
+    onBookmark(interactionId, post.bookmarked);
   };
 
   const handleShare = async () => {
@@ -194,7 +204,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
           {/* Action bar — exact match to FeedScreen PostCard */}
           <View style={profileCardStyles.actions}>
             {/* Comment */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(post.id, post.caption)}>
+            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(interactionId, post.caption, post.authorUsername, post.authorDisplayName)}>
               <View style={profileCardStyles.actionIconWrap}>
                 <AppIcon name="chat-bubble-outline" size="md" color={colors.textSecondary} />
               </View>
@@ -203,9 +213,9 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             {/* Repost */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleRepostPress}>
               <View style={profileCardStyles.actionIconWrap}>
-                <RepostIcon size={18} color={isReposted ? colors.repost : colors.textSecondary} />
+                <RepostIcon size={18} color={post.reposted ? colors.repost : colors.textSecondary} />
               </View>
-              {localRepostCount > 0 ? <Text style={[profileCardStyles.actionCount, isReposted && { color: colors.repost }]}>{localRepostCount}</Text> : null}
+              {formatCount(post.repostCount) ? <Text style={[profileCardStyles.actionCount, post.reposted && { color: colors.repost }]}>{formatCount(post.repostCount)}</Text> : null}
             </TouchableOpacity>
             {/* Like */}
             <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(interactionId, post.liked)}>
@@ -228,7 +238,7 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
             <View style={profileCardStyles.actionPair}>
               <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleBookmarkPress}>
                 <View style={profileCardStyles.actionIconWrap}>
-                  {isBookmarked ? (
+                  {post.bookmarked ? (
                     <AppIcon name="bookmark" size="md" color={colors.bookmark} />
                   ) : (
                     <AppIcon name="bookmark-border" size="md" color={colors.textSecondary} />
@@ -953,11 +963,28 @@ export default function UserProfileScreen({ navigation, route }: any) {
     setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, reposted: !reposted, repostCount: p.repostCount + (reposted ? -1 : 1) }
       : p));
-    try { await toggleRepost(postId, reposted); } catch {}
+    try {
+      const result = await toggleRepost(postId, reposted);
+      if (!result.success) {
+        // Revert optimistic state on failure
+        setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
+          ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
+          : p));
+      } else if (result.undone) {
+        // Remove the repost card from the posts list
+        const removedRepostId = `repost_${postId}_${auth()?.currentUser?.uid}`;
+        setPosts(prev => prev.filter(p => p.id !== removedRepostId));
+      }
+    } catch (e) {
+      // Revert optimistic state on error
+      setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
+        ? { ...p, reposted, repostCount: p.repostCount + (reposted ? 1 : -1) }
+        : p));
+    }
   };
 
-  const handleComment = (postId: string, caption?: string) => {
-    navigation.navigate('PostComments', { postId, postCaption: caption || '' });
+  const handleComment = (postId: string, caption?: string, authorUsername?: string, authorDisplayName?: string) => {
+    navigation.navigate('PostComments', { postId, postCaption: caption || '', postAuthorUsername: authorUsername || '', postAuthorDisplayName: authorDisplayName || '' });
   };
 
   const handleDelete = async (postId: string) => {
