@@ -97,19 +97,40 @@ const PostActionsBar = React.memo(function PostActionsBar({
   const repostingRef = useRef(false);
   const bookmarkingRef = useRef(false);
 
-  // ── Sync from post prop when it changes ──────────────────────────────
+  // ── Interaction guards — prevent useEffect from overwriting optimistic state ──
+  // Once the user taps a button, we stop syncing that field from props.
+  // This prevents the parent re-render (e.g. Firestore snapshot) from
+  // snapping the button back to its pre-tap state before the API responds.
+  const hasInteractedLike = useRef(false);
+  const hasInteractedRepost = useRef(false);
+  const hasInteractedBookmark = useRef(false);
+
+  // ── Sync from post prop when it changes (only before first interaction) ──
   useEffect(() => {
-    setLiked(!!post.liked);
-    setLikeCount(post.likeCount || 0);
-    setReposted(!!post.reposted);
-    setRepostCount(post.repostCount || 0);
-    setBookmarked(!!post.bookmarked);
-  }, [post.liked, post.likeCount, post.reposted, post.repostCount, post.bookmarked]);
+    if (!hasInteractedLike.current) {
+      setLiked(!!post.liked);
+      setLikeCount(post.likeCount || 0);
+    }
+  }, [post.liked, post.likeCount]);
+
+  useEffect(() => {
+    if (!hasInteractedRepost.current) {
+      setReposted(!!post.reposted);
+      setRepostCount(post.repostCount || 0);
+    }
+  }, [post.reposted, post.repostCount]);
+
+  useEffect(() => {
+    if (!hasInteractedBookmark.current) {
+      setBookmarked(!!post.bookmarked);
+    }
+  }, [post.bookmarked]);
 
   // ── LIKE ────────────────────────────────────────────────────────────
   const handleLikePress = useCallback(async () => {
     if (likingRef.current) return;
     likingRef.current = true;
+    hasInteractedLike.current = true;
 
     const wasLiked = liked;
     const targetId = interactionId || post.id;
@@ -190,6 +211,7 @@ const PostActionsBar = React.memo(function PostActionsBar({
 
   const doRepost = useCallback(async (targetId: string, wasReposted: boolean) => {
     repostingRef.current = true;
+    hasInteractedRepost.current = true;
 
     // Optimistic
     setReposted(!wasReposted);
@@ -227,6 +249,7 @@ const PostActionsBar = React.memo(function PostActionsBar({
   const handleBookmarkPress = useCallback(async () => {
     if (bookmarkingRef.current) return;
     bookmarkingRef.current = true;
+    hasInteractedBookmark.current = true;
 
     const wasBookmarked = bookmarked;
     const targetId = interactionId || post.id;
