@@ -1,29 +1,25 @@
 /**
- * PostActionsBar — single shared component for ALL post action buttons.
+ * PostActionsBar — self-contained action buttons for posts.
+ *
+ * This component manages its OWN liked/reposted/bookmarked state internally.
+ * When a button is tapped, it:
+ *   1. Immediately updates local state (instant visual feedback)
+ *   2. Calls the API directly (toggleLike / toggleRepost / toggleBookmark)
+ *   3. Reverts local state if the API fails
+ *
+ * This means the buttons work regardless of whether the parent's state
+ * management is functioning correctly.
  *
  * Used by: FeedScreen, ProfileScreen, UserProfileScreen, BookmarksScreen,
- * PostDetailScreen, HashtagScreen, PostCommentsScreen.
- *
- * Props:
- *   - post: The Post object (reads liked, reposted, bookmarked, counts)
- *   - interactionId: The post ID to target (post.repostOf || post.id)
- *   - onLike(postId, currentlyLiked): Called when like button pressed
- *   - onRepost(postId, currentlyReposted): Called when repost button pressed
- *   - onBookmark(postId, currentlyBookmarked): Called when bookmark pressed
- *   - onComment(postId): Called when comment pressed
- *   - onShare(): Called when share pressed
- *   - navigation: React Navigation ref (needed for quote repost navigation)
- *
- * The component does NOT manage any state — it reads from the post prop
- * and delegates ALL actions to the parent via callbacks. This ensures
- * optimistic updates and API calls are handled in ONE place by
- * usePostInteractions or useFeed hooks.
+ * PostDetailScreen, HashtagScreen.
  */
 
-import React from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Share } from 'react-native';
 import { colors } from '../theme/colors';
 import { AppIcon, RepostIcon } from './icons';
+import { toggleLike, toggleRepost, toggleBookmark, ToggleRepostResult } from '../lib/api';
+import { auth } from '../lib/firebase';
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -34,10 +30,17 @@ function formatCount(n: number | undefined): string {
   return n.toString();
 }
 
+function getUid(): string | null {
+  try {
+    return auth()?.currentUser?.uid || null;
+  } catch {
+    return null;
+  }
+}
+
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
 export interface PostActionsBarProps {
-  /** The full Post object — reads liked, reposted, bookmarked, and counts */
   post: {
     liked?: boolean;
     reposted?: boolean;
@@ -46,28 +49,25 @@ export interface PostActionsBarProps {
     repostCount?: number;
     commentCount?: number;
     viewCount?: number;
-    // For quote repost navigation
     authorUsername?: string;
     caption?: string;
-    // Repost info for undo
     repostOf?: string;
     id?: string;
   };
-  /** The target post ID: post.repostOf || post.id */
   interactionId: string;
-  /** Like callback: (targetPostId, currentlyLiked) => void */
-  onLike: (postId: string, currentlyLiked: boolean) => void;
-  /** Repost callback: (targetPostId, currentlyReposted) => void */
-  onRepost: (postId: string, currentlyReposted: boolean) => void;
-  /** Bookmark callback: (targetPostId, currentlyBookmarked) => void */
-  onBookmark: (postId: string, currentlyBookmarked: boolean) => void;
-  /** Comment callback: (targetPostId) => void */
+  /** Optional: parent callback for cross-component sync */
+  onLike?: (postId: string, currentlyLiked: boolean) => void;
+  /** Optional: parent callback for cross-component sync */
+  onRepost?: (postId: string, currentlyReposted: boolean) => void;
+  /** Optional: parent callback for cross-component sync */
+  onBookmark?: (postId: string, currentlyBookmarked: boolean) => void;
+  /** Comment callback */
   onComment: (postId: string) => void;
-  /** Share callback: () => void */
+  /** Share callback */
   onShare?: () => void;
-  /** React Navigation ref — used for quote repost navigation */
+  /** React Navigation ref */
   navigation?: any;
-  /** Style variant: 'feed' (default) or 'detail' (slightly larger) */
+  /** Style variant */
   variant?: 'feed' | 'detail';
 }
 
@@ -85,71 +85,186 @@ const PostActionsBar = React.memo(function PostActionsBar({
   variant = 'feed',
 }: PostActionsBarProps) {
 
-  // ── Safety guard: bail out if interactionId is missing ─────────────
-  // If post.id is undefined (shouldn't happen but does if Firestore doc
-  // is corrupted), ALL action callbacks would write to garbage Firestore
-  // paths like 'undefined_userId'. This guard prevents that.
-  if (!interactionId) {
-    console.warn('[PostActionsBar] RENDERED WITH UNDEFINED interactionId — post.id:', post.id, 'post.repostOf:', post.repostOf);
-    return null;
-  }
+  // ── Self-contained state ─────────────────────────────────────────────
+  const [liked, setLiked] = useState(!!post.liked);
+  const [likeCount, setLikeCount] = useState(post.likeCount || 0);
+  const [reposted, setReposted] = useState(!!post.reposted);
+  const [repostCount, setRepostCount] = useState(post.repostCount || 0);
+  const [bookmarked, setBookmarked] = useState(!!post.bookmarked);
 
-  // ── Repost handler: undo if already reposted, else show options ──────
-  const handleRepostPress = () => {
-    console.log('[PostActionsBar] Repost pressed — interactionId:', interactionId, 'currentlyReposted:', post.reposted);
+  // ── In-flight guards (prevent double-tap) ────────────────────────────
+  const likingRef = useRef(false);
+  const repostingRef = useRef(false);
+  const bookmarkingRef = useRef(false);
 
-    if (post.reposted) {
-      // Already reposted — undo it directly
-      console.log('[PostActionsBar] Undoing repost for:', interactionId);
-      onRepost(interactionId, true);
+  // ── Sync from post prop when it changes ──────────────────────────────
+  useEffect(() => {
+    setLiked(!!post.liked);
+    setLikeCount(post.likeCount || 0);
+    setReposted(!!post.reposted);
+    setRepostCount(post.repostCount || 0);
+    setBookmarked(!!post.bookmarked);
+  }, [post.liked, post.likeCount, post.reposted, post.repostCount, post.bookmarked]);
+
+  // ── LIKE ────────────────────────────────────────────────────────────
+  const handleLikePress = useCallback(async () => {
+    if (likingRef.current) return;
+    likingRef.current = true;
+
+    const wasLiked = liked;
+    const targetId = interactionId || post.id;
+
+    if (!targetId) {
+      Alert.alert('Error', 'Cannot like this post — missing post ID.');
+      likingRef.current = false;
       return;
     }
 
-    // Show options: Repost or Quote Repost
-    Alert.alert('Repost', 'How would you like to repost?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Repost',
-        onPress: () => {
-          console.log('[PostActionsBar] Simple repost for:', interactionId);
-          onRepost(interactionId, false);
+    // Optimistic: update immediately
+    setLiked(!wasLiked);
+    setLikeCount(prev => Math.max(0, prev + (wasLiked ? -1 : 1)));
+
+    try {
+      const uid = getUid();
+      if (!uid) {
+        Alert.alert('Sign In Required', 'Please sign in to like posts.');
+        setLiked(wasLiked);
+        setLikeCount(prev => Math.max(0, prev + (wasLiked ? 1 : -1)));
+        likingRef.current = false;
+        return;
+      }
+
+      const result = await toggleLike(targetId, wasLiked);
+      if (result === false) {
+        // API returned false (shouldn't happen after uid check, but safety)
+        setLiked(wasLiked);
+        setLikeCount(prev => Math.max(0, prev + (wasLiked ? 1 : -1)));
+      }
+    } catch (e: any) {
+      console.error('[PostActionsBar] Like error:', e);
+      setLiked(wasLiked);
+      setLikeCount(prev => Math.max(0, prev + (wasLiked ? 1 : -1)));
+    } finally {
+      likingRef.current = false;
+      // Notify parent for cross-component sync
+      try { onLike?.(targetId, wasLiked); } catch {}
+    }
+  }, [liked, interactionId, post.id, onLike]);
+
+  // ── REPOST ──────────────────────────────────────────────────────────
+  const handleRepostPress = useCallback(() => {
+    if (repostingRef.current) return;
+
+    const targetId = interactionId || post.id;
+    if (!targetId) {
+      Alert.alert('Error', 'Cannot repost this post — missing post ID.');
+      return;
+    }
+
+    if (reposted) {
+      // Already reposted — undo directly
+      doRepost(targetId, true);
+    } else {
+      // Show options
+      Alert.alert('Repost', 'How would you like to repost?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Repost',
+          onPress: () => doRepost(targetId, false),
         },
-      },
-      {
-        text: 'Quote Repost',
-        onPress: () => {
-          if (navigation) {
-            navigation.navigate('CreatePost', {
-              quotePostId: interactionId,
-              quoteAuthor: `@${post.authorUsername || 'user'}`,
-              quoteCaption: (post.caption || '').slice(0, 100),
-            });
-          }
+        {
+          text: 'Quote Repost',
+          onPress: () => {
+            if (navigation) {
+              navigation.navigate('CreatePost', {
+                quotePostId: targetId,
+                quoteAuthor: `@${post.authorUsername || 'user'}`,
+                quoteCaption: (post.caption || '').slice(0, 100),
+              });
+            }
+          },
         },
-      },
-    ]);
-  };
+      ]);
+    }
+  }, [reposted, interactionId, post.id, post.authorUsername, post.caption, navigation]);
 
-  // ── Like handler ─────────────────────────────────────────────────────
-  const handleLikePress = () => {
-    console.log('[PostActionsBar] Like pressed — interactionId:', interactionId, 'currentlyLiked:', post.liked);
-    onLike(interactionId, !!post.liked);
-  };
+  const doRepost = useCallback(async (targetId: string, wasReposted: boolean) => {
+    repostingRef.current = true;
 
-  // ── Bookmark handler ────────────────────────────────────────────────
-  const handleBookmarkPress = () => {
-    console.log('[PostActionsBar] Bookmark pressed — interactionId:', interactionId, 'currentlyBookmarked:', post.bookmarked);
-    onBookmark(interactionId, !!post.bookmarked);
-  };
+    // Optimistic
+    setReposted(!wasReposted);
+    setRepostCount(prev => Math.max(0, prev + (wasReposted ? -1 : 1)));
 
-  // ── Comment handler ─────────────────────────────────────────────────
-  const handleCommentPress = () => {
-    console.log('[PostActionsBar] Comment pressed — interactionId:', interactionId);
-    onComment(interactionId);
-  };
+    try {
+      const uid = getUid();
+      if (!uid) {
+        Alert.alert('Sign In Required', 'Please sign in to repost.');
+        setReposted(wasReposted);
+        setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
+        repostingRef.current = false;
+        return;
+      }
 
-  // ── Share handler ───────────────────────────────────────────────────
-  const handleSharePress = async () => {
+      const result: ToggleRepostResult = await toggleRepost(targetId, wasReposted);
+
+      if (!result.success) {
+        setReposted(wasReposted);
+        setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
+      }
+      // If success and undone, the parent should remove the repost card from the list
+      // We notify via onRepost callback
+    } catch (e: any) {
+      console.error('[PostActionsBar] Repost error:', e);
+      setReposted(wasReposted);
+      setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
+    } finally {
+      repostingRef.current = false;
+      try { onRepost?.(targetId, wasReposted); } catch {}
+    }
+  }, [onRepost]);
+
+  // ── BOOKMARK ────────────────────────────────────────────────────────
+  const handleBookmarkPress = useCallback(async () => {
+    if (bookmarkingRef.current) return;
+    bookmarkingRef.current = true;
+
+    const wasBookmarked = bookmarked;
+    const targetId = interactionId || post.id;
+
+    if (!targetId) {
+      bookmarkingRef.current = false;
+      return;
+    }
+
+    setBookmarked(!wasBookmarked);
+
+    try {
+      const uid = getUid();
+      if (!uid) {
+        Alert.alert('Sign In Required', 'Please sign in to bookmark posts.');
+        setBookmarked(wasBookmarked);
+        bookmarkingRef.current = false;
+        return;
+      }
+
+      await toggleBookmark(targetId, wasBookmarked);
+    } catch (e: any) {
+      console.error('[PostActionsBar] Bookmark error:', e);
+      setBookmarked(wasBookmarked);
+    } finally {
+      bookmarkingRef.current = false;
+      try { onBookmark?.(targetId, wasBookmarked); } catch {}
+    }
+  }, [bookmarked, interactionId, post.id, onBookmark]);
+
+  // ── COMMENT ─────────────────────────────────────────────────────────
+  const handleCommentPress = useCallback(() => {
+    const targetId = interactionId || post.id;
+    if (targetId) onComment(targetId);
+  }, [interactionId, post.id, onComment]);
+
+  // ── SHARE ───────────────────────────────────────────────────────────
+  const handleSharePress = useCallback(async () => {
     if (onShare) {
       onShare();
       return;
@@ -157,16 +272,23 @@ const PostActionsBar = React.memo(function PostActionsBar({
     try {
       await Share.share({ message: 'Check out this post on Black94!' });
     } catch {}
-  };
+  }, [onShare]);
+
+  // ── Guard ───────────────────────────────────────────────────────────
+  if (!interactionId && !post.id) {
+    return null;
+  }
 
   const isDetail = variant === 'detail';
+  const iconSize = isDetail ? 'lg' : 'md';
+  const repostIconSize = isDetail ? 20 : 18;
 
   return (
     <View style={styles.actions}>
       {/* Comment */}
       <TouchableOpacity style={styles.actionBtn} onPress={handleCommentPress}>
         <View style={[styles.actionIconWrap, isDetail && styles.actionIconWrapLarge]}>
-          <AppIcon name="chat-bubble-outline" size={isDetail ? 'lg' : 'md'} color={colors.textSecondary} />
+          <AppIcon name="chat-bubble-outline" size={iconSize} color={colors.textSecondary} />
         </View>
         {formatCount(post.commentCount) ? (
           <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
@@ -177,13 +299,13 @@ const PostActionsBar = React.memo(function PostActionsBar({
       <TouchableOpacity style={styles.actionBtn} onPress={handleRepostPress}>
         <View style={[styles.actionIconWrap, isDetail && styles.actionIconWrapLarge]}>
           <RepostIcon
-            size={isDetail ? 20 : 18}
-            color={post.reposted ? colors.repost : colors.textSecondary}
+            size={repostIconSize}
+            color={reposted ? colors.repost : colors.textSecondary}
           />
         </View>
-        {formatCount(post.repostCount) ? (
-          <Text style={[styles.actionCount, post.reposted && { color: colors.repost }]}>
-            {formatCount(post.repostCount)}
+        {formatCount(repostCount) ? (
+          <Text style={[styles.actionCount, reposted && { color: colors.repost }]}>
+            {formatCount(repostCount)}
           </Text>
         ) : null}
       </TouchableOpacity>
@@ -191,15 +313,15 @@ const PostActionsBar = React.memo(function PostActionsBar({
       {/* Like */}
       <TouchableOpacity style={styles.actionBtn} onPress={handleLikePress}>
         <View style={[styles.actionIconWrap, isDetail && styles.actionIconWrapLarge]}>
-          {post.liked ? (
-            <AppIcon name="favorite" size={isDetail ? 'lg' : 'md'} color={colors.like} />
+          {liked ? (
+            <AppIcon name="favorite" size={iconSize} color={colors.like} />
           ) : (
-            <AppIcon name="favorite-border" size={isDetail ? 'lg' : 'md'} color={colors.textSecondary} />
+            <AppIcon name="favorite-border" size={iconSize} color={colors.textSecondary} />
           )}
         </View>
-        {formatCount(post.likeCount) ? (
-          <Text style={[styles.actionCount, post.liked && { color: colors.like }]}>
-            {formatCount(post.likeCount)}
+        {formatCount(likeCount) ? (
+          <Text style={[styles.actionCount, liked && { color: colors.like }]}>
+            {formatCount(likeCount)}
           </Text>
         ) : null}
       </TouchableOpacity>
@@ -207,7 +329,7 @@ const PostActionsBar = React.memo(function PostActionsBar({
       {/* Views */}
       <TouchableOpacity style={styles.actionBtn} disabled>
         <View style={[styles.actionIconWrap, isDetail && styles.actionIconWrapLarge]}>
-          <AppIcon name="trending-up" size={isDetail ? 'lg' : 'md'} color={colors.textSecondary} />
+          <AppIcon name="trending-up" size={iconSize} color={colors.textSecondary} />
         </View>
         {formatCount(post.viewCount) ? (
           <Text style={styles.actionCount}>{formatCount(post.viewCount)}</Text>
@@ -218,17 +340,17 @@ const PostActionsBar = React.memo(function PostActionsBar({
       <View style={styles.actionPair}>
         <TouchableOpacity style={styles.actionBtn} onPress={handleBookmarkPress}>
           <View style={[styles.actionIconWrap, isDetail && styles.actionIconWrapLarge]}>
-            {post.bookmarked ? (
-              <AppIcon name="bookmark" size={isDetail ? 'lg' : 'md'} color={colors.bookmark} />
+            {bookmarked ? (
+              <AppIcon name="bookmark" size={iconSize} color={colors.bookmark} />
             ) : (
-              <AppIcon name="bookmark-border" size={isDetail ? 'lg' : 'md'} color={colors.textSecondary} />
+              <AppIcon name="bookmark-border" size={iconSize} color={colors.textSecondary} />
             )}
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={handleSharePress}>
           <View style={[styles.actionIconWrap, isDetail && styles.actionIconWrapLarge]}>
-            <AppIcon name="share" size={isDetail ? 'lg' : 'md'} color={colors.textSecondary} />
+            <AppIcon name="share" size={iconSize} color={colors.textSecondary} />
           </View>
         </TouchableOpacity>
       </View>
