@@ -789,6 +789,7 @@ export async function fetchThreadPosts(threadId: string): Promise<any[]> {
 
 export async function toggleLike(postId: string, currentlyLiked: boolean): Promise<boolean> {
   const userId = currentUser()?.uid;
+  console.log('[API toggleLike] postId:', postId, 'currentlyLiked:', currentlyLiked, 'userId:', userId);
   if (!userId) return false;
 
   const likeRef = firestore().collection('post_likes').doc(`${postId}_${userId}`);
@@ -886,6 +887,7 @@ export interface ToggleRepostResult {
 
 export async function toggleRepost(postId: string, currentlyReposted: boolean): Promise<ToggleRepostResult> {
   const userId = currentUser()?.uid;
+  console.log('[API toggleRepost] postId:', postId, 'currentlyReposted:', currentlyReposted, 'userId:', userId);
   if (!userId) return { success: false };
 
   const repostRef = firestore().collection('post_reposts').doc(`${postId}_${userId}`);

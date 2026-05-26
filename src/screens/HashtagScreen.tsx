@@ -19,6 +19,9 @@ import { tsToMillis, parseMediaUrls, Post } from '../lib/api';
 import FeedMedia from '../components/FeedMedia';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 import { AppIcon } from '../components/icons';
+import PostActionsBar from '../components/PostActionsBar';
+import { usePostInteractions } from '../hooks/usePostInteractions';
+import { toggleLike, toggleBookmark, toggleRepost } from '../lib/api';
 
 /* ── Constants ──────────────────────────────────────────────────────────────── */
 
@@ -30,10 +33,19 @@ const PAGE_SIZE = 20;
 function HashtagPostCard({
   post,
   navigation,
+  onLike,
+  onRepost,
+  onBookmark,
+  onComment,
 }: {
   post: Post;
   navigation: any;
+  onLike: (id: string, liked: boolean) => void;
+  onRepost: (id: string, reposted: boolean) => void;
+  onBookmark: (id: string, bookmarked: boolean) => void;
+  onComment: (id: string) => void;
 }) {
+  const interactionId = post.repostOf || post.id;
   const handlePress = () => {
     navigation.navigate('PostDetail' as never, { postId: post.id });
   };
@@ -102,6 +114,16 @@ function HashtagPostCard({
               <FeedMedia uri={post.mediaUrls[0]} />
             </View>
           )}
+          {/* Action bar — shared PostActionsBar component */}
+          <PostActionsBar
+            post={post}
+            interactionId={interactionId}
+            onLike={onLike}
+            onRepost={onRepost}
+            onBookmark={onBookmark}
+            onComment={onComment}
+            navigation={navigation}
+          />
         </View>
       </View>
     </TouchableOpacity>
@@ -119,6 +141,17 @@ export default function HashtagScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Post interactions ──────────────────────────────────────────────────────
+  const { handlers } = usePostInteractions({
+    posts,
+    setPosts,
+    currentUserUid: auth()?.currentUser?.uid || null,
+  });
+
+  const handleComment = (postId: string) => {
+    navigation.navigate('PostDetail' as never, { postId });
+  };
 
   // ── Follow state (persisted in AsyncStorage) ─────────────────────────────
   const [isFollowing, setIsFollowing] = useState(false);
@@ -321,7 +354,7 @@ export default function HashtagScreen() {
         data={posts}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <HashtagPostCard post={item} navigation={navigation} />
+          <HashtagPostCard post={item} navigation={navigation} onLike={handlers.like} onRepost={handlers.repost} onBookmark={handlers.bookmark} onComment={handleComment} />
         )}
         refreshControl={
           <RefreshControl

@@ -26,6 +26,7 @@ import { useAppStore } from '../stores/app';
 import FeedMedia from '../components/FeedMedia';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import { AppIcon } from '../components/icons';
+import PostActionsBar from '../components/PostActionsBar';
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -201,31 +202,6 @@ export default function PostDetailScreen() {
   // For reposts, all interactions target the ORIGINAL post.
   // interactionId is already computed above from currentPost.
 
-  // ── Like (delegates to shared hook) ────────────────────────────────
-  const handleLike = useCallback(async () => {
-    if (!currentPost || !interactionId) return;
-    handlers.like(interactionId, currentPost.liked);
-  }, [currentPost, interactionId, handlers]);
-
-  // ── Bookmark (delegates to shared hook) ────────────────────────────
-  const handleBookmark = useCallback(async () => {
-    if (!currentPost || !interactionId) return;
-    handlers.bookmark(interactionId, currentPost.bookmarked);
-  }, [currentPost, interactionId, handlers]);
-
-  // ── Repost (delegates to shared hook) ──────────────────────────────
-  const handleRepost = useCallback(async () => {
-    if (!currentPost || !interactionId) return;
-    handlers.repost(interactionId, currentPost.reposted);
-  }, [currentPost, interactionId, handlers]);
-
-  // ── Share ───────────────────────────────────────────────────────────────
-  const handleShare = useCallback(async () => {
-    try {
-      await Share.share({ message: 'Check out this post on Black94!' });
-    } catch {}
-  }, []);
-
   // ── Navigate to comments ────────────────────────────────────────────────
   const handleComment = useCallback(() => {
     if (!post) return;
@@ -379,67 +355,24 @@ export default function PostDetailScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Action buttons */}
-        <View style={styles.actions}>
-          {/* Comment */}
-          <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
-            <View style={styles.actionIconWrap}>
-              <AppIcon name="chat-bubble-outline" size="md" color={colors.textMuted} />
-            </View>
-            {formatCount(post.commentCount) ? (
-              <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
-            ) : null}
-          </TouchableOpacity>
-
-          {/* Repost */}
-          <TouchableOpacity style={styles.actionBtn} onPress={handleRepost}>
-            <View style={styles.actionIconWrap}>
-              <AppIcon name="repeat" size="md" color={currentPost?.reposted ? colors.repost : colors.textMuted} />
-            </View>
-            {formatCount(currentPost?.repostCount) ? (
-              <Text style={[styles.actionCount, currentPost?.reposted && { color: colors.repost }]}>
-                {formatCount(currentPost?.repostCount)}
-              </Text>
-            ) : null}
-          </TouchableOpacity>
-
-          {/* Like */}
-          <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-            <View style={styles.actionIconWrap}>
-              <AppIcon name={currentPost?.liked ? 'favorite' : 'favorite-border'} size="md" color={currentPost?.liked ? colors.like : colors.textMuted} />
-            </View>
-            {formatCount(currentPost?.likeCount) ? (
-              <Text style={[styles.actionCount, currentPost?.liked && { color: colors.like }]}>
-                {formatCount(currentPost?.likeCount)}
-              </Text>
-            ) : null}
-          </TouchableOpacity>
-
-          {/* Views */}
-          <TouchableOpacity style={styles.actionBtn} disabled>
-            <View style={styles.actionIconWrap}>
-              <AppIcon name="trending-up" size="md" color={colors.textMuted} />
-            </View>
-          </TouchableOpacity>
-
-          {/* Bookmark + Share */}
-          <View style={styles.actionPair}>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
-              <View style={styles.actionIconWrap}>
-                <AppIcon
-                  name={currentPost?.bookmarked ? 'bookmark' : 'bookmark-border'}
-                  size="md"
-                  color={currentPost?.bookmarked ? colors.bookmark : colors.textMuted}
-                />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-              <View style={styles.actionIconWrap}>
-                <AppIcon name="share" size="md" color={colors.textMuted} />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Action buttons — shared PostActionsBar component */}
+        {currentPost && (
+          <PostActionsBar
+            post={currentPost}
+            interactionId={interactionId || currentPost.id}
+            onLike={(id, liked) => handlers.like(id, liked)}
+            onRepost={(id, reposted) => handlers.repost(id, reposted)}
+            onBookmark={(id, bookmarked) => handlers.bookmark(id, bookmarked)}
+            onComment={(id) => navigation.navigate('PostComments' as never, {
+              postId: id,
+              postCaption: post?.caption,
+              postAuthorUsername: post?.authorUsername,
+              postAuthorDisplayName: post?.authorDisplayName,
+            })}
+            navigation={navigation}
+            variant="detail"
+          />
+        )}
 
         {/* Stats bar */}
         <View style={styles.statsBar}>

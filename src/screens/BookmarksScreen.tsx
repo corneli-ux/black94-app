@@ -13,6 +13,7 @@ import CommentSheet from '../components/CommentSheet';
 import FeedMedia from '../components/FeedMedia';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 import { AppIcon, RepostIcon } from '../components/icons';
+import PostActionsBar from '../components/PostActionsBar';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -233,7 +234,7 @@ function FullPostCard({ post, navigation, onLike, onRepost, onUnbookmark, onComm
     }
   };
 
-  const handleShare = async () => { try { await Share.share({ message: 'Check out this post on Black94!' }); } catch {} };
+  // handleShare is now handled by PostActionsBar component
 
   return (
     <View style={styles.postCard}>
@@ -267,31 +268,16 @@ function FullPostCard({ post, navigation, onLike, onRepost, onUnbookmark, onComm
               onRefreshUrl={() => handleMediaError(post.mediaUrls[0])}
             />
           )}
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => onComment(interactionId)}>
-              <View style={styles.actionIconWrap}><AppIcon name="chat-bubble-outline" size="md" color={colors.textMuted} /></View>
-              {formatCount(post.commentCount) ? <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => onRepost(interactionId, post.reposted)}>
-              <View style={styles.actionIconWrap}><AppIcon name="repeat" size="md" color={post.reposted ? colors.accentGreen : colors.textMuted} /></View>
-              {formatCount(post.repostCount) ? <Text style={[styles.actionCount, post.reposted && { color: colors.accentGreen }]}>{formatCount(post.repostCount)}</Text> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(interactionId, post.liked)}>
-              <View style={styles.actionIconWrap}><AppIcon name={post.liked ? 'favorite' : 'favorite-border'} size="md" color={post.liked ? colors.like : colors.textMuted} /></View>
-              {formatCount(post.likeCount) ? <Text style={[styles.actionCount, post.liked && { color: colors.like }]}>{formatCount(post.likeCount)}</Text> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} disabled>
-              <View style={styles.actionIconWrap}><AppIcon name="trending-up" size="md" color={colors.textMuted} /></View>
-            </TouchableOpacity>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity style={styles.actionBtn} onPress={handleBookmark}>
-                <View style={styles.actionIconWrap}><AppIcon name={post.bookmarked ? 'bookmark' : 'bookmark-border'} size="md" color={post.bookmarked ? colors.white : colors.textMuted} /></View>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-                <View style={styles.actionIconWrap}><AppIcon name="share" size="md" color={colors.textMuted} /></View>
-              </TouchableOpacity>
-            </View>
-          </View>
+          {/* Action bar — shared PostActionsBar component */}
+          <PostActionsBar
+            post={post}
+            interactionId={interactionId}
+            onLike={onLike}
+            onRepost={onRepost}
+            onBookmark={handleBookmark}
+            onComment={(id) => onComment(id)}
+            navigation={navigation}
+          />
         </View>
       </View>
     </View>

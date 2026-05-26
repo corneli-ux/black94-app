@@ -109,6 +109,7 @@ export function usePostInteractions({
     currentlyLiked: boolean,
   ) => {
     const key = `like_${postId}`;
+    console.log('[usePostInteractions] handleLike called — postId:', postId, 'currentlyLiked:', currentlyLiked, 'inflight:', isInflight(key));
     if (!markInflight(key)) return; // drop double-tap
 
     // Optimistic: toggle liked + count on ALL matching posts
@@ -119,8 +120,10 @@ export function usePostInteractions({
     }), postId);
 
     try {
-      await toggleLike(postId, currentlyLiked);
+      const result = await toggleLike(postId, currentlyLiked);
+      console.log('[usePostInteractions] toggleLike result:', result);
     } catch (e) {
+      console.error('[usePostInteractions] toggleLike error:', e);
       // Revert on error
       updateMatchingPosts(p => ({
         ...p,
@@ -167,6 +170,7 @@ export function usePostInteractions({
     currentlyReposted: boolean,
   ) => {
     const key = `rp_${postId}`;
+    console.log('[usePostInteractions] handleRepost called — postId:', postId, 'currentlyReposted:', currentlyReposted, 'inflight:', isInflight(key));
     if (!markInflight(key)) return;
 
     // Optimistic: toggle reposted + count
@@ -178,6 +182,7 @@ export function usePostInteractions({
 
     try {
       const result: ToggleRepostResult = await toggleRepost(postId, currentlyReposted);
+      console.log('[usePostInteractions] toggleRepost result:', result);
 
       if (!result.success) {
         // API returned failure — revert

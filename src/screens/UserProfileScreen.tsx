@@ -34,6 +34,7 @@ import { timeAgo } from '../utils/timeAgo';
 import FeedMedia from '../components/FeedMedia';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 import { AppIcon, RepostIcon } from '../components/icons';
+import PostActionsBar from '../components/PostActionsBar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -106,40 +107,6 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
     lastTapRef.current = now;
   };
 
-  const handleRepostPress = () => {
-    if (post.reposted) {
-      // Already reposted — undo it (parent handler manages optimistic update)
-      onRepost(interactionId, true);
-      return;
-    }
-    // Show options: Repost or Quote Repost
-    Alert.alert('Repost', 'How would you like to repost?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Repost',
-        onPress: () => { onRepost(interactionId, false); },
-      },
-      {
-        text: 'Quote Repost',
-        onPress: () => {
-          navigation.navigate('CreatePost', {
-            quotePostId: interactionId,
-            quoteAuthor: `@${post.authorUsername || 'user'}`,
-            quoteCaption: (post.caption || '').slice(0, 100),
-          });
-        },
-      },
-    ]);
-  };
-
-  const handleBookmarkPress = () => {
-    onBookmark(interactionId, post.bookmarked);
-  };
-
-  const handleShare = async () => {
-    try { await Share.share({ message: 'Check out this post on Black94!' }); } catch {}
-  };
-
   const isOwnPost = currentUser?.uid === post.authorId;
 
   return (
@@ -199,57 +166,16 @@ const ProfilePostCard = memo(function ProfilePostCard({ post, onLike, onBookmark
               <FeedMedia uri={post.mediaUrls[0]} />
             </TouchableOpacity>
           )}
-          {/* Action bar — exact match to FeedScreen PostCard */}
-          <View style={profileCardStyles.actions}>
-            {/* Comment */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onComment(interactionId, post.caption, post.authorUsername, post.authorDisplayName)}>
-              <View style={profileCardStyles.actionIconWrap}>
-                <AppIcon name="chat-bubble-outline" size="md" color={colors.textSecondary} />
-              </View>
-              {formatCount(post.commentCount) ? <Text style={profileCardStyles.actionCount}>{formatCount(post.commentCount)}</Text> : null}
-            </TouchableOpacity>
-            {/* Repost */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleRepostPress}>
-              <View style={profileCardStyles.actionIconWrap}>
-                <RepostIcon size={18} color={post.reposted ? colors.repost : colors.textSecondary} />
-              </View>
-              {formatCount(post.repostCount) ? <Text style={[profileCardStyles.actionCount, post.reposted && { color: colors.repost }]}>{formatCount(post.repostCount)}</Text> : null}
-            </TouchableOpacity>
-            {/* Like */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => onLike(interactionId, post.liked)}>
-              <View style={profileCardStyles.actionIconWrap}>
-                {post.liked ? (
-                  <AppIcon name="favorite" size="md" color={colors.like} />
-                ) : (
-                  <AppIcon name="favorite-border" size="md" color={colors.textSecondary} />
-                )}
-              </View>
-              {post.likeCount > 0 ? <Text style={[profileCardStyles.actionCount, post.liked && { color: colors.like }]}>{post.likeCount}</Text> : null}
-            </TouchableOpacity>
-            {/* Views */}
-            <TouchableOpacity style={profileCardStyles.actionBtn} disabled>
-              <View style={profileCardStyles.actionIconWrap}>
-                <AppIcon name="trending-up" size="md" color={colors.textSecondary} />
-              </View>
-            </TouchableOpacity>
-            {/* Bookmark + Share */}
-            <View style={profileCardStyles.actionPair}>
-              <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleBookmarkPress}>
-                <View style={profileCardStyles.actionIconWrap}>
-                  {post.bookmarked ? (
-                    <AppIcon name="bookmark" size="md" color={colors.bookmark} />
-                  ) : (
-                    <AppIcon name="bookmark-border" size="md" color={colors.textSecondary} />
-                  )}
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity style={profileCardStyles.actionBtn} onPress={handleShare}>
-                <View style={profileCardStyles.actionIconWrap}>
-                  <AppIcon name="share" size="md" color={colors.textSecondary} />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
+          {/* Action bar — shared PostActionsBar component */}
+          <PostActionsBar
+            post={post}
+            interactionId={interactionId}
+            onLike={onLike}
+            onRepost={onRepost}
+            onBookmark={onBookmark}
+            onComment={(id) => onComment(id, post.caption, post.authorUsername, post.authorDisplayName)}
+            navigation={navigation}
+          />
         </TouchableOpacity>
       </View>
       {/* Double-tap heart overlay */}

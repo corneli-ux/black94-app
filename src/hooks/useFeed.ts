@@ -523,12 +523,16 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   // ── Interaction: Like (optimistic + API call) ─────────────────────────
   const handleLike = async (postId: string, liked: boolean) => {
     const key = `like_${postId}`;
+    console.log('[useFeed handleLike] postId:', postId, 'liked:', liked, 'inflight:', inflight(key));
     if (!inflight(key)) return; // drop double-tap
     // Match both the repost wrapper (p.id) and original post (p.repostOf)
     setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
       ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
       : p));
-    try { await toggleLike(postId, liked); } catch (e) {
+    try { 
+      const result = await toggleLike(postId, liked);
+      console.log('[useFeed handleLike] toggleLike result:', result);
+    } catch (e) {
       // Revert optimistic update on failure — prevents ghost likes
       setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
         ? { ...p, liked, likeCount: p.likeCount + (liked ? 1 : -1) }
@@ -553,6 +557,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   // ── Interaction: Repost (optimistic + API call, including undo logic) ──
   const handleRepost = async (postId: string, reposted: boolean) => {
     const key = `rp_${postId}`;
+    console.log('[useFeed handleRepost] postId:', postId, 'reposted:', reposted, 'inflight:', inflight(key));
     if (!inflight(key)) return; // drop double-tap
     // Optimistic: update repost count on all posts matching this postId
     setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)

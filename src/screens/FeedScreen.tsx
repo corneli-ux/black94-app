@@ -10,6 +10,7 @@ import { votePostPoll, Post, PostPollData, tsToMillis } from '../lib/api';
 import * as ExpoLinking from 'expo-linking';
 import { refreshFirebaseUrl } from '../utils/imageUpload';
 import { AppIcon, RepostIcon } from '../components/icons';
+import PostActionsBar from '../components/PostActionsBar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -350,61 +351,9 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
     lastTapRef.current = now;
   };
 
-  const handleRepostPress = () => {
-    if (post.reposted) {
-      // Already reposted — undo it (hook handles optimistic update)
-      onRepost(interactionId, true);
-      return;
-    }
-    // Show options: Repost or Quote Repost
-    Alert.alert('Repost', 'How would you like to repost?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Repost',
-        onPress: () => {
-          onRepost(interactionId, false);
-        },
-      },
-      {
-        text: 'Quote Repost',
-        onPress: () => {
-          navigation.navigate('CreatePost', {
-            quotePostId: interactionId,
-            quoteAuthor: `@${post.authorUsername || 'user'}`,
-            quoteCaption: (post.caption || '').slice(0, 100),
-          });
-        },
-      },
-    ]);
-  };
+  // handleRepostPress is now handled by PostActionsBar component
 
-  const handleShare = async () => {
-    const author = `@${post.authorUsername || 'user'}`;
-    const caption = post.caption ? `\n\n"${post.caption.slice(0, 120)}${post.caption.length > 120 ? '...' : ''}"` : '';
-    // Generate a proper deep link URL using expo-linking
-    const deepLink = ExpoLinking.createURL('post', { postId: interactionId });
-    const webUrl = `https://black94.app/post/${interactionId}`;
-    Alert.alert('Share', '', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Copy Link',
-        onPress: async () => {
-          try {
-            await Share.share({
-              message: `${author} posted on Black94${caption}\n\n${webUrl}`,
-              url: deepLink,
-            });
-          } catch {}
-        },
-      },
-      {
-        text: 'Send via DM',
-        onPress: () => {
-          navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages', params: { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername } } });
-        },
-      },
-    ]);
-  };
+  // handleShare is now handled by PostActionsBar component
 
   return (
     <View style={styles.postCard}>
@@ -606,86 +555,33 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
             </TouchableOpacity>
           )}
 
-          {/* Action bar */}
-          <View style={styles.actions}>
-            {/* Comment */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: interactionId, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}>
-              <View style={styles.actionIconWrap}>
-                <AppIcon name="chat-bubble-outline" size="md" color={colors.textSecondary} />
-              </View>
-              {formatCount(post.commentCount) ? (
-                <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Repost */}
-            <TouchableOpacity style={styles.actionBtn} onPress={handleRepostPress}>
-              <View style={styles.actionIconWrap}>
-                <RepostIcon
-                  size={18}
-                  color={post.reposted ? colors.repost : colors.textSecondary}
-                />
-              </View>
-              {formatCount(post.repostCount) ? (
-                <Text style={[styles.actionCount, post.reposted && { color: colors.repost }]}>
-                  {formatCount(post.repostCount)}
-                </Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Like */}
-            <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(interactionId, post.liked)}>
-              <View style={styles.actionIconWrap}>
-                {post.liked ? (
-                  <AppIcon name="favorite" size="md" color={colors.like} />
-                ) : (
-                  <AppIcon name="favorite-border" size="md" color={colors.textSecondary} />
-                )}
-              </View>
-              {formatCount(post.likeCount) ? (
-                <Text style={[styles.actionCount, post.liked && { color: colors.like }]}>
-                  {formatCount(post.likeCount)}
-                </Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Views */}
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={async () => {
-                // Increment view count in Firestore and update local state
-                firestore().collection('posts').doc(interactionId).update({
-                  viewCount: firestore.FieldValue.increment(1),
-                }).catch(() => {});
-              }}
-            >
-              <View style={styles.actionIconWrap}>
-                <AppIcon name="trending-up" size="md" color={colors.textSecondary} />
-              </View>
-              {formatCount(post.viewCount) ? (
-                <Text style={styles.actionCount}>{formatCount(post.viewCount)}</Text>
-              ) : null}
-            </TouchableOpacity>
-
-            {/* Bookmark + Share */}
-            <View style={styles.actionPair}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => onBookmark(interactionId, post.bookmarked)}>
-                <View style={styles.actionIconWrap}>
-                  {post.bookmarked ? (
-                    <AppIcon name="bookmark" size="md" color={colors.bookmark} />
-                  ) : (
-                    <AppIcon name="bookmark-border" size="md" color={colors.textSecondary} />
-                  )}
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-                <View style={styles.actionIconWrap}>
-                  <AppIcon name="share" size="md" color={colors.textSecondary} />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
+          {/* Action bar — shared PostActionsBar component */}
+          <PostActionsBar
+            post={post}
+            interactionId={interactionId}
+            onLike={onLike}
+            onRepost={onRepost}
+            onBookmark={onBookmark}
+            onComment={(id) => navigation.navigate('PostComments', { postId: id, postCaption: post.caption, postAuthorUsername: post.authorUsername, postAuthorDisplayName: post.authorDisplayName })}
+            onShare={async () => {
+              const webUrl = `https://black94.app/post/${interactionId}`;
+              const deepLink = ExpoLinking.createURL('post', { postId: interactionId });
+              const author = `@${post.authorUsername || 'user'}`;
+              const caption = post.caption ? `\n\n"${post.caption.slice(0, 120)}${post.caption.length > 120 ? '...' : ''}"` : '';
+              Alert.alert('Share', '', [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Copy Link',
+                  onPress: async () => { try { await Share.share({ message: `${author} posted on Black94${caption}\n\n${webUrl}`, url: deepLink }); } catch {} },
+                },
+                {
+                  text: 'Send via DM',
+                  onPress: () => { navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages', params: { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername } } }); },
+                },
+              ]);
+            }}
+            navigation={navigation}
+          />
         </TouchableOpacity>
       </View>
     </View>
