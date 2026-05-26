@@ -168,7 +168,7 @@ const PostActionsBar = React.memo(function PostActionsBar({
     } finally {
       likingRef.current = false;
       // Notify parent for cross-component sync
-      try { onLike?.(targetId, wasLiked); } catch {}
+      // onLike callback removed — PostActionsBar handles all API calls
     }
   }, [liked, interactionId, post.id, onLike]);
 
@@ -241,7 +241,7 @@ const PostActionsBar = React.memo(function PostActionsBar({
       setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
     } finally {
       repostingRef.current = false;
-      try { onRepost?.(targetId, wasReposted); } catch {}
+      // onRepost callback removed — PostActionsBar handles all API calls
     }
   }, [onRepost]);
 
@@ -276,7 +276,7 @@ const PostActionsBar = React.memo(function PostActionsBar({
       setBookmarked(wasBookmarked);
     } finally {
       bookmarkingRef.current = false;
-      try { onBookmark?.(targetId, wasBookmarked); } catch {}
+      // onBookmark callback removed — PostActionsBar handles all API calls
     }
   }, [bookmarked, interactionId, post.id, onBookmark]);
 
