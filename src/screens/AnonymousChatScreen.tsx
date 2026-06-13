@@ -35,9 +35,11 @@ import { useNavigation } from '@react-navigation/native';
 import { firestore, auth } from '../lib/firebase';
 import { encryptMessage, decryptMessage, initE2EE } from '../lib/e2ee';
 import { colors } from '../theme/colors';
+import { tokens } from '../theme/tokens';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '../stores/app';
 import { AppIcon } from '../components/icons';
+import { Button, Card } from '../components/ui';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -69,25 +71,16 @@ interface RoomData {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const QUEUE_POLL_INTERVAL = 2000;   // 2 seconds
-const MSG_POLL_INTERVAL = 1500;      // 1.5 seconds
-const TYPING_POLL_INTERVAL = 3000;   // 3 seconds
-const QUEUE_TTL_SECONDS = 60;        // Queue entries expire after 60s
-const NO_ONE_ONLINE_TIMEOUT = 30;    // Show "no one online" after 30s of searching
+const QUEUE_POLL_INTERVAL = 2000;
+const MSG_POLL_INTERVAL = 1500;
+const TYPING_POLL_INTERVAL = 3000;
+const QUEUE_TTL_SECONDS = 60;
+const NO_ONE_ONLINE_TIMEOUT = 30;
 
-// Graceful message shown when Firestore rules block anon chat operations.
 const ANON_CHAT_UNAVAILABLE_MSG = 'Could not connect to matching server. Please try again in a moment.';
 
-const ADJECTIVES = [
-  'Shadow', 'Mystic', 'Cosmic', 'Neon', 'Phantom',
-  'Blaze', 'Frost', 'Storm', 'Pixel', 'Ember',
-  'Drift', 'Haze', 'Nova', 'Cryptic', 'Silent',
-];
-const NOUNS = [
-  'Wolf', 'Fox', 'Eagle', 'Lynx', 'Raven',
-  'Hawk', 'Panther', 'Cobra', 'Tiger', 'Phoenix',
-  'Orca', 'Viper', 'Ghost', 'Sage', 'Flux',
-];
+const ADJECTIVES = ['Shadow', 'Mystic', 'Cosmic', 'Neon', 'Phantom', 'Blaze', 'Frost', 'Storm', 'Pixel', 'Ember', 'Drift', 'Haze', 'Nova', 'Cryptic', 'Silent'];
+const NOUNS = ['Wolf', 'Fox', 'Eagle', 'Lynx', 'Raven', 'Hawk', 'Panther', 'Cobra', 'Tiger', 'Phoenix', 'Orca', 'Viper', 'Ghost', 'Sage', 'Flux'];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -98,7 +91,6 @@ function generateAnonymousName(): string {
   return `${adj}_${noun}${num}`;
 }
 
-/** Deterministic room ID from two sorted user IDs */
 function buildRoomId(uid1: string, uid2: string): string {
   const sorted = [uid1, uid2].sort();
   return `${sorted[0]}_${sorted[1]}`;
@@ -111,22 +103,14 @@ function formatDuration(seconds: number): string {
 }
 
 function isStale(createdAt: string, maxAgeMs: number): boolean {
-  try {
-    const created = new Date(createdAt).getTime();
-    return Date.now() - created > maxAgeMs;
-  } catch {
-    return true;
-  }
+  try { return Date.now() - new Date(createdAt).getTime() > maxAgeMs; } catch { return true; }
 }
 
-function nowISO(): string {
-  return new Date().toISOString();
-}
+function nowISO(): string { return new Date().toISOString(); }
 
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function AnonymousChatScreen() {
-  // ── State ────────────────────────────────────────────────────────────────
   const [chatState, setChatState] = useState<ChatState>('landing');
   const [messages, setMessages] = useState<AnonMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -138,7 +122,6 @@ export default function AnonymousChatScreen() {
   const [error, setError] = useState<string | null>(null);
   const [anonChatCount, setAnonChatCount] = useState<number | null>(null);
 
-  // ── Refs ─────────────────────────────────────────────────────────────────
   const myUserId = auth().currentUser?.uid ?? '';
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -152,720 +135,299 @@ export default function AnonymousChatScreen() {
   const lastMsgTimestampRef = useRef<string | null>(null);
   const roomRef = useRef<RoomData | null>(null);
 
-  // ── Initialize E2EE on mount ──
-  useEffect(() => {
-    if (myUserId) {
-      initE2EE(myUserId).catch(() => {});
-    }
-  }, [myUserId]);
+  useEffect(() => { if (myUserId) initE2EE(myUserId).catch(() => {}); }, [myUserId]);
 
-  // ── Store & Navigation ────────────────────────────────────────────────────
   const { user } = useAppStore();
   const navigation = useNavigation();
 
-  // Keep roomRef in sync
-  useEffect(() => {
-    roomRef.current = room;
-  }, [room]);
+  useEffect(() => { roomRef.current = room; }, [room]);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
-  // Track mounted state
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  // ── Fetch anon_chat_count from Firestore ─────────────────────────────────
   useEffect(() => {
     if (!myUserId) return;
-    const fetchCount = async () => {
-      try {
-        const doc = await firestore().collection('users').doc(myUserId).get();
-        if (doc.exists) {
-          setAnonChatCount(doc.data()?.anon_chat_count ?? 0);
-        } else {
-          setAnonChatCount(0);
-        }
-      } catch {
-        setAnonChatCount(0);
-      }
-    };
-    fetchCount();
+    firestore().collection('users').doc(myUserId).get()
+      .then(doc => setAnonChatCount(doc.exists ? (doc.data()?.anon_chat_count ?? 0) : 0))
+      .catch(() => setAnonChatCount(0));
   }, [myUserId]);
 
-  // ── Timer management ─────────────────────────────────────────────────────
   const startConnectionTimer = useCallback(() => {
-    stopConnectionTimer();
-    timerRef.current = setInterval(() => {
-      if (mountedRef.current) setElapsed(prev => prev + 1);
-    }, 1000);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    timerRef.current = setInterval(() => { if (mountedRef.current) setElapsed(prev => prev + 1); }, 1000);
   }, []);
 
   const stopConnectionTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  }, []);
+
+  const stopSearchTimer = useCallback(() => {
+    if (searchTimerRef.current) { clearInterval(searchTimerRef.current); searchTimerRef.current = null; }
   }, []);
 
   const startSearchTimer = useCallback(() => {
     stopSearchTimer();
     searchTimerRef.current = setInterval(() => {
-      if (mountedRef.current) {
-        setSearchElapsed(prev => {
-          const next = prev + 1;
-          // After NO_ONE_ONLINE_TIMEOUT seconds, show friendly message
-          if (next === NO_ONE_ONLINE_TIMEOUT) {
-            setError('No one is online right now. Keep waiting or try again later.');
-          }
-          return next;
-        });
-      }
+      if (mountedRef.current) setSearchElapsed(prev => {
+        const next = prev + 1;
+        if (next === NO_ONE_ONLINE_TIMEOUT) setError('No one is online right now. Keep waiting or try again later.');
+        return next;
+      });
     }, 1000);
-  }, []);
+  }, [stopSearchTimer]);
 
-  const stopSearchTimer = useCallback(() => {
-    if (searchTimerRef.current) {
-      clearInterval(searchTimerRef.current);
-      searchTimerRef.current = null;
-    }
-  }, []);
-
-  // ── Poll cleanup ─────────────────────────────────────────────────────────
   const stopAllPolling = useCallback(() => {
-    if (queuePollRef.current) {
-      clearInterval(queuePollRef.current);
-      queuePollRef.current = null;
-    }
-    if (msgPollRef.current) {
-      clearInterval(msgPollRef.current);
-      msgPollRef.current = null;
-    }
-    if (typingPollRef.current) {
-      clearInterval(typingPollRef.current);
-      typingPollRef.current = null;
-    }
-    if (typingDebounceRef.current) {
-      clearTimeout(typingDebounceRef.current);
-      typingDebounceRef.current = null;
-    }
+    [queuePollRef, msgPollRef, typingPollRef].forEach(ref => { if (ref.current) { clearInterval(ref.current); ref.current = null; } });
+    if (typingDebounceRef.current) { clearTimeout(typingDebounceRef.current); typingDebounceRef.current = null; }
   }, []);
 
-  // ── Firestore: delete own queue entry ────────────────────────────────────
   const deleteOwnQueueEntry = useCallback(async () => {
     if (!myUserId) return;
-    try {
-      await firestore().collection('anonQueue').doc(myUserId).delete();
-    } catch (e: any) {
-      if (__DEV__) console.warn('[AnonChat] Failed to delete queue entry:', e?.message);
-    }
+    try { await firestore().collection('anonQueue').doc(myUserId).delete(); }
+    catch (e: any) { if (__DEV__) console.warn('[AnonChat] Failed to delete queue entry:', e?.message); }
   }, [myUserId]);
 
-  // ── Firestore: update room's lastActivity ────────────────────────────────
   const updateRoomActivity = useCallback(async (roomId: string) => {
-    try {
-      await firestore().collection('anonRooms').doc(roomId).update({
-        lastActivity: nowISO(),
-      });
-    } catch (e: any) {
-      if (__DEV__) console.warn('[AnonChat] Failed to update room activity:', e?.message);
-    }
+    try { await firestore().collection('anonRooms').doc(roomId).update({ lastActivity: nowISO() }); }
+    catch (e: any) { if (__DEV__) console.warn('[AnonChat] Failed to update room activity:', e?.message); }
   }, []);
 
-  // ── Firestore: increment anon_chat_count ────────────────────────────────
   const incrementAnonChatCount = useCallback(async () => {
     if (!myUserId) return;
     try {
-      await firestore().collection('users').doc(myUserId).update({
-        anon_chat_count: firestore.FieldValue.increment(1),
-      });
+      await firestore().collection('users').doc(myUserId).update({ anon_chat_count: firestore.FieldValue.increment(1) });
       setAnonChatCount(prev => (prev ?? 0) + 1);
-    } catch (e: any) {
-      if (__DEV__) console.warn('[AnonChat] Failed to increment chat count:', e?.message);
-    }
+    } catch (e: any) { if (__DEV__) console.warn('[AnonChat] Failed to increment chat count:', e?.message); }
   }, [myUserId]);
 
-  // ── Firestore: set partner typing state ──────────────────────────────────
   const setMyTypingState = useCallback(async (roomId: string, typing: boolean) => {
     try {
       const currentRoom = roomRef.current;
       if (!currentRoom) return;
-      // Determine which typing field is ours
       const updateData: Record<string, any> = {};
-      if (currentRoom.partnerId === myUserId) {
-        updateData.user2Typing = typing;
-      } else {
-        updateData.user1Typing = typing;
-      }
+      if (currentRoom.partnerId === myUserId) updateData.user2Typing = typing;
+      else updateData.user1Typing = typing;
       await firestore().collection('anonRooms').doc(roomId).update(updateData);
-    } catch (e: any) {
-      if (__DEV__) console.warn('[AnonChat] Failed to update typing state:', e?.message);
-    }
+    } catch (e: any) { if (__DEV__) console.warn('[AnonChat] Failed to update typing state:', e?.message); }
   }, [myUserId]);
 
-  // ── Poll: check queue for match (also detect if someone matched us) ──────
-  const pollQueue = useCallback(async () => {
-    if (!myUserId || !mountedRef.current) return;
-
-    try {
-      const db = firestore();
-
-      // First: check if we've been matched by someone else
-      const myQueueDoc = await db.collection('anonQueue').doc(myUserId).get();
-      if (myQueueDoc.exists) {
-        const myData = myQueueDoc.data();
-        if (myData?.status === 'matched' && myData?.partnerId) {
-          // Someone matched with us!
-          const partnerId = myData.partnerId;
-          const roomId = buildRoomId(myUserId, partnerId);
-
-          // Get the room to find partner's name
-          const roomDoc = await db.collection('anonRooms').doc(roomId).get();
-          let partnerName = 'Stranger';
-          if (roomDoc.exists) {
-            const roomData = roomDoc.data();
-            partnerName =
-              roomData?.user1Id === myUserId
-                ? roomData?.user2Name || 'Stranger'
-                : roomData?.user1Name || 'Stranger';
-          }
-
-          // Clean up queue entry
-          await deleteOwnQueueEntry();
-
-          // Stop queue polling
-          if (queuePollRef.current) {
-            clearInterval(queuePollRef.current);
-            queuePollRef.current = null;
-          }
-          stopSearchTimer();
-
-          const newRoom: RoomData = {
-            roomId,
-            partnerId,
-            partnerName,
-            myName,
-            createdAt: roomDoc.exists ? (roomDoc.data()?.createdAt || nowISO()) : nowISO(),
-          };
-
-          if (mountedRef.current) {
-            setRoom(newRoom);
-            roomRef.current = newRoom;
-            setMessages([]);
-            lastMsgTimestampRef.current = null;
-            setChatState('connected');
-            setElapsed(0);
-            startConnectionTimer();
-            startMessagePolling(newRoom.roomId);
-            startTypingPolling(newRoom.roomId);
-            incrementAnonChatCount();
-          }
-          return;
-        }
-      }
-
-      // Second: look for other waiting users to match with
-      const snapshot = await db
-        .collection('anonQueue')
-        .where('status', '==', 'waiting')
-        .get();
-
-      if (!snapshot.empty) {
-        const candidates = snapshot.docs.filter(doc => {
-          const data = doc.data();
-          return (
-            doc.id !== myUserId &&
-            data.status === 'waiting' &&
-            !isStale(data.createdAt, QUEUE_TTL_SECONDS * 1000)
-          );
-        });
-
-        if (candidates.length > 0) {
-          // Pick the oldest candidate
-          const partner = candidates.reduce((oldest, current) => {
-            const oData = oldest.data();
-            const cData = current.data();
-            return (oData.createdAt || '') < (cData.createdAt || '') ? oldest : current;
-          });
-
-          const partnerData = partner.data();
-          const partnerId = partner.id;
-          const partnerName = partnerData.anonymousName || 'Stranger';
-          const roomId = buildRoomId(myUserId, partnerId);
-
-          // Create the room
-          await db.collection('anonRooms').doc(roomId).set({
-            user1Id: myUserId,
-            user2Id: partnerId,
-            user1Name: myName,
-            user2Name: partnerName,
-            createdAt: nowISO(),
-            lastActivity: nowISO(),
-            user1Typing: false,
-            user2Typing: false,
-          });
-
-          // Mark partner as matched
-          try {
-            await db.collection('anonQueue').doc(partnerId).update({
-              status: 'matched',
-              partnerId: myUserId,
-            });
-          } catch (e: any) {
-            if (__DEV__) console.warn('[AnonChat] Failed to mark partner as matched:', e?.message);
-          }
-
-          // Mark ourselves as matched
-          try {
-            await db.collection('anonQueue').doc(myUserId).update({
-              status: 'matched',
-              partnerId,
-            });
-          } catch (e: any) {
-            if (__DEV__) console.warn('[AnonChat] Failed to mark self as matched:', e?.message);
-          }
-
-          // Clean up our own queue entry after matching
-          await deleteOwnQueueEntry();
-
-          // Stop queue polling
-          if (queuePollRef.current) {
-            clearInterval(queuePollRef.current);
-            queuePollRef.current = null;
-          }
-          stopSearchTimer();
-
-          const newRoom: RoomData = {
-            roomId,
-            partnerId,
-            partnerName,
-            myName,
-            createdAt: nowISO(),
-          };
-
-          if (mountedRef.current) {
-            setRoom(newRoom);
-            roomRef.current = newRoom;
-            setMessages([]);
-            lastMsgTimestampRef.current = null;
-            setChatState('connected');
-            setElapsed(0);
-            startConnectionTimer();
-            startMessagePolling(newRoom.roomId);
-            startTypingPolling(newRoom.roomId);
-            incrementAnonChatCount();
-          }
-        }
-      }
-    } catch (e: any) {
-      if (__DEV__) console.warn('[AnonChat] Queue poll error:', e?.message);
-    }
-  }, [myUserId, myName, deleteOwnQueueEntry, stopSearchTimer, startConnectionTimer, incrementAnonChatCount]);
-
-  // ── Start message polling ────────────────────────────────────────────────
   const startMessagePolling = useCallback((roomId: string) => {
-    // Clear existing
-    if (msgPollRef.current) {
-      clearInterval(msgPollRef.current);
-      msgPollRef.current = null;
-    }
-
+    if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; }
     const poll = async () => {
       if (!mountedRef.current) return;
-
       try {
-        const snapshot = await firestore()
-          .collection('anonMessages')
-          .where('roomId', '==', roomId)
-          .orderBy('createdAt', 'asc')
-          .limit(100)
-          .get();
-
+        const snapshot = await firestore().collection('anonMessages').where('roomId', '==', roomId).orderBy('createdAt', 'asc').limit(100).get();
         if (!snapshot.empty && mountedRef.current) {
-          // Decrypt all messages in parallel
           const newMessages: AnonMessage[] = await Promise.all(
             snapshot.docs.map(async doc => {
               const data = doc.data();
               const rawContent = data.content || '';
               const senderId = data.senderId || '';
-
-              // Attempt E2E decryption; null = tampered → placeholder, NEVER raw ciphertext
               let content: string;
               try {
                 const decrypted = await decryptMessage(rawContent, senderId);
                 content = decrypted ?? '[Unable to decrypt this message]';
               } catch {
-                content = rawContent.startsWith('E2EE:')
-                  ? '[Unable to decrypt this message]'
-                  : rawContent;
+                content = rawContent.startsWith('E2EE:') ? '[Unable to decrypt this message]' : rawContent;
               }
-
-              return {
-                id: doc.id,
-                content,
-                senderId,
-                senderName: data.senderName || 'Stranger',
-                createdAt: data.createdAt || '',
-              };
+              return { id: doc.id, content, senderId, senderName: data.senderName || 'Stranger', createdAt: data.createdAt || '' };
             }),
           );
-
           setMessages(prev => {
-            // Merge: keep existing, add new ones
             const existingIds = new Set(prev.map(m => m.id));
             const trulyNew = newMessages.filter(m => !existingIds.has(m.id));
             if (trulyNew.length === 0) return prev;
             return [...prev, ...trulyNew];
           });
-
-          // Update last seen timestamp
           const latestTimestamp = newMessages[newMessages.length - 1]?.createdAt;
-          if (latestTimestamp) {
-            lastMsgTimestampRef.current = latestTimestamp;
-          }
-
-          // Auto-scroll to bottom
-          setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
+          if (latestTimestamp) lastMsgTimestampRef.current = latestTimestamp;
+          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         }
-      } catch (e: any) {
-        if (__DEV__) console.warn('[AnonChat] Message poll error:', e?.message);
-      }
+      } catch (e: any) { if (__DEV__) console.warn('[AnonChat] Message poll error:', e?.message); }
     };
-
-    // Immediate fetch, then poll
     poll();
     msgPollRef.current = setInterval(poll, MSG_POLL_INTERVAL);
   }, []);
 
-  // ── Start typing indicator polling ───────────────────────────────────────
   const startTypingPolling = useCallback((roomId: string) => {
-    if (typingPollRef.current) {
-      clearInterval(typingPollRef.current);
-      typingPollRef.current = null;
-    }
-
+    if (typingPollRef.current) { clearInterval(typingPollRef.current); typingPollRef.current = null; }
     const poll = async () => {
       if (!mountedRef.current) return;
-
       try {
         const doc = await firestore().collection('anonRooms').doc(roomId).get();
         if (doc.exists) {
           const data = doc.data();
           const currentRoom = roomRef.current;
           if (!currentRoom) return;
-
-          // The partner's typing field is the opposite of ours
-          let partnerTyping = false;
-          if (currentRoom.partnerId === myUserId) {
-            partnerTyping = data?.user1Typing === true;
-          } else {
-            partnerTyping = data?.user2Typing === true;
-          }
-
-          if (mountedRef.current) {
-            setIsPartnerTyping(partnerTyping);
-          }
+          const partnerTyping = currentRoom.partnerId === myUserId ? data?.user1Typing === true : data?.user2Typing === true;
+          if (mountedRef.current) setIsPartnerTyping(partnerTyping);
         }
-      } catch (e: any) {
-        if (__DEV__) console.warn('[AnonChat] Typing poll error:', e?.message);
-      }
+      } catch (e: any) { if (__DEV__) console.warn('[AnonChat] Typing poll error:', e?.message); }
     };
-
     typingPollRef.current = setInterval(poll, TYPING_POLL_INTERVAL);
   }, [myUserId]);
 
-  // ── Full cleanup (disconnect / unmount) ──────────────────────────────────
+  const pollQueue = useCallback(async () => {
+    if (!myUserId || !mountedRef.current) return;
+    try {
+      const db = firestore();
+      const myQueueDoc = await db.collection('anonQueue').doc(myUserId).get();
+      if (myQueueDoc.exists) {
+        const myData = myQueueDoc.data();
+        if (myData?.status === 'matched' && myData?.partnerId) {
+          const partnerId = myData.partnerId;
+          const roomId = buildRoomId(myUserId, partnerId);
+          const roomDoc = await db.collection('anonRooms').doc(roomId).get();
+          let partnerName = 'Stranger';
+          if (roomDoc.exists) {
+            const roomData = roomDoc.data();
+            partnerName = roomData?.user1Id === myUserId ? roomData?.user2Name || 'Stranger' : roomData?.user1Name || 'Stranger';
+          }
+          await deleteOwnQueueEntry();
+          if (queuePollRef.current) { clearInterval(queuePollRef.current); queuePollRef.current = null; }
+          stopSearchTimer();
+          const newRoom: RoomData = { roomId, partnerId, partnerName, myName, createdAt: roomDoc.exists ? (roomDoc.data()?.createdAt || nowISO()) : nowISO() };
+          if (mountedRef.current) {
+            setRoom(newRoom); roomRef.current = newRoom;
+            setMessages([]); lastMsgTimestampRef.current = null;
+            setChatState('connected'); setElapsed(0);
+            startConnectionTimer(); startMessagePolling(newRoom.roomId); startTypingPolling(newRoom.roomId); incrementAnonChatCount();
+          }
+          return;
+        }
+      }
+      const snapshot = await db.collection('anonQueue').where('status', '==', 'waiting').get();
+      if (!snapshot.empty) {
+        const candidates = snapshot.docs.filter(doc => doc.id !== myUserId && doc.data().status === 'waiting' && !isStale(doc.data().createdAt, QUEUE_TTL_SECONDS * 1000));
+        if (candidates.length > 0) {
+          const partner = candidates.reduce((oldest, current) => (oldest.data().createdAt || '') < (current.data().createdAt || '') ? oldest : current);
+          const partnerData = partner.data();
+          const partnerId = partner.id;
+          const partnerName = partnerData.anonymousName || 'Stranger';
+          const roomId = buildRoomId(myUserId, partnerId);
+          await db.collection('anonRooms').doc(roomId).set({ user1Id: myUserId, user2Id: partnerId, user1Name: myName, user2Name: partnerName, createdAt: nowISO(), lastActivity: nowISO(), user1Typing: false, user2Typing: false });
+          try { await db.collection('anonQueue').doc(partnerId).update({ status: 'matched', partnerId: myUserId }); } catch (e: any) { if (__DEV__) console.warn('[AnonChat] Failed to mark partner as matched:', e?.message); }
+          try { await db.collection('anonQueue').doc(myUserId).update({ status: 'matched', partnerId }); } catch (e: any) { if (__DEV__) console.warn('[AnonChat] Failed to mark self as matched:', e?.message); }
+          await deleteOwnQueueEntry();
+          if (queuePollRef.current) { clearInterval(queuePollRef.current); queuePollRef.current = null; }
+          stopSearchTimer();
+          const newRoom: RoomData = { roomId, partnerId, partnerName, myName, createdAt: nowISO() };
+          if (mountedRef.current) {
+            setRoom(newRoom); roomRef.current = newRoom;
+            setMessages([]); lastMsgTimestampRef.current = null;
+            setChatState('connected'); setElapsed(0);
+            startConnectionTimer(); startMessagePolling(newRoom.roomId); startTypingPolling(newRoom.roomId); incrementAnonChatCount();
+          }
+        }
+      }
+    } catch (e: any) { if (__DEV__) console.warn('[AnonChat] Queue poll error:', e?.message); }
+  }, [myUserId, myName, deleteOwnQueueEntry, stopSearchTimer, startConnectionTimer, startMessagePolling, startTypingPolling, incrementAnonChatCount]);
+
   const fullCleanup = useCallback(async () => {
-    stopConnectionTimer();
-    stopSearchTimer();
-    stopAllPolling();
-
-    // Delete queue entry if we're still searching
+    stopConnectionTimer(); stopSearchTimer(); stopAllPolling();
     await deleteOwnQueueEntry();
-
-    // Update room activity if connected
     const currentRoom = roomRef.current;
-    if (currentRoom?.roomId) {
-      await updateRoomActivity(currentRoom.roomId);
-      // Clear our typing state
-      await setMyTypingState(currentRoom.roomId, false);
-    }
-
-    roomRef.current = null;
-    lastMsgTimestampRef.current = null;
+    if (currentRoom?.roomId) { await updateRoomActivity(currentRoom.roomId); await setMyTypingState(currentRoom.roomId, false); }
+    roomRef.current = null; lastMsgTimestampRef.current = null;
   }, [stopConnectionTimer, stopSearchTimer, stopAllPolling, deleteOwnQueueEntry, updateRoomActivity, setMyTypingState]);
 
-  // ── Handle: Find Stranger ────────────────────────────────────────────────
-  const handleFindStranger = useCallback(async () => {
-    if (!myUserId) {
-      setError('You must be signed in to use anonymous chat.');
-      return;
-    }
-
-    // Age verification gate — compliance requirement
-    const ageVerified = await AsyncStorage.getItem('@black94/age_verified');
-    if (ageVerified !== 'true') {
-      Alert.alert(
-        'Age Verification Required',
-        'Anonymous chat is only available for users aged 18 and over. Please confirm your age to continue.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'I am 18 or older',
-            style: 'default',
-            onPress: async () => {
-              await AsyncStorage.setItem('@black94/age_verified', 'true').catch(() => {});
-              // BUG FIX: After age verification, proceed directly to queue join
-              // instead of calling handleFindStranger() recursively (which
-              // could re-trigger this Alert on fast devices).
-              setError(null);
-              setChatState('searching');
-              setMessages([]);
-              setRoom(null);
-              roomRef.current = null;
-              setElapsed(0);
-              setSearchElapsed(0);
-              setIsPartnerTyping(false);
-              lastMsgTimestampRef.current = null;
-              try {
-                await firestore().collection('anonQueue').doc(myUserId).set({
-                  userId: myUserId,
-                  anonymousName: myName,
-                  status: 'waiting',
-                  partnerId: null,
-                  createdAt: nowISO(),
-                });
-                startSearchTimer();
-                if (queuePollRef.current) clearInterval(queuePollRef.current);
-                queuePollRef.current = setInterval(pollQueue, QUEUE_POLL_INTERVAL);
-                pollQueue();
-              } catch (e: any) {
-                console.error('[AnonChat] Failed to join queue:', e?.message);
-                setError(ANON_CHAT_UNAVAILABLE_MSG);
-                setChatState('landing');
-              }
-            },
-          },
-        ],
-      );
-      return;
-    }
-
-    setError(null);
-    setChatState('searching');
-    setMessages([]);
-    setRoom(null);
-    roomRef.current = null;
-    setElapsed(0);
-    setSearchElapsed(0);
-    setIsPartnerTyping(false);
-    lastMsgTimestampRef.current = null;
-
+  const joinQueue = useCallback(async () => {
+    setError(null); setChatState('searching'); setMessages([]); setRoom(null); roomRef.current = null;
+    setElapsed(0); setSearchElapsed(0); setIsPartnerTyping(false); lastMsgTimestampRef.current = null;
     try {
-      // Create our queue entry
-      await firestore().collection('anonQueue').doc(myUserId).set({
-        userId: myUserId,
-        anonymousName: myName,
-        status: 'waiting',
-        partnerId: null,
-        createdAt: nowISO(),
-      });
-
+      await firestore().collection('anonQueue').doc(myUserId).set({ userId: myUserId, anonymousName: myName, status: 'waiting', partnerId: null, createdAt: nowISO() });
       startSearchTimer();
-
-      // Poll for matches every 2 seconds
       if (queuePollRef.current) clearInterval(queuePollRef.current);
       queuePollRef.current = setInterval(pollQueue, QUEUE_POLL_INTERVAL);
-
-      // Also check immediately
       pollQueue();
     } catch (e: any) {
       console.error('[AnonChat] Failed to join queue:', e?.message);
-      // Don't show a scary red error — show a friendly info message.
-      // Most failures are Firestore permission issues (server-side config).
-      setError(ANON_CHAT_UNAVAILABLE_MSG);
-      setChatState('landing');
+      setError(ANON_CHAT_UNAVAILABLE_MSG); setChatState('landing');
     }
   }, [myUserId, myName, pollQueue, startSearchTimer]);
 
-  // ── Handle: Disconnect (return to landing) ──────────────────────────────
+  const handleFindStranger = useCallback(async () => {
+    if (!myUserId) { setError('You must be signed in to use anonymous chat.'); return; }
+    const ageVerified = await AsyncStorage.getItem('@black94/age_verified');
+    if (ageVerified !== 'true') {
+      Alert.alert('Age Verification Required',
+        'Anonymous chat is only available for users aged 18 and over. Please confirm your age to continue.',
+        [{ text: 'Cancel', style: 'cancel' },
+         { text: 'I am 18 or older', style: 'default', onPress: async () => {
+           await AsyncStorage.setItem('@black94/age_verified', 'true').catch(() => {});
+           joinQueue();
+         }}]);
+      return;
+    }
+    joinQueue();
+  }, [myUserId, joinQueue]);
+
   const handleDisconnect = useCallback(async () => {
     await fullCleanup();
-    if (mountedRef.current) {
-      setChatState('landing');
-      setMessages([]);
-      setRoom(null);
-      setElapsed(0);
-      setIsPartnerTyping(false);
-      setError(null);
-    }
+    if (mountedRef.current) { setChatState('landing'); setMessages([]); setRoom(null); setElapsed(0); setIsPartnerTyping(false); setError(null); }
   }, [fullCleanup]);
 
-  // ── Handle: Next Stranger ────────────────────────────────────────────────
   const handleNext = useCallback(async () => {
     await fullCleanup();
-    if (mountedRef.current) {
-      // Reset state and immediately start searching again
-      setMessages([]);
-      setRoom(null);
-      roomRef.current = null;
-      setElapsed(0);
-      setIsPartnerTyping(false);
-      lastMsgTimestampRef.current = null;
-      setError(null);
+    if (mountedRef.current) joinQueue();
+  }, [fullCleanup, joinQueue]);
 
-      // Transition to searching and start looking
-      setChatState('searching');
-
-      try {
-        await firestore().collection('anonQueue').doc(myUserId).set({
-          userId: myUserId,
-          anonymousName: myName,
-          status: 'waiting',
-          partnerId: null,
-          createdAt: nowISO(),
-        });
-
-        startSearchTimer();
-
-        if (queuePollRef.current) clearInterval(queuePollRef.current);
-        queuePollRef.current = setInterval(pollQueue, QUEUE_POLL_INTERVAL);
-        pollQueue();
-      } catch (e: any) {
-        console.error('[AnonChat] Failed to rejoin queue:', e?.message);
-        setError('Something went wrong finding the next stranger. Please try again.');
-        setChatState('landing');
-      }
-    }
-  }, [fullCleanup, myUserId, myName, pollQueue, startSearchTimer]);
-
-  // ── Handle: Send Message ─────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
     if (!text || !room?.roomId || !myUserId) return;
-
     const content = text;
     setInputText('');
-
-    // Clear our typing state
-    if (typingDebounceRef.current) {
-      clearTimeout(typingDebounceRef.current);
-      typingDebounceRef.current = null;
-    }
+    if (typingDebounceRef.current) { clearTimeout(typingDebounceRef.current); typingDebounceRef.current = null; }
     await setMyTypingState(room.roomId, false);
-
     try {
-      // ── E2E Encryption for anonymous chat: NEVER store plaintext ──
       const otherId = room.partnerId;
       let storedContent: string;
       if (otherId) {
         try {
           const encrypted = await encryptMessage(content, myUserId, otherId);
-          if (encrypted) {
-            storedContent = encrypted;
-          } else {
-            storedContent = '[Encryption not ready]';
-          }
-        } catch {
-          storedContent = '[Encryption not ready]';
-        }
+          storedContent = encrypted || '[Encryption not ready]';
+        } catch { storedContent = '[Encryption not ready]'; }
       } else {
-        // No partner ID yet — refuse to send plaintext
-        setError('Encryption not ready. Please wait for partner to connect.');
-        setInputText(content);
-        return;
+        setError('Encryption not ready. Please wait for partner to connect.'); setInputText(content); return;
       }
-
-      await firestore().collection('anonMessages').add({
-        roomId: room.roomId,
-        senderId: myUserId,
-        senderName: myName,
-        content: storedContent,
-        createdAt: nowISO(),
-      });
-
-      // Update room activity
+      await firestore().collection('anonMessages').add({ roomId: room.roomId, senderId: myUserId, senderName: myName, content: storedContent, createdAt: nowISO() });
       await updateRoomActivity(room.roomId);
-      // Message polling will pick up the new message within 1.5s
     } catch (e: any) {
       console.error('[AnonChat] Failed to send message:', e?.message);
-      setError('Could not send message. Please try again.');
-      // Restore input text on failure
-      setInputText(content);
+      setError('Could not send message. Please try again.'); setInputText(content);
     }
   }, [inputText, room, myUserId, myName, setMyTypingState, updateRoomActivity]);
 
-  // ── Handle: input text change (typing indicator) ────────────────────────
   const handleInputChange = useCallback((text: string) => {
     setInputText(text);
-
     if (text.trim() && room?.roomId) {
-      // Set typing
       setMyTypingState(room.roomId, true);
-
-      // Debounce: clear typing after 3 seconds of no input
       if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
-      typingDebounceRef.current = setTimeout(() => {
-        if (room.roomId) setMyTypingState(room.roomId, false);
-      }, 3000);
+      typingDebounceRef.current = setTimeout(() => { if (room.roomId) setMyTypingState(room.roomId, false); }, 3000);
     } else if (!text.trim() && room?.roomId) {
-      // Cleared input — not typing anymore
       if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
       setMyTypingState(room.roomId, false);
     }
   }, [room, setMyTypingState]);
 
-  // ── Pulse animation for search button ────────────────────────────────────
   useEffect(() => {
-    if (chatState !== 'landing') {
-      pulseAnim.stopAnimation();
-      return;
-    }
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0.95,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
+    if (chatState !== 'landing') { pulseAnim.stopAnimation(); return; }
+    const pulse = Animated.loop(Animated.sequence([
+      Animated.timing(pulseAnim, { toValue: 1.05, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(pulseAnim, { toValue: 0.95, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ]));
     pulse.start();
     return () => pulse.stop();
   }, [chatState, pulseAnim]);
 
-  // ── Cleanup on unmount ──────────────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-      fullCleanup();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { return () => { mountedRef.current = false; fullCleanup(); }; /* eslint-disable-next-line */ }, []);
 
-  // ── Derived state ────────────────────────────────────────────────────────
   const strangerName = room?.partnerName || '';
 
-  // ── Render: Message bubble ──────────────────────────────────────────────
   const renderMessage = ({ item }: { item: AnonMessage }) => {
     const isMine = item.senderId === myUserId;
     return (
-      <View
-        style={[styles.msgWrapper, isMine ? styles.msgMine : styles.msgTheirs]}>
-        {!isMine && (
-          <Text style={styles.msgSenderName}>{item.senderName}</Text>
-        )}
-        <Text style={styles.minimalMsgText}>
-          {item.content}
-        </Text>
+      <View style={[styles.msgWrapper, isMine ? styles.msgMine : styles.msgTheirs]}>
+        {!isMine && <Text style={styles.msgSenderName}>{item.senderName}</Text>}
+        <Text style={styles.minimalMsgText}>{item.content}</Text>
       </View>
     );
   };
@@ -875,79 +437,52 @@ export default function AnonymousChatScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.landingContainer}>
-          <View style={styles.landingIcon}>
-            <AppIcon name="visibility-off" size={64} color={colors.accent} />
-          </View>
+          <View style={styles.landingIcon}><AppIcon name="visibility-off" size={64} color={colors.accent} /></View>
           <Text style={styles.landingTitle}>Anonymous Chat</Text>
-          <View style={styles.infoBanner}>
+          <Card style={styles.infoBanner}>
             <AppIcon name="info-outline" size={16} color={colors.textSecondary} />
             <Text style={styles.infoText}>You must be signed in to use anonymous chat.</Text>
-          </View>
+          </Card>
         </View>
       </SafeAreaView>
     );
   }
 
-  // ── Render: Loading chat count ──────────────────────────────────────────
   if (anonChatCount === null) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <View style={styles.landingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
-        </View>
+        <View style={styles.landingContainer}><ActivityIndicator size="large" color={colors.accent} /></View>
       </SafeAreaView>
     );
   }
 
-  // ── Render: Paywall (free users who exceeded 10 free chats) ────────────
   const isSubscribed = user?.subscription === 'premium' || user?.subscription === 'business';
   const canUseAnonChat = isSubscribed || anonChatCount < 10;
 
+  // ── Render: Paywall ─────────────────────────────────────────────────────
   if (!canUseAnonChat) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.paywallContainer}>
-          <View style={styles.paywallIconWrap}>
-            <AppIcon name="visibility-off" size={56} color={colors.accent} />
-          </View>
+          <View style={styles.paywallIconWrap}><AppIcon name="visibility-off" size={56} color={colors.accent} /></View>
           <Text style={styles.paywallTitle}>Free Chats Used</Text>
-          <Text style={styles.paywallSubtitle}>
-            You've used your 10 free anonymous chats. Upgrade to Premium or Business for unlimited anonymous chats.
-          </Text>
-
+          <Text style={styles.paywallSubtitle}>You've used your 10 free anonymous chats. Upgrade to Premium or Business for unlimited anonymous chats.</Text>
           <View style={styles.paywallBenefits}>
-            <View style={styles.paywallBenefitRow}>
-              <AppIcon name="check-circle" size={20} color={colors.accent} />
-              <Text style={styles.paywallBenefitText}>Connect with random people anonymously</Text>
-            </View>
-            <View style={styles.paywallBenefitRow}>
-              <AppIcon name="check-circle" size={20} color={colors.accent} />
-              <Text style={styles.paywallBenefitText}>Your identity is always hidden</Text>
-            </View>
-            <View style={styles.paywallBenefitRow}>
-              <AppIcon name="check-circle" size={20} color={colors.accent} />
-              <Text style={styles.paywallBenefitText}>Real-time typing indicators</Text>
-            </View>
-            <View style={styles.paywallBenefitRow}>
-              <AppIcon name="check-circle" size={20} color={colors.accent} />
-              <Text style={styles.paywallBenefitText}>Instant matching</Text>
-            </View>
+            {['Connect with random people anonymously', 'Your identity is always hidden', 'Real-time typing indicators', 'Instant matching'].map(b => (
+              <View key={b} style={styles.paywallBenefitRow}>
+                <AppIcon name="check-circle" size={20} color={colors.accent} />
+                <Text style={styles.paywallBenefitText}>{b}</Text>
+              </View>
+            ))}
           </View>
-
-          <TouchableOpacity
-            style={styles.paywallUpgradeBtn}
+          <Button variant="primary" size="lg" label="Upgrade to Premium"
+            leftIcon={<AppIcon name="diamond" size={20} color={colors.white} />}
             onPress={() => navigation.navigate('PremiumDashboard' as never)}
-            activeOpacity={0.8}>
-            <AppIcon name="diamond" size={20} color={colors.white} />
-            <Text style={styles.paywallUpgradeBtnText}>Upgrade to Premium</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.paywallLaterBtn}
+            style={{ width: '100%', marginBottom: tokens.spacing[4] }}
+          />
+          <Button variant="ghost" size="md" label="Maybe Later"
             onPress={() => navigation.goBack()}
-            activeOpacity={0.7}>
-            <Text style={styles.paywallLaterBtnText}>Maybe Later</Text>
-          </TouchableOpacity>
+          />
         </View>
       </SafeAreaView>
     );
@@ -958,52 +493,32 @@ export default function AnonymousChatScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.landingContainer}>
-          <View style={styles.landingIcon}>
-            <AppIcon name="visibility-off" size={64} color={colors.accent} />
-          </View>
+          <View style={styles.landingIcon}><AppIcon name="visibility-off" size={64} color={colors.accent} /></View>
           <Text style={styles.landingTitle}>Anonymous Chat</Text>
-          <Text style={styles.landingSubtitle}>
-            Connect with random people anonymously. Your identity is hidden.
-          </Text>
-
-          {/* Safety disclaimer — compliance requirement */}
-          <View style={styles.safetyBanner}>
+          <Text style={styles.landingSubtitle}>Connect with random people anonymously. Your identity is hidden.</Text>
+          <Card style={styles.safetyBanner}>
             <AppIcon name="verified-user" size="sm" color={colors.accentGold} />
-            <Text style={styles.safetyBannerText}>
-              Anonymous chat is for users aged 18+. Be respectful. Inappropriate behaviour will be reported and may result in a ban.
-            </Text>
-          </View>
-
+            <Text style={styles.safetyBannerText}>Anonymous chat is for users aged 18+. Be respectful. Inappropriate behaviour will be reported and may result in a ban.</Text>
+          </Card>
           <Text style={styles.yourNameLabel}>Your anonymous name:</Text>
-          <View style={styles.nameTag}>
+          <Card style={styles.nameTag}>
             <AppIcon name="alternate-email" size={16} color={colors.accent} />
             <Text style={styles.nameTagText}>{myName}</Text>
-          </View>
-
-          {/* Info banner — friendly message (not a red error) */}
+          </Card>
           {error && (
-            <View style={styles.infoBanner}>
+            <Card style={styles.infoBanner}>
               <AppIcon name="info-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.infoText}>{error}</Text>
-            </View>
+            </Card>
           )}
-
-          <Animated.View
-            style={[styles.findBtn, { transform: [{ scale: pulseAnim }] }]}>
-            <TouchableOpacity
-              style={styles.findBtnInner}
+          <Animated.View style={[styles.findBtn, { transform: [{ scale: pulseAnim }] }]}>
+            <Button variant="primary" size="lg" label="Find Stranger"
+              leftIcon={<AppIcon name="flash-on" size="xl" color={colors.white} />}
               onPress={handleFindStranger}
-              activeOpacity={0.8}>
-              <AppIcon name="flash-on" size="xl" color={colors.white} />
-              <Text style={styles.findBtnText}>Find Stranger</Text>
-            </TouchableOpacity>
+            />
           </Animated.View>
-          <Text style={styles.disclaimerText}>
-            By continuing, you agree to be respectful to others.
-          </Text>
-          <Text style={styles.safetyNoteText}>
-            Tap the Report button during any chat to report abuse. All chats are end-to-end encrypted.
-          </Text>
+          <Text style={styles.disclaimerText}>By continuing, you agree to be respectful to others.</Text>
+          <Text style={styles.safetyNoteText}>Tap the Report button during any chat to report abuse. All chats are end-to-end encrypted.</Text>
         </View>
       </SafeAreaView>
     );
@@ -1015,31 +530,22 @@ export default function AnonymousChatScreen() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.searchContainer}>
           <Text style={styles.searchYourName}>@{myName}</Text>
-          <View style={styles.searchSpinner}>
-            <ActivityIndicator size="large" color={colors.accent} />
-          </View>
+          <ActivityIndicator size="large" color={colors.accent} style={{ marginBottom: tokens.spacing[5] }} />
           <Text style={styles.searchingText}>Finding someone...</Text>
           <Text style={styles.searchingSubtext}>
-            {searchElapsed > 0
-              ? `Waiting for ${formatDuration(searchElapsed)}...`
-              : 'Please wait while we connect you with a stranger'}
+            {searchElapsed > 0 ? `Waiting for ${formatDuration(searchElapsed)}...` : 'Please wait while we connect you with a stranger'}
           </Text>
-
-          {/* Info banner — no one online (not a red error) */}
           {error && (
-            <View style={styles.infoBanner}>
+            <Card style={styles.infoBanner}>
               <AppIcon name="info-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.infoText}>{error}</Text>
-            </View>
+            </Card>
           )}
-
-          <TouchableOpacity
-            style={styles.cancelBtn}
+          <Button variant="ghost" size="md" label="Cancel"
+            leftIcon={<AppIcon name="close" size="md" color={colors.textSecondary} />}
             onPress={handleDisconnect}
-            activeOpacity={0.7}>
-            <AppIcon name="close" size="md" color={colors.textSecondary} />
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
+            style={{ borderWidth: 1, borderColor: colors.border }}
+          />
         </View>
       </SafeAreaView>
     );
@@ -1048,25 +554,16 @@ export default function AnonymousChatScreen() {
   // ── Render: Connected (Chat) ────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.chatContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}>
+      <KeyboardAvoidingView style={styles.chatContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
         {/* Header */}
         <View style={styles.chatHeader}>
           <View style={styles.chatHeaderInfo}>
-            <View style={styles.anonAvatar}>
-              <AppIcon name="visibility-off" size="md" color={colors.white} />
-            </View>
+            <View style={styles.anonAvatar}><AppIcon name="visibility-off" size="md" color={colors.white} /></View>
             <View>
-              <Text style={styles.chatHeaderName}>
-                {strangerName || 'Stranger'}
-              </Text>
+              <Text style={styles.chatHeaderName}>{strangerName || 'Stranger'}</Text>
               <View style={styles.chatHeaderMeta}>
                 <View style={styles.onlineDot} />
-                <Text style={styles.chatHeaderText}>
-                  {isPartnerTyping ? 'typing...' : 'Anonymous'}
-                </Text>
+                <Text style={styles.chatHeaderText}>{isPartnerTyping ? 'typing...' : 'Anonymous'}</Text>
               </View>
             </View>
           </View>
@@ -1074,51 +571,21 @@ export default function AnonymousChatScreen() {
             <AppIcon name="schedule" size="sm" color={colors.textSecondary} />
             <Text style={styles.timerText}>{formatDuration(elapsed)}</Text>
           </View>
-          {/* Report button — compliance requirement for anonymous chat */}
           <TouchableOpacity
             style={styles.reportBtn}
             onPress={() => {
-              Alert.alert(
-                'Report User',
-                'If this user is behaving inappropriately, you can report them. This will disconnect the chat and submit a report.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Report & Disconnect',
-                    style: 'destructive',
-                    onPress: async () => {
-                      // Submit report to Firestore
-                      try {
-                        if (room?.roomId) {
-                          await firestore().collection('reports').add({
-                            type: 'anonymous_chat',
-                            roomId: room.roomId,
-                            reporterId: myUserId,
-                            reportedId: room.partnerId,
-                            createdAt: nowISO(),
-                            status: 'pending',
-                          });
-                        }
-                      } catch (e: any) {
-                        if (__DEV__) console.warn('[AnonChat] Report failed:', e?.message);
-                      }
-                      await fullCleanup();
-                      if (mountedRef.current) {
-                        setChatState('landing');
-                        setMessages([]);
-                        setRoom(null);
-                        setElapsed(0);
-                        setIsPartnerTyping(false);
-                        setError('Report submitted. Thank you for keeping the community safe.');
-                      }
-                    },
-                  },
-                ],
-              );
+              Alert.alert('Report User', 'If this user is behaving inappropriately, you can report them. This will disconnect the chat and submit a report.',
+                [{ text: 'Cancel', style: 'cancel' },
+                 { text: 'Report & Disconnect', style: 'destructive', onPress: async () => {
+                   try {
+                     if (room?.roomId) await firestore().collection('reports').add({ type: 'anonymous_chat', roomId: room.roomId, reporterId: myUserId, reportedId: room.partnerId, createdAt: nowISO(), status: 'pending' });
+                   } catch (e: any) { if (__DEV__) console.warn('[AnonChat] Report failed:', e?.message); }
+                   await fullCleanup();
+                   if (mountedRef.current) { setChatState('landing'); setMessages([]); setRoom(null); setElapsed(0); setIsPartnerTyping(false); setError('Report submitted. Thank you for keeping the community safe.'); }
+                 }}]);
             }}
-            hitSlop={8}
-            activeOpacity={0.7}>
-            <AppIcon name="outlined-flag" size="md" color="#f43f5e" />
+            hitSlop={8} activeOpacity={0.7}>
+            <AppIcon name="outlined-flag" size="md" color={colors.error} />
           </TouchableOpacity>
         </View>
 
@@ -1133,19 +600,12 @@ export default function AnonymousChatScreen() {
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.emptyMsg}>
-              <AppIcon
-                name="forum"
-                size={40}
-                color={colors.textMuted}
-              />
-              <Text style={styles.emptyMsgText}>
-                Say something to start the conversation!
-              </Text>
+              <AppIcon name="forum" size={40} color={colors.textMuted} />
+              <Text style={styles.emptyMsgText}>Say something to start the conversation!</Text>
             </View>
           }
         />
 
-        {/* Typing indicator */}
         {isPartnerTyping && (
           <View style={styles.typingRow}>
             <View style={styles.typingBubble}>
@@ -1156,7 +616,6 @@ export default function AnonymousChatScreen() {
           </View>
         )}
 
-        {/* Error banner */}
         {error && (
           <View style={styles.errorBannerInline}>
             <AppIcon name="error-outline" size="sm" color={colors.error} />
@@ -1167,20 +626,15 @@ export default function AnonymousChatScreen() {
         {/* Input + actions */}
         <View style={styles.inputArea}>
           <View style={styles.actionBtns}>
-            <TouchableOpacity
-              style={styles.nextBtn}
+            <Button variant="ghost" size="sm" label="Next"
+              leftIcon={<AppIcon name="play-forward-outline" size={20} color={colors.accent} />}
               onPress={handleNext}
-              activeOpacity={0.7}>
-              <AppIcon name="play-forward-outline" size={20} color={colors.accent} />
-              <Text style={styles.nextBtnText}>Next</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.disconnectBtn}
+              style={styles.nextBtn}
+            />
+            <Button variant="destructive" size="sm" label="Disconnect"
+              leftIcon={<AppIcon name="close" size={20} color={colors.white} />}
               onPress={handleDisconnect}
-              activeOpacity={0.7}>
-              <AppIcon name="close" size={20} color={colors.error} />
-              <Text style={styles.disconnectBtnText}>Disconnect</Text>
-            </TouchableOpacity>
+            />
           </View>
           <View style={styles.inputRow}>
             <TextInput
@@ -1208,512 +662,71 @@ export default function AnonymousChatScreen() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
 
-  // ── Landing ──────────────────────────────────────────────────────────────
-  landingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  landingIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(42, 127, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  landingTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  landingSubtitle: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 32,
-  },
-  yourNameLabel: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginBottom: 8,
-  },
-  nameTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    marginBottom: 16,
-  },
-  nameTagText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.accent,
-  },
+  landingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: tokens.spacing[8] },
+  landingIcon: { width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(42,127,255,0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: tokens.spacing[6] },
+  landingTitle: { fontSize: tokens.typography.size['2xl'], fontWeight: '800', color: colors.text, marginBottom: tokens.spacing[2] },
+  landingSubtitle: { fontSize: tokens.typography.size.sm, color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: tokens.spacing[8] },
+  yourNameLabel: { fontSize: tokens.typography.size.sm, color: colors.textMuted, marginBottom: tokens.spacing[2] },
+  nameTag: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing[1] + 2, paddingHorizontal: tokens.spacing[4], paddingVertical: tokens.spacing[2] + 2, borderRadius: tokens.radius.full, borderColor: colors.accent, marginBottom: tokens.spacing[4] },
+  nameTagText: { fontSize: tokens.typography.size.base, fontWeight: '600', color: colors.accent },
 
-  // ── Paywall ──────────────────────────────────────────────────────────────
-  paywallContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  paywallIconWrap: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(42, 127, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  paywallTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  paywallSubtitle: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 28,
-  },
-  paywallBenefits: {
-    width: '100%',
-    gap: 14,
-    marginBottom: 32,
-  },
-  paywallBenefitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  paywallBenefitText: {
-    fontSize: 15,
-    color: colors.text,
-    flexShrink: 1,
-  },
-  paywallUpgradeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    width: '100%',
-    backgroundColor: colors.accent,
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginBottom: 16,
-  },
-  paywallUpgradeBtnText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.white,
-  },
-  paywallLaterBtn: {
-    paddingVertical: 10,
-  },
-  paywallLaterBtnText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textMuted,
-  },
+  paywallContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: tokens.spacing[8] },
+  paywallIconWrap: { width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(42,127,255,0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: tokens.spacing[6] },
+  paywallTitle: { fontSize: tokens.typography.size['2xl'], fontWeight: '800', color: colors.text, marginBottom: tokens.spacing[2] },
+  paywallSubtitle: { fontSize: tokens.typography.size.sm, color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: tokens.spacing[7] },
+  paywallBenefits: { width: '100%', gap: tokens.spacing[3] + 2, marginBottom: tokens.spacing[8] },
+  paywallBenefitRow: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing[2] + 2 },
+  paywallBenefitText: { fontSize: tokens.typography.size.base, color: colors.text, flexShrink: 1 },
 
-  // ── Info banner (non-alarming, used for "no one online" etc.) ──────────────
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.separator,
-    borderWidth: 1,
-    borderColor: colors.borderSubtleAlt,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 24,
-    width: '100%',
-  },
-  infoText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    flexShrink: 1,
-  },
+  infoBanner: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing[2], paddingHorizontal: tokens.spacing[3] + 2, paddingVertical: tokens.spacing[2] + 2, marginBottom: tokens.spacing[6], width: '100%' },
+  infoText: { fontSize: tokens.typography.size.sm, color: colors.textSecondary, flexShrink: 1 },
+  errorBannerInline: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing[1] + 2, backgroundColor: colors.destructiveFaint, paddingHorizontal: tokens.spacing[3], paddingVertical: tokens.spacing[1] + 2, marginHorizontal: tokens.spacing[3], borderRadius: tokens.radius.sm + 2 },
+  errorTextInline: { fontSize: tokens.typography.size.xs, color: colors.error },
 
-  // ── Error (only for real errors like send failure) ─────────────────────────
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.destructiveFaint,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 24,
-    width: '100%',
-  },
-  errorText: {
-    fontSize: 13,
-    color: colors.error,
-    flexShrink: 1,
-  },
-  errorBannerInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.destructiveFaint,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginHorizontal: 12,
-    borderRadius: 8,
-  },
-  errorTextInline: {
-    fontSize: 12,
-    color: colors.error,
-  },
+  findBtn: { width: '100%', marginTop: tokens.spacing[2] },
+  disclaimerText: { fontSize: tokens.typography.size.xs, color: colors.textMuted, textAlign: 'center', marginTop: tokens.spacing[5], lineHeight: 16 },
+  safetyNoteText: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: tokens.spacing[1] + 2, lineHeight: 15, paddingHorizontal: tokens.spacing[5] },
+  safetyBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: tokens.spacing[2], marginHorizontal: tokens.spacing[6], paddingVertical: tokens.spacing[2] + 2, paddingHorizontal: tokens.spacing[3], borderColor: colors.accentBgStrong, marginTop: tokens.spacing[3], marginBottom: tokens.spacing[6] },
+  safetyBannerText: { flex: 1, fontSize: tokens.typography.size.xs, color: colors.textSecondary, lineHeight: 17 },
+  reportBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.destructiveFaint, alignItems: 'center', justifyContent: 'center' },
 
-  // ── Find button ─────────────────────────────────────────────────────────
-  findBtn: {
-    width: '100%',
-  },
-  findBtnInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: colors.accent,
-    borderRadius: 16,
-    paddingVertical: 18,
-  },
-  findBtnText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.white,
-  },
-  disclaimerText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 20,
-    lineHeight: 16,
-  },
-  safetyNoteText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 15,
-    paddingHorizontal: 20,
-  },
-  safetyBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginHorizontal: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: colors.accentFaint,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.accentBgStrong,
-    marginTop: 12,
-  },
-  safetyBannerText: {
-    flex: 1,
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 17,
-  },
-  reportBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.destructiveFaint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  searchContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: tokens.spacing[8] },
+  searchYourName: { fontSize: tokens.typography.size.sm, color: colors.textMuted, marginBottom: tokens.spacing[10] },
+  searchingText: { fontSize: tokens.typography.size.xl, fontWeight: '600', color: colors.text, marginBottom: tokens.spacing[2] },
+  searchingSubtext: { fontSize: tokens.typography.size.sm, color: colors.textMuted, textAlign: 'center', marginBottom: tokens.spacing[10] },
 
-  // ── Searching ────────────────────────────────────────────────────────────
-  searchContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  searchYourName: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginBottom: 40,
-  },
-  searchSpinner: {
-    marginBottom: 20,
-  },
-  searchingText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  searchingSubtext: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  cancelBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cancelBtnText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
+  chatContainer: { flex: 1 },
+  chatHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: tokens.spacing[4], paddingVertical: tokens.spacing[3], borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surfaceCard },
+  chatHeaderInfo: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing[2] + 2 },
+  anonAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent, justifyContent: 'center', alignItems: 'center' },
+  chatHeaderName: { fontSize: tokens.typography.size.base, fontWeight: '600', color: colors.text },
+  chatHeaderMeta: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing[1], marginTop: 1 },
+  onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accentGreen },
+  chatHeaderText: { fontSize: tokens.typography.size.xs, color: colors.textMuted },
+  timerBadge: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing[1], backgroundColor: colors.surfaceElevated, paddingHorizontal: tokens.spacing[2] + 2, paddingVertical: tokens.spacing[1] + 1, borderRadius: tokens.radius.sm + 2 },
+  timerText: { fontSize: tokens.typography.size.sm, fontWeight: '600', color: colors.textSecondary, fontVariant: ['tabular-nums'] as any },
 
-  // ── Chat container ───────────────────────────────────────────────────────
-  chatContainer: {
-    flex: 1,
-  },
+  msgList: { padding: tokens.spacing[3], paddingBottom: tokens.spacing[1] },
+  msgWrapper: { marginBottom: tokens.spacing[2], maxWidth: '80%' },
+  msgMine: { alignSelf: 'flex-end' },
+  msgTheirs: { alignSelf: 'flex-start' },
+  msgSenderName: { fontSize: 11, fontWeight: '600', color: colors.accent, marginBottom: tokens.spacing[1] },
+  minimalMsgText: { fontSize: tokens.typography.size.base, lineHeight: 22, color: colors.white },
+  emptyMsg: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: tokens.spacing[3] },
+  emptyMsgText: { color: colors.textMuted, fontSize: tokens.typography.size.sm },
 
-  // ── Chat header ──────────────────────────────────────────────────────────
-  chatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  chatHeaderInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  anonAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chatHeaderName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  chatHeaderMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 1,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.accentGreen,
-  },
-  chatHeaderText: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  timerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.surfaceLight,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  timerText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    fontVariant: ['tabular-nums'] as any,
-  },
+  typingRow: { paddingHorizontal: tokens.spacing[4], paddingBottom: tokens.spacing[1] },
+  typingBubble: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing[1], paddingHorizontal: tokens.spacing[3] + 2, paddingVertical: tokens.spacing[2] + 2, borderRadius: 18, borderBottomLeftRadius: 4, alignSelf: 'flex-start', maxWidth: 60 },
+  typingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.textMuted },
 
-  // ── Messages ─────────────────────────────────────────────────────────────
-  msgList: {
-    padding: 12,
-    paddingBottom: 4,
-  },
-  msgWrapper: {
-    marginBottom: 8,
-    maxWidth: '80%',
-  },
-  msgMine: {
-    alignSelf: 'flex-end',
-  },
-  msgTheirs: {
-    alignSelf: 'flex-start',
-  },
-  msgBubble: {
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    borderRadius: 0,
-    backgroundColor: 'transparent',
-  },
-  msgBubbleMine: {
-    backgroundColor: 'transparent',
-  },
-  msgBubbleTheirs: {
-    backgroundColor: 'transparent',
-  },
-  msgSenderName: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.accent,
-    marginBottom: 4,
-  },
-  msgText: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  msgTextMine: {
-    color: colors.white,
-  },
-  msgTextTheirs: {
-    color: colors.white,
-  },
-  minimalMsgText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.white,
-  },
-  emptyMsg: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  emptyMsgText: {
-    color: colors.textMuted,
-    fontSize: 14,
-  },
-
-  // ── Typing indicator ─────────────────────────────────────────────────────
-  typingRow: {
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-  },
-  typingBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'transparent',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-    alignSelf: 'flex-start',
-    maxWidth: 60,
-  },
-  typingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.textMuted,
-  },
-
-  // ── Input area ───────────────────────────────────────────────────────────
-  inputArea: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingBottom: Platform.OS === 'android' ? 10 : 20,
-  },
-  actionBtns: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  nextBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(42, 127, 255, 0.1)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  nextBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.accent,
-  },
-  disconnectBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.destructiveFaint,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  disconnectBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.error,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: colors.text,
-    maxHeight: 80,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendBtnDisabled: {
-    opacity: 0.4,
-  },
+  inputArea: { backgroundColor: colors.surfaceCard, borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: Platform.OS === 'android' ? tokens.spacing[2] + 2 : tokens.spacing[5] },
+  actionBtns: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: tokens.spacing[2] + 2, borderTopWidth: 1, borderTopColor: colors.border },
+  nextBtn: { backgroundColor: 'rgba(42,127,255,0.1)' },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: tokens.spacing[3], paddingVertical: tokens.spacing[2], gap: tokens.spacing[2] },
+  input: { flex: 1, backgroundColor: colors.background, borderRadius: 20, paddingHorizontal: tokens.spacing[4], paddingVertical: tokens.spacing[2] + 2, fontSize: tokens.typography.size.base, color: colors.text, maxHeight: 80, borderWidth: 1, borderColor: colors.border },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent, justifyContent: 'center', alignItems: 'center' },
+  sendBtnDisabled: { opacity: 0.4 },
 });
