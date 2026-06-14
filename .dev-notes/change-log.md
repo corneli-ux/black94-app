@@ -4,6 +4,22 @@
 
 ---
 
+## Session: 2026-06-14 — User Profile Screen UI Polish & Alignment
+
+### `update` — fix: user profile UI polish — align other user profile layout with own profile page layout
+
+**Visual Polish Improvements:**
+- **Header Alignment**: Replaced absolute floating back button with a `SafeAreaView`-wrapped `topBar` showing the user's display name.
+- **Cover Image Fallback**: Added `coverImageError` state and `onError` image handler to render fallback placeholder when user's cover photos fail to load.
+- **Avatar & Actions Row**: Combined avatar and action buttons (Follow/Message/Options) next to the avatar in a horizontal layout `avatarRow`, replacing separate stacked buttons under the bio.
+- **Horizontal Stats Linkage**: Converted vertical block stats to horizontal side-by-side Following/Followers clickable links (navigating to follow screens).
+- **Horizontal Scrollable Tab Bar**: Swapped the split equal columns tab bar layout with horizontal scrollable chips/pills.
+- **Code Cleanups**: Cleaned up unused `useSafeAreaInsets` hook and reference.
+
+**Files changed**: `src/screens/UserProfileScreen.tsx`
+
+---
+
 ## Session: 2026-05-20 (cont. 3) — Fix Chat List Empty: Compound Query + Missing Composite Index
 
 ### `7d1f53f` — fix: chat list empty — remove compound queries needing missing composite index

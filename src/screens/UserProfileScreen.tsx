@@ -12,7 +12,7 @@ import {
   Alert,
   Share,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, firestore } from '../lib/firebase';
 import {
   fetchUserProfile,
@@ -482,7 +482,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const [followLoading, setFollowLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
   const [profileAd, setProfileAd] = useState<any>(null);
-  const insets = useSafeAreaInsets();
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
@@ -490,6 +489,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
   // BUG FIX: Add loadError state so users see an error screen with retry
   // instead of an infinite loading spinner when profile data fails to load.
   const [loadError, setLoadError] = useState(false);
+  const [coverImageError, setCoverImageError] = useState(false);
 
   // Early return for missing userId — now AFTER all hooks are declared.
   // This is safe because no hooks are called after this point.
@@ -535,6 +535,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
       ]);
       setUser(userData);
       setLoadError(false);
+      setCoverImageError(false);
       // Extract privacy settings from user data returned by fetchUserProfile
       if (userData) {
         setPrivacy((userData as any).privacy || null);
@@ -928,79 +929,63 @@ export default function UserProfileScreen({ navigation, route }: any) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
         }
       >
+        {/* Top bar */}
+        <SafeAreaView edges={['top']}>
+          <View style={styles.topBar}>
+            <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
+              <AppIcon name="arrow-back" size="lg" color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.topLogo}>{user.displayName || 'Profile'}</Text>
+            <View style={{ width: 22 }} />
+          </View>
+        </SafeAreaView>
+
         {/* Cover Image */}
         <View style={styles.coverContainer}>
-          {user.coverImage ? (
-            <Image source={{ uri: user.coverImage }} style={styles.coverImage} resizeMode="cover" />
+          {user.coverImage && !coverImageError ? (
+            <Image
+              source={{ uri: user.coverImage }}
+              style={styles.coverImage}
+              resizeMode="cover"
+              onError={(e) => {
+                if (__DEV__) console.warn('[UserProfileScreen] Cover image failed to load:', e.nativeEvent?.error);
+                setCoverImageError(true);
+              }}
+            />
           ) : (
             <View style={[styles.coverImage, styles.coverPlaceholder]}>
-              <Text style={styles.coverPlaceholderText}>B94</Text>
+              {coverImageError && user.coverImage && (
+                <View style={styles.coverErrorOverlay}>
+                  <AppIcon name="image" size="xl" color={colors.textMuted} />
+                </View>
+              )}
+              {!user.coverImage && <Text style={styles.coverPlaceholderText}>B94</Text>}
             </View>
           )}
-          <View style={styles.coverGradient} />
-
-          {/* Back button */}
-          <TouchableOpacity
-            style={[styles.backButton, { top: (insets.top || 50) + 4 }]}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <AppIcon name="arrow-back" size={20} color={colors.white} />
-          </TouchableOpacity>
         </View>
 
-        {/* Profile Image */}
-        <View style={styles.profileImageContainer}>
-          <Avatar uri={user.profileImage} name={user.displayName} size={80} borderWidth={4} borderColor={colors.bg} />
-        </View>
-
-        {/* User Info */}
-        <View style={styles.userInfoSection}>
-          <View style={styles.nameRow}>
-            {(() => {
-              const showRealName = privacy?.nameVisibility !== 'private' && privacy?.nameVisibility !== 'selected';
-              return showRealName ? (
-                <Text style={styles.displayName}>{user.displayName}</Text>
-              ) : null;
-            })()}
-            {privacy?.nameVisibility !== 'private' && privacy?.nameVisibility !== 'selected' && (
-              <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
-            )}
+        {/* Avatar + Follow / Message / Options */}
+        <View style={styles.avatarRow}>
+          <View style={{ marginTop: -32 }}>
+            <Avatar
+              uri={user.profileImage}
+              name={user.displayName || null}
+              size={80}
+              borderWidth={4}
+              borderColor={colors.bg}
+            />
           </View>
-          <Text style={styles.username}>@{user.username}</Text>
-          {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
-
-          {/* Stats */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{posts.length}</Text>
-              <Text style={styles.statLabel}>Posts</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{formatCount(followerCount)}</Text>
-              <Text style={styles.statLabel}>Followers</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{formatCount(followingCount)}</Text>
-              <Text style={styles.statLabel}>Following</Text>
-            </View>
-          </View>
-
-          {/* Action Buttons */}
           {!isOwnProfile && (
-            <View style={styles.actionButtons}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <TouchableOpacity
-                style={[styles.followBtn, isFollowing ? styles.followingBtn : null]}
+                style={[styles.followBtn, isFollowing && styles.followingBtn]}
                 onPress={handleToggleFollow}
-                activeOpacity={0.8}
                 disabled={followLoading}
               >
                 {followLoading ? (
                   <ActivityIndicator size="small" color={isFollowing ? colors.text : colors.bg} />
                 ) : (
-                  <Text
-                    style={[styles.followBtnText, isFollowing ? styles.followingBtnText : null]}
-                  >
+                  <Text style={[styles.followBtnText, isFollowing && styles.followingBtnText]}>
                     {isFollowing ? 'Following' : 'Follow'}
                   </Text>
                 )}
@@ -1008,18 +993,20 @@ export default function UserProfileScreen({ navigation, route }: any) {
               <TouchableOpacity
                 style={styles.messageBtn}
                 onPress={handleMessage}
-                activeOpacity={0.8}
                 disabled={messageLoading}
               >
                 {messageLoading ? (
-                  <ActivityIndicator size="small" color={colors.accent} />
+                  <ActivityIndicator size="small" color={colors.white} />
                 ) : (
-                  <Text style={styles.messageBtnText}>Message</Text>
+                  <>
+                    <AppIcon name="chat-bubble-outline" size="md" color={colors.white} />
+                    <Text style={styles.messageBtnText}>Message</Text>
+                  </>
                 )}
               </TouchableOpacity>
-              {/* More options — Block, Mute, Report */}
+              {/* Options button */}
               <TouchableOpacity
-                style={[styles.moreOptionsBtn]}
+                style={styles.moreOptionsBtn}
                 onPress={() => {
                   Alert.alert('Options', '', [
                     { text: 'Cancel', style: 'cancel' },
@@ -1043,14 +1030,11 @@ export default function UserProfileScreen({ navigation, route }: any) {
                                   blockedId: userId,
                                   createdAt: firestore.FieldValue.serverTimestamp(),
                                 });
-                                // Unfollow them if we were following
                                 if (isFollowing) {
                                   await toggleFollow(userId, true);
                                   setIsFollowing(false);
                                   setFollowerCount(prev => Math.max(0, prev - 1));
                                 }
-                                // Also remove reverse follow so target's
-                                // follower count stays consistent.
                                 try {
                                   await firestore().collection('follows').doc(`${userId}_${currentUid}`).delete();
                                 } catch {}
@@ -1104,6 +1088,37 @@ export default function UserProfileScreen({ navigation, route }: any) {
           )}
         </View>
 
+        {/* User Info */}
+        <View style={styles.userInfoSection}>
+          <View style={styles.nameRow}>
+            {(() => {
+              const showRealName = privacy?.nameVisibility !== 'private' && privacy?.nameVisibility !== 'selected';
+              return showRealName ? (
+                <Text style={styles.displayName}>{user.displayName}</Text>
+              ) : null;
+            })()}
+            {privacy?.nameVisibility !== 'private' && privacy?.nameVisibility !== 'selected' && (
+              <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
+            )}
+          </View>
+          <Text style={styles.username}>@{user.username}</Text>
+          {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+
+          {/* Stats */}
+          <View style={styles.statsRow}>
+            <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId: userId, mode: 'following' } as never)}>
+              <Text style={styles.statText}>
+                <Text style={styles.statNum}>{formatCount(followingCount)}</Text> Following
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId: userId, mode: 'followers' } as never)}>
+              <Text style={styles.statText}>
+                <Text style={styles.statNum}>{formatCount(followerCount)}</Text> Followers
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Ad Banner — only show if an active campaign exists */}
         {profileAd && (
           <View style={styles.adBanner}>
@@ -1127,21 +1142,21 @@ export default function UserProfileScreen({ navigation, route }: any) {
         {/* Separator between ad and tabs */}
         {profileAd && <View style={styles.adSeparator} />}
 
-        {/* Tab Bar */}
-        <View style={styles.tabBar}>
-          {tabs.map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={styles.tab}
-              onPress={() => setTab(t)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </Text>
-              {tab === t && <View style={styles.tabIndicator} />}
-            </TouchableOpacity>
-          ))}
+        {/* Tabs — horizontal pill/chip style */}
+        <View style={styles.tabBarContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBarScroll}>
+            {tabs.map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.tabPill, tab === t && styles.tabPillActive]}
+                onPress={() => setTab(t)}
+              >
+                <Text style={[styles.tabPillText, tab === t && styles.tabPillTextActive]}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Tab Content */}
@@ -1175,10 +1190,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  topBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
+  },
+  topLogo: { color: colors.text, fontSize: 18, fontWeight: '800' },
   coverContainer: {
     height: 128,
     width: '100%',
-    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: colors.bg,
   },
   coverImage: {
     width: '100%',
@@ -1186,44 +1207,49 @@ const styles = StyleSheet.create({
   },
   coverPlaceholder: {
     backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   coverPlaceholderText: {
     color: colors.borderSubtle,
     fontSize: 60,
     fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 20,
   },
-  coverGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 40,
-    backgroundColor: colors.overlayDark,
+  coverErrorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backButton: {
-    position: 'absolute',
-    left: 16,
+  avatarRow: {
+    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
+    paddingHorizontal: 20, marginTop: -32, marginBottom: 12,
+  },
+  followBtn: {
+    backgroundColor: colors.text, borderRadius: 999,
+    paddingHorizontal: 20, paddingVertical: 6,
+  },
+  followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.textTertiary },
+  followBtnText: { color: colors.primaryForeground, fontWeight: '700', fontSize: 15 },
+  followingBtnText: { color: colors.text },
+  messageBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderColor: colors.borderWhite40, borderRadius: 999,
+    paddingHorizontal: 16, paddingVertical: 6,
+  },
+  messageBtnText: { color: colors.white, fontWeight: '700', fontSize: 14 },
+  moreOptionsBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.overlay,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
-  },
-  backButtonText: {
-    fontSize: 20,
-    color: colors.white,
-  },
-  profileImageContainer: {
-    marginTop: -32,
-    marginHorizontal: 20,
+    borderWidth: 1,
+    borderColor: colors.borderWhite40,
   },
   userInfoSection: {
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 0,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.separator,
@@ -1245,119 +1271,54 @@ const styles = StyleSheet.create({
   },
   bio: {
     fontSize: 15,
-    color: colors.textSecondary,
+    color: colors.text,
     marginTop: 8,
-    lineHeight: 22,
+    lineHeight: 24,
   },
   statsRow: {
     flexDirection: 'row',
     marginTop: 16,
-    gap: 32,
+    gap: 20,
   },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  statLabel: {
-    fontSize: 13,
+  statText: {
     color: colors.textSecondary,
-    marginTop: 2,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    marginTop: 16,
-    gap: 12,
-  },
-  followBtn: {
-    flex: 1,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.text,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  followingBtn: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.textTertiary,
-  },
-  followBtnText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.primaryForeground,
   },
-  followingBtnText: {
+  statNum: {
     color: colors.text,
-  },
-  messageBtn: {
-    flex: 1,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderWhite40,
-  },
-  moreOptionsBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderWhite40,
-    marginLeft: 8,
-  },
-  messageBtnText: {
-    fontSize: 14,
     fontWeight: '700',
-    color: colors.white,
   },
-  tabBar: {
-    flexDirection: 'row',
+  tabBarContainer: {
+    backgroundColor: colors.bg,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.separator,
-    backgroundColor: colors.bg,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-    position: 'relative' as const,
+  tabBarScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
   },
-  tabText: {
-    fontSize: 15,
+  tabPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tabPillActive: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  tabPillText: {
+    color: colors.textSecondary,
     fontWeight: '500',
-    color: colors.textSecondary,
+    fontSize: 13,
   },
-  tabTextActive: {
-    color: colors.text,
+  tabPillTextActive: {
+    color: colors.bg,
     fontWeight: '700',
-  },
-  tabIndicator: {
-    position: 'absolute' as const,
-    bottom: 0,
-    left: 24,
-    right: 24,
-    height: 1,
-    borderRadius: 0.5,
-    backgroundColor: colors.white,
-  },
-  emptyState: {
-    paddingVertical: 60,
-    alignItems: 'center',
-    width: '100%',
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontSize: 13,
   },
   adBanner: {
     marginHorizontal: 16,
