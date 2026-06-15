@@ -1,5 +1,6 @@
 // Black94 Theme — Minimalist Dark with proper visual hierarchy
 // Pure black background with subtle gray layers for depth and readability.
+// Updated with embed tokens for beautiful repost/quote cards.
 
 export const colors = {
   // ── Backgrounds ──
@@ -9,25 +10,25 @@ export const colors = {
   bgModal: '#000000',
   surface: '#000000',
   surfaceElevated: '#000000',
-  surfaceLight: '#111111',           // subtle surface for cards/inputs
+  surfaceLight: '#111111',
   background: '#000000',
 
   // ── Text — proper hierarchy with opacity levels ──
-  text: '#e7e9ea',                   // primary text — full brightness
+  text: '#e7e9ea',
   white: '#ffffff',
-  textSecondary: '#a0a3a8',          // secondary labels, timestamps
-  textMuted: '#6e7680',              // muted hints, placeholders
-  textTertiary: '#484d54',            // tertiary — very subtle
+  textSecondary: '#a0a3a8',
+  textMuted: '#6e7680',
+  textTertiary: '#484d54',
   foreground: '#e7e9ea',
 
   // ── Borders — subtle but visible ──
-  border: '#222528',                  // standard border — subtle dark gray
-  borderLight: '#1c1f22',            // lighter border variant
-  separator: '#1a1d20',              // dividers / section separators
-  input: '#1c1f22',                  // input field borders
+  border: '#222528',
+  borderLight: '#1c1f22',
+  separator: '#1a1d20',
+  input: '#1c1f22',
 
   // ── Brand Accents ──
-  accent: '#D4AF37',                  // gold accent — primary brand color
+  accent: '#D4AF37',
   accentGold: '#f59e0b',
   accentRed: '#f4212e',
   accentGreen: '#10b981',
@@ -51,7 +52,7 @@ export const colors = {
   chatBubbleOther: 'rgba(212,175,55,0.08)',
   chatBubbleOtherText: '#e7e9ea',
 
-  // ── Like / Bookmark ──
+  // ── Like / Bookmark / Repost ──
   like: '#f43f5e',
   repost: '#10b981',
   bookmark: '#FFFFFF',
@@ -106,7 +107,7 @@ export const colors = {
   destructiveBg: 'rgba(244,63,94,0.15)',
   destructiveBorder: 'rgba(244,63,94,0.2)',
 
-  // ── Green tints ──
+  // ── Green tints (repost) ──
   greenBg: 'rgba(16,185,129,0.1)',
   greenFaint: 'rgba(34,197,94,0.1)',
 
@@ -133,4 +134,11 @@ export const colors = {
   overlayMax: 'rgba(0,0,0,0.85)',
   silver: '#C0C0C0',
   bronze: '#CD7F32',
+
+  // ── NEW: Beautiful embed cards for reposts and quote reposts (minimalist social) ──
+  embedBg: '#0a0a0a',
+  embedBorder: '#222528',
+  repostEmbedBorder: 'rgba(16,185,129,0.3)',
+  quoteEmbedBorder: 'rgba(212,175,55,0.25)',
+  embedLine: '#333',
 };
