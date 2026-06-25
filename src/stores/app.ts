@@ -33,6 +33,8 @@ interface AppState {
   // Push notification handling
   pendingNotificationTap: NotificationTapData | null;
   setPendingNotificationTap: (data: NotificationTapData | null) => void;
+  tabBarVisible: boolean;
+  setTabBarVisible: (visible: boolean) => void;
 }
 
 /**
@@ -97,6 +99,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   pendingNotificationTap: null,
   setPendingNotificationTap: (data) => set({ pendingNotificationTap: data }),
+  tabBarVisible: true,
+  setTabBarVisible: (visible) => set({ tabBarVisible: visible }),
   logout: () => {
     stopNotificationPolling();
     set({ user: null, token: null, unreadNotificationCount: 0, loading: false, pendingNotificationTap: null });

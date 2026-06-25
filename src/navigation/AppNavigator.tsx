@@ -1,5 +1,5 @@
-import React, { Component, Suspense, lazy, useEffect, useRef, memo } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert } from 'react-native';
+import React, { Component, Suspense, lazy, useEffect, useRef, memo, useCallback } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert, Animated } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -197,11 +197,23 @@ function TabBarBadge({ count }: { count: number }) {
 }
 
 // PERF: Memoize MainTabs to prevent re-renders when parent state changes.
-// unreadNotificationCount is the only Zustand value this component needs.
 const MainTabs = memo(function MainTabs() {
   const unreadNotificationCount = useAppStore(s => s.unreadNotificationCount);
+  const tabBarVisible = useAppStore(s => s.tabBarVisible);
   const insets = useSafeAreaInsets();
   const tabBarHeight = 50 + (insets.bottom || 0);
+
+  // Animated tab bar hide/show on scroll
+  const tabBarTranslate = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(tabBarTranslate, {
+      toValue: tabBarVisible ? 0 : tabBarHeight,
+      useNativeDriver: true,
+      tension: 80,
+      friction: 12,
+    }).start();
+  }, [tabBarVisible, tabBarHeight]);
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -218,6 +230,7 @@ const MainTabs = memo(function MainTabs() {
           height: tabBarHeight,
           paddingBottom: insets.bottom || 0,
           elevation: 0,
+          transform: [{ translateY: tabBarTranslate }],
         },
         tabBarShowLabel: false,
         sceneStyle: { paddingBottom: tabBarHeight },

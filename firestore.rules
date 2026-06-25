@@ -47,7 +47,17 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if true;
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+      // Author can update anything on their post.
+      // Any authenticated user can update ONLY counter fields (likes, reposts, etc.)
+      // so that toggleLike/toggleRepost/toggleBookmark counter increments work.
+      allow update: if isAuthenticated() && (
+        resource.data.authorId == request.auth.uid
+        || (
+          // Counter-only update: only allow touching engagement counters
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['likeCount','repostCount','commentCount','viewCount','bookmarkCount'])
+        )
+      );
       allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
     }
 

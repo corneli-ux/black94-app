@@ -752,95 +752,92 @@ export default function ProfileScreen({ route, navigation }: any) {
         </View>
       </SafeAreaView>
 
-      {/* Cover */}
-      <View style={styles.coverWrap}>
-        {user?.coverImage && !coverImageError ? (
+      {/* Cover image — only if user has one */}
+      {user?.coverImage && !coverImageError ? (
+        <View style={styles.coverWrap}>
           <Image
             source={{ uri: user.coverImage }}
             style={styles.cover}
             resizeMode="cover"
-            onError={(e) => {
-              if (__DEV__) console.warn('[ProfileScreen] Cover image failed to load:', e.nativeEvent?.error);
-              setCoverImageError(true);
-            }}
+            onError={() => setCoverImageError(true)}
           />
-        ) : (
-          <View style={[styles.cover, styles.coverPlaceholder]}>
-            {coverImageError && user?.coverImage && (
-              <View style={styles.coverErrorOverlay}>
-                <AppIcon name="image" size="xl" color={colors.textMuted} />
-              </View>
-            )}
-          </View>
-        )}
-      </View>
+        </View>
+      ) : null}
 
-      {/* Avatar + Edit / Follow */}
-      <View style={styles.avatarRow}>
-        <View style={{ marginTop: -32 }}>
+      {/* Profile card */}
+      <View style={styles.profileCard}>
+        <View style={styles.profileCardLeft}>
           <Avatar
             uri={user?.profileImage}
             name={user?.displayName || null}
-            size={80}
-            borderWidth={4}
-            borderColor={colors.bg}
+            size={72}
+            borderWidth={0}
+            borderColor="transparent"
           />
         </View>
-        {isOwnProfile ? (
-          <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')}>
-            <Text style={styles.editProfileBtnText}>Edit profile</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity
-              style={[styles.followBtn, following && styles.followingBtn]}
-              onPress={handleFollow}
-              disabled={followLoading}
-            >
-              {followLoading ? (
-                <ActivityIndicator size="small" color={following ? colors.text : colors.bg} />
-              ) : (
-                <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
-                  {following ? 'Following' : 'Follow'}
-                </Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.messageBtn}
-              onPress={handleMessage}
-              disabled={messaging}
-            >
-              {messaging ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <AppIcon name="chat-bubble-outline" size="md" color={colors.white} />
-              )}
-              <Text style={styles.messageBtnText}>Message</Text>
-            </TouchableOpacity>
+        <View style={styles.profileCardRight}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <Text style={styles.displayName} numberOfLines={1}>{user?.displayName || 'User'}</Text>
+            <VerifiedBadge badge={user?.badge} isVerified={user?.isVerified} size={16} />
           </View>
-        )}
+          <Text style={styles.handle} numberOfLines={1}>@{user?.username}</Text>
+          <View style={styles.actionBtns}>
+            {isOwnProfile ? (
+              <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')}>
+                <Text style={styles.editProfileBtnText}>Edit profile</Text>
+              </TouchableOpacity>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.followBtn, following && styles.followingBtn]}
+                  onPress={handleFollow}
+                  disabled={followLoading}
+                >
+                  {followLoading ? (
+                    <ActivityIndicator size="small" color={following ? colors.text : colors.bg} />
+                  ) : (
+                    <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
+                      {following ? 'Following' : 'Follow'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.messageBtn}
+                  onPress={handleMessage}
+                  disabled={messaging}
+                >
+                  {messaging ? (
+                    <ActivityIndicator size="small" color={colors.white} />
+                  ) : (
+                    <Feather name="message-circle" size={15} color={colors.white} />
+                  )}
+                  <Text style={styles.messageBtnText}>Message</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
       </View>
 
-      {/* Name / Bio */}
-      <View style={styles.bioSection}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
-          <VerifiedBadge badge={user?.badge} isVerified={user?.isVerified} size={20} />
+      {/* Bio */}
+      {user?.bio ? (
+        <View style={styles.bioSection}>
+          <Text style={styles.bio}>{user.bio}</Text>
         </View>
-        <Text style={styles.handle}>@{user?.username}</Text>
-        {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
-        <View style={styles.statsRow}>
-          <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'following' } as never)}>
-            <Text style={styles.statText}>
-              <Text style={styles.statNum}>{formatCount(followingCount)}</Text> Following
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'followers' } as never)}>
-            <Text style={styles.statText}>
-              <Text style={styles.statNum}>{formatCount(followersCount)}</Text> Followers
-            </Text>
-          </TouchableOpacity>
-        </View>
+      ) : null}
+
+      {/* Stats */}
+      <View style={styles.statsRow}>
+        <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'following' } as never)}>
+          <Text style={styles.statText}>
+            <Text style={styles.statNum}>{formatCount(followingCount)}</Text>{' Following'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'followers' } as never)}>
+          <Text style={styles.statText}>
+            <Text style={styles.statNum}>{formatCount(followersCount)}</Text>{' Followers'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Ad Banner — only show if an active campaign exists */}
@@ -889,57 +886,71 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
   },
   topLogo: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  /* Cover: h-32 = 128px */
-  coverWrap: { height: 110, width: '100%', overflow: 'hidden', backgroundColor: '#0a0a0a' },
+  coverWrap: { height: 140, width: '100%', overflow: 'hidden', backgroundColor: '#0a0a0a' },
   cover: { width: '100%', height: '100%' },
-  coverPlaceholder: { backgroundColor: '#0a0a0a' },
-  coverErrorOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+
+  /* New profile card: horizontal layout, avatar left, info + actions right */
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 4,
+    gap: 14,
   },
-  /* web: flex items-end justify-between px-5 -mt-8 mb-3 */
-  avatarRow: {
-    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
-    paddingHorizontal: 20, marginTop: -32, marginBottom: 12,
+  profileCardLeft: {},
+  profileCardRight: {
+    flex: 1,
+    gap: 2,
   },
-  /* Edit Profile button: px-5 py-1.5 rounded-full border border-[#64748b] text-[15px] font-bold text-[#e7e9ea] */
+  actionBtns: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    flexWrap: 'wrap',
+  },
   editProfileBtn: {
-    borderWidth: 1, borderColor: colors.textTertiary, borderRadius: 999,
-    paddingHorizontal: 20, paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  editProfileBtnText: { color: colors.text, fontWeight: '700', fontSize: 15 },
-  /* Follow button (not following): bg-[#e7e9ea] text-black px-6 py-2 rounded-full text-[15px] font-bold */
+  editProfileBtnText: { color: colors.text, fontWeight: '600', fontSize: 13 },
   followBtn: {
-    backgroundColor: colors.text, borderRadius: 999,
-    paddingHorizontal: 20, paddingVertical: 6,
+    backgroundColor: colors.accent,
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
   },
-  /* Follow button (following): border border-[#64748b] text-[#e7e9ea] */
-  followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.textTertiary },
-  followBtnText: { color: colors.primaryForeground, fontWeight: '700', fontSize: 15 },
+  followingBtn: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  followBtnText: { color: colors.bg, fontWeight: '700', fontSize: 13 },
   followingBtnText: { color: colors.text },
-  /* Message button: border border-[#FFFFFF]/40 text-[#FFFFFF] px-5 py-2 rounded-full text-[15px] font-bold */
   messageBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1, borderColor: colors.borderWhite40, borderRadius: 999,
-    paddingHorizontal: 16, paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7,
   },
-  messageBtnText: { color: colors.white, fontWeight: '700', fontSize: 14 },
-  /* Bio section: px-5 pb-4 border-b border-white/[0.06] */
+  messageBtnText: { color: colors.white, fontWeight: '600', fontSize: 13 },
+
   bioSection: {
-    paddingHorizontal: 20, paddingTop: 0, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: colors.separator,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.07)',
   },
-  /* Name: text-xl font-bold text-[#e7e9ea] */
-  displayName: { color: colors.text, fontSize: 20, fontWeight: '700' },
-  /* Username: text-[15px] text-[#94a3b8] */
-  handle: { color: colors.textSecondary, fontSize: 15, marginTop: 2 },
-  /* Bio: text-[15px] text-[#e7e9ea] mt-2 leading-relaxed (leading-relaxed = 1.625 → lineHeight 24.375) */
-  bio: { color: colors.text, fontSize: 15, lineHeight: 24, marginTop: 8 },
-  /* Stats: flex items-center gap-5 mt-4 text-[14px] */
-  statsRow: { flexDirection: 'row', gap: 20, marginTop: 16 },
-  statText: { color: colors.textSecondary, fontSize: 14 },
-  statNum: { color: colors.text, fontWeight: '700' },
+  displayName: { color: colors.text, fontSize: 17, fontWeight: '700', lineHeight: 22 },
+  handle: { color: colors.textMuted, fontSize: 13 },
+  bio: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, marginTop: 2 },
+  statsRow: { flexDirection: 'row', gap: 20, marginTop: 12, paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)' },
+  statText: { color: colors.textMuted, fontSize: 13 },
+  statNum: { color: colors.text, fontWeight: '700', fontSize: 14 },
   /* Tab bar: horizontal scrollable pills */
   tabBarContainer: {
     backgroundColor: colors.bg,

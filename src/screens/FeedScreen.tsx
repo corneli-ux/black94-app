@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Alert, Share, Image, ScrollView, Modal, TextInput,
@@ -17,6 +17,7 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import FeedMedia from '../components/FeedMedia';
 import { useAppStore } from '../stores/app';
+import { useFocusEffect } from '@react-navigation/native';
 import { useFeed, Tab } from '../hooks/useFeed';
 import { FeedSkeleton } from '../components/SkeletonLoader';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
@@ -544,13 +545,18 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                     {post.quoteCaption}
                   </Text>
                 ) : null}
-                {post.quoteMediaUrls && post.quoteMediaUrls.length > 0 && (
-                  <Image
-                    source={{ uri: post.quoteMediaUrls[0] }}
-                    style={styles.quoteCardImage}
-                    resizeMode="cover"
-                  />
-                )}
+                {post.quoteMediaUrls && post.quoteMediaUrls.length > 0 && (() => {
+                  const [qImgFailed, setQImgFailed] = React.useState(false);
+                  if (qImgFailed) return null;
+                  return (
+                    <Image
+                      source={{ uri: post.quoteMediaUrls![0] }}
+                      style={styles.quoteCardImage}
+                      resizeMode="cover"
+                      onError={() => setQImgFailed(true)}
+                    />
+                  );
+                })()}
               </View>
             </TouchableOpacity>
           )}
@@ -727,6 +733,7 @@ const storiesRowStyles = StyleSheet.create({
 /* ── FeedScreen ───────────────────────────────────────────────────────────── */
 
 export default function FeedScreen({ navigation }: any) {
+  const setTabBarVisible = useAppStore(s => s.setTabBarVisible);
   const {
     posts,
     loading,
@@ -765,7 +772,28 @@ export default function FeedScreen({ navigation }: any) {
     return () => clearTimeout(timer);
   }, [loading]);
 
+  // Restore tab bar when screen focuses
+  useFocusEffect(useCallback(() => {
+    setTabBarVisible(true);
+    return () => {};
+  }, [setTabBarVisible]));
+
   const showSkeleton = loading && !forceLoaded;
+
+  // Tab bar auto-hide on scroll
+  const lastScrollY = useRef(0);
+  const scrollDirection = useRef<'up' | 'down'>('up');
+  const handleFeedScroll = useCallback((e: any) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const diff = y - lastScrollY.current;
+    if (Math.abs(diff) < 4) return; // ignore tiny movements
+    const dir = diff > 0 ? 'down' : 'up';
+    if (dir !== scrollDirection.current) {
+      scrollDirection.current = dir;
+      setTabBarVisible(dir === 'up' || y < 60);
+    }
+    lastScrollY.current = y;
+  }, [setTabBarVisible]);
 
   if (showSkeleton) {
     return (
@@ -899,6 +927,7 @@ export default function FeedScreen({ navigation }: any) {
             progressViewOffset={0}
           />
         }
+        onScroll={handleFeedScroll}
         scrollEventThrottle={16}
         nestedScrollEnabled={true}
         onEndReached={loadMore}
