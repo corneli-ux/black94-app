@@ -88,6 +88,8 @@ async function openImagePicker(limit: number): Promise<ImagePicker.ImagePickerAs
       allowsMultipleSelection: true,
       selectionLimit: limit,
       maxWidth: 1200,
+      // CRITICAL: copies to app cache dir on Android, avoiding content:// URI issues
+      copyToCacheDirectory: true,
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) return null;
