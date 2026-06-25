@@ -14,6 +14,7 @@
  */
 
 import React, { Component } from 'react';
+import { Feather } from '@expo/vector-icons';
 import {
   View,
   Text,
@@ -473,26 +474,26 @@ function ChatRoomContent({ route, navigation }: any) {
           />
           <View style={styles.attachMenu}>
             <TouchableOpacity style={styles.attachItem} onPress={handlePickImage} activeOpacity={0.7}>
-              <View style={[styles.attachIcon, { backgroundColor: 'rgba(59,130,246,0.15)' }]}>
-                <AppIcon name="image" size="lg" color="#3B82F6" />
+              <View style={styles.attachIcon}>
+                <Feather name="image" size={22} color={colors.textSecondary} />
               </View>
               <Text style={styles.attachLabel}>Photo</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachItem} onPress={handleCamera} activeOpacity={0.7}>
-              <View style={[styles.attachIcon, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
-                <AppIcon name="camera-alt" size="lg" color={colors.accentGreen} />
+              <View style={styles.attachIcon}>
+                <Feather name="camera" size={22} color={colors.textSecondary} />
               </View>
               <Text style={styles.attachLabel}>Camera</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachItem} onPress={handleOpenGifPicker} activeOpacity={0.7}>
-              <View style={[styles.attachIcon, { backgroundColor: 'rgba(168,85,247,0.15)' }]}>
-                <AppIcon name="movie" size="lg" color="#A855F7" />
+              <View style={styles.attachIcon}>
+                <Feather name="film" size={22} color={colors.textSecondary} />
               </View>
               <Text style={styles.attachLabel}>GIF</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachItem} onPress={handleStartVoiceRecord} activeOpacity={0.7}>
-              <View style={[styles.attachIcon, { backgroundColor: 'rgba(239,68,68,0.15)' }]}>
-                <AppIcon name="mic" size="lg" color={colors.error} />
+              <View style={styles.attachIcon}>
+                <Feather name="mic" size={22} color={colors.textSecondary} />
               </View>
               <Text style={styles.attachLabel}>Voice</Text>
             </TouchableOpacity>

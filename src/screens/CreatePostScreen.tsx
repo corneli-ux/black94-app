@@ -14,6 +14,7 @@ import { uploadOptimizedImage } from '../utils/imageUpload';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { AppIcon } from '../components/icons';
+import { Feather } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -775,7 +776,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <AppIcon name="photo-library" size="lg" color={posting ? COLORS.textMuted : COLORS.gold} />
+              <Feather name="image" size={22} color={posting ? COLORS.textMuted : colors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -783,7 +784,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <AppIcon name="camera-alt" size="lg" color={posting ? COLORS.textMuted : COLORS.green} />
+              <Feather name="camera" size={22} color={posting ? COLORS.textMuted : colors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -791,7 +792,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <AppIcon name="gif" size="lg" color={posting ? COLORS.textMuted : COLORS.amber} />
+              <Feather name="film" size={22} color={posting ? COLORS.textMuted : colors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -799,7 +800,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <AppIcon name="poll-outline" size="lg" color={posting ? COLORS.textMuted : (pollData ? COLORS.gold : colors.textSecondary)} />
+              <Feather name="bar-chart-2" size={22} color={posting ? COLORS.textMuted : (pollData ? COLORS.gold : colors.textSecondary)} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -811,11 +812,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <AppIcon
-                name="schedule"
-                size="lg"
-                color={posting ? COLORS.textMuted : (scheduleMode ? COLORS.gold : colors.textSecondary)}
-              />
+              <Feather name="clock" size={22} color={posting ? COLORS.textMuted : (scheduleMode ? COLORS.gold : colors.textSecondary)} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -827,11 +824,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <AppIcon
-                name="location-on"
-                size="lg"
-                color={posting ? COLORS.textMuted : (locationTag ? COLORS.green : colors.textSecondary)}
-              />
+              <Feather name="map-pin" size={22} color={posting ? COLORS.textMuted : (locationTag ? COLORS.gold : colors.textSecondary)} />
             </TouchableOpacity>
             {/* Thread toggle */}
             <TouchableOpacity
@@ -848,11 +841,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <AppIcon
-                name="call-split"
-                size="lg"
-                color={posting ? COLORS.textMuted : (threadMode ? COLORS.accent : colors.textSecondary)}
-              />
+              <Feather name="git-branch" size={22} color={posting ? COLORS.textMuted : (threadMode ? COLORS.accent : colors.textSecondary)} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, posting && styles.toolBtnDisabled]}
@@ -873,11 +862,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               activeOpacity={0.7}
               disabled={posting}
             >
-              <AppIcon
-                name={visibility === 'public' ? 'public' : 'groups'}
-                size="lg"
-                color={posting ? COLORS.textMuted : (visibility === 'public' ? colors.accentGreen : COLORS.gold)}
-              />
+              <Feather name={visibility === 'public' ? 'globe' : 'users'} size={22} color={posting ? COLORS.textMuted : (visibility === 'public' ? colors.textSecondary : COLORS.gold)} />
             </TouchableOpacity>
           </View>
           </ScrollView>

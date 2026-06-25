@@ -28,6 +28,7 @@ import { useAppStore } from '../stores/app';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlatList } from 'react-native';
 import { AppIcon } from '../components/icons';
+import { Feather } from '@expo/vector-icons';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONSTANTS
@@ -785,7 +786,7 @@ export default function StoriesScreen({ navigation }: any) {
                   />
                 </View>
                 <View style={styles.plusBadge}>
-                  <AppIcon name="add" size="sm" color={colors.accent} />
+                  <Feather name="plus" size={12} color={colors.bg} />
                 </View>
                 <Text style={styles.highlightLabel} numberOfLines={1}>
                   Your story
@@ -1206,11 +1207,11 @@ const styles = StyleSheet.create({
   },
   plusBadge: {
     position: 'absolute',
-    bottom: 14,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    bottom: 16,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',

@@ -10,6 +10,7 @@ import { timeAgo } from '../utils/timeAgo';
 import { useAppStore } from '../stores/app';
 import { markAllNotificationsRead } from '../services/notificationEngine';
 import { AppIcon } from '../components/icons';
+import { Feather } from '@expo/vector-icons';
 
 interface Notification {
   id: string;
@@ -30,19 +31,14 @@ interface Notification {
 
 /* Notification type icon mapping — matches web SVG icons */
 function NotifTypeIcon({ type }: { type: string }) {
-  const color = type === 'like' ? colors.like
-    : type === 'repost' ? colors.accentGreen
-    : type === 'follow' ? colors.white
-    : type === 'comment' ? colors.white
-    : type === 'chat' ? colors.accentGold
-    : colors.textSecondary;
-  const name = type === 'like' ? 'favorite'
-    : type === 'repost' ? 'repeat'
-    : type === 'follow' ? 'person-add'
-    : type === 'comment' ? 'chat'
-    : type === 'chat' ? 'mail'
-    : 'alternate-email';
-  return <AppIcon name={name} size="md" color={color} />;
+  if (type === 'like') return <Feather name="heart" size={14} color={colors.like} />;
+  if (type === 'repost') return <Feather name="repeat" size={14} color={colors.repost} />;
+  if (type === 'follow') return <Feather name="user-plus" size={14} color={colors.white} />;
+  if (type === 'comment') return <Feather name="message-circle" size={14} color={colors.white} />;
+  if (type === 'chat') return <Feather name="mail" size={14} color={colors.accentGold} />;
+  if (type === 'mention') return <Feather name="at-sign" size={14} color={colors.accent} />;
+  if (type === 'story_view') return <Feather name="eye" size={14} color={colors.textSecondary} />;
+  return <Feather name="bell" size={14} color={colors.textSecondary} />;
 }
 
 export default function NotificationsScreen({ navigation }: any) {

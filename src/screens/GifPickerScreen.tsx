@@ -38,10 +38,10 @@ const TENOR_KEY = (Constants.expoConfig?.extra?.tenorApiKey as string) || '';
 const PAGE_SIZE = 30;
 
 async function fetchTrending(pos?: number): Promise<{ items: GifItem[]; next: string | null }> {
-  let url = `https://tenor.googleapis.com/v2/trending?key=${TENOR_KEY}&limit=${PAGE_SIZE}&media_filter=gif`;
+  let url = `https://tenor.googleapis.com/v2/featured?key=${TENOR_KEY}&client_key=black94&limit=${PAGE_SIZE}&media_filter=gif`;
   if (pos != null) url += `&pos=${pos}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Tenor trending error: ${res.status}`);
+  if (!res.ok) throw new Error(`Tenor error: ${res.status}`);
   const json = await res.json();
   const items = (json.results ?? []).map((r: any) => ({
     id: r.id,
@@ -53,7 +53,7 @@ async function fetchTrending(pos?: number): Promise<{ items: GifItem[]; next: st
 
 async function searchGifs(query: string, pos?: number): Promise<{ items: GifItem[]; next: string | null }> {
   const encoded = encodeURIComponent(query);
-  let url = `https://tenor.googleapis.com/v2/search?q=${encoded}&key=${TENOR_KEY}&limit=${PAGE_SIZE}&media_filter=gif`;
+  let url = `https://tenor.googleapis.com/v2/search?q=${encoded}&key=${TENOR_KEY}&client_key=black94&limit=${PAGE_SIZE}&media_filter=gif`;
   if (pos != null) url += `&pos=${pos}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Tenor search error: ${res.status}`);
