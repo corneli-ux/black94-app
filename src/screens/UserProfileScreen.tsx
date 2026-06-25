@@ -19,9 +19,6 @@ import {
   toggleFollow,
   checkFollowing,
   getUserDmPermission,
-  getPaidChatPrice,
-  hasPaidChatAccess,
-  fetchActiveAdCampaigns,
   User,
   Post,
   tsToMillis,
@@ -481,7 +478,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
-  const [profileAd, setProfileAd] = useState<any>(null);
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
@@ -507,9 +503,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
   useEffect(() => {
     (async () => {
       try {
-        const adList = await fetchActiveAdCampaigns(5);
-        if (adList.length > 0) {
-          setProfileAd(adList[0]);
         }
       } catch {
         // silently ignore
@@ -796,37 +789,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
     try {
       const dmPermission = await getUserDmPermission(userId);
 
-      if (dmPermission === 'paid') {
-        const paid = await hasPaidChatAccess(currentUid, userId);
-        if (paid) {
-          const snap1 = await firestore().collection('chats').where('user1Id', '==', currentUid).get();
-          const existing = snap1.docs.find(d => d.data().user2Id === userId);
-          if (existing) {
-            navigation.navigate('ChatRoom' as never, { chatId: existing.id } as never);
-          } else {
-            const snap2 = await firestore().collection('chats').where('user2Id', '==', currentUid).get();
-            const existing2 = snap2.docs.find(d => d.data().user1Id === userId);
-            if (existing2) {
-              navigation.navigate('ChatRoom' as never, { chatId: existing2.id } as never);
-            } else {
-              const chatRef = await firestore().collection('chats').add({
-                user1Id: currentUid,
-                user2Id: userId,
-                lastMessage: '',
-                lastMessageTime: firestore.FieldValue.serverTimestamp(),
-                unreadUser1: 0,
-                unreadUser2: 0,
-                createdAt: firestore.FieldValue.serverTimestamp(),
-              });
-              navigation.navigate('ChatRoom' as never, { chatId: chatRef.id } as never);
-            }
-          }
-        } else {
-          const chatPrice = await getPaidChatPrice(userId);
-          navigation.navigate('PaidChat' as never, { targetUserId: userId, chatPrice } as never);
-        }
-        return;
-      }
 
       if (dmPermission === 'followers') {
         const follows = await checkFollowing(userId);
@@ -1120,27 +1082,8 @@ export default function UserProfileScreen({ navigation, route }: any) {
         </View>
 
         {/* Ad Banner — only show if an active campaign exists */}
-        {profileAd && (
-          <View style={styles.adBanner}>
-            <View style={styles.adBannerBadgeRow}>
-              <AppIcon name="megaphone-outline" size="sm" color={colors.accentGold} />
-              <Text style={styles.adBannerBadgeText}>Promoted</Text>
-            </View>
-            <Text style={styles.adBannerHeadline} numberOfLines={1}>{profileAd.headline || 'Ad'}</Text>
-            {profileAd.description ? (
-              <Text style={styles.adBannerDescription} numberOfLines={2}>{profileAd.description}</Text>
-            ) : null}
-            {profileAd.ctaText ? (
-              <TouchableOpacity style={styles.adBannerCta} activeOpacity={0.7}>
-                <Text style={styles.adBannerCtaText}>{profileAd.ctaText}</Text>
-              </TouchableOpacity>
-            ) : null}
-            <Text style={styles.adBannerSponsored}>Sponsored</Text>
-          </View>
-        )}
 
         {/* Separator between ad and tabs */}
-        {profileAd && <View style={styles.adSeparator} />}
 
         {/* Tabs — horizontal pill/chip style */}
         <View style={styles.tabBarContainer}>
@@ -1320,59 +1263,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
   },
-  adBanner: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 0,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: colors.bg,
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
   },
-  adBannerBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 4,
     marginBottom: 8,
   },
-  adBannerBadgeText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
     letterSpacing: 0.3,
   },
-  adBannerHeadline: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '700',
     lineHeight: 20,
     marginBottom: 4,
   },
-  adBannerDescription: {
-    color: colors.textSecondary,
-    fontSize: 14,
     lineHeight: 19,
     marginBottom: 10,
-  },
-  adBannerCta: {
-    alignSelf: 'flex-start',
-    marginBottom: 6,
-  },
-  adBannerCtaText: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  adBannerSponsored: {
-    color: colors.textMuted,
-    fontSize: 11,
-  },
-  adSeparator: {
-    height: 0.5,
-    backgroundColor: colors.separator,
-    marginHorizontal: 20,
-    marginTop: 12,
   },
 });

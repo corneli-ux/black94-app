@@ -26,7 +26,6 @@ import { useAppStore } from '../stores/app';
 import { Platform } from 'react-native';
 import { AppIcon } from '../components/icons';
 
-const MAX_FREE_DURATION = 60 * 60; // 60 minutes in seconds
 
 export default function VideoCallScreen() {
   const route = useRoute<any>();
@@ -47,7 +46,7 @@ export default function VideoCallScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasEndedRef = useRef(false);
 
-  const isPremium = user?.subscription === 'premium' || user?.subscription === 'business';
+  const isPremium = true; // Payment system pending — all users get full access
 
   // ── Permission rationale dialog (Indus App Store compliance) ──────────
   useEffect(() => {

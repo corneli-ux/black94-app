@@ -63,14 +63,9 @@ async function callFunction<T>(functionName: string, body: Record<string, any>):
  * @param params - Razorpay payment details from the checkout callback.
  * @returns Verified result with type and details.
  */
-export async function verifyPayment(params: {
-  razorpayOrderId: string;
-  razorpayPaymentId: string;
-  razorpaySignature: string;
-  type: 'subscription' | 'order' | 'paid_chat';
-  planId?: string;
-  [key: string]: any;
-}): Promise<{ verified: boolean; type: string; details: any }> {
+export async function verifyPayment(_params: any): Promise<any> {
+  throw new Error('Payments not available yet');
+}> {
   const uid = auth()?.currentUser?.uid;
   if (!uid) throw new Error('Not authenticated');
 

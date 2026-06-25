@@ -5,7 +5,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 import { parseMediaUrls } from '../lib/api';
-import { checkPlanLimit } from '../lib/payments';
 import { optimizeImage } from '../utils/imageOptimizer';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { AppIcon } from '../components/icons';
@@ -279,15 +278,6 @@ export default function AddProductScreen({ route, navigation }: any) {
     if (!currentUser?.uid) {
       Alert.alert('Error', 'You must be logged in.');
       return;
-    }
-
-    // Check plan limits for new products
-    if (!editProductId) {
-      const productCheck = await checkPlanLimit(currentUser.uid, 'product');
-      if (!productCheck.allowed) {
-        Alert.alert('Limit Reached', productCheck.reason || 'Upgrade to Business plan to add products.');
-        return;
-      }
     }
 
     setSaving(true);

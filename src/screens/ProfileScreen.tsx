@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { AppIcon, RepostIcon } from '../components/icons';
 import PostActionsBar from '../components/PostActionsBar';
 import { colors } from '../theme/colors';
-import { fetchUserProfile, toggleFollow, checkFollowing, getUserDmPermission, getPaidChatPrice, hasPaidChatAccess, fetchActiveAdCampaigns, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
+import { fetchUserProfile, toggleFollow, checkFollowing, getUserDmPermission, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
 import { usePostInteractions } from '../hooks/usePostInteractions';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
@@ -386,7 +386,6 @@ export default function ProfileScreen({ route, navigation }: any) {
   const [tabLoading, setTabLoading] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [profileAd, setProfileAd] = useState<any>(null);
   const [coverImageError, setCoverImageError] = useState(false);
 
   const isBusinessAccount = user?.role === 'business';
@@ -528,11 +527,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   useEffect(() => {
     (async () => {
       try {
-        const adList = await fetchActiveAdCampaigns(10);
-        if (adList.length > 0) {
           // Pick a random campaign (different from UserProfileScreen which picks index 0)
-          const randomIndex = Math.floor(Math.random() * adList.length);
-          setProfileAd(adList[randomIndex]);
         }
       } catch {
         // silently ignore
@@ -718,20 +713,6 @@ export default function ProfileScreen({ route, navigation }: any) {
       // ── Check target user's DM permission setting ──
       const dmPermission = await getUserDmPermission(targetUserId);
 
-      if (dmPermission === 'paid') {
-        // Check if user already has paid access
-        const paid = await hasPaidChatAccess(currentUser.uid, targetUserId);
-        if (paid) {
-          // Already paid — proceed to chat directly
-          await findOrCreateChat(currentUser.uid, targetUserId);
-        } else {
-          // Not paid — navigate to paid chat screen
-          const chatPrice = await getPaidChatPrice(targetUserId);
-          navigation.navigate('PaidChat' as never, { targetUserId, chatPrice } as never);
-        }
-        return;
-      }
-
       if (dmPermission === 'followers') {
         // Check if current user follows the target
         const follows = await checkFollowing(targetUserId);
@@ -877,27 +858,8 @@ export default function ProfileScreen({ route, navigation }: any) {
       </View>
 
       {/* Ad Banner — only show if an active campaign exists */}
-      {profileAd && (
-        <View style={styles.adBanner}>
-          <View style={styles.adBannerBadgeRow}>
-            <AppIcon name="megaphone-outline" size="sm" color={colors.accentGold} />
-            <Text style={styles.adBannerBadgeText}>Promoted</Text>
-          </View>
-          <Text style={styles.adBannerHeadline} numberOfLines={1}>{profileAd.headline || 'Ad'}</Text>
-          {profileAd.description ? (
-            <Text style={styles.adBannerDescription} numberOfLines={2}>{profileAd.description}</Text>
-          ) : null}
-          {profileAd.ctaText ? (
-            <TouchableOpacity style={styles.adBannerCta} activeOpacity={0.7}>
-              <Text style={styles.adBannerCtaText}>{profileAd.ctaText}</Text>
-            </TouchableOpacity>
-          ) : null}
-          <Text style={styles.adBannerSponsored}>Sponsored</Text>
-        </View>
-      )}
 
       {/* Separator between ad and tabs */}
-      {profileAd && <View style={styles.adSeparator} />}
 
       {/* Tabs — horizontal pill/chip style */}
       <View style={styles.tabBarContainer}>
@@ -1027,59 +989,3 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   /* ── Profile Ad Banner ── */
-  adBanner: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 0,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: colors.bg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  adBannerBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 8,
-  },
-  adBannerBadgeText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  adBannerHeadline: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  adBannerDescription: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  adBannerCta: {
-    alignSelf: 'flex-start',
-    marginBottom: 6,
-  },
-  adBannerCtaText: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  adBannerSponsored: {
-    color: colors.textMuted,
-    fontSize: 11,
-  },
-  adSeparator: {
-    height: 0.5,
-    backgroundColor: colors.separator,
-    marginHorizontal: 20,
-    marginTop: 12,
-  },
-});

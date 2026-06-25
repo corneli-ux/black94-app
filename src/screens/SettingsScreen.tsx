@@ -11,7 +11,6 @@ import { auth, updateAuthUser, firestore } from '../lib/firebase';
 import { deleteAccountServer } from '../lib/cloudFunctions';
 import { clearPushToken, requestNotificationPermissions } from '../services/pushNotifications';
 import { Avatar } from '../components/Avatar';
-import { PLANS, formatAmount } from '../lib/payments';
 
 export default function SettingsScreen() {
   const navigation = useNavigation() as any;
@@ -141,9 +140,7 @@ export default function SettingsScreen() {
           <AppIcon name="arrow-back" size="lg" color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('PremiumDashboard' as never)} hitSlop={8}>
-          <AppIcon name="diamond" size="lg" color={colors.accent} />
-        </TouchableOpacity>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -198,40 +195,6 @@ export default function SettingsScreen() {
 
         {/* Upgrade Section */}
         <View style={styles.section}>
-          <View style={styles.upgradeHeader}>
-            <AppIcon name="diamond" size="md" color={colors.accent} />
-            <Text style={styles.sectionTitle}>Upgrade</Text>
-          </View>
-          <View style={styles.upgradeCard}>
-            <View style={styles.upgradeCardTop}>
-              <View style={styles.upgradeIconWrap}>
-                <AppIcon name="diamond" size="xxl" color={colors.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.upgradeTitle}>Go Premium</Text>
-                <Text style={styles.upgradeSubtitle}>Unlock unlimited features</Text>
-              </View>
-            </View>
-            {PLANS.map((plan, idx) => (
-              <TouchableOpacity
-                key={plan.id}
-                style={[styles.planRow, idx === PLANS.length - 1 && { borderBottomWidth: 0 }]}
-                onPress={() => navigation.navigate('PremiumDashboard' as never)}
-              >
-                <View style={styles.planInfo}>
-                  <Text style={styles.planName}>{plan.name}</Text>
-                  <Text style={styles.planFeatures}>
-                    {plan.features.slice(0, 3).join(' · ')}
-                  </Text>
-                </View>
-                <View style={styles.planPriceWrap}>
-                  <Text style={styles.planPrice}>{formatAmount(plan.amount)}</Text>
-                  <Text style={styles.planDuration}>/{plan.duration}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
 
         {/* Quick Links */}
         <View style={styles.section}>
@@ -372,34 +335,10 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: colors.accent, fontWeight: '600', fontSize: 15 },
   profileSection: { alignItems: 'center', paddingVertical: 20 },
-  upgradeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  upgradeCard: {
-    backgroundColor: colors.surface, borderRadius: 16,
-    borderWidth: 1, borderColor: colors.accentBorderHeavy, overflow: 'hidden',
   },
-  upgradeCardTop: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  upgradeIconWrap: {
-    width: 52, height: 52, borderRadius: 14,
-    backgroundColor: colors.accentBg,
-    alignItems: 'center', justifyContent: 'center',
   },
-  upgradeTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
-  upgradeSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  planRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  planInfo: { flex: 1, marginRight: 12 },
-  planName: { fontSize: 15, fontWeight: '600', color: colors.text },
-  planFeatures: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  planPriceWrap: { flexDirection: 'row', alignItems: 'baseline' },
-  planPrice: { fontSize: 17, fontWeight: '700', color: colors.accent },
-  planDuration: { fontSize: 12, color: colors.textMuted },
   formSection: { paddingHorizontal: 16, marginTop: 8 },
   label: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 16 },
   input: {

@@ -900,8 +900,7 @@ export default function AnonymousChatScreen() {
   }
 
   // ── Render: Paywall (free users who exceeded 10 free chats) ────────────
-  const isSubscribed = user?.subscription === 'premium' || user?.subscription === 'business';
-  const canUseAnonChat = isSubscribed || anonChatCount < 10;
+  const canUseAnonChat = true; // Payment system pending — all users get full access
 
   if (!canUseAnonChat) {
     return (

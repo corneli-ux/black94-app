@@ -32,7 +32,6 @@ jobs:
 
       - name: Install dependencies
         env:
-          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: npm install
 
@@ -55,13 +54,11 @@ jobs:
       # just need to run npm install afterwards to pick up the changes.
       - name: Expo prebuild
         env:
-          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: npx expo prebuild --platform android --clean || true
 
       - name: Install updated dependencies
         env:
-          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: npm install && npm install hermes-compiler
 

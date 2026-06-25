@@ -248,7 +248,6 @@ function CustomDrawerContent({ navigation }: any) {
     { label: 'Explore', icon: 'search', screen: 'Explore' },
     { label: 'Profile', icon: 'person-outline', screen: 'ProfileSelf' },
     { label: 'Bookmarks', icon: 'bookmark-border', screen: 'Bookmarks' },
-    { label: 'Upgrade', icon: 'diamond-outline', screen: 'PremiumDashboard' },
   ];
 
   const handleLogout = () => {

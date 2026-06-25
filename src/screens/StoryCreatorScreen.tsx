@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, firestore } from '../lib/firebase';
 import { fetchUserProfile } from '../lib/api';
-import { checkPlanLimit } from '../lib/payments';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { optimizeImage } from '../utils/imageOptimizer';
 import { colors } from '../theme/colors';
@@ -174,13 +173,6 @@ export default function StoryCreatorScreen({ navigation }: any) {
       // Previously, images were uploaded first (lines 158-162), and if
       // the limit was reached after upload, the image was orphaned in
       // Firebase Storage forever.
-      const storyCheck = await checkPlanLimit(currentUid, 'story');
-      if (!storyCheck.allowed) {
-        Alert.alert('Limit Reached', storyCheck.reason || 'Upgrade your plan to create more stories.');
-        setPosting(false);
-        return;
-      }
-
       let mediaUrl = '';
       let content = '';
       let pollOptionsData: Array<{ id: string; text: string; votes: number; percentage: number }> | undefined;
