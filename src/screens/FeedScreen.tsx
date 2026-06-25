@@ -1022,12 +1022,12 @@ const styles = StyleSheet.create({
   /* ── Post Card — exact match to web UserPostCard ── */
   postCard: {
     backgroundColor: colors.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.separator,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.07)',
     paddingLeft: 16,
     paddingRight: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingTop: 14,
+    paddingBottom: 10,
   },
   repostHeader: {
     flexDirection: 'row',
@@ -1071,17 +1071,17 @@ const styles = StyleSheet.create({
   },
   username: {
     color: colors.textMuted,
-    fontSize: fs(15),
+    fontSize: fs(13),
     lineHeight: vs(20),
   },
   dot: {
     color: colors.textMuted,
-    fontSize: fs(15),
+    fontSize: fs(13),
     lineHeight: vs(20),
   },
   time: {
     color: colors.textMuted,
-    fontSize: fs(15),
+    fontSize: fs(13),
     lineHeight: vs(20),
   },
   moreBtn: {

@@ -9,6 +9,7 @@ import { useAppStore } from '../stores/app';
 import { signOutUser } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { AppIcon } from '../components/icons';
+import { Feather } from '@expo/vector-icons';
 
 /* ── Dark Navigation Theme — prevents white flash on transitions ── */
 const DarkTheme = {
@@ -152,32 +153,36 @@ function LazyScreen(Component: any) {
 }
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-  const tabColor = focused ? colors.white : colors.textMuted;
+  const activeColor = colors.white;
+  const inactiveColor = 'rgba(255,255,255,0.38)';
+  const color = focused ? activeColor : inactiveColor;
+  const sz = 24;
 
   switch (name) {
     case 'Home':
+      // Black94 wordmark — bold numerals
       return (
-        <Text style={{ fontSize: 24, fontWeight: '900', color: tabColor }}>94</Text>
+        <Text style={{
+          fontSize: 20,
+          fontWeight: '900',
+          color,
+          letterSpacing: -0.5,
+          fontStyle: 'italic',
+        }}>94</Text>
       );
     case 'Search':
-      return <AppIcon name="search" size="xl" color={tabColor} />;
+      return <Feather name="search" size={sz} color={color} />;
     case 'Messages':
-      return <AppIcon name={focused ? 'chat' : 'chat-bubble-outline'} size="xl" color={tabColor} />;
+      return <Feather name={focused ? 'message-circle' : 'message-circle'} size={sz} color={color} />;
     case 'Notifications':
-      return <AppIcon name={focused ? 'notifications' : 'notifications-outlined'} size="xl" color={tabColor} />;
-    case 'AnonymousChat':
-      return (
-        <AppIcon
-          name="incognito"
-          size="xl"
-          color={tabColor}
-          style={focused ? { opacity: 1 } : { opacity: 0.5 }}
-        />
-      );
+      return <Feather name="bell" size={sz} color={color} />;
     case 'Stories':
-      return <AppIcon name={focused ? 'add-circle' : 'add-circle-outline'} size="xl" color={tabColor} />;
+      // Plus inside a circle — for story creation
+      return <Feather name="plus-circle" size={sz} color={color} />;
+    case 'AnonymousChat':
+      return <Feather name="eye-off" size={sz} color={color} />;
     default:
-      return <AppIcon name="circle" size="xl" color={tabColor} />;
+      return <Feather name="circle" size={sz} color={color} />;
   }
 }
 
@@ -207,9 +212,9 @@ const MainTabs = memo(function MainTabs() {
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: colors.tabBar,
+          backgroundColor: 'rgba(0,0,0,0.96)',
           borderTopWidth: 0.5,
-          borderTopColor: colors.separator,
+          borderTopColor: 'rgba(255,255,255,0.08)',
           height: tabBarHeight,
           paddingBottom: insets.bottom || 0,
           elevation: 0,

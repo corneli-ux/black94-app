@@ -1,134 +1,100 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View, Image, StyleSheet, ActivityIndicator, Dimensions,
-  TouchableOpacity, Modal, SafeAreaView,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-
-interface FeedMediaProps {
-  uri: string;
-  onRefreshUrl?: (uri: string) => void;
-}
-
 /**
- * FeedMedia — Renders a single post image with aspect-ratio-aware height.
+ * FeedMedia — Post image renderer.
  *
- * How it works:
- * 1. Uses Image.getSize() to fetch actual image dimensions.
- * 2. Calculates display height so the image fills the container.
- * 3. Caps the height at 1.2× screen width for very tall vertical images,
- *    and sets a minimum of 200px for very wide images.
- * 4. Uses resizeMode="cover" so the image fills the entire container
- *    without gaps (edges may be slightly cropped for extreme ratios).
- * 5. Tapping the image opens a fullscreen viewer showing the complete image.
- * 6. Shows a dark placeholder while dimensions are loading.
- * 7. On load error, calls onRefreshUrl (for Firebase token refresh) then
- *    shows the error fallback.
+ * Key design: render immediately with a default aspect ratio (4:3).
+ * onLoad updates to the real ratio. No Image.getSize() call — that was
+ * blocking render and silently failing on expired Firebase URLs.
+ *
+ * For expired URLs: onError fires → calls onRefreshUrl → parent supplies
+ * a fresh URL → uri prop changes → image retries automatically.
  */
 
-/** Global dimension cache to avoid re-fetching for the same URL */
-const _dimCache = new Map<string, { width: number; height: number }>();
-const MAX_CACHE = 200;
+import React, { useState, useCallback, useRef } from 'react';
+import {
+  View, Image, StyleSheet, Dimensions,
+  TouchableOpacity, Modal, SafeAreaView, Text,
+} from 'react-native';
+import { colors } from '../theme/colors';
 
-export default function FeedMedia({ uri, onRefreshUrl }: FeedMediaProps) {
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const CARD_WIDTH = SCREEN_W - 32; // 16px padding each side
+
+export default function FeedMedia({ uri, onRefreshUrl }: {
+  uri: string;
+  onRefreshUrl?: (uri: string) => void;
+}) {
+  const [aspectRatio, setAspectRatio] = useState(1.5); // default 3:2 landscape
+  const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const retried = useRef(false);
 
-  // Detect image dimensions when uri changes; reset error state so retry works
-  useEffect(() => {
-    if (!uri) return;
-    setFailed(false);
-
-    // Check cache first
-    const cached = _dimCache.get(uri);
-    if (cached) {
-      setDimensions(cached);
-      return;
+  const handleLoad = useCallback((e: any) => {
+    const { width, height } = e.nativeEvent.source;
+    if (width && height) {
+      const ratio = width / height;
+      // Clamp: min 0.5 (portrait), max 2 (very wide)
+      setAspectRatio(Math.min(Math.max(ratio, 0.5), 2));
     }
+    setLoaded(true);
+    setFailed(false);
+  }, []);
 
-    setDimensions(null);
-    Image.getSize(
-      uri,
-      (w, h) => {
-        const dims = { width: w, height: h };
-        setDimensions(dims);
-        // Cache for future renders
-        if (_dimCache.size >= MAX_CACHE) {
-          const firstKey = _dimCache.keys().next().value;
-          if (firstKey) _dimCache.delete(firstKey);
-        }
-        _dimCache.set(uri, dims);
-      },
-      () => setFailed(true),
-    );
-  }, [uri]);
+  const handleError = useCallback(() => {
+    if (!retried.current && onRefreshUrl) {
+      retried.current = true;
+      onRefreshUrl(uri);
+    } else {
+      setFailed(true);
+    }
+  }, [uri, onRefreshUrl]);
 
-  const openFullscreen = useCallback(() => {
-    if (uri && !failed) setFullscreen(true);
-  }, [uri, failed]);
+  if (!uri) return null;
 
-  if (!uri || failed) {
+  const displayHeight = CARD_WIDTH / aspectRatio;
+
+  if (failed) {
     return (
-      <View style={[styles.container, styles.errorContainer]}>
-        <Ionicons name="image-outline" size={28} color="#71767b" />
+      <View style={[styles.container, { height: Math.min(displayHeight, 260) }]}>
+        <View style={styles.errorInner}>
+          {/* Simple broken image indicator — no icon dependency */}
+          <View style={styles.brokenIcon}>
+            <View style={styles.brokenLine} />
+            <View style={[styles.brokenLine, { transform: [{ rotate: '90deg' }] }]} />
+          </View>
+          <Text style={styles.errorText}>Image unavailable</Text>
+        </View>
       </View>
     );
-  }
-
-  // Calculate display height based on actual aspect ratio
-  let displayHeight = 300; // sensible default while getSize is in-flight
-  if (dimensions) {
-    const aspect = dimensions.width / dimensions.height;
-    const fullWidth = SCREEN_W - 32; // 16px horizontal padding on each side
-    const naturalHeight = fullWidth / aspect;
-    // Clamp: min 200px, max 1.2× screen width (for very tall vertical images)
-    displayHeight = Math.min(Math.max(naturalHeight, 200), SCREEN_W * 1.2);
   }
 
   return (
     <>
       <TouchableOpacity
-        activeOpacity={0.95}
-        onPress={openFullscreen}
+        activeOpacity={0.97}
+        onPress={() => setFullscreen(true)}
         style={[styles.container, { height: displayHeight }]}
       >
-        {/* Loading indicator while dimensions are being fetched */}
-        {!dimensions && (
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <ActivityIndicator size="small" color="#555" />
-          </View>
-        )}
+        {/* Skeleton while loading */}
+        {!loaded && <View style={[StyleSheet.absoluteFill, styles.skeleton]} />}
+
         <Image
           source={{ uri }}
-          style={[styles.image, { width: '100%', height: displayHeight }]}
+          style={[styles.image, { opacity: loaded ? 1 : 0 }]}
           resizeMode="cover"
-          onError={() => {
-            setFailed(true);
-            if (onRefreshUrl) onRefreshUrl(uri);
-          }}
+          onLoad={handleLoad}
+          onError={handleError}
         />
       </TouchableOpacity>
 
-      {/* Fullscreen Image Viewer Modal */}
-      <Modal
-        visible={fullscreen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setFullscreen(false)}
-      >
+      <Modal visible={fullscreen} transparent animationType="fade" onRequestClose={() => setFullscreen(false)}>
         <SafeAreaView style={styles.fullscreenBg}>
-          <TouchableOpacity
-            style={styles.fullscreenClose}
-            onPress={() => setFullscreen(false)}
-          >
-            <Ionicons name="close" size={28} color="#ffffff" />
+          <TouchableOpacity style={styles.closeBtn} onPress={() => setFullscreen(false)}>
+            <Text style={styles.closeText}>✕</Text>
           </TouchableOpacity>
           <Image
             source={{ uri }}
-            style={styles.fullscreenImage}
+            style={{ width: SCREEN_W, height: SCREEN_H - 80 }}
             resizeMode="contain"
           />
         </SafeAreaView>
@@ -139,41 +105,64 @@ export default function FeedMedia({ uri, onRefreshUrl }: FeedMediaProps) {
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 12,
-    borderRadius: 14,
+    marginTop: 10,
+    borderRadius: 12,
     overflow: 'hidden',
+    backgroundColor: '#111',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    backgroundColor: '#111111',
+    borderColor: colors.borderSubtle,
   },
   image: {
-    backgroundColor: '#000000',
+    width: '100%',
+    height: '100%',
   },
-  errorContainer: {
-    height: 200,
+  skeleton: {
+    backgroundColor: '#111',
+  },
+  errorInner: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+  },
+  brokenIcon: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brokenLine: {
+    position: 'absolute',
+    width: 24,
+    height: 1.5,
+    backgroundColor: colors.textMuted,
+    borderRadius: 1,
+  },
+  errorText: {
+    color: colors.textMuted,
+    fontSize: 12,
   },
   fullscreenBg: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  fullscreenClose: {
+  closeBtn: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 16,
+    right: 16,
     zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  fullscreenImage: {
-    width: SCREEN_W,
-    height: SCREEN_H - 60,
+  closeText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -21,6 +21,7 @@ import { colors } from '../theme/colors';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { optimizeImage } from '../utils/imageOptimizer';
 import { AppIcon } from '../components/icons';
+import { Feather } from '@expo/vector-icons';
 
 type Role = 'personal' | 'creator' | 'professional' | 'business';
 
@@ -483,7 +484,7 @@ export default function EditProfileScreen({ navigation }: any) {
                 </View>
               )}
               <View style={styles.avatarEditOverlay}>
-                <AppIcon name="camera-alt" size="md" color={colors.accent} />
+                <Feather name="camera" size={16} color={colors.bg} />
               </View>
             </TouchableOpacity>
             <Text style={styles.avatarLabel}>Profile Photo</Text>

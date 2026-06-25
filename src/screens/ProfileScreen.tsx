@@ -745,9 +745,6 @@ export default function ProfileScreen({ route, navigation }: any) {
               <TouchableOpacity onPress={() => navigation.navigate('Settings')} hitSlop={8}>
                 <AppIcon name="settings" size="lg" color={colors.text} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate('PremiumDashboard')} hitSlop={8}>
-                <AppIcon name="diamond-outline" size="lg" color={colors.accent} />
-              </TouchableOpacity>
             </View>
           ) : (
             <View style={{ width: 22 }} />
@@ -893,10 +890,9 @@ const styles = StyleSheet.create({
   },
   topLogo: { color: colors.text, fontSize: 18, fontWeight: '800' },
   /* Cover: h-32 = 128px */
-  coverWrap: { height: 128, width: '100%', overflow: 'hidden', backgroundColor: colors.bg },
+  coverWrap: { height: 110, width: '100%', overflow: 'hidden', backgroundColor: '#0a0a0a' },
   cover: { width: '100%', height: '100%' },
-  /* Fallback: solid black */
-  coverPlaceholder: { backgroundColor: colors.bg },
+  coverPlaceholder: { backgroundColor: '#0a0a0a' },
   coverErrorOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
