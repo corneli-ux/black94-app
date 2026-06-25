@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fetchChatList, Chat, fetchUserPrivacySettings, checkFollowing, searchUsers, User, tsToMillis, createGroupChat, fetchGroupMembers } from '../lib/api';
@@ -387,7 +388,7 @@ export default function ChatListScreen({ navigation, route }: any) {
   const renderNoChats = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIcon}>
-        <AppIcon name="chat-bubble-outline" size="3xl" color={colors.textSecondary} />
+        <Feather name="message-circle" size={32} color={colors.textSecondary} />
       </View>
       <Text style={styles.emptyTitle}>No messages yet</Text>
       <Text style={styles.emptySubtitle}>Start a conversation to see messages here.</Text>
@@ -415,9 +416,8 @@ export default function ChatListScreen({ navigation, route }: any) {
         activeOpacity={0.7}
       >
         <View style={styles.tabContent}>
-          <AppIcon
-            name="chat-bubble-outline"
-            size="md"
+          <Feather name="message-circle"
+            size={18}
             color={activeTab === 'chat' ? colors.white : colors.textSecondary}
           />
           <Text style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>

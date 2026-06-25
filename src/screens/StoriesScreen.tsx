@@ -1030,7 +1030,7 @@ export default function StoriesScreen({ navigation }: any) {
                     style={styles.reactionBtn}
                     onPress={() => setShowCommentInput(!showCommentInput)}
                   >
-                    <AppIcon name="chat-bubble-outline" size="xl" color={colors.white} />
+                    <Feather name="message-circle" size={24} color={colors.white} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.reactionBtn}>
                     <AppIcon name="send-outline" size="xl" color={colors.white} />

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, ScrollView, Alert, Share, Dimensions } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppIcon, RepostIcon } from '../components/icons';
@@ -180,14 +181,13 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const profileCardStyles = StyleSheet.create({
   postCard: {
     backgroundColor: colors.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.separator,
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingTop: 4,
-    paddingBottom: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 14,
+    paddingTop: 13,
+    paddingBottom: 8,
   },
-  contentRow: { flexDirection: 'row', gap: 12 },
+  contentRow: { flexDirection: 'row', gap: 10 },
   contentColumn: { flex: 1, minWidth: 0, position: 'relative' },
   headerRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -205,11 +205,11 @@ const profileCardStyles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderRadius: 16,
   },
-  displayName: { color: colors.text, fontWeight: '700', fontSize: 15, lineHeight: 20 },
-  username: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
-  dot: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
-  time: { color: colors.textMuted, fontSize: 15, lineHeight: 20 },
-  caption: { color: colors.text, fontSize: 15, lineHeight: 20, marginTop: 4 },
+  displayName: { color: colors.white, fontWeight: '700', fontSize: 15, lineHeight: 20, letterSpacing: -0.1 },
+  username: { color: colors.textMuted, fontSize: 13, lineHeight: 20 },
+  dot: { color: colors.textMuted, fontSize: 13, lineHeight: 20 },
+  time: { color: colors.textMuted, fontSize: 13, lineHeight: 20 },
+  caption: { color: colors.text, fontSize: 15, lineHeight: 22, marginTop: 3 },
   seeMore: { color: colors.white, fontSize: 15, fontWeight: '600', marginTop: 2 },
   mediaContainer: {
     marginTop: 12, borderRadius: 16, overflow: 'hidden',

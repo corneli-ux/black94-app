@@ -224,7 +224,7 @@ export default function NotificationsScreen({ navigation }: any) {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
               <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.bgSubtle, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-                <AppIcon name="notifications-outlined" size="xxl" color={colors.textSecondary} />
+                <Feather name="bell" size={28} color={colors.textSecondary} />
               </View>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 6 }}>Nothing to see here — yet</Text>
               <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 40, fontSize: 15 }}>

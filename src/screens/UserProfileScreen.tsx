@@ -12,6 +12,7 @@ import {
   Alert,
   Share,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, firestore } from '../lib/firebase';
 import {
@@ -365,7 +366,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
 
   if (filteredReplies.length === 0) return (
     <View style={{ alignItems: 'center', paddingTop: 60 }}>
-      <AppIcon name="chat-bubble-outline" size="hero" color={colors.textTertiary} style={{ marginBottom: 12 }} />
+      <Feather name="message-circle" size={48} color={colors.textTertiary} style={{ marginBottom: 12 }} />
       <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No replies yet</Text>
     </View>
   );
@@ -401,7 +402,7 @@ function RepliesList({ replies, navigation }: { replies: Reply[]; navigation: an
               <View style={profileCardStyles.actions}>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => navigation.navigate('PostComments', { postId: reply.postId, postCaption: reply.postCaption })}>
                   <View style={profileCardStyles.actionIconWrap}>
-                    <AppIcon name="chat-bubble-outline" size="md" color={colors.textSecondary} />
+                    <Feather name="message-circle" size={18} color={colors.textSecondary} />
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={profileCardStyles.actionBtn} onPress={() => setRepostMap(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}>
@@ -951,7 +952,7 @@ export default function UserProfileScreen({ navigation, route }: any) {
                   <ActivityIndicator size="small" color={colors.white} />
                 ) : (
                   <>
-                    <AppIcon name="chat-bubble-outline" size="md" color={colors.white} />
+                    <Feather name="message-circle" size={18} color={colors.white} />
                     <Text style={styles.messageBtnText}>Message</Text>
                   </>
                 )}

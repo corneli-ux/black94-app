@@ -10,6 +10,7 @@ import {
   Share,
   Image,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors } from '../theme/colors';
@@ -384,7 +385,7 @@ export default function PostDetailScreen() {
           {/* Comment */}
           <TouchableOpacity style={styles.actionBtn} onPress={handleComment}>
             <View style={styles.actionIconWrap}>
-              <AppIcon name="chat-bubble-outline" size="md" color={colors.textMuted} />
+              <Feather name="message-circle" size={18} color={colors.textMuted} />
             </View>
             {formatCount(post.commentCount) ? (
               <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>

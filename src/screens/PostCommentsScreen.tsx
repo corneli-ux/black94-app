@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -214,7 +215,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               });
             }}>
               <View style={styles.actionIconWrap}>
-                <AppIcon name="chat-bubble-outline" size="md" color={colors.textSecondary} />
+                <Feather name="message-circle" size={18} color={colors.textSecondary} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
@@ -329,7 +330,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             </View>
           ) : (
             <View style={styles.emptyWrap}>
-              <AppIcon name="chat-bubble-outline" size="hero" color={colors.textTertiary} />
+              <Feather name="message-circle" size={48} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>No replies yet</Text>
               <Text style={styles.emptySub}>Be the first to share your thoughts.</Text>
             </View>

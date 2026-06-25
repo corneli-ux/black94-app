@@ -17,6 +17,7 @@ import {
   Alert,
   Share,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
 import { firestore } from '../lib/firebase';
@@ -363,7 +364,7 @@ export default function ArticleViewScreen({ route, navigation }: any) {
           onPress={() => {
             Alert.alert('Comments', `${commentCount} comments`);
           }}>
-          <AppIcon name="chat-bubble-outline" size="lg" color={colors.textSecondary} />
+          <Feather name="message-circle" size={22} color={colors.textSecondary} />
           <Text style={styles.actionCount}>{commentCount}</Text>
         </TouchableOpacity>
 

@@ -3,6 +3,7 @@ import {
   View, Text, Image, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
@@ -147,7 +148,7 @@ export default function MentionedPostsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
-                <AppIcon name="alternate-email" size="3xl" color={colors.textSecondary} />
+                <Feather name="at-sign" size={32} color={colors.textSecondary} />
               </View>
               <Text style={styles.emptyTitle}>No mentions yet</Text>
               <Text style={styles.emptySubtitle}>

@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Alert, Share, Image, ScrollView, Modal, TextInput,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive';
@@ -942,7 +943,7 @@ export default function FeedScreen({ navigation }: any) {
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <View style={styles.emptyIcon}>
-              <AppIcon name="chat-bubble-outline" size="4xl" color={colors.textSecondary} />
+              <Feather name="message-circle" size={36} color={colors.textSecondary} />
             </View>
             <Text style={styles.emptyTitle}>No posts yet</Text>
             <Text style={styles.emptySubtitle}>When people post, their posts will show up here.</Text>
@@ -1048,15 +1049,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
 
-  /* ── Post Card — exact match to web UserPostCard ── */
+  /* ── Post Card ── */
   postCard: {
     backgroundColor: colors.bg,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.07)',
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingTop: 14,
-    paddingBottom: 10,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 14,
+    paddingTop: 13,
+    paddingBottom: 8,
   },
   repostHeader: {
     flexDirection: 'row',
@@ -1072,7 +1072,7 @@ const styles = StyleSheet.create({
   },
   contentRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   contentColumn: {
     flex: 1,
@@ -1093,10 +1093,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   displayName: {
-    color: colors.text,
+    color: colors.white,
     fontWeight: '700',
     fontSize: fs(15),
     lineHeight: vs(20),
+    letterSpacing: -0.1,
   },
   username: {
     color: colors.textMuted,
@@ -1124,8 +1125,8 @@ const styles = StyleSheet.create({
   caption: {
     color: colors.text,
     fontSize: fs(15),
-    lineHeight: vs(20),
-    marginTop: scale(4),
+    lineHeight: vs(22),
+    marginTop: scale(3),
   },
   seeMoreText: {
     color: colors.accent,
