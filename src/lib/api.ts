@@ -789,15 +789,8 @@ export async function fetchThreadPosts(threadId: string): Promise<any[]> {
 
 export async function toggleLike(postId: string, currentlyLiked: boolean): Promise<boolean> {
   const userId = currentUser()?.uid;
-  console.log('[API toggleLike] postId:', postId, 'currentlyLiked:', currentlyLiked, 'userId:', userId);
-  if (!userId) {
-    console.error('[API toggleLike] ABORTED — no authenticated user (userId is null/undefined)');
-    return false;
-  }
-  if (!postId) {
-    console.error('[API toggleLike] ABORTED — postId is null/undefined');
-    return false;
-  }
+  if (!userId) throw new Error('Not authenticated');
+  if (!postId) throw new Error('Missing postId');
 
   const likeRef = firestore().collection('post_likes').doc(`${postId}_${userId}`);
   const postRef = firestore().collection('posts').doc(postId);
@@ -806,7 +799,7 @@ export async function toggleLike(postId: string, currentlyLiked: boolean): Promi
     if (currentlyLiked) {
       await likeRef.delete();
       try { await postRef.update({ likeCount: firestore.FieldValue.increment(-1) }); } catch {}
-      return false;
+      return false; // now unliked
     } else {
       await likeRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
       try { await postRef.update({ likeCount: firestore.FieldValue.increment(1) }); } catch {}
@@ -844,7 +837,7 @@ export async function toggleLike(postId: string, currentlyLiked: boolean): Promi
 
 export async function toggleBookmark(postId: string, currentlyBookmarked: boolean): Promise<boolean> {
   const userId = currentUser()?.uid;
-  if (!userId) return false;
+  if (!userId) throw new Error('Not authenticated');
 
   const bookmarkRef = firestore().collection('post_bookmarks').doc(`${postId}_${userId}`);
 

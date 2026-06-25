@@ -1,6 +1,12 @@
 /**
- * PostActionsBar — Post action buttons with Feather icons (thin, modern).
- * Self-contained: manages liked/reposted/bookmarked state internally.
+ * PostActionsBar — self-contained post action buttons.
+ * 
+ * Contract with api.ts:
+ *  toggleLike:     throws on error, returns true=liked / false=unliked
+ *  toggleBookmark: throws on error, returns true=bookmarked / false=unbookmarked  
+ *  toggleRepost:   returns { success, undone }
+ * 
+ * Pattern: optimistic update → API call → revert ONLY on throw/exception
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -63,64 +69,93 @@ const PostActionsBar = React.memo(function PostActionsBar({
   const hasInteractedRepost = useRef(false);
   const hasInteractedBookmark = useRef(false);
 
+  // Sync from props only before first interaction
   useEffect(() => {
-    if (!hasInteractedLike.current) { setLiked(!!post.liked); setLikeCount(post.likeCount || 0); }
+    if (!hasInteractedLike.current) {
+      setLiked(!!post.liked);
+      setLikeCount(post.likeCount || 0);
+    }
   }, [post.liked, post.likeCount]);
 
   useEffect(() => {
-    if (!hasInteractedRepost.current) { setReposted(!!post.reposted); setRepostCount(post.repostCount || 0); }
+    if (!hasInteractedRepost.current) {
+      setReposted(!!post.reposted);
+      setRepostCount(post.repostCount || 0);
+    }
   }, [post.reposted, post.repostCount]);
 
   useEffect(() => {
     if (!hasInteractedBookmark.current) setBookmarked(!!post.bookmarked);
   }, [post.bookmarked]);
 
+  // ── LIKE ──────────────────────────────────────────────────────────────
   const handleLikePress = useCallback(async () => {
     if (likingRef.current) return;
+    const targetId = interactionId || post.id;
+    if (!targetId) return;
+
+    const uid = getUid();
+    if (!uid) {
+      Alert.alert('Sign In Required', 'Please sign in to like posts.');
+      return;
+    }
+
     likingRef.current = true;
     hasInteractedLike.current = true;
     const wasLiked = liked;
-    const targetId = interactionId || post.id;
-    if (!targetId) { likingRef.current = false; return; }
+
+    // Optimistic update
     setLiked(!wasLiked);
     setLikeCount(prev => Math.max(0, prev + (wasLiked ? -1 : 1)));
-    try {
-      const uid = getUid();
-      if (!uid) {
-        Alert.alert('Sign In Required', 'Please sign in to like posts.');
-        setLiked(wasLiked); setLikeCount(prev => Math.max(0, prev + (wasLiked ? 1 : -1)));
-        return;
-      }
-      const result = await toggleLike(targetId, wasLiked);
-      if (result === false) { setLiked(wasLiked); setLikeCount(prev => Math.max(0, prev + (wasLiked ? 1 : -1))); }
-    } catch {
-      setLiked(wasLiked); setLikeCount(prev => Math.max(0, prev + (wasLiked ? 1 : -1)));
-    } finally { likingRef.current = false; }
-  }, [liked, interactionId, post.id]);
 
+    try {
+      await toggleLike(targetId, wasLiked);
+      // Success — keep optimistic state
+      onLike?.(targetId, wasLiked);
+    } catch (e: any) {
+      // Revert on real error
+      setLiked(wasLiked);
+      setLikeCount(prev => Math.max(0, prev + (wasLiked ? 1 : -1)));
+      if (e?.message === 'Not authenticated') {
+        Alert.alert('Sign In Required', 'Please sign in to like posts.');
+      }
+    } finally {
+      likingRef.current = false;
+    }
+  }, [liked, interactionId, post.id, onLike]);
+
+  // ── REPOST ────────────────────────────────────────────────────────────
   const doRepost = useCallback(async (targetId: string, wasReposted: boolean) => {
     repostingRef.current = true;
     hasInteractedRepost.current = true;
+
     setReposted(!wasReposted);
     setRepostCount(prev => Math.max(0, prev + (wasReposted ? -1 : 1)));
+
     try {
-      const uid = getUid();
-      if (!uid) {
-        Alert.alert('Sign In Required', 'Please sign in to repost.');
-        setReposted(wasReposted); setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
-        return;
-      }
       const result: ToggleRepostResult = await toggleRepost(targetId, wasReposted);
-      if (!result.success) { setReposted(wasReposted); setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1))); }
+      if (!result.success) {
+        setReposted(wasReposted);
+        setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
+      } else {
+        onRepost?.(targetId, wasReposted);
+      }
     } catch {
-      setReposted(wasReposted); setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
-    } finally { repostingRef.current = false; }
-  }, []);
+      setReposted(wasReposted);
+      setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
+    } finally {
+      repostingRef.current = false;
+    }
+  }, [onRepost]);
 
   const handleRepostPress = useCallback(() => {
     if (repostingRef.current) return;
     const targetId = interactionId || post.id;
     if (!targetId) return;
+
+    const uid = getUid();
+    if (!uid) { Alert.alert('Sign In Required', 'Please sign in to repost.'); return; }
+
     if (reposted) { doRepost(targetId, true); return; }
     Alert.alert('Repost', '', [
       { text: 'Cancel', style: 'cancel' },
@@ -136,27 +171,38 @@ const PostActionsBar = React.memo(function PostActionsBar({
     ]);
   }, [reposted, interactionId, post.id, post.authorUsername, post.caption, navigation, doRepost]);
 
+  // ── BOOKMARK ──────────────────────────────────────────────────────────
   const handleBookmarkPress = useCallback(async () => {
     if (bookmarkingRef.current) return;
+    const targetId = interactionId || post.id;
+    if (!targetId) return;
+
+    const uid = getUid();
+    if (!uid) { Alert.alert('Sign In Required', 'Please sign in to bookmark posts.'); return; }
+
     bookmarkingRef.current = true;
     hasInteractedBookmark.current = true;
     const wasBookmarked = bookmarked;
-    const targetId = interactionId || post.id;
-    if (!targetId) { bookmarkingRef.current = false; return; }
-    setBookmarked(!wasBookmarked);
-    try {
-      const uid = getUid();
-      if (!uid) { setBookmarked(wasBookmarked); return; }
-      await toggleBookmark(targetId, wasBookmarked);
-    } catch { setBookmarked(wasBookmarked); }
-    finally { bookmarkingRef.current = false; }
-  }, [bookmarked, interactionId, post.id]);
 
+    setBookmarked(!wasBookmarked);
+
+    try {
+      await toggleBookmark(targetId, wasBookmarked);
+      onBookmark?.(targetId, wasBookmarked);
+    } catch {
+      setBookmarked(wasBookmarked);
+    } finally {
+      bookmarkingRef.current = false;
+    }
+  }, [bookmarked, interactionId, post.id, onBookmark]);
+
+  // ── COMMENT ───────────────────────────────────────────────────────────
   const handleCommentPress = useCallback(() => {
     const targetId = interactionId || post.id;
     if (targetId) onComment(targetId);
   }, [interactionId, post.id, onComment]);
 
+  // ── SHARE ─────────────────────────────────────────────────────────────
   const handleSharePress = useCallback(async () => {
     if (onShare) { onShare(); return; }
     try { await Share.share({ message: 'Check out this post on Black94!' }); } catch {}
@@ -185,8 +231,11 @@ const PostActionsBar = React.memo(function PostActionsBar({
 
       {/* Like */}
       <TouchableOpacity style={styles.btn} onPress={handleLikePress} hitSlop={8}>
-        <Feather name="heart" size={sz} color={liked ? colors.like : colors.textSecondary}
-          style={liked ? { opacity: 1 } : undefined} />
+        <Feather
+          name={liked ? "heart" : "heart"}
+          size={sz}
+          color={liked ? colors.like : colors.textSecondary}
+        />
         {likeCount ? (
           <Text style={[styles.count, liked && { color: colors.like }]}>{formatCount(likeCount)}</Text>
         ) : null}
