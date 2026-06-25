@@ -86,7 +86,7 @@ jobs:
 
       # Firebase App Distribution — distribute APK to testers
       - name: Distribute to Firebase App Distribution
-        if: success()
+        if: success() && secrets.FIREBASE_SERVICE_ACCOUNT != ''
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
