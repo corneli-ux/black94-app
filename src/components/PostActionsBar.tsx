@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Share } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, AntDesign } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { RepostIcon } from './icons';
 import { toggleLike, toggleRepost, toggleBookmark, ToggleRepostResult } from '../lib/api';
@@ -231,11 +231,10 @@ const PostActionsBar = React.memo(function PostActionsBar({
 
       {/* Like */}
       <TouchableOpacity style={styles.btn} onPress={handleLikePress} hitSlop={8}>
-        <Feather
-          name={liked ? "heart" : "heart"}
-          size={sz}
-          color={liked ? colors.like : colors.textSecondary}
-        />
+        {liked
+          ? <AntDesign name="heart" size={sz} color={colors.like} />
+          : <Feather name="heart" size={sz} color={colors.textSecondary} />
+        }
         {likeCount ? (
           <Text style={[styles.count, liked && { color: colors.like }]}>{formatCount(likeCount)}</Text>
         ) : null}
@@ -250,7 +249,10 @@ const PostActionsBar = React.memo(function PostActionsBar({
       {/* Bookmark + Share */}
       <View style={styles.endGroup}>
         <TouchableOpacity style={styles.btn} onPress={handleBookmarkPress} hitSlop={8}>
-          <Feather name="bookmark" size={sz} color={bookmarked ? colors.bookmark : colors.textSecondary} />
+          {bookmarked
+            ? <AntDesign name="pushpin" size={sz} color={colors.bookmark} />
+            : <Feather name="bookmark" size={sz} color={colors.textSecondary} />
+          }
         </TouchableOpacity>
         <TouchableOpacity style={styles.btn} onPress={handleSharePress} hitSlop={8}>
           <Feather name="share" size={sz} color={colors.textSecondary} />
