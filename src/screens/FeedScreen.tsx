@@ -809,10 +809,10 @@ export default function FeedScreen({ navigation }: any) {
               <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
             </View>
             <TouchableOpacity
-              style={styles.headerBtn}
-              onPress={() => navigation.navigate('PremiumDashboard')}
+  style={styles.headerBtn}
+              onPress={() => navigation.navigate('Notifications')}
             >
-              <AppIcon name="diamond-outline" size="lg" color={colors.accent} />
+              <Feather name="bell" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -876,10 +876,10 @@ export default function FeedScreen({ navigation }: any) {
             <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
           </View>
           <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => navigation.navigate('PremiumDashboard')}
+style={styles.headerBtn}
+            onPress={() => navigation.navigate('Notifications')}
           >
-            <AppIcon name="diamond-outline" size="lg" color={colors.accent} />
+            <Feather name="bell" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -964,7 +964,7 @@ export default function FeedScreen({ navigation }: any) {
         onPress={() => navigation.navigate('CreatePost')}
         activeOpacity={0.8}
       >
-        <AppIcon name="add" size="xl" color={colors.primaryForeground} />
+        <Feather name="plus" size={24} color={colors.primaryForeground} />
       </TouchableOpacity>
 
       {/* Edit post modal */}
@@ -1035,6 +1035,7 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: colors.white,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
   tabTextInactive: {
     color: colors.textSecondary,
@@ -1043,10 +1044,11 @@ const styles = StyleSheet.create({
   tabUnderline: {
     position: 'absolute',
     bottom: 0,
-    left: 24,
-    right: 24,
-    height: 1,
-    backgroundColor: colors.white,
+    left: 20,
+    right: 20,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.accent,
   },
 
   /* ── Post Card ── */
@@ -1230,11 +1232,11 @@ const styles = StyleSheet.create({
   /* ── FAB ── */
   fab: {
     position: 'absolute', right: 16,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: colors.white,
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: colors.accent,
     alignItems: 'center', justifyContent: 'center',
-    elevation: 20, shadowColor: 'rgba(212,175,55,0.3)', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5, shadowRadius: 8,
+    elevation: 12, shadowColor: colors.accent, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4, shadowRadius: 8,
     zIndex: 999,
   },
   emptyIcon: {

@@ -372,7 +372,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
         >
           {sending
             ? <ActivityIndicator size="small" color={colors.primaryForeground} />
-            : <AppIcon name="send" size="md" color={text.trim() ? colors.primaryForeground : colors.textMuted} />
+            : <Feather name="send" size={18} color={text.trim() ? colors.primaryForeground : colors.textMuted} />
           }
         </TouchableOpacity>
         <TouchableOpacity
