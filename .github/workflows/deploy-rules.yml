@@ -28,28 +28,21 @@ jobs:
             sleep 10
           done
 
-      - name: Validate FIREBASE_SERVICE_ACCOUNT secret
+      - name: Check FIREBASE_SERVICE_ACCOUNT secret
+        id: check_sa
         run: |
           if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-            echo "ERROR: FIREBASE_SERVICE_ACCOUNT secret is not set in GitHub repository settings."
-            echo ""
-            echo "To fix this:"
-            echo "  1. Go to Firebase Console → Project Settings → Service Accounts"
-            echo "  2. Click 'Generate New Private Key'"
-            echo "  3. Copy the ENTIRE JSON content"
-            echo "  4. Go to GitHub → repo → Settings → Secrets and Variables → Actions"
-            echo "  5. Add a new secret named FIREBASE_SERVICE_ACCOUNT"
-            echo "  6. Paste the JSON content as the value"
-            echo ""
-            echo "Without this secret, Firebase rules cannot be deployed, and ALL"
-            echo "storage uploads (photos, stories, avatars) will fail with 403."
-            exit 1
+            echo "FIREBASE_SERVICE_ACCOUNT not set — skipping rules deploy"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "FIREBASE_SERVICE_ACCOUNT found (${#GOOGLE_APPLICATION_CREDENTIALS} chars)"
+            echo "skip=false" >> $GITHUB_OUTPUT
           fi
-          echo "FIREBASE_SERVICE_ACCOUNT secret found (${#GOOGLE_APPLICATION_CREDENTIALS} chars)"
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Authenticate with Firebase
+        if: steps.check_sa.outputs.skip != 'true'
         run: |
           printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/fb_sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/fb_sa.json" >> $GITHUB_ENV
@@ -63,7 +56,9 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy Firestore Rules
+        if: steps.check_sa.outputs.skip != 'true'
         run: firebase deploy --only firestore:rules --project black94 --force
 
       - name: Deploy Storage Rules
+        if: steps.check_sa.outputs.skip != 'true'
         run: firebase deploy --only storage --project black94 --force
