@@ -250,42 +250,31 @@ export default function EditProfileScreen({ navigation }: any) {
         // Previously, any upload failure would abort the entire save.
         try {
           if (profileImage && !profileImage.startsWith('http')) {
-            const optimized = await optimizeImage(profileImage, {
-              maxWidth: 800,
-              jpegQuality: 0.85,
-              generateThumbnail: false,
-            });
-            const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
+            // Direct upload without optimize step — simpler and more reliable
             const result = await uploadOptimizedImage(
-              optimized.optimizedUri,
-              `users/${currentUid}/profile/${Date.now()}.${ext}`,
-              { mimeType: optimized.mimeType },
+              profileImage,
+              `users/${currentUid}/profile/${Date.now()}.jpg`,
+              { mimeType: 'image/jpeg' },
             );
             finalProfileImage = result.downloadUrl;
           }
         } catch (imgErr: any) {
-          console.error('[EditProfileScreen] Profile image upload failed, keeping old image:', imgErr?.message);
+          console.error('[EditProfileScreen] Profile image upload failed:', imgErr?.message);
           finalProfileImage = user?.profileImage || '';
           imageWarning = 'profile';
         }
 
         try {
           if (coverImage && !coverImage.startsWith('http')) {
-            const optimized = await optimizeImage(coverImage, {
-              maxWidth: 1600,
-              jpegQuality: 0.85,
-              generateThumbnail: false,
-            });
-            const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
             const result = await uploadOptimizedImage(
-              optimized.optimizedUri,
-              `users/${currentUid}/cover/${Date.now()}.${ext}`,
-              { mimeType: optimized.mimeType },
+              coverImage,
+              `users/${currentUid}/cover/${Date.now()}.jpg`,
+              { mimeType: 'image/jpeg' },
             );
             finalCoverImage = result.downloadUrl;
           }
         } catch (imgErr: any) {
-          console.error('[EditProfileScreen] Cover image upload failed, keeping old image:', imgErr?.message);
+          console.error('[EditProfileScreen] Cover image upload failed:', imgErr?.message);
           finalCoverImage = user?.coverImage || '';
           if (!imageWarning) imageWarning = 'cover';
           else imageWarning = 'both';

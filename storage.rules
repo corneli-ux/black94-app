@@ -42,6 +42,12 @@ service firebase.storage {
       allow write: if isAuthenticated() && userId == request.auth.uid;
     }
 
+    // User profile and cover images
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() && userId == request.auth.uid;
+    }
+
     // General uploads (fallback)
     match /{allPaths=**} {
       allow read: if true;
