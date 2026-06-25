@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
-import { uploadOptimizedImage } from '../utils/imageUpload';
+import { uploadOptimizedImage, copyToSafeCache } from '../utils/imageUpload';
 import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { AppIcon } from '../components/icons';
@@ -262,8 +262,12 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
     }
     const assets = await openImagePicker(remaining);
     if (!assets || assets.length === 0) return;
-    const uris = assets.map((a) => a.uri!).slice(0, remaining);
-    if (uris.length > 0) setSelectedImages((prev) => [...prev, ...uris]);
+    // CRITICAL FIX: On Android, expo-image-picker may return content:// URIs
+    // that expo-file-system cannot read. Copy to a safe file:// path immediately.
+    const safeUris = await Promise.all(
+      assets.slice(0, remaining).map(a => copyToSafeCache(a.uri!).catch(() => a.uri!))
+    );
+    if (safeUris.length > 0) setSelectedImages((prev) => [...prev, ...safeUris]);
   }, [selectedImages.length, posting]);
 
   const handleCamera = useCallback(async () => {
@@ -275,7 +279,8 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
     }
     const asset = await openCamera();
     if (!asset?.uri) return;
-    setSelectedImages((prev) => [...prev, asset.uri!]);
+    const safeUri = await copyToSafeCache(asset.uri!).catch(() => asset.uri!);
+    setSelectedImages((prev) => [...prev, safeUri]);
   }, [selectedImages.length, posting]);
 
   const handleRemoveImage = useCallback((index: number) => {

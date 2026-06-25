@@ -203,23 +203,12 @@ const MainTabs = memo(function MainTabs() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = 50 + (insets.bottom || 0);
 
-  // Animated tab bar hide/show on scroll
-  const tabBarTranslate = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.spring(tabBarTranslate, {
-      toValue: tabBarVisible ? 0 : tabBarHeight,
-      useNativeDriver: true,
-      tension: 80,
-      friction: 12,
-    }).start();
-  }, [tabBarVisible, tabBarHeight]);
-
   return (
     <Tab.Navigator
       screenOptions={{
         lazy: true,
         headerShown: false,
-        tabBarStyle: {
+        tabBarStyle: tabBarVisible ? {
           position: 'absolute',
           bottom: 0,
           left: 0,
@@ -230,10 +219,9 @@ const MainTabs = memo(function MainTabs() {
           height: tabBarHeight,
           paddingBottom: insets.bottom || 0,
           elevation: 0,
-          transform: [{ translateY: tabBarTranslate }],
-        },
+        } : { display: 'none' },
         tabBarShowLabel: false,
-        sceneStyle: { paddingBottom: tabBarHeight },
+        sceneStyle: { paddingBottom: tabBarVisible ? tabBarHeight : 0 },
       }}
     >
       <Tab.Screen name="Home" component={FeedScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Home" focused={focused} /> }} />
