@@ -9,9 +9,9 @@ on:
 
 jobs:
   deploy:
-    if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
     name: Deploy Functions & Set Secrets
     runs-on: ubuntu-latest
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
