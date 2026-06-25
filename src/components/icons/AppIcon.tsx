@@ -249,6 +249,24 @@ const ICON_ALIASES: Record<string, string> = {
   'skip-previous': 'skip-previous',
   'image-filter-vintage': 'filter-vintage',
   'palette': 'palette',
+
+  // FIX: Missing aliases causing invisible/broken icons across the app
+  'logo-twitter': 'alternate-email',          // no Twitter logo in material; use @ as fallback
+  'logo-apple': 'phone-iphone',               // no Apple logo; use phone icon as fallback
+  'exit-outline': 'exit-to-app',             // MaterialIcons has exit-to-app
+  'navigate-outline': 'navigation',          // MaterialIcons has navigation
+  'medal': 'military-tech',                  // MaterialIcons has military-tech
+  'rocket': 'rocket-launch',                 // MaterialIcons has rocket-launch
+  'cube-outline': 'inventory-2',             // MaterialIcons has inventory-2 for packages
+  'cart-outline': 'shopping-cart',           // MaterialIcons has shopping-cart
+  'camera-reverse': 'flip-camera-ios',       // MaterialIcons has flip-camera-ios
+  'pricetag-outline': 'local-offer',         // MaterialIcons has local-offer
+  'today-outline': 'today',                  // MaterialIcons has today
+  'poll-outline': 'poll',                    // MaterialIcons has poll (though COMMUNITY_ICONS too)
+  'send-outline': 'send',                    // MaterialIcons has send
+  'notifications-outlined': 'notifications-none', // MaterialIcons has notifications-none
+  'sparkles-outline': 'auto-awesome',        // no outline variant; use solid
+  'person-add-outline': 'person-add-alt',    // MaterialIcons has person-add-alt
 };
 
 /** Predefined size tokens for consistent icon sizing across the app. */

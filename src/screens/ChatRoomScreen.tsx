@@ -165,7 +165,12 @@ function ChatRoomContent({ route, navigation }: any) {
   });
 
   const insets = useSafeAreaInsets();
-  const currentUser = auth()?.currentUser;
+  // FIX: Stabilize currentUser with useRef so uid comparisons (isMine) never
+  // flicker between renders. auth()?.currentUser returns a new object reference
+  // on every call, causing isMine to recompute inconsistently.
+  const currentUserRef = React.useRef(auth()?.currentUser);
+  if (!currentUserRef.current) currentUserRef.current = auth()?.currentUser;
+  const currentUser = currentUserRef.current;
 
   // Safe other user — ALWAYS defined, never undefined/null
   const safeOtherUser = chat?.otherUser || { displayName: 'Chat', username: '', profileImage: null };

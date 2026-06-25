@@ -140,11 +140,11 @@ export default function FeedMedia({ uri, onRefreshUrl }: FeedMediaProps) {
 const styles = StyleSheet.create({
   container: {
     marginTop: 12,
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: '#1a1a1a',
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: '#111111',
   },
   image: {
     backgroundColor: '#000000',

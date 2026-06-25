@@ -5,12 +5,12 @@
 export const colors = {
   // ── Backgrounds ──
   bg: '#000000',
-  bgCard: '#000000',
-  bgInput: '#000000',
-  bgModal: '#000000',
-  surface: '#000000',
-  surfaceElevated: '#000000',
-  surfaceLight: '#111111',
+  bgCard: '#0d0d0d',
+  bgInput: '#0f0f0f',
+  bgModal: '#111111',
+  surface: '#0a0a0a',
+  surfaceElevated: '#141414',
+  surfaceLight: '#1a1a1a',
   background: '#000000',
 
   // ── Text — proper hierarchy with opacity levels ──
@@ -77,13 +77,13 @@ export const colors = {
   composeDisabledText: '#6e7680',
 
   // ── Surfaces (semi-transparent) ──
-  bgSubtle: 'rgba(255,255,255,0.03)',
-  bgSubtleAlt: 'rgba(255,255,255,0.05)',
+  bgSubtle: 'rgba(255,255,255,0.05)',
+  bgSubtleAlt: 'rgba(255,255,255,0.07)',
   white25: 'rgba(255,255,255,0.25)',
   white50: 'rgba(255,255,255,0.5)',
-  borderSubtle: 'rgba(255,255,255,0.08)',
-  borderSubtleAlt: 'rgba(255,255,255,0.1)',
-  borderSubtleStrong: 'rgba(255,255,255,0.12)',
+  borderSubtle: 'rgba(255,255,255,0.10)',
+  borderSubtleAlt: 'rgba(255,255,255,0.12)',
+  borderSubtleStrong: 'rgba(255,255,255,0.16)',
   borderWhite40: 'rgba(255,255,255,0.4)',
 
   // ── Overlays ──
@@ -136,9 +136,9 @@ export const colors = {
   bronze: '#CD7F32',
 
   // ── NEW: Beautiful embed cards for reposts and quote reposts (minimalist social) ──
-  embedBg: '#0a0a0a',
-  embedBorder: '#222528',
-  repostEmbedBorder: 'rgba(16,185,129,0.3)',
-  quoteEmbedBorder: 'rgba(212,175,55,0.25)',
-  embedLine: '#333',
+  embedBg: '#111111',
+  embedBorder: '#2a2d31',
+  repostEmbedBorder: 'rgba(16,185,129,0.35)',
+  quoteEmbedBorder: 'rgba(212,175,55,0.3)',
+  embedLine: '#444',
 };
