@@ -193,9 +193,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Upgrade Section */}
-        <View style={styles.section}>
-
         {/* Quick Links */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
@@ -335,10 +332,6 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: colors.accent, fontWeight: '600', fontSize: 15 },
   profileSection: { alignItems: 'center', paddingVertical: 20 },
-  },
-  },
-  },
-  },
   formSection: { paddingHorizontal: 16, marginTop: 8 },
   label: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 16 },
   input: {

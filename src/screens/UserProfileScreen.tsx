@@ -499,16 +499,6 @@ export default function UserProfileScreen({ navigation, route }: any) {
     );
   }
 
-  // Fetch one active ad campaign for profile banner
-  useEffect(() => {
-    (async () => {
-      try {
-        }
-      } catch {
-        // silently ignore
-      }
-    })();
-  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -1262,19 +1252,5 @@ const styles = StyleSheet.create({
     color: colors.bg,
     fontWeight: '700',
     fontSize: 13,
-  },
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-    gap: 4,
-    marginBottom: 8,
-  },
-    letterSpacing: 0.3,
-  },
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-    lineHeight: 19,
-    marginBottom: 10,
   },
 });

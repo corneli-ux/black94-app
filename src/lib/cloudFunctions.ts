@@ -65,11 +65,6 @@ async function callFunction<T>(functionName: string, body: Record<string, any>):
  */
 export async function verifyPayment(_params: any): Promise<any> {
   throw new Error('Payments not available yet');
-}> {
-  const uid = auth()?.currentUser?.uid;
-  if (!uid) throw new Error('Not authenticated');
-
-  return callFunction('verifyRazorpayPayment', params);
 }
 
 // ── 2. createPaymentOrder ───────────────────────────────────────────────────

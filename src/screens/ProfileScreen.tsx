@@ -523,17 +523,6 @@ export default function ProfileScreen({ route, navigation }: any) {
     }
   }, [targetUserId]);
 
-  // Fetch a random active ad campaign for own profile banner
-  useEffect(() => {
-    (async () => {
-      try {
-          // Pick a random campaign (different from UserProfileScreen which picks index 0)
-        }
-      } catch {
-        // silently ignore
-      }
-    })();
-  }, []);
 
   const handleScroll = useCallback((event: any) => {
     const offset = event.nativeEvent.contentOffset.y;
@@ -989,3 +978,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   /* ── Profile Ad Banner ── */
+
+});
