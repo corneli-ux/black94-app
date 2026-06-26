@@ -62,7 +62,7 @@ async function _invalidateTokenAndRetry(): Promise<string> {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /** Firebase project ID — must match firebase.ts and google-services.json */
-const PROJECT_ID = 'black94';
+const PROJECT_ID = 'memora-bond';
 
 /** Firebase Storage bucket — must match google-services.json storage_bucket field.
  *  Firebase now defaults to {projectId}.firebasestorage.app for new projects. */

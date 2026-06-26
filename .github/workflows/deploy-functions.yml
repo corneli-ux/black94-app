@@ -40,9 +40,9 @@ jobs:
 
       - name: Set Firebase Secrets
         run: |
-          echo "${{ secrets.RAZORPAY_KEY_ID }}" | firebase functions:secrets:set RAZORPAY_KEY_ID --project black94 --force
-          echo "${{ secrets.RAZORPAY_KEY_SECRET }}" | firebase functions:secrets:set RAZORPAY_KEY_SECRET --project black94 --force
-          echo "${{ secrets.RAZORPAY_WEBHOOK_SECRET }}" | firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET --project black94 --force
+          echo "${{ secrets.RAZORPAY_KEY_ID }}" | firebase functions:secrets:set RAZORPAY_KEY_ID --project memora-bond --force
+          echo "${{ secrets.RAZORPAY_KEY_SECRET }}" | firebase functions:secrets:set RAZORPAY_KEY_SECRET --project memora-bond --force
+          echo "${{ secrets.RAZORPAY_WEBHOOK_SECRET }}" | firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET --project memora-bond --force
 
       - name: Grant Secret Manager access to function service account
         env:
@@ -77,7 +77,7 @@ jobs:
           # uses onRequest (HTTPS). Firebase doesn't allow changing the type
           # without deleting first.
           firebase functions:delete createRazorpayOrder verifyRazorpayPayment razorpayWebhook \
-            --project black94 --force || true
+            --project memora-bond --force || true
 
       - name: Deploy Cloud Functions
-        run: firebase deploy --only functions --project black94 --force
+        run: firebase deploy --only functions --project memora-bond --force

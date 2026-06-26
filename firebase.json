@@ -1,22 +1,10 @@
-/**
- * firebase.json — Firebase project configuration
- *
- * Specifies hosting, functions, and other Firebase service settings.
- * The functions directory points to our Cloud Functions.
- */
-
 {
-  "functions": {
-    "source": "functions",
-    "runtime": "nodejs20",
-    "secrets": []
-  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules",
-    "bucket": "black94.firebasestorage.app"
+    "bucket": "memora-bond.firebasestorage.app"
   }
 }

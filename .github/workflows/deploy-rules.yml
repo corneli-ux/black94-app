@@ -57,8 +57,8 @@ jobs:
 
       - name: Deploy Firestore Rules
         if: steps.check_sa.outputs.skip != 'true'
-        run: firebase deploy --only firestore:rules --project black94 --force
+        run: firebase deploy --only firestore:rules --project memora-bond --force
 
       - name: Deploy Storage Rules
         if: steps.check_sa.outputs.skip != 'true'
-        run: firebase deploy --only storage --project black94 --force
+        run: firebase deploy --only storage --project memora-bond --force

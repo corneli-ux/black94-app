@@ -23,7 +23,7 @@ module.exports = function () {
   return {
     expo: {
       name: 'Black94',
-      slug: 'black94',
+      slug: 'memora-bond',
       version: '1.8.3',
       platforms: ['android', 'ios', 'web'],
       orientation: 'portrait',
@@ -56,7 +56,7 @@ module.exports = function () {
           {
             action: 'VIEW',
             autoVerify: false,
-            data: [{ scheme: 'black94', host: 'auth' }],
+            data: [{ scheme: 'memora-bond', host: 'auth' }],
             category: ['DEFAULT', 'BROWSABLE'],
           },
           {
@@ -103,6 +103,6 @@ module.exports = function () {
       },
       owner: 'corneli1',
     },
-    scheme: 'black94',
+    scheme: 'memora-bond',
   };
 };

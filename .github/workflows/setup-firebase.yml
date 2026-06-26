@@ -1,0 +1,83 @@
+name: Setup Firebase (memora-bond)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Authenticate with Firebase
+        run: |
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT_MEMORA }}' > /tmp/sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json" >> $GITHUB_ENV
+
+      - name: Enable Firebase services & register Android app
+        run: |
+          node << 'SCRIPT'
+          const https = require('https');
+          const fs = require('fs');
+
+          const sa = JSON.parse(fs.readFileSync('/tmp/sa.json'));
+          const projectId = 'memora-bond';
+          const packageName = 'com.black94.app';
+          const appDisplayName = 'Black94';
+
+          // We'll use firebase CLI for everything
+          console.log('Project:', projectId);
+          console.log('Package:', packageName);
+          SCRIPT
+
+      - name: Register Android app in Firebase
+        run: |
+          firebase apps:create ANDROID \
+            --project memora-bond \
+            --package-name com.black94.app \
+            --display-name "Black94" || echo "App may already exist"
+
+      - name: Download google-services.json
+        run: |
+          APP_ID=$(firebase apps:list ANDROID --project memora-bond --json | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          apps = data.get('result', [])
+          for a in apps:
+              if a.get('namespace') == 'com.black94.app' or 'black94' in a.get('displayName','').lower():
+                  print(a['appId'])
+                  break
+          if not apps:
+              print('')
+          ")
+          echo "App ID: $APP_ID"
+          if [ -n "$APP_ID" ]; then
+            firebase apps:sdkconfig ANDROID $APP_ID --project memora-bond > google-services.json
+            cat google-services.json
+          fi
+
+      - name: Enable Firestore
+        run: |
+          firebase firestore:databases:list --project memora-bond || \
+          firebase firestore:databases:create --project memora-bond --location=asia-south1 || \
+          echo "Firestore may already be enabled"
+
+      - name: Deploy Firestore rules
+        run: firebase deploy --only firestore:rules --project memora-bond --force
+
+      - name: Deploy Storage rules
+        run: firebase deploy --only storage --project memora-bond --force
+
+      - name: Upload google-services.json as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-services-json
+          path: google-services.json

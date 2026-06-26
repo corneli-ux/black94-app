@@ -13,7 +13,7 @@ const API_KEY = Constants.expoConfig?.extra?.firebaseApiKey as string || '';
 if (!API_KEY && __DEV__) {
   console.error('[Firebase] FATAL: firebaseApiKey not configured in app.json extra field');
 }
-const PROJECT_ID = 'black94';
+const PROJECT_ID = 'memora-bond';
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
 const AUTH_STORAGE_KEY = '@black94/auth';

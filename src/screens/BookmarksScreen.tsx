@@ -47,7 +47,7 @@ export default function BookmarksScreen() {
 
       // Batch-read post docs: use `in` query with __name__ for efficiency.
       // Falls back to parallel individual reads if the batch query fails.
-      const POST_DB = 'projects/black94/databases/(default)/documents/posts';
+      const POST_DB = 'projects/memora-bond/databases/(default)/documents/posts';
       const BATCH_SIZE = 30;
       const postMap: Record<string, any> = {};
 

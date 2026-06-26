@@ -59,7 +59,7 @@ export default function LikedPostsScreen() {
 
       // 2. Batch-read post documents
       const BATCH_SIZE = 30;
-      const POST_DB = 'projects/black94/databases/(default)/documents/posts';
+      const POST_DB = 'projects/memora-bond/databases/(default)/documents/posts';
       const postMap: Record<string, any> = {};
 
       try {
