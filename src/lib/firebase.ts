@@ -148,6 +148,65 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
   return { user: _authUser };
 }
 
+// Email/Password sign-up — works on any Firebase project with email auth enabled.
+// No OAuth web client, no SHA-1, no DEVELOPER_ERROR. Reliable fallback.
+async function signUpWithEmail(email: string, password: string, displayName?: string) {
+  const resp = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true }),
+    },
+  );
+  const text = await resp.text();
+  let data: any = {};
+  try { data = JSON.parse(text); } catch {}
+  if (!resp.ok) {
+    throw new Error(data.error?.message || `Sign-up failed: ${resp.status}`);
+  }
+  _authUser = {
+    uid: data.localId,
+    email: data.email || email,
+    displayName: displayName || null,
+    photoURL: null,
+  };
+  _idToken = data.idToken;
+  _refreshToken = data.refreshToken;
+  _notifyAuthListeners();
+  await _persistAuth();
+  return { user: _authUser };
+}
+
+// Email/Password sign-in.
+async function signInWithEmail(email: string, password: string) {
+  const resp = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true }),
+    },
+  );
+  const text = await resp.text();
+  let data: any = {};
+  try { data = JSON.parse(text); } catch {}
+  if (!resp.ok) {
+    throw new Error(data.error?.message || `Sign-in failed: ${resp.status}`);
+  }
+  _authUser = {
+    uid: data.localId,
+    email: data.email || email,
+    displayName: data.displayName || null,
+    photoURL: data.profilePicture || null,
+  };
+  _idToken = data.idToken;
+  _refreshToken = data.refreshToken;
+  _notifyAuthListeners();
+  await _persistAuth();
+  return { user: _authUser };
+}
+
 async function signOut(_authRef?: any) {
   // Firebase REST API has no dedicated sign-out endpoint.
   // Local token clearing is sufficient. Google OAuth revoke is handled in api.ts.
@@ -1255,6 +1314,8 @@ export {
   firestore,
   onAuthStateChanged,
   signInWithGoogleIdToken,
+  signUpWithEmail,
+  signInWithEmail,
   signOut,
 };
 

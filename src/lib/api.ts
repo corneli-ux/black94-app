@@ -1,4 +1,4 @@
-import { auth, firestore, signInWithGoogleIdToken, signOut } from './firebase';
+import { auth, firestore, signInWithGoogleIdToken, signUpWithEmail, signInWithEmail, signOut } from './firebase';
 import { dispatchEngagementNotification, checkFollowerMilestones, checkPostLikeMilestones, sendWelcomeNotification, trackUserActivity } from '../services/engagementEngine';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -525,6 +525,73 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     console.error('[Auth] Google sign-in error:', error);
     throw error;
   }
+}
+
+// Email/password authentication — reliable fallback that needs no OAuth web client.
+// Creates the Firestore user doc the same way Google sign-in does, with empty
+// username so the user is routed to UsernameSetupScreen.
+async function _createUserDocForNewAuth(uid: string, email: string, displayName: string): Promise<User> {
+  const userDocRef = firestore().collection('users').doc(uid);
+  let existing: any = null;
+  try {
+    const snap = await userDocRef.get();
+    if (snap.exists) existing = snap.data();
+  } catch {}
+
+  if (!existing) {
+    try {
+      await userDocRef.set({
+        uid,
+        email,
+        username: '',
+        usernameLower: '',
+        displayName: displayName || 'User',
+        displayNameLower: (displayName || 'User').toLowerCase(),
+        profileImage: '',
+        role: 'personal',
+        badge: '',
+        subscription: 'free',
+        isVerified: false,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (e) {
+      if (__DEV__) console.warn('[Auth] Failed to create user doc:', e);
+    }
+  }
+
+  const returnUser: User = {
+    id: uid,
+    email: existing?.email || email,
+    username: existing?.username || '',
+    displayName: existing?.displayName || displayName || 'User',
+    bio: existing?.bio || '',
+    profileImage: typeof existing?.profileImage === 'string' ? existing.profileImage : '',
+    coverImage: typeof existing?.coverImage === 'string' ? existing.coverImage : '',
+    role: existing?.role || 'personal',
+    badge: existing?.badge || '',
+    subscription: existing?.subscription || 'free',
+    isVerified: existing?.isVerified || false,
+    createdAt: existing?.createdAt || Date.now(),
+  };
+
+  try {
+    await AsyncStorage.setItem('@black94/user_cache', JSON.stringify(returnUser));
+  } catch {}
+
+  return returnUser;
+}
+
+export async function signUpWithEmailAuth(email: string, password: string, displayName: string): Promise<User | null> {
+  const cred = await signUpWithEmail(email, password, displayName);
+  if (!cred.user) return null;
+  return _createUserDocForNewAuth(cred.user.uid, email, displayName);
+}
+
+export async function signInWithEmailAuth(email: string, password: string): Promise<User | null> {
+  const cred = await signInWithEmail(email, password);
+  if (!cred.user) return null;
+  return _createUserDocForNewAuth(cred.user.uid, cred.user.email || email, cred.user.displayName || 'User');
 }
 
 /**
