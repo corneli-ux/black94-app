@@ -351,10 +351,7 @@ function doUploadFetch(
       throw error;
     }
     const data = await resp.json();
-    const downloadToken = data.downloadTokens?.split(',')[0];
-    if (downloadToken) {
-      return `${STORAGE_BASE}/${encodedPath}?alt=media&token=${downloadToken}`;
-    }
+    // Storage rules are public-read — no token needed, and token-less URLs never expire
     return `${STORAGE_BASE}/${encodedPath}?alt=media`;
   });
   } catch (blobErr: any) {
@@ -765,18 +762,8 @@ export async function getImageDownloadUrl(
     }
 
     const data = await response.json();
-    const downloadTokens = data.downloadTokens;
-
-    if (!downloadTokens) {
-      // No token means the bucket may have default public access rules
-      // Return the URL without a token
-      return `${STORAGE_BASE}/${encodedPath}?alt=media`;
-    }
-
-    // downloadTokens is a comma-separated string of tokens
-    // Use the first (most recent) token
-    const firstToken = downloadTokens.split(',')[0];
-    return `${STORAGE_BASE}/${encodedPath}?alt=media&token=${firstToken}`;
+    // Token-less URL — never expires since storage rules allow public read
+    return `${STORAGE_BASE}/${encodedPath}?alt=media`;
   } catch (err: any) {
     if (__DEV__) console.warn(`[imageUpload] getImageDownloadUrl error:`, err.message);
     return null;

@@ -50,6 +50,8 @@ export interface UseFeedReturn {
 
 export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   const [posts, setPosts] = useState<Post[]>([]);
+  // Track posts the user has interacted with — never overwrite these from Firestore polls
+  const interactedPostIds = React.useRef(new Set<string>());
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -170,7 +172,15 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
       const enrichedIds = new Set(postsToEnrich.map(p => p.id));
       return prev.map(p => {
         if (!enrichedIds.has(p.id)) return p;
-        return postsToEnrich.find(ep => ep.id === p.id) || p;
+        const enriched = postsToEnrich.find(ep => ep.id === p.id);
+        if (!enriched) return p;
+        // Preserve user's local interaction state — don't overwrite from stale poll data
+        const interacted = interactedPostIds.current.has(p.id) || interactedPostIds.current.has(p.repostOf || '');
+        if (interacted) {
+          return { ...enriched, liked: p.liked, bookmarked: p.bookmarked, reposted: p.reposted,
+            likeCount: p.likeCount, repostCount: p.repostCount };
+        }
+        return enriched;
       });
     });
   }, [enrichAuthorProfilesWithRepair, enrichInteractions]);
@@ -521,45 +531,19 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   const { guard: inflight, release: releaseInflight } = useOptimisticAction();
 
   // ── Interaction: Like (optimistic + API call) ─────────────────────────
-  const handleLike = async (postId: string, liked: boolean) => {
-    const key = `like_${postId}`;
-    console.log('[useFeed handleLike] postId:', postId, 'liked:', liked, 'inflight:', inflight(key));
-    if (!inflight(key)) return; // drop double-tap
-    // Match both the repost wrapper (p.id) and original post (p.repostOf)
+  const handleLike = (postId: string, wasLiked: boolean) => {
+    interactedPostIds.current.add(postId);
     setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-      ? { ...p, liked: !liked, likeCount: p.likeCount + (liked ? -1 : 1) }
+      ? { ...p, liked: !wasLiked, likeCount: Math.max(0, p.likeCount + (wasLiked ? -1 : 1)) }
       : p));
-    try { 
-      const result = await toggleLike(postId, liked);
-      console.log('[useFeed handleLike] toggleLike result:', result);
-      if (result === false) {
-        console.error('[useFeed handleLike] toggleLike returned false — likely not authenticated');
-        Alert.alert('Error', 'Please sign in to like posts.');
-      }
-    } catch (e: any) {
-      // Revert optimistic update on failure — prevents ghost likes
-      console.error('[useFeed handleLike] toggleLike error:', e);
-      if (e?.message?.includes('Not authenticated') || e?.message?.includes('PERMISSION_DENIED')) {
-        Alert.alert('Error', 'Please sign in to like posts.');
-      }
-      setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
-        ? { ...p, liked, likeCount: p.likeCount + (liked ? 1 : -1) }
-        : p));
-    } finally {
-      releaseInflight(key);
-    }
   };
 
   // ── Interaction: Bookmark (optimistic + API call) ──────────────────────
-  const handleBookmark = async (postId: string, bookmarked: boolean) => {
-    const key = `bm_${postId}`;
-    if (!inflight(key)) return; // drop double-tap
-    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId) ? { ...p, bookmarked: !bookmarked } : p));
-    try { await toggleBookmark(postId, bookmarked); } catch (e) {
-      setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId) ? { ...p, bookmarked } : p));
-    } finally {
-      releaseInflight(key);
-    }
+  const handleBookmark = (postId: string, wasBookmarked: boolean) => {
+    interactedPostIds.current.add(postId);
+    setPosts(prev => prev.map(p => (p.id === postId || p.repostOf === postId)
+      ? { ...p, bookmarked: !wasBookmarked }
+      : p));
   };
 
   // ── Interaction: Repost (optimistic + API call, including undo logic) ──
