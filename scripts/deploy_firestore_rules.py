@@ -149,26 +149,22 @@ def update_release(token: str, ruleset_name: str) -> None:
     """Point the cloud.firestore release at the new ruleset.
 
     The Firebase Rules API Release resource has:
-      - name: string (e.g. "cloud.firestore")
-      - rulesetName: string (e.g. "projects/{project}/rulesets/{id}")
+      - name: string — FULLY QUALIFIED: "projects/{project}/releases/cloud.firestore"
+      - rulesetName: string — FULLY QUALIFIED: "projects/{project}/rulesets/{id}"
 
-    We try several approaches in order because the API has subtle version
-    differences in how it handles the updateMask query param + field names:
-
-    1. PATCH with updateMask=ruleset_name (proto snake_case in mask, JSON camelCase in body)
-    2. PATCH without updateMask (full resource)
-    3. PUT (full replace)
-    4. POST (create new — for 404 cases)
+    The previous attempts failed because the `name` field in the body was
+    just "cloud.firestore" (short name) but the API expects the fully
+    qualified resource name. The URL path also uses the short name, which
+    is correct — but the BODY must contain the fully qualified name.
     """
-    url = f"https://firebaserules.googleapis.com/v1/projects/{PROJECT}/releases/{RELEASE_NAME}"
+    # FULLY QUALIFIED names required in the request body
+    release_full_name = f"projects/{PROJECT}/releases/{RELEASE_NAME}"
+    url = f"https://firebaserules.googleapis.com/v1/{release_full_name}"
 
-    # ── Attempt 1: PATCH with updateMask using proto field name (snake_case) ──
-    # The updateMask query param uses PROTO field names (snake_case), while
-    # the JSON body uses JSON field names (camelCase). This is the most common
-    # source of confusion with this API.
+    # ── Attempt 1: PATCH with updateMask=ruleset_name (proto field name) ──
     patch_url = f"{url}?updateMask=ruleset_name"
     body = json.dumps({
-        "name": RELEASE_NAME,
+        "name": release_full_name,
         "rulesetName": ruleset_name,
     }).encode()
 
@@ -186,17 +182,11 @@ def update_release(token: str, ruleset_name: str) -> None:
         if e.code == 404:
             print(f"[3/3] Release doesn't exist — creating with POST")
             return create_release(token, ruleset_name)
-        # Fall through to attempt 2
-        print(f"[3/3] Attempt 1 (PATCH + updateMask) failed: HTTP {e.code} — trying attempt 2")
+        print(f"[3/3] Attempt 1 (PATCH + updateMask) failed: HTTP {e.code}: {body_text[:200]} — trying attempt 2")
 
-    # ── Attempt 2: PATCH without updateMask (full resource) ──
-    body2 = json.dumps({
-        "name": RELEASE_NAME,
-        "rulesetName": ruleset_name,
-    }).encode()
-
+    # ── Attempt 2: PATCH without updateMask (full resource, fully qualified name) ──
     req2 = urllib.request.Request(
-        url, data=body2, method="PATCH",
+        url, data=body, method="PATCH",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )
 
@@ -208,11 +198,11 @@ def update_release(token: str, ruleset_name: str) -> None:
         body_text = e.read().decode()
         if e.code == 404:
             return create_release(token, ruleset_name)
-        print(f"[3/3] Attempt 2 (PATCH no mask) failed: HTTP {e.code} — trying attempt 3")
+        print(f"[3/3] Attempt 2 (PATCH no mask) failed: HTTP {e.code}: {body_text[:200]} — trying attempt 3")
 
     # ── Attempt 3: PUT (full replace) ──
     req3 = urllib.request.Request(
-        url, data=body2, method="PUT",
+        url, data=body, method="PUT",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )
 
@@ -235,7 +225,7 @@ def update_release(token: str, ruleset_name: str) -> None:
             )
             sys.exit(1)
         # Final: try delete + create
-        print(f"[3/3] Attempt 3 (PUT) failed: HTTP {e.code} — trying delete + create")
+        print(f"[3/3] Attempt 3 (PUT) failed: HTTP {e.code}: {body_text[:200]} — trying delete + create")
         try:
             del_req = urllib.request.Request(
                 url, method="DELETE",
@@ -251,8 +241,9 @@ def update_release(token: str, ruleset_name: str) -> None:
 def create_release(token: str, ruleset_name: str) -> None:
     """Create a new release (POST) when PATCH returns 404."""
     url = f"https://firebaserules.googleapis.com/v1/projects/{PROJECT}/releases"
+    release_full_name = f"projects/{PROJECT}/releases/{RELEASE_NAME}"
     body = json.dumps({
-        "name": RELEASE_NAME,
+        "name": release_full_name,
         "rulesetName": ruleset_name,
     }).encode()
 
