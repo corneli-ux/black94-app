@@ -119,3 +119,51 @@ r = requests.patch(
     params={'updateMask': 'displayName'}
 )
 print(f'Cloud project display name: {r.status_code}', r.text[:200] if not r.ok else 'OK')
+
+# Enable Google Sign-In and Email/Password auth providers
+print('\n=== Enabling Auth providers ===')
+
+# Get the Identity Toolkit config
+r = requests.get(
+    f'https://identitytoolkit.googleapis.com/admin/v2/projects/{PROJECT}/config',
+    headers=headers
+)
+print('Auth config:', r.status_code)
+
+# Enable Google Sign-In
+r = requests.patch(
+    f'https://identitytoolkit.googleapis.com/admin/v2/projects/{PROJECT}/config',
+    headers=headers,
+    json={
+        'signIn': {
+            'email': {'enabled': True, 'passwordRequired': False},
+            'phoneNumber': {'enabled': False},
+            'anonymous': {'enabled': True},
+        }
+    },
+    params={'updateMask': 'signIn.email.enabled,signIn.anonymous.enabled'}
+)
+print('Enable Email/Anonymous auth:', r.status_code, r.text[:200] if not r.ok else 'OK')
+
+# Enable Google Sign-In provider
+r = requests.patch(
+    f'https://identitytoolkit.googleapis.com/admin/v2/projects/{PROJECT}/defaultSupportedIdpConfigs/google.com',
+    headers=headers,
+    json={'name': f'projects/{PROJECT}/defaultSupportedIdpConfigs/google.com', 'enabled': True},
+    params={'updateMask': 'enabled'}
+)
+print('Enable Google Sign-In:', r.status_code, r.text[:200] if not r.ok else 'OK')
+
+# Create Google provider if it doesn't exist
+if r.status_code == 404:
+    r = requests.post(
+        f'https://identitytoolkit.googleapis.com/admin/v2/projects/{PROJECT}/defaultSupportedIdpConfigs',
+        headers=headers,
+        json={
+            'name': f'projects/{PROJECT}/defaultSupportedIdpConfigs/google.com',
+            'enabled': True,
+            'idpId': 'google.com'
+        },
+        params={'idpId': 'google.com'}
+    )
+    print('Create Google provider:', r.status_code, r.text[:200] if not r.ok else 'OK')
