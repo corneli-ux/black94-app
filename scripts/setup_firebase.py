@@ -5,10 +5,10 @@ import requests
 
 PROJECT = 'memora-bond'
 PACKAGE = 'com.black94.app'
-SHA1 = 'F53F0D14741D8F88177E49AAB82FD02BA2D6DDC4'  # without colons, lowercase
+SHA1 = 'F53F0D14741D8F88177E49AAB82FD02BA2D6DDC4'
 
-sa_json = sys.argv[1] if len(sys.argv) > 1 else '/tmp/sa.json'
-with open(sa_json) as f:
+sa_path = sys.argv[1] if len(sys.argv) > 1 else '/tmp/sa.json'
+with open(sa_path) as f:
     sa = json.load(f)
 
 creds = service_account.Credentials.from_service_account_info(
@@ -20,9 +20,9 @@ creds.refresh(google.auth.transport.requests.Request())
 token = creds.token
 headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
 
-# List existing Android apps
+# Find or create Android app
 r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=headers)
-print('List apps:', r.status_code)
+print('List apps status:', r.status_code)
 apps = r.json().get('apps', [])
 
 app_id = None
@@ -39,7 +39,7 @@ if not app_id:
         headers=headers,
         json={'packageName': PACKAGE, 'displayName': 'Black94'}
     )
-    print('Create:', r.status_code, r.text[:300])
+    print('Create:', r.status_code)
     if r.ok:
         op_name = r.json().get('name', '')
         for i in range(30):
@@ -52,16 +52,16 @@ if not app_id:
                 break
 
 if not app_id:
-    print('ERROR: Could not create/find Android app')
+    print('ERROR: no app ID')
     sys.exit(1)
 
-# Add SHA-1
+# Add SHA-1 fingerprint (needed for Google Sign-In)
 r = requests.post(
     f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{app_id}/sha',
     headers=headers,
     json={'shaHash': SHA1, 'certType': 'SHA_1'}
 )
-print('Add SHA-1:', r.status_code, r.text[:200])
+print('Add SHA-1:', r.status_code)
 
 # Get google-services.json
 r = requests.get(
@@ -69,12 +69,15 @@ r = requests.get(
     headers=headers
 )
 print('Config:', r.status_code)
-if r.ok:
-    content = base64.b64decode(r.json()['configFileContents']).decode()
-    with open('google-services.json', 'w') as f:
-        f.write(content)
-    print('SUCCESS: google-services.json written')
-    print(content)
-else:
-    print('ERROR:', r.text)
+if not r.ok:
+    print('ERROR getting config:', r.text)
     sys.exit(1)
+
+content = base64.b64decode(r.json()['configFileContents']).decode()
+with open('google-services.json', 'w') as f:
+    f.write(content)
+
+# Output base64 for use as GitHub secret
+b64 = base64.b64encode(content.encode()).decode()
+print(f'GOOGLE_SERVICES_JSON_B64={b64}')
+print('SUCCESS: google-services.json written')

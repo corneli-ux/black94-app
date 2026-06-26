@@ -12,29 +12,62 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Setup and register app
+      - name: Setup Firebase and get google-services.json
+        id: firebase_setup
         run: |
           pip install google-auth google-auth-httplib2 requests
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
-          python3 scripts/setup_firebase.py /tmp/sa.json
+          python3 scripts/setup_firebase.py /tmp/sa.json | tee /tmp/setup_output.txt
+          # Extract the base64 content
+          B64=$(grep "GOOGLE_SERVICES_JSON_B64=" /tmp/setup_output.txt | cut -d= -f2-)
+          echo "gsf_b64=$B64" >> $GITHUB_OUTPUT
+          echo "Base64 length: ${#B64}"
 
-      - name: Commit google-services.json to repo
+      - name: Update GOOGLE_SERVICES_JSON secret
         run: |
-          git config user.email "ci@black94.app"
-          git config user.name "CI"
-          git add google-services.json
-          git diff --staged --quiet || git commit -m "ci: add google-services.json for memora-bond"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/corneli-ux/black94-app.git main
+          B64="${{ steps.firebase_setup.outputs.gsf_b64 }}"
+          if [ -z "$B64" ]; then
+            echo "No base64 content found"
+            exit 1
+          fi
+          echo "Updating GOOGLE_SERVICES_JSON secret..."
+          python3 << 'PYEOF'
+          import base64, json, subprocess, os
+          from nacl import encoding, public
+          import urllib.request
 
-      - name: Install Firebase CLI and deploy rules
+          TOKEN = '${{ secrets.GITHUB_TOKEN }}'
+          REPO = 'corneli-ux/black94-app'
+          B64 = '${{ steps.firebase_setup.outputs.gsf_b64 }}'
+
+          req = urllib.request.Request(
+              f'https://api.github.com/repos/{REPO}/actions/secrets/public-key',
+              headers={'Authorization': f'token {TOKEN}'}
+          )
+          with urllib.request.urlopen(req) as r:
+              key_data = json.loads(r.read())
+
+          KEY_ID = key_data['key_id']
+          PUB_KEY = key_data['key']
+
+          pk = public.PublicKey(PUB_KEY.encode(), encoding.Base64Encoder())
+          box = public.SealedBox(pk)
+          encrypted = base64.b64encode(box.encrypt(B64.encode())).decode()
+
+          payload = json.dumps({'encrypted_value': encrypted, 'key_id': KEY_ID}).encode()
+          req = urllib.request.Request(
+              f'https://api.github.com/repos/{REPO}/actions/secrets/GOOGLE_SERVICES_JSON',
+              data=payload, method='PUT',
+              headers={'Authorization': f'token {TOKEN}', 'Content-Type': 'application/json'}
+          )
+          with urllib.request.urlopen(req) as r:
+              print(f'Secret updated: {r.status}')
+          PYEOF
+
+      - name: Deploy Firestore rules
         run: |
+          pip install google-auth requests
           npm install -g firebase-tools
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
           firebase deploy --only firestore:rules --project memora-bond --force || true
           firebase deploy --only storage --project memora-bond --force || true
-
-      - name: Upload google-services.json
-        uses: actions/upload-artifact@v4
-        with:
-          name: google-services-json
-          path: google-services.json
