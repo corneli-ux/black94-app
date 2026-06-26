@@ -81,3 +81,12 @@ with open('google-services.json', 'w') as f:
 b64 = base64.b64encode(content.encode()).decode()
 print(f'GOOGLE_SERVICES_JSON_B64={b64}')
 print('SUCCESS: google-services.json written')
+
+# Extract and print API key for use as GitHub secret
+gsf_data = json.loads(content)
+for client in gsf_data.get('client', []):
+    for api_key in client.get('api_key', []):
+        key = api_key.get('current_key', '')
+        if key:
+            print(f'FIREBASE_API_KEY={key}')
+            break
