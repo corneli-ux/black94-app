@@ -34,7 +34,8 @@ interface GifItem {
 import Constants from 'expo-constants';
 import { AppIcon } from '../components/icons';
 
-const TENOR_KEY = (Constants.expoConfig?.extra?.tenorApiKey as string) || '';
+// Tenor v2 API key - must be a Tenor-specific key, not a generic Google Cloud key
+const TENOR_KEY = (Constants.expoConfig?.extra?.tenorApiKey as string) || 'AIzaSyAyimkuYQYF_FuBDE8ZlEi7euGNumXOn7';
 const PAGE_SIZE = 30;
 
 async function fetchTrending(pos?: number): Promise<{ items: GifItem[]; next: string | null }> {

@@ -166,6 +166,8 @@ const PostActionsBar = React.memo(function PostActionsBar({
           quotePostId: targetId,
           quoteAuthor: `@${post.authorUsername || 'user'}`,
           quoteCaption: (post.caption || '').slice(0, 100),
+          quoteMediaUrl: post.mediaUrls?.[0] || null,
+          quoteDisplayName: post.authorDisplayName || post.authorUsername || 'User',
         }),
       },
     ]);

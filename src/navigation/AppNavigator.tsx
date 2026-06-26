@@ -154,37 +154,62 @@ function LazyScreen(Component: any) {
 }
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-  const activeColor = colors.white;
-  const inactiveColor = 'rgba(255,255,255,0.38)';
-  const color = focused ? activeColor : inactiveColor;
-  const sz = 24;
+  const GOLD = colors.accent;
+  const DIM = 'rgba(255,255,255,0.35)';
+  const color = focused ? GOLD : DIM;
+  const sz = 22;
 
-  switch (name) {
-    case 'Home':
-      // Black94 wordmark — bold numerals
-      return (
-        <Text style={{
-          fontSize: 20,
-          fontWeight: '900',
-          color,
-          letterSpacing: -0.5,
-          fontStyle: 'italic',
-        }}>94</Text>
-      );
-    case 'Search':
-      return <Feather name="search" size={sz} color={color} />;
-    case 'Messages':
-      return <Feather name={focused ? 'message-circle' : 'message-circle'} size={sz} color={color} />;
-    case 'Notifications':
-      return <Feather name="bell" size={sz} color={color} />;
-    case 'Stories':
-      // Plus inside a circle — for story creation
-      return <Feather name="plus-circle" size={sz} color={color} />;
-    case 'AnonymousChat':
-      return <Feather name="eye-off" size={sz} color={color} />;
-    default:
-      return <Feather name="circle" size={sz} color={color} />;
-  }
+  const icon = (() => {
+    switch (name) {
+      case 'Home':
+        return (
+          <Text style={{
+            fontSize: 18, fontWeight: '900', color,
+            letterSpacing: -1, fontStyle: 'italic', lineHeight: 22,
+          }}>94</Text>
+        );
+      case 'Search':
+        return <Feather name="search" size={sz} color={color} />;
+      case 'Messages':
+        return <Feather name="message-circle" size={sz} color={color} />;
+      case 'Notifications':
+        return <Feather name="bell" size={sz} color={color} />;
+      case 'Stories':
+        return <Feather name="plus-circle" size={sz} color={color} />;
+      case 'AnonymousChat':
+        return <Feather name="eye-off" size={sz} color={color} />;
+      default:
+        return <Feather name="circle" size={sz} color={color} />;
+    }
+  })();
+
+  const label = (() => {
+    switch (name) {
+      case 'Home': return 'Feed';
+      case 'Search': return 'Search';
+      case 'Messages': return 'Messages';
+      case 'Notifications': return 'Alerts';
+      case 'Stories': return 'Stories';
+      case 'AnonymousChat': return 'Anon';
+      default: return '';
+    }
+  })();
+
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+      {focused && (
+        <View style={{
+          position: 'absolute', top: -10, width: 32, height: 2,
+          backgroundColor: GOLD, borderRadius: 1,
+        }} />
+      )}
+      {icon}
+      <Text style={{
+        fontSize: 10, fontWeight: focused ? '600' : '400',
+        color, letterSpacing: 0.2,
+      }}>{label}</Text>
+    </View>
+  );
 }
 
 function TabBarBadge({ count }: { count: number }) {
@@ -214,14 +239,15 @@ const MainTabs = memo(function MainTabs() {
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: 'rgba(0,0,0,0.96)',
+          backgroundColor: '#000000',
           borderTopWidth: 0.5,
-          borderTopColor: 'rgba(255,255,255,0.08)',
+          borderTopColor: 'rgba(212,175,55,0.15)',
           height: tabBarHeight,
           paddingBottom: insets.bottom || 0,
           elevation: 0,
         } : { display: 'none' },
         tabBarShowLabel: false,
+        tabBarItemStyle: { paddingVertical: 6 },
         sceneStyle: { paddingBottom: tabBarVisible ? tabBarHeight : 0 },
       }}
     >

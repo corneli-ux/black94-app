@@ -32,6 +32,8 @@ module.exports = function () {
       backgroundColor: '#000000',
       newArchEnabled: true,
       splash: {
+        image: './assets/splash.png',
+        resizeMode: 'contain',
         backgroundColor: '#000000',
       },
       ios: {

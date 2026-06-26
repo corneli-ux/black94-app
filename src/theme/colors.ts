@@ -3,29 +3,29 @@
 // Updated with embed tokens for beautiful repost/quote cards.
 
 export const colors = {
-  // ── Backgrounds ──
+  // ── Backgrounds — pure black only ──
   bg: '#000000',
-  bgCard: '#0d0d0d',
-  bgInput: '#0f0f0f',
-  bgModal: '#111111',
-  surface: '#0a0a0a',
-  surfaceElevated: '#141414',
-  surfaceLight: '#1a1a1a',
+  bgCard: '#000000',
+  bgInput: '#000000',
+  bgModal: '#000000',
+  surface: '#000000',
+  surfaceElevated: '#0a0a0a',
+  surfaceLight: '#0d0d0d',
   background: '#000000',
 
-  // ── Text — proper hierarchy with opacity levels ──
-  text: '#e7e9ea',
+  // ── Text — white hierarchy, no gray ──
+  text: '#ffffff',
   white: '#ffffff',
-  textSecondary: '#a0a3a8',
-  textMuted: '#6e7680',
-  textTertiary: '#484d54',
-  foreground: '#e7e9ea',
+  textSecondary: 'rgba(255,255,255,0.65)',
+  textMuted: 'rgba(255,255,255,0.38)',
+  textTertiary: 'rgba(255,255,255,0.22)',
+  foreground: '#ffffff',
 
-  // ── Borders — subtle but visible ──
-  border: '#222528',
-  borderLight: '#1c1f22',
-  separator: '#1a1d20',
-  input: '#1c1f22',
+  // ── Borders — gold-tinted ultra-subtle ──
+  border: 'rgba(212,175,55,0.15)',
+  borderLight: 'rgba(255,255,255,0.06)',
+  separator: 'rgba(255,255,255,0.06)',
+  input: 'rgba(255,255,255,0.08)',
 
   // ── Brand Accents ──
   accent: '#D4AF37',
@@ -49,7 +49,7 @@ export const colors = {
   chatBubbleMine: '#FFFFFF',
   chatBubbleMineGradientEnd: '#FFFFFF',
   chatBubbleMineText: '#000000',
-  chatBubbleOther: 'rgba(212,175,55,0.08)',
+  chatBubbleOther: 'rgba(212,175,55,0.12)',
   chatBubbleOtherText: '#e7e9ea',
 
   // ── Like / Bookmark / Repost ──
@@ -67,8 +67,8 @@ export const colors = {
   muted: '#000000',
 
   // ── Avatar fallback ──
-  avatarFallback: '#1a1d20',
-  avatarFallbackText: '#e7e9ea',
+  avatarFallback: '#0d0d0d',
+  avatarFallbackText: '#ffffff',
   avatarGradientEnd: '#000000',
 
   // ── Compose ──
@@ -77,7 +77,7 @@ export const colors = {
   composeDisabledText: '#6e7680',
 
   // ── Surfaces (semi-transparent) ──
-  bgSubtle: 'rgba(255,255,255,0.05)',
+  bgSubtle: 'rgba(255,255,255,0.04)',
   bgSubtleAlt: 'rgba(255,255,255,0.07)',
   white25: 'rgba(255,255,255,0.25)',
   white50: 'rgba(255,255,255,0.5)',

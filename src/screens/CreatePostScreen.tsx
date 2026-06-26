@@ -167,6 +167,8 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
   const quotePostId = route?.params?.quotePostId || null;
   const quoteAuthor = route?.params?.quoteAuthor || '';
   const quoteCaption = route?.params?.quoteCaption || '';
+  const quoteMediaUrl = route?.params?.quoteMediaUrl || null;
+  const quoteDisplayName = route?.params?.quoteDisplayName || quoteAuthor;
 
   const user = rawUser
     ? {
@@ -541,8 +543,11 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
           {quotePostId && (
             <View style={styles.quotePreview}>
               <View style={styles.quotePreviewLine} />
-              <Text style={styles.quotePreviewAuthor}>{quoteAuthor}</Text>
-              <Text style={styles.quotePreviewCaption} numberOfLines={2}>{quoteCaption}</Text>
+              <Text style={styles.quotePreviewAuthor}>{quoteDisplayName} {quoteAuthor}</Text>
+              {quoteCaption ? <Text style={styles.quotePreviewCaption} numberOfLines={2}>{quoteCaption}</Text> : null}
+              {quoteMediaUrl ? (
+                <Image source={{ uri: quoteMediaUrl }} style={styles.quotePreviewImage} resizeMode="cover" />
+              ) : null}
             </View>
           )}
 
@@ -980,6 +985,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.accent || colors.accent,
+  },
+  quotePreviewImage: {
+    width: '100%', height: 120, borderRadius: 8, marginTop: 6,
   },
   quotePreviewLine: {
     position: 'absolute',
