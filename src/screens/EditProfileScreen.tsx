@@ -19,7 +19,6 @@ import { fetchUserProfile, User } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { uploadOptimizedImage } from '../utils/imageUpload';
-import { optimizeImage } from '../utils/imageOptimizer';
 import { AppIcon } from '../components/icons';
 import { Feather } from '@expo/vector-icons';
 
@@ -39,15 +38,11 @@ const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 async function openImageLibrary() {
   try {
     const ImagePicker = require('expo-image-picker');
-
-    // Request media library permission BEFORE launching the picker.
-    // On Android 13+, launchImageLibrary may silently return empty/cancelled
-    // result without permissions, making it look like "upload not working".
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status === 'denied') {
       Alert.alert(
         'Photos Access Denied',
-        'BLACK94 needs access to your photos to select images. Please enable it in Settings.',
+        'BLACK94 needs access to your photos. Please enable it in Settings.',
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Open Settings', onPress: () => ImagePicker.grantMediaLibraryPermissionsAsync() },
@@ -56,18 +51,21 @@ async function openImageLibrary() {
       return null;
     }
     if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Please allow photo library access to select images.');
+      Alert.alert('Permission Required', 'Please allow photo library access.');
       return null;
     }
-
-    const result = await ImagePicker.launchImageLibrary({
-      mediaType: 'photo',
-      // BUG FIX: Removed quality, maxWidth, maxHeight — picker-side JPEG
-      // conversion was turning PNG transparency into black pixels.
+    // Use modern async API with copyToCacheDirectory to get a file:// URI
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.9,
+      allowsMultipleSelection: false,
+      copyToCacheDirectory: true,
     });
-    return result;
+    if (result.canceled || !result.assets?.length) return null;
+    // Return in format the rest of the code expects
+    return { assets: [{ uri: result.assets[0].uri }] };
   } catch (err) {
-    if (__DEV__) console.warn('[EditProfileScreen] Image picker not available:', err);
+    if (__DEV__) console.warn('[EditProfileScreen] Image picker error:', err);
     return null;
   }
 }

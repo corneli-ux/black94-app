@@ -16,7 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, firestore } from '../lib/firebase';
 import { fetchUserProfile } from '../lib/api';
 import { uploadOptimizedImage } from '../utils/imageUpload';
-import { optimizeImage } from '../utils/imageOptimizer';
 import { colors } from '../theme/colors';
 import { AppIcon } from '../components/icons';
 
@@ -72,18 +71,21 @@ async function uploadImage(
   }
 }
 
-// Lazy image picker
+// Lazy image picker - modern expo API with copyToCacheDirectory
 async function openImageLibrary() {
   try {
-    const { launchImageLibrary } = require('expo-image-picker');
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      // BUG FIX: Removed quality and maxWidth — picker-side JPEG conversion
-      // was turning PNG transparency into black pixels.
+    const ImagePicker = require('expo-image-picker');
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return null;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.9,
+      copyToCacheDirectory: true,
     });
-    return result;
+    if (result.canceled || !result.assets?.length) return null;
+    return { assets: [{ uri: result.assets[0].uri }] };
   } catch (err) {
-    if (__DEV__) console.warn('[StoryCreatorScreen] Image picker not available:', err);
+    if (__DEV__) console.warn('[StoryCreatorScreen] Image picker error:', err);
     return null;
   }
 }

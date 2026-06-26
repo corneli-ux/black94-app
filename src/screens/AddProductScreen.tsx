@@ -5,7 +5,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { auth, firestore } from '../lib/firebase';
 import { parseMediaUrls } from '../lib/api';
-import { optimizeImage } from '../utils/imageOptimizer';
 import { uploadOptimizedImage } from '../utils/imageUpload';
 import { AppIcon } from '../components/icons';
 
@@ -307,19 +306,11 @@ export default function AddProductScreen({ route, navigation }: any) {
         }
 
         try {
-          // Optimize image
-          setUploadProgress(`Optimizing image ${i + 1}...`);
-          const optimized = await optimizeImage(uri, {
-            maxWidth: 2048,
-            jpegQuality: 0.88,
-            generateThumbnail: false,
-          });
+          setUploadProgress(`Uploading image ${i + 1}...`);
+          const storagePath = `products/${currentUser.uid}/${Date.now()}_${i}.jpg`;
 
-          const ext = optimized.mimeType === 'image/png' ? 'png' : 'jpg';
-          const storagePath = `products/${currentUser.uid}/${Date.now()}_${i}.${ext}`;
-
-          const result = await uploadOptimizedImage(optimized.optimizedUri, storagePath, {
-            mimeType: optimized.mimeType,
+          const result = await uploadOptimizedImage(uri, storagePath, {
+            mimeType: 'image/jpeg',
             abortSignal: abortController.signal,
             onProgress: (loaded, total) => {
               const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
