@@ -148,54 +148,104 @@ def get_current_release(token: str) -> dict:
 def update_release(token: str, ruleset_name: str) -> None:
     """Point the cloud.firestore release at the new ruleset.
 
-    Uses PATCH so we only update the ruleset_name field, preserving any
-    other release metadata.
+    The Firebase Rules API Release resource has:
+      - name: string (e.g. "cloud.firestore")
+      - rulesetName: string (e.g. "projects/{project}/rulesets/{id}")
+
+    We try several approaches in order because the API has subtle version
+    differences in how it handles the updateMask query param + field names:
+
+    1. PATCH with updateMask=ruleset_name (proto snake_case in mask, JSON camelCase in body)
+    2. PATCH without updateMask (full resource)
+    3. PUT (full replace)
+    4. POST (create new — for 404 cases)
     """
-    # First try PATCH (update existing release)
     url = f"https://firebaserules.googleapis.com/v1/projects/{PROJECT}/releases/{RELEASE_NAME}"
+
+    # ── Attempt 1: PATCH with updateMask using proto field name (snake_case) ──
+    # The updateMask query param uses PROTO field names (snake_case), while
+    # the JSON body uses JSON field names (camelCase). This is the most common
+    # source of confusion with this API.
+    patch_url = f"{url}?updateMask=ruleset_name"
     body = json.dumps({
         "name": RELEASE_NAME,
         "rulesetName": ruleset_name,
     }).encode()
 
     req = urllib.request.Request(
-        url,
-        data=body,
-        method="PATCH",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
+        patch_url, data=body, method="PATCH",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )
-
-    # PATCH requires an updateMask query param to specify which fields to update
-    req.full_url = url + "?updateMask=rulesetName"
 
     try:
         with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read())
             print(f"[3/3] Release '{RELEASE_NAME}' updated to {ruleset_name}")
             return
     except urllib.error.HTTPError as e:
         body_text = e.read().decode()
         if e.code == 404:
-            # Release doesn't exist — create it with POST
             print(f"[3/3] Release doesn't exist — creating with POST")
-            create_release(token, ruleset_name)
+            return create_release(token, ruleset_name)
+        # Fall through to attempt 2
+        print(f"[3/3] Attempt 1 (PATCH + updateMask) failed: HTTP {e.code} — trying attempt 2")
+
+    # ── Attempt 2: PATCH without updateMask (full resource) ──
+    body2 = json.dumps({
+        "name": RELEASE_NAME,
+        "rulesetName": ruleset_name,
+    }).encode()
+
+    req2 = urllib.request.Request(
+        url, data=body2, method="PATCH",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+
+    try:
+        with urllib.request.urlopen(req2) as resp:
+            print(f"[3/3] Release '{RELEASE_NAME}' updated to {ruleset_name} (PATCH no mask)")
             return
-        print(f"[3/3] ERROR updating release: HTTP {e.code}", file=sys.stderr)
-        print(f"      Response: {body_text[:500]}", file=sys.stderr)
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode()
+        if e.code == 404:
+            return create_release(token, ruleset_name)
+        print(f"[3/3] Attempt 2 (PATCH no mask) failed: HTTP {e.code} — trying attempt 3")
+
+    # ── Attempt 3: PUT (full replace) ──
+    req3 = urllib.request.Request(
+        url, data=body2, method="PUT",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+
+    try:
+        with urllib.request.urlopen(req3) as resp:
+            print(f"[3/3] Release '{RELEASE_NAME}' updated via PUT to {ruleset_name}")
+            return
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode()
+        if e.code == 404:
+            return create_release(token, ruleset_name)
         if e.code == 403:
+            print(f"[3/3] ERROR: HTTP 403 — permission denied", file=sys.stderr)
+            print(f"      Response: {body_text[:500]}", file=sys.stderr)
             print(
                 "\n      The service account lacks firebaserules.releases.update permission.\n"
                 "      Grant one of: roles/firebaserules.admin, roles/firebase.admin,\n"
                 "      roles/editor, or roles/owner in Google Cloud Console → IAM.",
                 file=sys.stderr,
             )
-        sys.exit(1)
-    except Exception as e:
-        print(f"[3/3] ERROR: {e}", file=sys.stderr)
-        sys.exit(1)
+            sys.exit(1)
+        # Final: try delete + create
+        print(f"[3/3] Attempt 3 (PUT) failed: HTTP {e.code} — trying delete + create")
+        try:
+            del_req = urllib.request.Request(
+                url, method="DELETE",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            urllib.request.urlopen(del_req).read()
+            print(f"[3/3] Deleted old release — creating new one")
+        except Exception as de:
+            print(f"[3/3] Delete failed: {de}")
+        return create_release(token, ruleset_name)
 
 
 def create_release(token: str, ruleset_name: str) -> None:
