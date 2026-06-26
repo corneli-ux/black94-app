@@ -28,9 +28,18 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 import { sha256 } from '../utils/crypto';
+import Constants from 'expo-constants';
 
-const WEB_CLIENT_ID = '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
-const FIREBASE_HANDLER = 'https://black94.firebaseapp.com/__/auth/handler';
+// Use the web client ID from app config (same one used for native Google Sign-In)
+const WEB_CLIENT_ID = (Constants.expoConfig?.extra?.googleWebClientId as string)
+  || '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
+
+// Firebase auth handler for the CURRENT project (memora-bond).
+// This URL is pre-authorized for every Firebase project that has the web SDK
+// configured, so it works WITHOUT registering any SHA-1 fingerprint.
+// The previous value 'black94.firebaseapp.com' was the OLD migrated project
+// and caused the WebView fallback to fail with redirect_uri_mismatch.
+const FIREBASE_HANDLER = 'https://memora-bond.firebaseapp.com/__/auth/handler';
 
 interface Props {
   onToken: (idToken: string) => void;

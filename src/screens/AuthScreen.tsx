@@ -2,11 +2,17 @@
  * AuthScreen — Black94 sign-in screen.
  * Uses the correct webClientId from app config (memora-bond project).
  * Routes new users to UsernameSetupScreen.
+ *
+ * FALLBACK: When native Google Sign-In fails with DEVELOPER_ERROR (code 10)
+ * — usually because the release keystore SHA-1 isn't registered with Google
+ * Cloud Console — we automatically offer a WebView-based sign-in. The
+ * WebView uses PKCE + Firebase's pre-authorized auth handler, which works
+ * WITHOUT any SHA-1 registration.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-  StatusBar, Platform, Alert, Linking, Image,
+  StatusBar, Platform, Alert, Linking, Image, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -15,6 +21,7 @@ import { signInWithGoogle } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Feather } from '@expo/vector-icons';
+import GoogleSignInWebView from '../components/GoogleSignInWebView';
 
 // Uses the memora-bond web client ID set via GOOGLE_WEB_CLIENT_ID env variable
 const WEB_CLIENT_ID = (Constants.expoConfig?.extra?.googleWebClientId as string)
@@ -22,6 +29,7 @@ const WEB_CLIENT_ID = (Constants.expoConfig?.extra?.googleWebClientId as string)
 
 export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
+  const [showWebView, setShowWebView] = useState(false);
   const { setUser, setToken } = useAppStore();
   const navigation = useNavigation<any>();
 
@@ -36,9 +44,36 @@ export default function AuthScreen() {
     console.log('[Auth] Firebase API key set:', !!Constants.expoConfig?.extra?.firebaseApiKey);
   }, []);
 
+  // Shared completion handler — called by both native sign-in and WebView.
+  const completeSignIn = useCallback(async (idToken: string) => {
+    try {
+      const user = await signInWithGoogle(idToken);
+      if (!user) {
+        Alert.alert('Sign In Failed', 'Sign-in was cancelled or failed. Please try again.');
+        return;
+      }
+      setUser(user);
+      setToken(user.id);
+
+      // New user (no username yet) → pick a username first
+      if (!user.username || user.username.trim() === '') {
+        navigation.replace('UsernameSetup');
+      }
+      // Existing user → App.js restoreAuth handles routing to main app
+    } catch (e: any) {
+      console.error('[Auth] completeSignIn error:', e?.code, e?.message);
+      const errMsg = (e?.message || '').slice(0, 200);
+      Alert.alert('Sign In Failed', errMsg || 'Please try again.');
+    } finally {
+      setShowWebView(false);
+      setBusy(false);
+    }
+  }, [setUser, setToken, navigation]);
+
   const handleSignIn = useCallback(async () => {
     if (busy) return;
     setBusy(true);
+    let developerError = false;
     try {
       const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
       GoogleSignin.configure({
@@ -64,20 +99,8 @@ export default function AuthScreen() {
         return;
       }
 
-      const user = await signInWithGoogle(idToken);
-      if (!user) {
-        Alert.alert('Sign In Failed', 'Sign-in was cancelled or failed. Please try again.');
-        return;
-      }
-
-      setUser(user);
-      setToken(user.id);
-
-      // New user (no username yet) → pick a username first
-      if (!user.username || user.username.trim() === '') {
-        navigation.replace('UsernameSetup');
-      }
-      // Existing user → App.js restoreAuth handles routing to main app
+      await completeSignIn(idToken);
+      return;
 
     } catch (e: any) {
       // Code 12501 / SIGN_IN_CANCELLED = user cancelled — no alert needed
@@ -99,13 +122,18 @@ export default function AuthScreen() {
 
       let title = 'Sign In Failed';
       let body = 'Please try again.';
+      let offerWebViewFallback = false;
 
       // Common Google Sign-In error codes
       if (errCode === '10' || /DEVELOPER_ERROR/i.test(errMsg)) {
         // Developer error = SHA-1 not registered, package name mismatch,
         // or webClientId belongs to a different Google Cloud project.
-        body = 'Google Sign-In is not configured correctly for this app. ' +
-               'Please contact support. (Code: DEVELOPER_ERROR)';
+        // The WebView fallback bypasses SHA-1 entirely using PKCE.
+        developerError = true;
+        offerWebViewFallback = true;
+        body = 'Google Sign-In encountered a configuration error (DEVELOPER_ERROR).\n\n' +
+               'This usually means the app signing key is not yet registered with Google. ' +
+               'You can try the web sign-in fallback instead, which works without this setup.';
       } else if (errCode === '7' || /NETWORK_ERROR/i.test(errMsg)) {
         body = 'Network error. Please check your internet connection and try again.';
       } else if (errCode === '8' || /INTERNAL_ERROR/i.test(errMsg)) {
@@ -127,11 +155,53 @@ export default function AuthScreen() {
         body = `Error: ${errMsg}`;
       }
 
-      Alert.alert(title, body);
+      if (offerWebViewFallback) {
+        Alert.alert(
+          title,
+          body,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Try Web Sign-In',
+              onPress: () => {
+                setBusy(false);
+                setShowWebView(true);
+              },
+            },
+          ],
+          { cancelable: false },
+        );
+      } else {
+        Alert.alert(title, body);
+      }
     } finally {
-      setBusy(false);
+      if (!developerError && !showWebView) {
+        setBusy(false);
+      }
     }
-  }, [busy, setUser, setToken, navigation]);
+  }, [busy, setUser, setToken, navigation, completeSignIn, showWebView]);
+
+  // ── WebView fallback handlers ──
+  const handleWebViewToken = useCallback((idToken: string) => {
+    console.log('[Auth] WebView sign-in got token, completing...');
+    completeSignIn(idToken);
+  }, [completeSignIn]);
+
+  const handleWebViewError = useCallback((error: string) => {
+    console.error('[Auth] WebView sign-in error:', error);
+    setShowWebView(false);
+    setBusy(false);
+    Alert.alert(
+      'Sign In Failed',
+      `Web sign-in failed: ${error}\n\nPlease contact support.`,
+    );
+  }, []);
+
+  const handleWebViewCancel = useCallback(() => {
+    console.log('[Auth] WebView sign-in cancelled by user');
+    setShowWebView(false);
+    setBusy(false);
+  }, []);
 
   return (
     <SafeAreaView style={s.root}>
@@ -192,6 +262,25 @@ export default function AuthScreen() {
           <Text style={s.secureText}>End-to-end encrypted · Your data stays yours</Text>
         </View>
       </View>
+
+      {/* WebView fallback for DEVELOPER_ERROR — opens Google OAuth in a
+          browser view, bypassing SHA-1 registration entirely. */}
+      <Modal visible={showWebView} animationType="slide" onRequestClose={handleWebViewCancel}>
+        <SafeAreaView style={s.webViewContainer}>
+          <View style={s.webViewHeader}>
+            <TouchableOpacity onPress={handleWebViewCancel} style={s.webViewCloseBtn}>
+              <Feather name="x" size={22} color="#fff" />
+            </TouchableOpacity>
+            <Text style={s.webViewTitle}>Sign in with Google</Text>
+            <View style={{ width: 22 }} />
+          </View>
+          <GoogleSignInWebView
+            onToken={handleWebViewToken}
+            onError={handleWebViewError}
+            onCancel={handleWebViewCancel}
+          />
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -230,4 +319,14 @@ const s = StyleSheet.create({
 
   bottomSection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   secureText: { fontSize: 11, color: 'rgba(255,255,255,0.2)', letterSpacing: 0.2 },
+
+  // ── WebView fallback styles ──
+  webViewContainer: { flex: 1, backgroundColor: '#000' },
+  webViewHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  webViewCloseBtn: { padding: 4 },
+  webViewTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });

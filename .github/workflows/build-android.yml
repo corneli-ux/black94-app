@@ -36,16 +36,45 @@ jobs:
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: npm install
 
-      # Decode google-services.json from GitHub Secret before prebuild
-      - name: Decode google-services.json
+      # Register the release keystore SHA-1 with Firebase AND download a
+      # FRESH google-services.json. This avoids the stale-secret problem
+      # where the GOOGLE_SERVICES_JSON secret was captured BEFORE the SHA-1
+      # was registered — causing DEVELOPER_ERROR at runtime.
+      # continue-on-error: true so the build can fall back to the secret
+      # if the service account lacks Firebase Management API permissions.
+      - name: Register SHA-1 and fetch fresh google-services.json
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          pip install google-auth requests
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
+          python3 scripts/ensure_sha1_registered.py /tmp/sa.json
+          rm -f /tmp/sa.json
+
+      # Fallback: if the script failed (e.g. service account permissions),
+      # decode the GOOGLE_SERVICES_JSON secret. This guarantees the build
+      # can still proceed even if Firebase Management API is unavailable.
+      - name: Fallback - decode google-services.json from secret
+        if: ${{ hashFiles('google-services.json') == '' }}
         env:
           GOOGLE_SERVICES_B64: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          echo "Fresh download failed - falling back to GOOGLE_SERVICES_JSON secret"
           if [ -n "$GOOGLE_SERVICES_B64" ]; then
             echo "$GOOGLE_SERVICES_B64" | base64 -d > google-services.json
-            echo "google-services.json decoded successfully"
+            echo "google-services.json decoded from secret ($(wc -c < google-services.json) bytes)"
           else
-            echo "ERROR: GOOGLE_SERVICES_JSON secret is not set"
+            echo "ERROR: Neither fresh download nor GOOGLE_SERVICES_JSON secret available"
+            exit 1
+          fi
+
+      - name: Confirm google-services.json present
+        run: |
+          if [ -f "google-services.json" ] && [ -s "google-services.json" ]; then
+            echo "google-services.json ready ($(wc -c < google-services.json) bytes)"
+          else
+            echo "ERROR: google-services.json missing or empty"
             exit 1
           fi
 
