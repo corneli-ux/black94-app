@@ -119,9 +119,32 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
   try { data = JSON.parse(respText); } catch { data = {}; }
 
   if (!resp.ok) {
-    const msg = data.error?.message || `Auth HTTP ${resp.status}: ${respText.slice(0, 200)}`;
-    if (__DEV__) console.error('[Firebase] Auth REST error:', msg);
-    throw new Error(msg);
+    const serverMsg = data.error?.message || `Auth HTTP ${resp.status}`;
+    if (__DEV__) console.error('[Firebase] Auth REST error:', serverMsg, '(HTTP', resp.status + ')');
+
+    // Throw an Error that preserves BOTH the Firebase error code and a
+    // human-readable message, so AuthScreen can show a specific alert.
+    // Common Firebase Auth error messages to map:
+    //   OPERATION_NOT_ALLOWED       → Google provider disabled in Firebase Console
+    //   INVALID_IDP_RESPONSE        → ID token audience (webClientId) mismatch
+    //   INVALID_API_KEY             → wrong Firebase API key
+    //   PERMISSION_DENIED           → requestUri not in authorized redirect URIs
+    let friendly = serverMsg;
+    if (/OPERATION_NOT_ALLOWED/i.test(serverMsg)) {
+      friendly = 'Google Sign-In is not enabled in this Firebase project.';
+    } else if (/INVALID_IDP_RESPONSE|INVALID_ID_TOKEN/i.test(serverMsg)) {
+      friendly = 'Google token rejected — the web client ID does not match this Firebase project.';
+    } else if (/INVALID_API_KEY/i.test(serverMsg)) {
+      friendly = 'Firebase API key is invalid.';
+    } else if (/PERMISSION_DENIED|access_denied/i.test(serverMsg)) {
+      friendly = 'Permission denied — the request URI is not authorized for this OAuth client.';
+    }
+
+    const err: any = new Error(friendly);
+    err.code = 'FIREBASE_AUTH';
+    err.serverMessage = serverMsg;
+    err.httpStatus = resp.status;
+    throw err;
   }
 
   // Keep the photoURL from Google sign-in as-is.
@@ -130,7 +153,11 @@ async function signInWithGoogleIdToken(googleIdToken: string) {
   // The old filter was too aggressive and caused profile images to disappear.
   let photoURL: string | null = data.photoUrl || null;
 
-  if (!data.localId) throw new Error('Sign-in response missing localId — cannot create auth state');
+  if (!data.localId) {
+    const err: any = new Error('Sign-in response missing localId — cannot create auth state');
+    err.code = 'FIREBASE_AUTH';
+    throw err;
+  }
 
   _authUser = {
     uid: data.localId,

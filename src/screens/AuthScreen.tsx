@@ -3,7 +3,7 @@
  * Uses the correct webClientId from app config (memora-bond project).
  * Routes new users to UsernameSetupScreen.
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
   StatusBar, Platform, Alert, Linking, Image,
@@ -25,6 +25,17 @@ export default function AuthScreen() {
   const { setUser, setToken } = useAppStore();
   const navigation = useNavigation<any>();
 
+  // Log the web client ID prefix on mount so we can verify the correct ID
+  // is baked into the build (visible in logcat / Expo dev tools).
+  // Mask all but the project number prefix and last 4 chars.
+  useEffect(() => {
+    const masked = WEB_CLIENT_ID.length > 20
+      ? `${WEB_CLIENT_ID.slice(0, 12)}...${WEB_CLIENT_ID.slice(-4)}`
+      : '(not set)';
+    console.log('[Auth] WEB_CLIENT_ID in use:', masked);
+    console.log('[Auth] Firebase API key set:', !!Constants.expoConfig?.extra?.firebaseApiKey);
+  }, []);
+
   const handleSignIn = useCallback(async () => {
     if (busy) return;
     setBusy(true);
@@ -41,16 +52,21 @@ export default function AuthScreen() {
       try {
         const tokens = await GoogleSignin.getTokens();
         idToken = tokens.idToken;
-      } catch {}
+      } catch (tokenErr: any) {
+        console.warn('[Auth] getTokens failed:', tokenErr?.code, tokenErr?.message);
+      }
 
       if (!idToken) {
-        Alert.alert('Sign In Failed', 'Could not get authentication token. Please try again.');
+        Alert.alert(
+          'Sign In Failed',
+          'Could not get authentication token from Google. Please try again.',
+        );
         return;
       }
 
       const user = await signInWithGoogle(idToken);
       if (!user) {
-        Alert.alert('Sign In Failed', 'Please try again.');
+        Alert.alert('Sign In Failed', 'Sign-in was cancelled or failed. Please try again.');
         return;
       }
 
@@ -64,10 +80,54 @@ export default function AuthScreen() {
       // Existing user → App.js restoreAuth handles routing to main app
 
     } catch (e: any) {
-      // Code 12501 = user cancelled — no alert needed
-      if (e?.code !== '12501' && e?.code !== 'SIGN_IN_CANCELLED') {
-        Alert.alert('Sign In Failed', 'Something went wrong. Please try again.');
+      // Code 12501 / SIGN_IN_CANCELLED = user cancelled — no alert needed
+      if (e?.code === '12501' || e?.code === 'SIGN_IN_CANCELLED') {
+        return;
       }
+
+      // Log the full error for debugging (visible in logcat / Expo dev tools)
+      console.error('[Auth] Sign-in error:', {
+        code: e?.code,
+        message: e?.message,
+        name: e?.name,
+      });
+
+      // Surface a SPECIFIC error so the user (and we) can diagnose the failure.
+      // Generic "Something went wrong" made this impossible to debug remotely.
+      const errCode = e?.code ? String(e.code) : '';
+      const errMsg = (e?.message || '').slice(0, 180);
+
+      let title = 'Sign In Failed';
+      let body = 'Please try again.';
+
+      // Common Google Sign-In error codes
+      if (errCode === '10' || /DEVELOPER_ERROR/i.test(errMsg)) {
+        // Developer error = SHA-1 not registered, package name mismatch,
+        // or webClientId belongs to a different Google Cloud project.
+        body = 'Google Sign-In is not configured correctly for this app. ' +
+               'Please contact support. (Code: DEVELOPER_ERROR)';
+      } else if (errCode === '7' || /NETWORK_ERROR/i.test(errMsg)) {
+        body = 'Network error. Please check your internet connection and try again.';
+      } else if (errCode === '8' || /INTERNAL_ERROR/i.test(errMsg)) {
+        body = 'Google Play Services internal error. Please restart the app and try again.';
+      } else if (errCode === '5' || /SIGN_IN_REQUIRED/i.test(errMsg)) {
+        body = 'Please sign in to your Google account in device settings first.';
+      } else if (/INVALID_IDP_RESPONSE|INVALID_ID_TOKEN|operation-not-allowed|OPERATION_NOT_ALLOWED/i.test(errMsg)) {
+        // Firebase Auth REST errors
+        body = 'Google Sign-In is not enabled for this Firebase project, or the ' +
+               'web client ID is wrong. Please contact support.';
+      } else if (/INVALID_API_KEY/i.test(errMsg)) {
+        body = 'Firebase API key is invalid. Please contact support.';
+      } else if (/permission-denied|PERMISSION_DENIED/i.test(errMsg)) {
+        body = 'Permission denied. The Google client ID may not match this Firebase project.';
+      } else if (/email-already-in-use|EMAIL_EXISTS/i.test(errMsg)) {
+        body = 'This email is already registered with a different sign-in method.';
+      } else if (errMsg) {
+        // Show the actual error message (truncated) so we can diagnose remotely
+        body = `Error: ${errMsg}`;
+      }
+
+      Alert.alert(title, body);
     } finally {
       setBusy(false);
     }

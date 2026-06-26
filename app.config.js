@@ -20,11 +20,23 @@ try {
 }
 
 module.exports = function () {
+  // Validate critical config at build time — fail loudly rather than ship a
+  // broken APK. These checks run during `expo prebuild` in CI.
+  const firebaseApiKey = process.env.FIREBASE_API_KEY || 'AIzaSyDOGRbI4V82VJ0KZND3v1ggfO5s3933-3w';
+  const googleWebClientId = process.env.GOOGLE_WEB_CLIENT_ID || '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
+
+  if (!firebaseApiKey || !firebaseApiKey.startsWith('AIza')) {
+    console.warn('[CONFIG] FIREBASE_API_KEY looks invalid - Google Sign-In will fail.');
+  }
+  if (!googleWebClientId || !googleWebClientId.endsWith('.apps.googleusercontent.com')) {
+    console.warn('[CONFIG] GOOGLE_WEB_CLIENT_ID looks invalid - Google Sign-In will fail.');
+  }
+
   return {
     expo: {
       name: 'Black94',
       slug: 'memora-bond',
-      version: '1.8.3',
+      version: '1.8.4',
       platforms: ['android', 'ios', 'web'],
       orientation: 'portrait',
       icon: './assets/icon.png',
@@ -48,7 +60,7 @@ module.exports = function () {
         edgeToEdgeEnabled: true,
         package: 'com.black94.app',
         googleServicesFile: './google-services.json',
-        versionCode: 13,
+        versionCode: 14,
         permissions: ['CAMERA', 'POST_NOTIFICATIONS'],
         softwareKeyboardLayoutMode: 'resize',
         splash: {
@@ -67,7 +79,7 @@ module.exports = function () {
             data: [
               {
                 scheme: 'https',
-                host: 'black94.firebaseapp.com',
+                host: 'memora-bond.firebaseapp.com',
                 pathPrefix: '/__/auth/handler',
               },
             ],
@@ -100,8 +112,8 @@ module.exports = function () {
         eas: {
           projectId: '9dff44f7-2b2b-432d-a355-902a3d75e970',
         },
-        firebaseApiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDOGRbI4V82VJ0KZND3v1ggfO5s3933-3w',
-        googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID || '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
+        firebaseApiKey,
+        googleWebClientId,
         tenorApiKey: process.env.TENOR_API_KEY || 'AIzaSyDi7RJ3mPuN9gBjDXCMrhjS8ypHwm1nHB0',
       },
       owner: 'corneli1',
