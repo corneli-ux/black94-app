@@ -9,28 +9,76 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // ── Privilege escalation helpers ──────────────────────────────────
+    // These compare the EXISTING doc (resource.data) against the NEW doc
+    // (request.resource.data) to detect when a user is trying to GRANT
+    // themselves a privilege they didn't have before.
+    //
+    // IMPORTANT: The previous rule used `request.resource.data.isVerified != true`
+    // which blocks ALL updates for users who ALREADY have isVerified=true,
+    // because the new doc state still contains isVerified=true. This made it
+    // impossible for verified users (or premium/business users with gold/blue
+    // badge) to edit their bio, avatar, or display name.
+    //
+    // The fix: only block ESCALATION (false→true), not the existing state.
+
+    function isEscalatingBool(field) {
+      // True if the field is going from non-true to true
+      return resource.data.get(field, false) != true
+        && request.resource.data.get(field, false) == true;
+    }
+
+    function hasPrivilegedBadge(data) {
+      return data.get('badge', '') in ['gold', 'blue', 'pro'];
+    }
+
+    function isAdminRole(data) {
+      return data.get('role', 'personal') == 'admin';
+    }
+
+    function isEscalatingBadge() {
+      // True if badge is being escalated to a privileged value
+      return hasPrivilegedBadge(request.resource.data)
+        && !hasPrivilegedBadge(resource.data);
+    }
+
+    function isEscalatingRole() {
+      // True if role is being escalated to admin
+      return isAdminRole(request.resource.data)
+        && !isAdminRole(resource.data);
+    }
+
     // ── Users ──────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if true;
-      allow create: if isAuthenticated();
-      // Users can update their own profile.
-      // They cannot grant themselves admin, verified status, or elevated badges.
-      // Only backend/Cloud Functions can set isVerified=true, isAdmin=true, badge=gold/blue/pro.
+      // Create: new users cannot grant themselves privileges
+      allow create: if isAuthenticated()
+        && request.resource.data.get('isAdmin', false) != true
+        && request.resource.data.get('isVerified', false) != true
+        && !hasPrivilegedBadge(request.resource.data)
+        && !isAdminRole(request.resource.data);
+      // Update: owner can update any field, but cannot ESCALATE privileges.
+      // This allows verified/premium/business users to edit their bio,
+      // avatar, display name, etc. without losing their existing status.
       allow update: if isOwner(userId)
-        && request.resource.data.isAdmin != true
-        && request.resource.data.isVerified != true
-        && !(request.resource.data.get('badge', '') in ['gold', 'blue', 'pro'])
-        && !(request.resource.data.get('role', 'personal') in ['admin']);
+        && !isEscalatingBool('isAdmin')
+        && !isEscalatingBool('isVerified')
+        && !isEscalatingBadge()
+        && !isEscalatingRole();
       allow delete: if isOwner(userId);
     }
 
     // ── Usernames ──────────────────────────────────────────────────────
+    // IMPORTANT: delete was previously `isAuthenticated()` which allowed
+    // ANY authenticated user to delete ANY username doc (stealing usernames).
+    // Now only the owner of the username can delete it.
     match /usernames/{username} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated()
         && get(/databases/$(database)/documents/usernames/$(username)).data.uid == request.auth.uid;
-      allow delete: if isAuthenticated();
+      allow delete: if isAuthenticated()
+        && get(/databases/$(database)/documents/usernames/$(username)).data.uid == request.auth.uid;
     }
 
     // ── Posts ──────────────────────────────────────────────────────────

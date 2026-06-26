@@ -725,6 +725,13 @@ export async function createPost(
     likeCount: 0,
     commentCount: 0,
     repostCount: 0,
+    // BUG FIX: Initialize viewCount and bookmarkCount to 0.
+    // Without these, feed sorting/filtering by viewCount silently excludes
+    // the post (Firestore treats missing fields as null, not 0). Also,
+    // when increment() is called on a missing field, Firestore creates it
+    // but the first read may return undefined in some SDK paths.
+    viewCount: 0,
+    bookmarkCount: 0,
     createdAt: firestore.FieldValue.serverTimestamp(),
     updatedAt: firestore.FieldValue.serverTimestamp(),
     visibility: visibility || 'public',
