@@ -315,18 +315,24 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
       if (fetchFailed) {
         if (__DEV__) console.warn('[Auth] Skipping user doc creation — fetch failed, doc likely exists');
       } else {
-        userData.createdAt = firestore.FieldValue.serverTimestamp();
+        // NEW USER: save WITHOUT a username — user picks one in UsernameSetupScreen.
+        // Do NOT auto-assign from Google display name (was causing "Das → @das" bug).
         try {
-          // Use merge: true so if the doc was created by another client between
-          // the get() and set() (race condition), we don't overwrite existing fields.
-          await userDocRef.set(userData, { merge: true });
-          // USERNAME FIX: Check if the username is already taken before claiming it.
-          // Without this check, two users with the same displayName could overwrite
-          // each other's username mapping, causing username hijacking.
-          const usernameDoc = await firestore().collection('usernames').doc(username.toLowerCase()).get();
-          if (!usernameDoc.exists) {
-            await firestore().collection('usernames').doc(username.toLowerCase()).set({ uid: fbUser.uid });
-          }
+          await userDocRef.set({
+            uid: fbUser.uid,
+            email: fbUser.email || '',
+            username: '',
+            usernameLower: '',
+            displayName: fbUser.displayName || 'User',
+            displayNameLower: (fbUser.displayName || 'User').toLowerCase(),
+            profileImage: googlePhoto,
+            role: 'personal',
+            badge: '',
+            subscription: 'free',
+            isVerified: false,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
         } catch (e) {
           if (__DEV__) console.warn('[Auth] Failed to create user doc:', e);
         }
