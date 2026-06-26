@@ -12,11 +12,29 @@ import * as Font from 'expo-font';
 // Wrap in try-catch for web compatibility
 try { WebBrowser.maybeCompleteAuthSession(); } catch (e) { if (__DEV__) console.warn('[WebBrowser]', e); }
 import { onAuthStateChanged, auth, restoreAuth, getValidToken } from './src/lib/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// When Firebase project changes, all local cache must be cleared.
+// This prevents old project's auth/user data showing in new project.
+const CURRENT_PROJECT_KEY = '@app/firebase_project';
+const CURRENT_PROJECT_ID = 'memora-bond';
+
+async function clearStaleProjectCache() {
+  try {
+    const storedProject = await AsyncStorage.getItem(CURRENT_PROJECT_KEY);
+    if (storedProject !== CURRENT_PROJECT_ID) {
+      console.log('[App] Firebase project changed or first run — clearing all local cache');
+      await AsyncStorage.clear();
+      await AsyncStorage.setItem(CURRENT_PROJECT_KEY, CURRENT_PROJECT_ID);
+      console.log('[App] Cache cleared, project set to', CURRENT_PROJECT_ID);
+    }
+  } catch (e) {
+    console.warn('[App] Cache clear error:', e);
+  }
+}
 import Navigation from './src/navigation/AppNavigator';
 import { useAppStore } from './src/stores/app';
 import { fetchUserProfile } from './src/lib/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 const USER_CACHE_KEY = '@black94/user_cache';
 
 // NOTE: Text.defaultProps mutation was removed in RN 0.73+
