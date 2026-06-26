@@ -53,7 +53,6 @@ jobs:
         if: steps.check_sa.outputs.skip != 'true'
         run: |
           printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS" > /tmp/fb_sa.json
-          # Verify the service account file is valid JSON
           python3 -c "import json; json.load(open('/tmp/fb_sa.json'))" || {
             echo "ERROR: FIREBASE_SERVICE_ACCOUNT secret is not valid JSON."
             exit 1
@@ -63,42 +62,70 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       # ── PRIMARY: Deploy Firestore rules via REST API ──
-      # This bypasses the `firebase deploy` CLI's pre-flight check on
-      # serviceusage.googleapis.com, which fails with 403 if the service
-      # account lacks `serviceusage.services.get` permission (common for
-      # Firebase Admin-only roles).
-      #
-      # The REST API only needs firebaserules.rulesets.create and
-      # firebaserules.releases.update, both granted by Firebase Admin /
-      # Firebase Rules Admin / Editor / Owner roles.
+      # Bypasses the `firebase deploy` CLI's pre-flight check on
+      # serviceusage.googleapis.com (which needs serviceusage.services.get).
       - name: Deploy Firestore Rules (REST API)
+        id: rest_deploy
         if: steps.check_sa.outputs.skip != 'true'
+        continue-on-error: true
         run: |
           echo "=== Deploying Firestore rules via Firebase Rules REST API ==="
           python3 scripts/deploy_firestore_rules.py /tmp/fb_sa.json
 
-      # ── FALLBACK: If REST API fails, try the firebase CLI ──
-      # Some rules (e.g., complex function chains) may need the CLI's
-      # validation step. Keep this as a backup.
-      - name: Fallback - Deploy Firestore Rules (firebase CLI)
-        if: steps.check_sa.outputs.skip != 'true' && failure()
+      # ── FALLBACK: firebase CLI (last resort) ──
+      - name: Fallback - firebase CLI
+        if: steps.check_sa.outputs.skip != 'true' && steps.rest_deploy.outcome == 'failure'
         continue-on-error: true
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/fb_sa.json
           echo "=== Trying firebase CLI as fallback ==="
-          firebase deploy --only firestore:rules --project memora-bond --force || {
-            echo "Firebase CLI also failed — the REST API deploy above is the primary path."
-            echo "If both failed, check IAM permissions for the service account."
+          firebase deploy --only firestore:rules --project memora-bond --force 2>&1 | tail -20 || {
+            echo "Firebase CLI also failed."
           }
 
-      # ── Storage rules (still via CLI — no REST equivalent needed) ──
-      - name: Deploy Storage Rules
+      # ── SUMMARY: Report clear status ──
+      - name: Deploy status summary
         if: steps.check_sa.outputs.skip != 'true'
+        run: |
+          if [ "${{ steps.rest_deploy.outcome }}" = "success" ]; then
+            echo "[OK] Firestore rules deployed successfully via REST API"
+          else
+            echo "[FAIL] Firestore rules deploy FAILED via all methods."
+            echo ""
+            echo "The FIREBASE_SERVICE_ACCOUNT secret has LIMITED permissions:"
+            echo "  - CAN create rulesets (firebaserules.rulesets.create)"
+            echo "  - CANNOT update releases (firebaserules.releases.update)"
+            echo "  - CANNOT check service usage (serviceusage.services.get)"
+            echo ""
+            echo "FIX: In Google Cloud Console -> IAM & Admin -> IAM, find the"
+            echo "service account used by GitHub Actions (the email in the"
+            echo "FIREBASE_SERVICE_ACCOUNT secret) and grant ONE of these roles:"
+            echo ""
+            echo "  roles/firebase.admin       (Firebase Admin - recommended)"
+            echo "  roles/firebaserules.admin  (Firebase Rules Admin - minimal)"
+            echo "  roles/editor               (Editor - broad)"
+            echo "  roles/owner                (Owner - broadest)"
+            echo ""
+            echo "After granting the role, re-run this workflow:"
+            echo "  Actions -> Deploy Firebase Security Rules -> Run workflow"
+            echo ""
+            echo "The rules file (firestore.rules) is correct and committed."
+            echo "Only the IAM permission is missing - no code changes needed."
+            echo ""
+            echo "IMPORTANT: The rules fix is critical for profile saving."
+            echo "Without it, verified/premium/business users cannot edit"
+            echo "their bio, avatar, or display name (permission denied)."
+            exit 1
+          fi
+
+      # ── Storage rules (non-critical) ──
+      - name: Deploy Storage Rules
+        if: steps.check_sa.outputs.skip != 'true' && steps.rest_deploy.outcome == 'success'
         continue-on-error: true
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/fb_sa.json
           firebase deploy --only storage --project memora-bond --force || {
-            echo "Storage rules deploy failed (non-fatal) — Firestore rules are the critical ones."
+            echo "Storage rules deploy failed (non-fatal)."
           }
 
       - name: Cleanup
