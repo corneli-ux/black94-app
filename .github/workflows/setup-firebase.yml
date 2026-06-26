@@ -8,96 +8,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Get access token and project info
+      - name: Setup and register app
         run: |
-          pip install google-auth requests
+          pip install google-auth google-auth-httplib2 requests
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
+          python3 scripts/setup_firebase.py /tmp/sa.json
 
-          python3 << 'PYTHON'
-          import json
-          import google.auth.transport.requests
-          from google.oauth2 import service_account
-          import requests
-
-          sa = json.loads('${{ secrets.FIREBASE_SERVICE_ACCOUNT }}')
-          creds = service_account.Credentials.from_service_account_info(
-              sa,
-              scopes=['https://www.googleapis.com/auth/firebase',
-                      'https://www.googleapis.com/auth/cloud-platform']
-          )
-          creds.refresh(google.auth.transport.requests.Request())
-          token = creds.token
-          headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
-
-          PROJECT = 'memora-bond'
-          PACKAGE = 'com.black94.app'
-          SHA1 = 'F5:3F:0D:14:74:1D:8F:88:17:7E:49:AA:B8:2F:D0:2B:A2:D6:DD:C4'
-
-          # List existing apps
-          r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=headers)
-          apps = r.json().get('apps', [])
-          print('Existing apps:', json.dumps(apps, indent=2))
-
-          app_id = None
-          for app in apps:
-              if app.get('packageName') == PACKAGE:
-                  app_id = app['appId']
-                  print(f'Found existing app: {app_id}')
-                  break
-
-          if not app_id:
-              # Create Android app
-              r = requests.post(
-                  f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps',
-                  headers=headers,
-                  json={'packageName': PACKAGE, 'displayName': 'Black94'}
-              )
-              print('Create app response:', r.status_code, r.text[:500])
-              if r.ok:
-                  op = r.json()
-                  # Poll for completion
-                  import time
-                  for i in range(20):
-                      time.sleep(3)
-                      op_r = requests.get(f"https://firebase.googleapis.com/v1beta1/{op['name']}", headers=headers)
-                      op_data = op_r.json()
-                      if op_data.get('done'):
-                          app_id = op_data['response']['appId']
-                          print(f'App created: {app_id}')
-                          break
-
-          if app_id:
-              # Add SHA-1
-              r = requests.post(
-                  f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{app_id}:addFirebaseApp',
-                  headers=headers
-              ) if False else None  # already added above
-
-              # Add SHA certificate
-              r = requests.post(
-                  f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{app_id}/sha',
-                  headers=headers,
-                  json={'shaHash': SHA1.replace(':', '').lower(), 'certType': 'SHA_1'}
-              )
-              print('Add SHA-1:', r.status_code, r.text[:200])
-
-              # Get google-services.json
-              r = requests.get(
-                  f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{app_id}/config',
-                  headers=headers
-              )
-              print('Config response:', r.status_code)
-              if r.ok:
-                  import base64
-                  config = r.json()
-                  gsf_content = base64.b64decode(config['configFileContents']).decode()
-                  with open('google-services.json', 'w') as f:
-                      f.write(gsf_content)
-                  print('=== google-services.json ===')
-                  print(gsf_content)
-              else:
-                  print('Config error:', r.text)
-          PYTHON
+      - name: Install Firebase CLI and deploy rules
+        run: |
+          npm install -g firebase-tools
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          firebase deploy --only firestore:rules --project memora-bond --force || true
+          firebase deploy --only storage --project memora-bond --force || true
 
       - name: Upload google-services.json
         if: always()
