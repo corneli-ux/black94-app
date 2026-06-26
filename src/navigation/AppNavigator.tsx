@@ -55,6 +55,7 @@ const PrivacySettingsScreen = lazy(() => import('../screens/PrivacySettingsScree
 const WriteArticleScreen = lazy(() => import('../screens/WriteArticleScreen'));
 const ShareProfileScreen = lazy(() => import('../screens/ShareProfileScreen'));
 const PremiumDashboardScreen = lazy(() => import('../screens/PremiumDashboardScreen'));
+const UsernameSetupScreen = lazy(() => import('../screens/UsernameSetupScreen'));
 const AuthScreen = lazy(() => import('../screens/AuthScreen'));
 const EditProfileScreen = lazy(() => import('../screens/EditProfileScreen'));
 const UserProfileScreen = lazy(() => import('../screens/UserProfileScreen'));

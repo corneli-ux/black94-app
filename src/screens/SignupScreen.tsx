@@ -1,53 +1,53 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, StatusBar, Alert, Linking, Platform } from 'react-native';
+import {
+  View, Text, TouchableOpacity, Image, StyleSheet,
+  StatusBar, Alert, Linking, Platform, ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
-import { signInWithGoogle, initPostSignUp } from '../lib/api';
+import { signInWithGoogle } from '../lib/api';
 import { useAppStore } from '../stores/app';
+import { Feather } from '@expo/vector-icons';
+import Constants from 'expo-constants';
+
+const WEB_CLIENT_ID = Constants.expoConfig?.extra?.googleWebClientId
+  || '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
 
 export default function SignupScreen() {
   const { setUser, setToken } = useAppStore();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const [busy, setBusy] = React.useState(false);
 
   const handleSignUp = async () => {
     setBusy(true);
     try {
       const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
-      GoogleSignin.configure({
-        webClientId: '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
-        scopes: ['profile', 'email'],
-      });
-      if (Platform.OS === 'android') {
-        await GoogleSignin.hasPlayServices();
-      }
+      GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, scopes: ['profile', 'email'] });
+      if (Platform.OS === 'android') await GoogleSignin.hasPlayServices();
       await GoogleSignin.signIn();
 
       let idToken: string | null = null;
       try {
         const tokens = await GoogleSignin.getTokens();
         idToken = tokens.idToken;
-      } catch (e) {
-        if (__DEV__) console.warn('[Signup] getTokens failed:', e);
-      }
+      } catch {}
 
-      if (!idToken) {
-        Alert.alert('Error', 'Failed to get authentication token.');
-        return;
-      }
+      if (!idToken) { Alert.alert('Error', 'Failed to get authentication token.'); return; }
 
       const user = await signInWithGoogle(idToken);
       if (user) {
         setUser(user);
         setToken(user.id);
-        if (__DEV__) initPostSignUp(user.id).catch((e) => console.warn('[Signup] initPostSignUp failed:', e));
+        // If user has no username yet (new user), go to username setup
+        if (!user.username || user.username === user.id?.slice(0, 8)) {
+          navigation.replace('UsernameSetup');
+        }
+        // else: AppNavigator handles routing to main app via isReady
       }
     } catch (error: any) {
-      console.error('Sign up error:', error);
       if (error.code !== '12501') {
-        const msg = error.message || 'Please try again';
-        Alert.alert('Sign Up Failed', msg.length > 100 ? 'Sign up failed. Please try again.' : msg);
+        Alert.alert('Sign Up Failed', 'Please try again.');
       }
     } finally {
       setBusy(false);
@@ -55,38 +55,45 @@ export default function SignupScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
-      <View style={styles.inner}>
-        <Image source={require('../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join Black94 and start connecting today.</Text>
-
-        <TouchableOpacity style={styles.googleButton} onPress={handleSignUp} disabled={busy} activeOpacity={0.8}>
-          <Text style={styles.buttonText}>
-            {busy ? 'Creating account...' : 'Sign up with Google'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.divider} />
+      <View style={s.inner}>
+        {/* Logo */}
+        <View style={s.logoWrap}>
+          <View style={s.logoMark}>
+            <Text style={s.logoText}>94</Text>
+          </View>
+          <Text style={s.appName}>Black94</Text>
         </View>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Login' as never)} style={styles.switchTextContainer}>
-          <Text style={styles.switchText}>
-            Already have an account? <Text style={styles.switchLink}>Sign In</Text>
-          </Text>
+        <Text style={s.title}>Create your account</Text>
+        <Text style={s.subtitle}>Join Black94 and start connecting.</Text>
+
+        {/* Google button */}
+        <TouchableOpacity style={s.googleBtn} onPress={handleSignUp} disabled={busy} activeOpacity={0.85}>
+          {busy
+            ? <ActivityIndicator color={colors.bg} />
+            : <>
+                <View style={s.googleIconWrap}>
+                  <Text style={s.googleG}>G</Text>
+                </View>
+                <Text style={s.googleBtnText}>Continue with Google</Text>
+              </>
+          }
         </TouchableOpacity>
 
-        <View style={styles.legalRow}>
+        <TouchableOpacity onPress={() => navigation.navigate('Login' as never)} style={s.switchRow}>
+          <Text style={s.switchText}>Already have an account? </Text>
+          <Text style={s.switchLink}>Sign in</Text>
+        </TouchableOpacity>
+
+        <View style={s.legal}>
           <TouchableOpacity onPress={() => Linking.openURL('https://black94.web.app/privacy-policy.html')}>
-            <Text style={styles.legalText}>Privacy Policy</Text>
+            <Text style={s.legalText}>Privacy Policy</Text>
           </TouchableOpacity>
-          <Text style={styles.legalSeparator}>·</Text>
+          <Text style={s.legalDot}>·</Text>
           <TouchableOpacity onPress={() => Linking.openURL('https://black94.web.app/terms-of-service.html')}>
-            <Text style={styles.legalText}>Terms of Service</Text>
+            <Text style={s.legalText}>Terms of Service</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -94,27 +101,37 @@ export default function SignupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  logo: { width: 80, height: 80, marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: 'bold', color: colors.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 48 },
-  googleButton: {
-    width: '100%', maxWidth: 320, height: 52,
-    backgroundColor: colors.white, borderRadius: 26,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: colors.primaryForeground, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
+  logoWrap: { alignItems: 'center', marginBottom: 48 },
+  logoMark: {
+    width: 64, height: 64, borderRadius: 18,
+    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
-  buttonText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', width: '100%', maxWidth: 320, marginTop: 24, marginBottom: 16 },
-  divider: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { color: colors.textMuted, fontSize: 12, marginHorizontal: 12 },
-  switchTextContainer: { marginTop: 4 },
+  logoText: { color: colors.bg, fontSize: 26, fontWeight: '900', fontStyle: 'italic' },
+  appName: { fontSize: 22, fontWeight: '800', color: colors.white, letterSpacing: -0.5 },
+  title: { fontSize: 26, fontWeight: '800', color: colors.white, textAlign: 'center', marginBottom: 8 },
+  subtitle: { fontSize: 15, color: colors.textSecondary, textAlign: 'center', marginBottom: 40 },
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    width: '100%', maxWidth: 340, height: 54,
+    backgroundColor: colors.white, borderRadius: 14,
+    justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 8, elevation: 6,
+    marginBottom: 20,
+  },
+  googleIconWrap: {
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: '#4285F4', alignItems: 'center', justifyContent: 'center',
+  },
+  googleG: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  googleBtnText: { fontSize: 15, fontWeight: '700', color: '#1a1a1a' },
+  switchRow: { flexDirection: 'row', marginTop: 8, marginBottom: 40 },
   switchText: { color: colors.textSecondary, fontSize: 14 },
-  switchLink: { color: colors.accent, fontWeight: '600' },
-  legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 32, gap: 12 },
+  switchLink: { color: colors.accent, fontWeight: '700', fontSize: 14 },
+  legal: { flexDirection: 'row', alignItems: 'center', gap: 12, position: 'absolute', bottom: 24 },
   legalText: { color: colors.textMuted, fontSize: 12 },
-  legalSeparator: { color: colors.textMuted, fontSize: 12 },
+  legalDot: { color: colors.textMuted, fontSize: 12 },
 });

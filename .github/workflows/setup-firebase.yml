@@ -20,9 +20,12 @@ jobs:
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 scripts/setup_firebase.py /tmp/sa.json | tee /tmp/out.txt
-          API_KEY=$(grep "^FIREBASE_API_KEY=" /tmp/out.txt | cut -d= -f2-)
+          API_KEY=$(grep "^FIREBASE_API_KEY=" /tmp/out.txt | head -1 | cut -d= -f2-)
+          WEB_CLIENT_ID=$(grep "^WEB_CLIENT_ID=" /tmp/out.txt | head -1 | cut -d= -f2-)
           echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
-          echo "API Key found: ${#API_KEY} chars"
+          echo "web_client_id=$WEB_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "API Key: ${API_KEY:0:15}..."
+          echo "Web Client ID: $WEB_CLIENT_ID"
 
       - name: Update GitHub secrets
         run: |
@@ -33,21 +36,23 @@ jobs:
           TOKEN = '${{ secrets.PAT_TOKEN }}'
           REPO = 'corneli-ux/black94-app'
           API_KEY = '${{ steps.get_config.outputs.api_key }}'
+          WEB_CLIENT_ID = '${{ steps.get_config.outputs.web_client_id }}'
 
           with open('google-services.json') as f:
-              gsf_content = f.read()
-          gsf_b64 = base64.b64encode(gsf_content.encode()).decode()
+              gsf_b64 = base64.b64encode(f.read().encode()).decode()
 
           req = urllib.request.Request(
               f'https://api.github.com/repos/{REPO}/actions/secrets/public-key',
               headers={'Authorization': f'token {TOKEN}', 'Accept': 'application/vnd.github.v3+json'})
           with urllib.request.urlopen(req) as r:
               key_data = json.loads(r.read())
-
           KEY_ID = key_data['key_id']
           PUB_KEY = key_data['key']
 
           def set_secret(name, value):
+              if not value:
+                  print(f'Skip {name}: empty value')
+                  return
               pk = public.PublicKey(PUB_KEY.encode(), encoding.Base64Encoder())
               encrypted = base64.b64encode(public.SealedBox(pk).encrypt(value.encode())).decode()
               payload = json.dumps({'encrypted_value': encrypted, 'key_id': KEY_ID}).encode()
@@ -59,16 +64,15 @@ jobs:
                   print(f'{name}: HTTP {r.status}')
 
           set_secret('GOOGLE_SERVICES_JSON', gsf_b64)
-          if API_KEY:
-              set_secret('FIREBASE_API_KEY', API_KEY)
-              print(f'API Key set: {API_KEY[:10]}...')
+          set_secret('FIREBASE_API_KEY', API_KEY)
+          set_secret('GOOGLE_WEB_CLIENT_ID', WEB_CLIENT_ID)
           PYEOF
 
       - name: Deploy Firebase rules
         run: |
           npm install -g firebase-tools
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
-          sleep 15
+          sleep 10
           firebase deploy --only firestore:rules --project memora-bond --force || true
           firebase deploy --only storage --project memora-bond --force || true
 
@@ -78,4 +82,4 @@ jobs:
             -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/corneli-ux/black94-app/actions/workflows/build-android.yml/dispatches" \
-            -d '{"ref":"main"}' && echo "APK build triggered"
+            -d '{"ref":"main"}' && echo "Build triggered"

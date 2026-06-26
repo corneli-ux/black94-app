@@ -178,10 +178,16 @@ if r.ok:
     import base64
     config = r.json()
     gsf = json.loads(base64.b64decode(config['configFileContents']).decode())
+    web_client_id = None
     for client in gsf.get('client', []):
         for oauth in client.get('oauth_client', []):
             ctype = oauth.get('client_type', 0)
             cid = oauth.get('client_id', '')
             print(f'OAuth client type={ctype}: {cid}')
             if ctype == 3:  # type 3 = web client
+                web_client_id = cid
                 print(f'WEB_CLIENT_ID={cid}')
+    if web_client_id:
+        print(f'Found web client ID: {web_client_id}')
+    else:
+        print('No web client ID found - need to create OAuth client')

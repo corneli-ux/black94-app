@@ -33,6 +33,7 @@ jobs:
       - name: Install dependencies
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: npm install
 
       # Decode google-services.json from GitHub Secret before prebuild
@@ -55,11 +56,13 @@ jobs:
       - name: Expo prebuild
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: npx expo prebuild --platform android --clean || true
 
       - name: Install updated dependencies
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: npm install && npm install hermes-compiler
 
       - name: Fix splashscreen_logo drawable

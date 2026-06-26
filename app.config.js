@@ -99,6 +99,7 @@ module.exports = function () {
           projectId: '9dff44f7-2b2b-432d-a355-902a3d75e970',
         },
         firebaseApiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDOGRbI4V82VJ0KZND3v1ggfO5s3933-3w',
+        googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID || '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com',
         tenorApiKey: process.env.TENOR_API_KEY || 'AIzaSyDi7RJ3mPuN9gBjDXCMrhjS8ypHwm1nHB0',
       },
       owner: 'corneli1',
