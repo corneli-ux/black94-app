@@ -8,9 +8,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -21,6 +18,14 @@ jobs:
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 scripts/setup_firebase.py /tmp/sa.json
 
+      - name: Commit google-services.json to repo
+        run: |
+          git config user.email "ci@black94.app"
+          git config user.name "CI"
+          git add google-services.json
+          git diff --staged --quiet || git commit -m "ci: add google-services.json for memora-bond"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/corneli-ux/black94-app.git main
+
       - name: Install Firebase CLI and deploy rules
         run: |
           npm install -g firebase-tools
@@ -29,9 +34,7 @@ jobs:
           firebase deploy --only storage --project memora-bond --force || true
 
       - name: Upload google-services.json
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: google-services-json
           path: google-services.json
-          if-no-files-found: warn
