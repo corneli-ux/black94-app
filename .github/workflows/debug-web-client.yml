@@ -11,29 +11,34 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install deps
         run: pip install google-auth google-auth-httplib2 requests
-
-      - name: Fetch web client ID and write to repo
+      - name: Fetch and set web client ID
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 scripts/get_web_client_id.py /tmp/sa.json > /tmp/result.txt 2>&1
           cat /tmp/result.txt
-          # Extract the found client ID
           WEB_CLIENT=$(grep "^FOUND_WEB_CLIENT_ID=" /tmp/result.txt | head -1 | cut -d= -f2-)
-          # Write a debug file (NOT the full secret, just confirming it's found)
-          echo "# Web Client ID Debug" > WEB_CLIENT_DEBUG.md
-          echo "Found: $WEB_CLIENT" >> WEB_CLIENT_DEBUG.md
-          echo "Full output:" >> WEB_CLIENT_DEBUG.md
-          echo '```' >> WEB_CLIENT_DEBUG.md
-          cat /tmp/result.txt >> WEB_CLIENT_DEBUG.md
-          echo '```' >> WEB_CLIENT_DEBUG.md
-
-      - name: Commit debug file
-        run: |
-          git config user.email "ci@black94.app"
-          git config user.name "CI"
-          git add WEB_CLIENT_DEBUG.md
-          git diff --staged --quiet || git commit -m "debug: web client ID lookup result"
-          git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/corneli-ux/black94-app.git main || true
+          # Set it as the secret if found
+          if [ -n "$WEB_CLIENT" ]; then
+            pip install PyNaCl -q
+            python3 << PYEOF
+          import base64, json, urllib.request
+          from nacl import encoding, public
+          TOKEN = '${{ secrets.PAT_TOKEN }}'
+          REPO = 'corneli-ux/black94-app'
+          VALUE = '$WEB_CLIENT'
+          req = urllib.request.Request(f'https://api.github.com/repos/{REPO}/actions/secrets/public-key',
+              headers={'Authorization': f'token {TOKEN}'})
+          kd = json.loads(urllib.request.urlopen(req).read())
+          pk = public.PublicKey(kd['key'].encode(), encoding.Base64Encoder())
+          enc = base64.b64encode(public.SealedBox(pk).encrypt(VALUE.encode())).decode()
+          payload = json.dumps({'encrypted_value': enc, 'key_id': kd['key_id']}).encode()
+          req = urllib.request.Request(f'https://api.github.com/repos/{REPO}/actions/secrets/GOOGLE_WEB_CLIENT_ID',
+              data=payload, method='PUT', headers={'Authorization': f'token {TOKEN}', 'Content-Type': 'application/json'})
+          print('Set GOOGLE_WEB_CLIENT_ID:', urllib.request.urlopen(req).status)
+          PYEOF
+            echo "WEB_CLIENT_FOUND=$WEB_CLIENT"
+          else
+            echo "NO WEB CLIENT ID FOUND"
+          fi
