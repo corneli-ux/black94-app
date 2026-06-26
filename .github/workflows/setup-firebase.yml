@@ -6,7 +6,6 @@ on:
 jobs:
   setup:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -23,57 +22,29 @@ jobs:
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json" >> $GITHUB_ENV
 
-      - name: Register Android app
-        continue-on-error: true
+      - name: Get App ID and download google-services.json
         run: |
-          firebase apps:create ANDROID \
-            --project memora-bond \
-            --package-name com.black94.app \
-            --display-name "Black94" || echo "App may already exist"
-
-      - name: Download google-services.json
-        id: download_gsf
-        run: |
-          APP_ID=$(firebase apps:list ANDROID --project memora-bond --json 2>/dev/null | python3 -c "
-          import sys, json
-          try:
-              data = json.load(sys.stdin)
-              apps = data.get('result', [])
-              if apps:
-                  print(apps[0]['appId'])
-          except: pass
-          " 2>/dev/null || echo "")
+          echo "=== Listing apps ==="
+          firebase apps:list --project memora-bond
           
-          echo "App ID: $APP_ID"
+          echo "=== Getting app ID ==="
+          APP_ID=$(firebase apps:list ANDROID --project memora-bond --json | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          apps = data.get('result', [])
+          print(apps[0]['appId'] if apps else '')
+          ")
+          echo "App ID: [$APP_ID]"
           
           if [ -n "$APP_ID" ]; then
-            firebase apps:sdkconfig ANDROID "$APP_ID" --project memora-bond --json > /tmp/sdk_raw.json 2>/dev/null || true
-            # Also try direct output
-            firebase apps:sdkconfig ANDROID "$APP_ID" --project memora-bond > google-services.json 2>/dev/null || true
-            cat google-services.json || echo "No google-services.json generated"
-          else
-            echo "No app ID found"
+            echo "=== Downloading SDK config ==="
+            firebase apps:sdkconfig ANDROID "$APP_ID" --project memora-bond
+            firebase apps:sdkconfig ANDROID "$APP_ID" --project memora-bond > google-services.json
+            echo "=== Content ==="
+            cat google-services.json
+            echo "=== File size ==="
+            wc -c google-services.json
           fi
-          ls -la google-services.json 2>/dev/null || echo "File not created"
-
-      - name: Enable Firestore database
-        continue-on-error: true
-        run: |
-          firebase firestore:databases:create --project memora-bond --location=asia-south1 2>/dev/null || \
-          echo "Firestore database already exists or being created"
-
-      - name: Deploy Firestore rules
-        continue-on-error: true
-        run: firebase deploy --only firestore:rules --project memora-bond --force
-
-      - name: Deploy Storage rules
-        continue-on-error: true
-        run: firebase deploy --only storage --project memora-bond --force
-
-      - name: Show google-services.json content
-        run: |
-          echo "=== google-services.json ==="
-          cat google-services.json 2>/dev/null || echo "File not found"
 
       - name: Upload google-services.json
         if: always()
