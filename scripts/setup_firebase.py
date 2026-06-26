@@ -90,3 +90,32 @@ for client in gsf_data.get('client', []):
         if key:
             print(f'FIREBASE_API_KEY={key}')
             break
+
+# Also update project display name to "Black94"
+print('\n=== Updating project display name to Black94 ===')
+r = requests.patch(
+    f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}',
+    headers=headers,
+    json={'displayName': 'Black94'},
+    params={'updateMask': 'displayName'}
+)
+print(f'Project display name update: {r.status_code}', r.text[:200] if not r.ok else 'OK')
+
+# Update Android app display name to "Black94"
+if app_id:
+    r = requests.patch(
+        f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{app_id}',
+        headers=headers,
+        json={'displayName': 'Black94'},
+        params={'updateMask': 'displayName'}
+    )
+    print(f'Android app display name update: {r.status_code}', r.text[:200] if not r.ok else 'OK')
+
+# Update Google Cloud project name via Resource Manager
+r = requests.patch(
+    f'https://cloudresourcemanager.googleapis.com/v3/projects/memora-bond',
+    headers=headers,
+    json={'displayName': 'Black94'},
+    params={'updateMask': 'displayName'}
+)
+print(f'Cloud project display name: {r.status_code}', r.text[:200] if not r.ok else 'OK')
