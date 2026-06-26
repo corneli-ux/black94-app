@@ -817,16 +817,16 @@ export default function FeedScreen({ navigation }: any) {
           </View>
         </SafeAreaView>
 
-        {/* Tabs */}
+        {/* Tabs - same markup as real tab bar so no position jump */}
         <View style={styles.tabBar}>
           {TABS.map(tab => (
             <TouchableOpacity key={tab} style={styles.tabItem} disabled>
               <Text style={[styles.tabText, activeTab === tab ? styles.tabTextActive : styles.tabTextInactive]}>
                 {tab}
               </Text>
+              {activeTab === tab && <View style={styles.tabUnderline} />}
             </TouchableOpacity>
           ))}
-          <View style={[styles.tabUnderline, { left: SCREEN_W / 3 - 24, right: SCREEN_W * 2 / 3 - 24 }]} />
         </View>
 
         <FeedSkeleton count={5} />
@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     borderBottomWidth: 0.5,
-    borderBottomColor: colors.separator,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
     backgroundColor: colors.bg,
   },
   tabItem: {
