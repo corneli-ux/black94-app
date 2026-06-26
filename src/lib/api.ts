@@ -521,8 +521,11 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     return returnUser;
 
   } catch (error: any) {
+    // Code 12501 = user cancelled Google Sign-In → return null (no alert)
     if (error?.code === '12501') return null;
-    console.error('[Auth] Google sign-in error:', error);
+    // Preserve the original error (including .code, .serverMessage from
+    // signInWithGoogleIdToken) so AuthScreen can show a specific message.
+    console.error('[Auth] Google sign-in error:', error?.code, error?.message);
     throw error;
   }
 }

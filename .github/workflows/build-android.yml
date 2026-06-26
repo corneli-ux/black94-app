@@ -36,41 +36,71 @@ jobs:
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: npm install
 
-      # Decode google-services.json from GitHub Secret before prebuild
-      - name: Decode google-services.json
+      # Register the release keystore SHA-1 with Firebase AND download a
+      # FRESH google-services.json. This avoids the stale-secret problem
+      # where the GOOGLE_SERVICES_JSON secret was captured BEFORE the SHA-1
+      # was registered — causing DEVELOPER_ERROR at runtime.
+      # continue-on-error: true so the build can fall back to the secret
+      # if the service account lacks Firebase Management API permissions.
+      - name: Register SHA-1 and fetch fresh google-services.json
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          pip install google-auth requests
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
+          python3 scripts/ensure_sha1_registered.py /tmp/sa.json
+          rm -f /tmp/sa.json
+
+      # Fallback: if the script failed (e.g. service account permissions),
+      # decode the GOOGLE_SERVICES_JSON secret. This guarantees the build
+      # can still proceed even if Firebase Management API is unavailable.
+      - name: Fallback - decode google-services.json from secret
+        if: ${{ hashFiles('google-services.json') == '' }}
         env:
           GOOGLE_SERVICES_B64: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          echo "Fresh download failed - falling back to GOOGLE_SERVICES_JSON secret"
           if [ -n "$GOOGLE_SERVICES_B64" ]; then
             echo "$GOOGLE_SERVICES_B64" | base64 -d > google-services.json
-            echo "google-services.json decoded successfully"
+            echo "google-services.json decoded from secret ($(wc -c < google-services.json) bytes)"
           else
-            echo "ERROR: GOOGLE_SERVICES_JSON secret is not set"
+            echo "ERROR: Neither fresh download nor GOOGLE_SERVICES_JSON secret available"
             exit 1
           fi
 
-      # Prebuild generates the native android/ dir but exits 1 because it
-      # can't prompt "Install the updated dependencies?" in CI.
-      # The native dir and updated package.json are already written — we
-      # just need to run npm install afterwards to pick up the changes.
-      - name: Extract web client ID from google-services.json
+      - name: Confirm google-services.json present
         run: |
-          WEB_CLIENT=$(python3 -c "
-          import json, sys
-          with open('google-services.json') as f:
-              gsf = json.load(f)
-          for client in gsf.get('client', []):
-              for oauth in client.get('oauth_client', []):
-                  if oauth.get('client_type') == 3:
-                      print(oauth['client_id'])
-                      sys.exit(0)
-          print('')
-          " 2>/dev/null)
+          if [ -f "google-services.json" ] && [ -s "google-services.json" ]; then
+            echo "google-services.json ready ($(wc -c < google-services.json) bytes)"
+          else
+            echo "ERROR: google-services.json missing or empty"
+            exit 1
+          fi
+
+      - name: Extract web client ID from google-services.json
+        id: web_client
+        run: |
+          # Robust extraction: checks oauth_client (type 3), then
+          # services.google_signin_service, then any non-Android client.
+          # FAILS the build if no web client is found AND the secret is empty —
+          # better to fail here than ship an APK with the wrong client ID.
+          # stderr shows diagnostic info (all oauth clients found); stdout has
+          # only the client ID.
+          WEB_CLIENT=$(python3 scripts/extract_web_client_id.py google-services.json 2>/dev/null || echo "")
           if [ -n "$WEB_CLIENT" ]; then
-            echo "Found web client ID: $WEB_CLIENT"
+            echo "Found web client ID: ${WEB_CLIENT:0:20}...${WEB_CLIENT: -4}"
             echo "GOOGLE_WEB_CLIENT_ID=$WEB_CLIENT" >> $GITHUB_ENV
           else
-            echo "No web client ID in google-services.json, using secret"
+            echo "WARNING: No web client ID found in google-services.json."
+            echo "Falling back to GOOGLE_WEB_CLIENT_ID secret (may be stale)."
+            if [ -z "${{ secrets.GOOGLE_WEB_CLIENT_ID }}" ]; then
+              echo "ERROR: GOOGLE_WEB_CLIENT_ID secret is also empty."
+              echo "Google Sign-In CANNOT work without a valid web client ID."
+              echo "Run the setup-firebase workflow to set the secret, OR"
+              echo "enable Google Sign-In in Firebase Console -> Authentication."
+              exit 1
+            fi
           fi
 
       - name: Expo prebuild
@@ -78,6 +108,23 @@ jobs:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           GOOGLE_WEB_CLIENT_ID: ${{ env.GOOGLE_WEB_CLIENT_ID || secrets.GOOGLE_WEB_CLIENT_ID }}
         run: npx expo prebuild --platform android --clean || true
+
+      - name: Verify build config
+        run: |
+          # Echo the resolved web client ID (masked) so the build log shows
+          # exactly what was baked into the APK.
+          if [ -n "$GOOGLE_WEB_CLIENT_ID" ]; then
+            echo "Web client ID baked into APK: ${GOOGLE_WEB_CLIENT_ID:0:20}...${GOOGLE_WEB_CLIENT_ID: -4}"
+          else
+            echo "WARNING: GOOGLE_WEB_CLIENT_ID env not set - falling back to hardcoded default in app.config.js"
+          fi
+          # Confirm google-services.json was decoded
+          if [ -f "google-services.json" ]; then
+            echo "google-services.json present ($(wc -c < google-services.json) bytes)"
+          else
+            echo "ERROR: google-services.json missing - build will fail"
+            exit 1
+          fi
 
       - name: Install updated dependencies
         env:
