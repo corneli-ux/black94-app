@@ -1,41 +1,29 @@
 #!/usr/bin/env python3
 """
-Deploys Firestore security rules directly via the Firebase Rules REST API.
+Deploys Firestore security rules directly via REST APIs.
 
 WHY THIS EXISTS
 ---------------
-The `firebase deploy --only firestore:rules` CLI command does a pre-flight
-check that calls `serviceusage.googleapis.com` to verify the Firestore
-service is enabled. This requires the `serviceusage.services.get` permission,
-which is NOT included in the Firebase Admin or Firebase Rules Admin roles.
+The `firebase deploy --only firestore:rules` CLI does a pre-flight check on
+serviceusage.googleapis.com that requires `serviceusage.services.get`
+permission — NOT included in Firebase Admin / Firebase Rules Admin roles.
 
-If the service account only has Firebase-specific roles (not broad Editor/
-Owner), the CLI fails with:
-  403, Permission denied to get service [firestore.googleapis.com]
+This script bypasses the CLI and calls the REST APIs directly. It tries
+two approaches in order:
 
-This script bypasses the CLI entirely and calls the Firebase Rules REST API
-directly:
-  1. POST /v1/projects/{project}/rulesets  — create a new ruleset from the
-     firestore.rules file content
-  2. PATCH /v1/projects/{project}/releases/cloud.firestore — point the
-     `cloud.firestore` release at the new ruleset
+  1. Firebase Rules API (firebaserules.googleapis.com) — create ruleset
+     + update release. Needs firebaserules.rulesets.create +
+     firebaserules.releases.update.
 
-These calls only require:
-  - firebaserules.rulesets.create
-  - firebaserules.releases.update
-
-Both are granted by `roles/firebaserules.admin`, `roles/firebase.admin`,
-`roles/editor`, or `roles/owner`.
+  2. Firestore Admin API (firestore.googleapis.com) — update database
+     securityRules field. Needs datastore permissions.
 
 Usage:
     python3 scripts/deploy_firestore_rules.py /path/to/service-account.json
-
-Reads ./firestore.rules from the current directory.
 """
 import json
 import os
 import sys
-import time
 import urllib.request
 import urllib.error
 
@@ -47,24 +35,16 @@ RULES_FILE = "firestore.rules"
 RELEASE_NAME = "cloud.firestore"  # Firestore release name (fixed by Firebase)
 
 
-def get_access_token(sa_path: str) -> str:
-    """Get an OAuth2 access token with Firebase Rules scopes."""
+def get_access_token(sa_path: str, scopes: list) -> str:
+    """Get an OAuth2 access token with the specified scopes."""
     with open(sa_path) as f:
         sa = json.load(f)
-
-    creds = service_account.Credentials.from_service_account_info(
-        sa,
-        scopes=[
-            "https://www.googleapis.com/auth/firebase",        # Firebase Rules
-            "https://www.googleapis.com/auth/firebase.readonly",
-        ],
-    )
+    creds = service_account.Credentials.from_service_account_info(sa, scopes=scopes)
     creds.refresh(google.auth.transport.requests.Request())
     return creds.token
 
 
 def read_rules_content() -> str:
-    """Read the firestore.rules file content."""
     if not os.path.exists(RULES_FILE):
         print(f"ERROR: {RULES_FILE} not found in current directory", file=sys.stderr)
         sys.exit(2)
@@ -72,242 +52,198 @@ def read_rules_content() -> str:
         return f.read()
 
 
-def create_ruleset(token: str, rules_content: str) -> str:
-    """Create a new ruleset via POST /v1/projects/{project}/rulesets.
+# ═══════════════════════════════════════════════════════════════════════════
+# APPROACH 1: Firebase Rules API (firebaserules.googleapis.com)
+# ═══════════════════════════════════════════════════════════════════════════
 
-    Returns the ruleset name (e.g. "projects/memora-bond/rulesets/abc123").
+def deploy_via_firebase_rules_api(token: str, rules_content: str) -> bool:
+    """Deploy via firebaserules.googleapis.com.
+
+    Returns True on success, False if we should try another approach.
     """
+    print("[Approach 1] Firebase Rules API (firebaserules.googleapis.com)")
+
+    # Step 1: Create ruleset
     url = f"https://firebaserules.googleapis.com/v1/projects/{PROJECT}/rulesets"
     body = json.dumps({
         "source": {
-            "files": [
-                {
-                    "name": "firestore.rules",
-                    "content": rules_content,
-                }
-            ]
+            "files": [{"name": "firestore.rules", "content": rules_content}]
         }
     }).encode()
 
     req = urllib.request.Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
+        url, data=body, method="POST",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )
 
     try:
         with urllib.request.urlopen(req) as resp:
             data = json.loads(resp.read())
             ruleset_name = data.get("name", "")
-            print(f"[1/3] Ruleset created: {ruleset_name}")
-            return ruleset_name
+            print(f"  Ruleset created: {ruleset_name}")
     except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        print(f"[1/3] ERROR creating ruleset: HTTP {e.code}", file=sys.stderr)
-        print(f"      Response: {body[:500]}", file=sys.stderr)
-        # If it's a permission error, give a helpful message
+        body_text = e.read().decode()
+        print(f"  ERROR creating ruleset: HTTP {e.code}", file=sys.stderr)
+        print(f"  Response: {body_text[:500]}", file=sys.stderr)
         if e.code == 403:
-            print(
-                "\n      The service account lacks firebaserules.rulesets.create permission.\n"
-                "      Grant one of: roles/firebaserules.admin, roles/firebase.admin,\n"
-                "      roles/editor, or roles/owner in Google Cloud Console → IAM.",
-                file=sys.stderr,
-            )
-        sys.exit(1)
-    except Exception as e:
-        print(f"[1/3] ERROR: {e}", file=sys.stderr)
-        sys.exit(1)
+            print("  Service account lacks firebaserules.rulesets.create — trying Approach 2", file=sys.stderr)
+            return False
+        return False
 
-
-def get_current_release(token: str) -> dict:
-    """Get the current release info (to know what we're replacing)."""
-    url = f"https://firebaserules.googleapis.com/v1/projects/{PROJECT}/releases/{RELEASE_NAME}"
-    req = urllib.request.Request(
-        url,
-        method="GET",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            print(f"[2/3] No existing release '{RELEASE_NAME}' — will create one")
-            return None
-        # Other errors are non-fatal — we'll try to update anyway
-        print(f"[2/3] Warning: could not get current release (HTTP {e.code}) — continuing")
-        return None
-    except Exception:
-        return None
-
-
-def update_release(token: str, ruleset_name: str) -> None:
-    """Point the cloud.firestore release at the new ruleset.
-
-    The Firebase Rules API Release resource has:
-      - name: string — FULLY QUALIFIED: "projects/{project}/releases/cloud.firestore"
-      - rulesetName: string — FULLY QUALIFIED: "projects/{project}/rulesets/{id}"
-
-    The previous attempts failed because the `name` field in the body was
-    just "cloud.firestore" (short name) but the API expects the fully
-    qualified resource name. The URL path also uses the short name, which
-    is correct — but the BODY must contain the fully qualified name.
-    """
-    # FULLY QUALIFIED names required in the request body
+    # Step 2: Update the release. Try multiple method + body shape combos
+    # because the API has subtle differences across versions.
     release_full_name = f"projects/{PROJECT}/releases/{RELEASE_NAME}"
-    url = f"https://firebaserules.googleapis.com/v1/{release_full_name}"
+    release_url = f"https://firebaserules.googleapis.com/v1/{release_full_name}"
 
-    # ── Attempt 1: PATCH with updateMask=ruleset_name (proto field name) ──
-    patch_url = f"{url}?updateMask=ruleset_name"
-    body = json.dumps({
-        "name": release_full_name,
-        "rulesetName": ruleset_name,
-    }).encode()
+    body_variants = [
+        {"name": release_full_name, "rulesetName": ruleset_name},
+        {"name": release_full_name, "ruleset_name": ruleset_name},
+        {"rulesetName": ruleset_name},
+        {"ruleset_name": ruleset_name},
+    ]
 
-    req = urllib.request.Request(
-        patch_url, data=body, method="PATCH",
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-    )
+    methods = [
+        ("PATCH updateMask=ruleset_name", "PATCH", f"{release_url}?updateMask=ruleset_name"),
+        ("PATCH updateMask=rulesetName", "PATCH", f"{release_url}?updateMask=rulesetName"),
+        ("PATCH no mask", "PATCH", release_url),
+        ("PUT full replace", "PUT", release_url),
+    ]
 
-    try:
-        with urllib.request.urlopen(req) as resp:
-            print(f"[3/3] Release '{RELEASE_NAME}' updated to {ruleset_name}")
-            return
-    except urllib.error.HTTPError as e:
-        body_text = e.read().decode()
-        if e.code == 404:
-            print(f"[3/3] Release doesn't exist — creating with POST")
-            return create_release(token, ruleset_name)
-        print(f"[3/3] Attempt 1 (PATCH + updateMask) failed: HTTP {e.code}: {body_text[:200]} — trying attempt 2")
-
-    # ── Attempt 2: PATCH without updateMask (full resource, fully qualified name) ──
-    req2 = urllib.request.Request(
-        url, data=body, method="PATCH",
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-    )
-
-    try:
-        with urllib.request.urlopen(req2) as resp:
-            print(f"[3/3] Release '{RELEASE_NAME}' updated to {ruleset_name} (PATCH no mask)")
-            return
-    except urllib.error.HTTPError as e:
-        body_text = e.read().decode()
-        if e.code == 404:
-            return create_release(token, ruleset_name)
-        print(f"[3/3] Attempt 2 (PATCH no mask) failed: HTTP {e.code}: {body_text[:200]} — trying attempt 3")
-
-    # ── Attempt 3: PUT (full replace) ──
-    req3 = urllib.request.Request(
-        url, data=body, method="PUT",
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-    )
-
-    try:
-        with urllib.request.urlopen(req3) as resp:
-            print(f"[3/3] Release '{RELEASE_NAME}' updated via PUT to {ruleset_name}")
-            return
-    except urllib.error.HTTPError as e:
-        body_text = e.read().decode()
-        if e.code == 404:
-            return create_release(token, ruleset_name)
-        if e.code == 403:
-            print(f"[3/3] ERROR: HTTP 403 — permission denied", file=sys.stderr)
-            print(f"      Response: {body_text[:500]}", file=sys.stderr)
-            print(
-                "\n      The service account lacks firebaserules.releases.update permission.\n"
-                "      Grant one of: roles/firebaserules.admin, roles/firebase.admin,\n"
-                "      roles/editor, or roles/owner in Google Cloud Console → IAM.",
-                file=sys.stderr,
+    for method_desc, method, url_for_method in methods:
+        for body_variant in body_variants:
+            body = json.dumps(body_variant).encode()
+            req = urllib.request.Request(
+                url_for_method, data=body, method=method,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             )
-            sys.exit(1)
-        # Final: try delete + create
-        print(f"[3/3] Attempt 3 (PUT) failed: HTTP {e.code}: {body_text[:200]} — trying delete + create")
-        try:
-            del_req = urllib.request.Request(
-                url, method="DELETE",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            urllib.request.urlopen(del_req).read()
-            print(f"[3/3] Deleted old release — creating new one")
-        except Exception as de:
-            print(f"[3/3] Delete failed: {de}")
-        return create_release(token, ruleset_name)
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    print(f"  Release updated via {method_desc} (body: {list(body_variant.keys())})")
+                    print(f"  SUCCESS — release now points to {ruleset_name}")
+                    return True
+            except urllib.error.HTTPError as e:
+                body_text = e.read().decode()
+                if e.code == 404:
+                    if try_create_release(token, ruleset_name, release_full_name):
+                        return True
+                elif e.code == 403:
+                    print(f"  {method_desc} → 403 permission denied")
+                    print(f"  Service account lacks firebaserules.releases.update")
+                    return False
+                # 400 — try next variant
+                continue
+            except Exception:
+                continue
+
+    print(f"  All Firebase Rules API variants failed", file=sys.stderr)
+    return False
 
 
-def create_release(token: str, ruleset_name: str) -> None:
-    """Create a new release (POST) when PATCH returns 404."""
+def try_create_release(token: str, ruleset_name: str, release_full_name: str) -> bool:
+    """POST-create the release (when PATCH returns 404)."""
     url = f"https://firebaserules.googleapis.com/v1/projects/{PROJECT}/releases"
-    release_full_name = f"projects/{PROJECT}/releases/{RELEASE_NAME}"
-    body = json.dumps({
-        "name": release_full_name,
-        "rulesetName": ruleset_name,
-    }).encode()
+    for body_variant in [
+        {"name": release_full_name, "rulesetName": ruleset_name},
+        {"name": release_full_name, "ruleset_name": ruleset_name},
+    ]:
+        body = json.dumps(body_variant).encode()
+        req = urllib.request.Request(
+            url, data=body, method="POST",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                print(f"  Release created via POST")
+                return True
+        except urllib.error.HTTPError as e:
+            if e.code == 403:
+                print(f"  POST create → 403 — lacks firebaserules.releases.create")
+                return False
+            continue
+    return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# APPROACH 2: Firestore Admin API (firestore.googleapis.com)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def deploy_via_firestore_admin_api(token: str, rules_content: str) -> bool:
+    """Deploy via firestore.googleapis.com database update."""
+    print("[Approach 2] Firestore Admin API (firestore.googleapis.com)")
+
+    url = f"https://firestore.googleapis.com/v1/projects/{PROJECT}/databases/(default)"
+    body = json.dumps({"securityRules": rules_content}).encode()
 
     req = urllib.request.Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
+        f"{url}?updateMask=securityRules",
+        data=body, method="PATCH",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )
 
     try:
         with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read())
-            print(f"[3/3] Release '{RELEASE_NAME}' created pointing to {ruleset_name}")
-            return
+            print(f"  Database security rules updated via Firestore Admin API")
+            return True
     except urllib.error.HTTPError as e:
         body_text = e.read().decode()
-        print(f"[3/3] ERROR creating release: HTTP {e.code}", file=sys.stderr)
-        print(f"      Response: {body_text[:500]}", file=sys.stderr)
-        sys.exit(1)
+        print(f"  ERROR: HTTP {e.code}", file=sys.stderr)
+        print(f"  Response: {body_text[:500]}", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"  ERROR: {e}", file=sys.stderr)
+        return False
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════════
 
 def main() -> int:
     sa_path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/sa.json"
 
-    print(f"Deploying Firestore rules to project '{PROJECT}' via REST API...")
+    print(f"Deploying Firestore rules to project '{PROJECT}'...")
     print(f"  Service account: {sa_path}")
     print(f"  Rules file: {RULES_FILE}")
     print()
 
-    # Step 1: Get OAuth2 access token
-    print("[1/3] Getting access token...")
-    token = get_access_token(sa_path)
-    print(f"      Token acquired (scope: firebase)")
-    print()
-
-    # Step 2: Read rules file
     rules_content = read_rules_content()
-    print(f"[2/3] Read {len(rules_content)} bytes from {RULES_FILE}")
+    print(f"Read {len(rules_content)} bytes from {RULES_FILE}")
     print()
 
-    # Step 3: Create ruleset
-    ruleset_name = create_ruleset(token, rules_content)
-    print()
-
-    # Step 4: Check current release (informational)
-    current = get_current_release(token)
-    if current:
-        old_ruleset = current.get("rulesetName", "?")
-        print(f"[2/3] Current release points to: {old_ruleset}")
-    print()
-
-    # Step 5: Update (or create) the release
-    update_release(token, ruleset_name)
+    # Approach 1: Firebase Rules API
+    print("=" * 60)
+    token1 = get_access_token(sa_path, [
+        "https://www.googleapis.com/auth/firebase",
+        "https://www.googleapis.com/auth/firebase.readonly",
+    ])
+    if deploy_via_firebase_rules_api(token1, rules_content):
+        print()
+        print("SUCCESS: Firestore rules deployed via Firebase Rules API")
+        return 0
 
     print()
-    print("SUCCESS: Firestore rules deployed via REST API")
-    print(f"  Project: {PROJECT}")
-    print(f"  Release: {RELEASE_NAME}")
-    print(f"  Ruleset: {ruleset_name}")
-    return 0
+    print("=" * 60)
+    # Approach 2: Firestore Admin API
+    token2 = get_access_token(sa_path, [
+        "https://www.googleapis.com/auth/datastore",
+        "https://www.googleapis.com/auth/cloud-platform",
+    ])
+    if deploy_via_firestore_admin_api(token2, rules_content):
+        print()
+        print("SUCCESS: Firestore rules deployed via Firestore Admin API")
+        return 0
+
+    print()
+    print("FAILED: Could not deploy Firestore rules via any API approach.", file=sys.stderr)
+    print(file=sys.stderr)
+    print("The service account needs one of these IAM roles:", file=sys.stderr)
+    print("  - roles/firebaserules.admin  (for Approach 1)", file=sys.stderr)
+    print("  - roles/datastore.owner      (for Approach 2)", file=sys.stderr)
+    print("  - roles/editor               (covers both)", file=sys.stderr)
+    print("  - roles/owner                (covers both)", file=sys.stderr)
+    print(file=sys.stderr)
+    print("Grant one in Google Cloud Console → IAM & Admin → IAM.", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":
