@@ -6,7 +6,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-  StatusBar, Platform, Alert, Linking,
+  StatusBar, Platform, Alert, Linking, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -80,11 +80,11 @@ export default function AuthScreen() {
       <View style={s.inner}>
         {/* Logo section */}
         <View style={s.topSection}>
-          <View style={s.logoBox}>
-            <Text style={s.logoB}>B</Text>
-            <Text style={s.logo94}>94</Text>
-          </View>
-          <Text style={s.wordmark}>BLACK94</Text>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={s.logoImage}
+            resizeMode="contain"
+          />
           <Text style={s.tagline}>Where conversations happen</Text>
         </View>
 
@@ -140,23 +140,11 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   inner: { flex: 1, paddingHorizontal: 28, justifyContent: 'space-between', paddingTop: 40, paddingBottom: 24 },
 
-  topSection: { alignItems: 'center', paddingTop: 40 },
-  logoBox: {
-    width: 80, height: 80, borderRadius: 22,
-    backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center',
-    flexDirection: 'row', gap: -2,
-    marginBottom: 20,
-    shadowColor: '#fff', shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15, shadowRadius: 24, elevation: 0,
+  topSection: { alignItems: 'center', paddingTop: 20 },
+  logoImage: {
+    width: 280, height: 80, marginBottom: 16,
   },
-  logoB: { fontSize: 30, fontWeight: '900', color: '#000', letterSpacing: -1 },
-  logo94: { fontSize: 30, fontWeight: '900', color: '#D4AF37', letterSpacing: -1 },
-  wordmark: {
-    fontSize: 32, fontWeight: '900', color: '#fff',
-    letterSpacing: 6, marginBottom: 10,
-  },
-  tagline: { fontSize: 14, color: 'rgba(255,255,255,0.35)', letterSpacing: 1 },
+  tagline: { fontSize: 13, color: 'rgba(255,255,255,0.35)', letterSpacing: 1.5, textTransform: 'uppercase' },
 
   authSection: { gap: 16 },
   googleBtn: {

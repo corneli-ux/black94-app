@@ -53,10 +53,30 @@ jobs:
       # can't prompt "Install the updated dependencies?" in CI.
       # The native dir and updated package.json are already written — we
       # just need to run npm install afterwards to pick up the changes.
+      - name: Extract web client ID from google-services.json
+        run: |
+          WEB_CLIENT=$(python3 -c "
+          import json, sys
+          with open('google-services.json') as f:
+              gsf = json.load(f)
+          for client in gsf.get('client', []):
+              for oauth in client.get('oauth_client', []):
+                  if oauth.get('client_type') == 3:
+                      print(oauth['client_id'])
+                      sys.exit(0)
+          print('')
+          " 2>/dev/null)
+          if [ -n "$WEB_CLIENT" ]; then
+            echo "Found web client ID: $WEB_CLIENT"
+            echo "GOOGLE_WEB_CLIENT_ID=$WEB_CLIENT" >> $GITHUB_ENV
+          else
+            echo "No web client ID in google-services.json, using secret"
+          fi
+
       - name: Expo prebuild
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          GOOGLE_WEB_CLIENT_ID: ${{ env.GOOGLE_WEB_CLIENT_ID || secrets.GOOGLE_WEB_CLIENT_ID }}
         run: npx expo prebuild --platform android --clean || true
 
       - name: Install updated dependencies

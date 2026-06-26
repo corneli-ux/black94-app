@@ -15,17 +15,21 @@ jobs:
       - name: Install deps
         run: pip install google-auth google-auth-httplib2 requests PyNaCl
 
-      - name: Setup Firebase app and get config
+      - name: Setup Firebase app
         id: get_config
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
-          python3 scripts/setup_firebase.py /tmp/sa.json | tee /tmp/out.txt
-          API_KEY=$(grep "^FIREBASE_API_KEY=" /tmp/out.txt | head -1 | cut -d= -f2-)
-          WEB_CLIENT_ID=$(grep "^WEB_CLIENT_ID=" /tmp/out.txt | head -1 | cut -d= -f2-)
+          python3 scripts/setup_firebase.py /tmp/sa.json | tee /tmp/setup_out.txt
+          API_KEY=$(grep "^FIREBASE_API_KEY=" /tmp/setup_out.txt | head -1 | cut -d= -f2-)
           echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
-          echo "web_client_id=$WEB_CLIENT_ID" >> $GITHUB_OUTPUT
-          echo "API Key: ${API_KEY:0:15}..."
-          echo "Web Client ID: $WEB_CLIENT_ID"
+
+      - name: Get web client ID
+        id: web_client
+        run: |
+          python3 scripts/get_web_client_id.py /tmp/sa.json | tee /tmp/web_client.txt
+          WEB_CLIENT=$(grep "^FOUND_WEB_CLIENT_ID=" /tmp/web_client.txt | head -1 | cut -d= -f2-)
+          echo "web_client_id=$WEB_CLIENT" >> $GITHUB_OUTPUT
+          echo "Web client found: $WEB_CLIENT"
 
       - name: Update GitHub secrets
         run: |
@@ -36,7 +40,7 @@ jobs:
           TOKEN = '${{ secrets.PAT_TOKEN }}'
           REPO = 'corneli-ux/black94-app'
           API_KEY = '${{ steps.get_config.outputs.api_key }}'
-          WEB_CLIENT_ID = '${{ steps.get_config.outputs.web_client_id }}'
+          WEB_CLIENT_ID = '${{ steps.web_client.outputs.web_client_id }}'
 
           with open('google-services.json') as f:
               gsf_b64 = base64.b64encode(f.read().encode()).decode()
@@ -51,7 +55,7 @@ jobs:
 
           def set_secret(name, value):
               if not value:
-                  print(f'Skip {name}: empty value')
+                  print(f'Skip {name}: empty')
                   return
               pk = public.PublicKey(PUB_KEY.encode(), encoding.Base64Encoder())
               encrypted = base64.b64encode(public.SealedBox(pk).encrypt(value.encode())).decode()
@@ -65,7 +69,11 @@ jobs:
 
           set_secret('GOOGLE_SERVICES_JSON', gsf_b64)
           set_secret('FIREBASE_API_KEY', API_KEY)
-          set_secret('GOOGLE_WEB_CLIENT_ID', WEB_CLIENT_ID)
+          if WEB_CLIENT_ID:
+              set_secret('GOOGLE_WEB_CLIENT_ID', WEB_CLIENT_ID)
+              print(f'Web client ID set: {WEB_CLIENT_ID[:30]}...')
+          else:
+              print('WARNING: No web client ID found - Google Sign-In may not work')
           PYEOF
 
       - name: Deploy Firebase rules
@@ -75,6 +83,11 @@ jobs:
           sleep 10
           firebase deploy --only firestore:rules --project memora-bond --force || true
           firebase deploy --only storage --project memora-bond --force || true
+
+      - name: Print all secrets status
+        run: |
+          echo "API Key set: ${{ steps.get_config.outputs.api_key != '' }}"
+          echo "Web Client ID set: ${{ steps.web_client.outputs.web_client_id != '' }}"
 
       - name: Trigger APK build
         run: |
