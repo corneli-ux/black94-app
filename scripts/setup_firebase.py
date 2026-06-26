@@ -167,3 +167,21 @@ if r.status_code == 404:
         params={'idpId': 'google.com'}
     )
     print('Create Google provider:', r.status_code, r.text[:200] if not r.ok else 'OK')
+
+# Get OAuth clients to find the web client ID for Google Sign-In
+print('\n=== Getting OAuth clients for Google Sign-In ===')
+r = requests.get(
+    f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{app_id}/config',
+    headers=headers
+)
+if r.ok:
+    import base64
+    config = r.json()
+    gsf = json.loads(base64.b64decode(config['configFileContents']).decode())
+    for client in gsf.get('client', []):
+        for oauth in client.get('oauth_client', []):
+            ctype = oauth.get('client_type', 0)
+            cid = oauth.get('client_id', '')
+            print(f'OAuth client type={ctype}: {cid}')
+            if ctype == 3:  # type 3 = web client
+                print(f'WEB_CLIENT_ID={cid}')
