@@ -544,6 +544,7 @@ export default function AppNavigator() {
         <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
           <Stack.Screen name="Login" component={LazyScreen(AuthScreen)} />
           <Stack.Screen name="Signup" component={LazyScreen(SignupScreen)} />
+          <Stack.Screen name="UsernameSetup" component={LazyScreen(UsernameSetupScreen)} />
         </Stack.Navigator>
       )}
     </NavigationContainer>

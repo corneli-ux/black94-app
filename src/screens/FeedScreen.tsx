@@ -784,14 +784,17 @@ export default function FeedScreen({ navigation }: any) {
   // Tab bar auto-hide on scroll
   const lastScrollY = useRef(0);
   const scrollDirection = useRef<'up' | 'down'>('up');
+  const [headerVisible, setHeaderVisible] = React.useState(true);
   const handleFeedScroll = useCallback((e: any) => {
     const y = e.nativeEvent.contentOffset.y;
     const diff = y - lastScrollY.current;
-    if (Math.abs(diff) < 4) return; // ignore tiny movements
+    if (Math.abs(diff) < 6) return;
     const dir = diff > 0 ? 'down' : 'up';
     if (dir !== scrollDirection.current) {
       scrollDirection.current = dir;
-      setTabBarVisible(dir === 'up' || y < 60);
+      const show = dir === 'up' || y < 80;
+      setTabBarVisible(show);
+      setHeaderVisible(show);
     }
     lastScrollY.current = y;
   }, [setTabBarVisible]);
@@ -867,22 +870,24 @@ export default function FeedScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-            <AppIcon name="menu" size="lg" color={colors.text} />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
+      {headerVisible && (
+        <SafeAreaView edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
+              <Feather name="menu" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
+            </View>
+            <TouchableOpacity
+              style={styles.headerBtn}
+              onPress={() => navigation.navigate('Notifications')}
+            >
+              <Feather name="bell" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-style={styles.headerBtn}
-            onPress={() => navigation.navigate('Notifications')}
-          >
-            <Feather name="bell" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      )}
 
       {/* Feed Tabs */}
       <View style={styles.tabBar}>
