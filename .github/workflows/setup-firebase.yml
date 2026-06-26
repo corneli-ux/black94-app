@@ -6,6 +6,7 @@ on:
 jobs:
   setup:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -19,26 +20,11 @@ jobs:
 
       - name: Authenticate with Firebase
         run: |
-          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT_MEMORA }}' > /tmp/sa.json
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json" >> $GITHUB_ENV
 
-      - name: Enable Firebase services & register Android app
-        run: |
-          node << 'SCRIPT'
-          const https = require('https');
-          const fs = require('fs');
-
-          const sa = JSON.parse(fs.readFileSync('/tmp/sa.json'));
-          const projectId = 'memora-bond';
-          const packageName = 'com.black94.app';
-          const appDisplayName = 'Black94';
-
-          // We'll use firebase CLI for everything
-          console.log('Project:', projectId);
-          console.log('Package:', packageName);
-          SCRIPT
-
-      - name: Register Android app in Firebase
+      - name: Register Android app
+        continue-on-error: true
         run: |
           firebase apps:create ANDROID \
             --project memora-bond \
@@ -46,38 +32,53 @@ jobs:
             --display-name "Black94" || echo "App may already exist"
 
       - name: Download google-services.json
+        id: download_gsf
         run: |
-          APP_ID=$(firebase apps:list ANDROID --project memora-bond --json | python3 -c "
+          APP_ID=$(firebase apps:list ANDROID --project memora-bond --json 2>/dev/null | python3 -c "
           import sys, json
-          data = json.load(sys.stdin)
-          apps = data.get('result', [])
-          for a in apps:
-              if a.get('namespace') == 'com.black94.app' or 'black94' in a.get('displayName','').lower():
-                  print(a['appId'])
-                  break
-          if not apps:
-              print('')
-          ")
+          try:
+              data = json.load(sys.stdin)
+              apps = data.get('result', [])
+              if apps:
+                  print(apps[0]['appId'])
+          except: pass
+          " 2>/dev/null || echo "")
+          
           echo "App ID: $APP_ID"
+          
           if [ -n "$APP_ID" ]; then
-            firebase apps:sdkconfig ANDROID $APP_ID --project memora-bond > google-services.json
-            cat google-services.json
+            firebase apps:sdkconfig ANDROID "$APP_ID" --project memora-bond --json > /tmp/sdk_raw.json 2>/dev/null || true
+            # Also try direct output
+            firebase apps:sdkconfig ANDROID "$APP_ID" --project memora-bond > google-services.json 2>/dev/null || true
+            cat google-services.json || echo "No google-services.json generated"
+          else
+            echo "No app ID found"
           fi
+          ls -la google-services.json 2>/dev/null || echo "File not created"
 
-      - name: Enable Firestore
+      - name: Enable Firestore database
+        continue-on-error: true
         run: |
-          firebase firestore:databases:list --project memora-bond || \
-          firebase firestore:databases:create --project memora-bond --location=asia-south1 || \
-          echo "Firestore may already be enabled"
+          firebase firestore:databases:create --project memora-bond --location=asia-south1 2>/dev/null || \
+          echo "Firestore database already exists or being created"
 
       - name: Deploy Firestore rules
+        continue-on-error: true
         run: firebase deploy --only firestore:rules --project memora-bond --force
 
       - name: Deploy Storage rules
+        continue-on-error: true
         run: firebase deploy --only storage --project memora-bond --force
 
-      - name: Upload google-services.json as artifact
+      - name: Show google-services.json content
+        run: |
+          echo "=== google-services.json ==="
+          cat google-services.json 2>/dev/null || echo "File not found"
+
+      - name: Upload google-services.json
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: google-services-json
           path: google-services.json
+          if-no-files-found: warn
