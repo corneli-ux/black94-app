@@ -187,9 +187,9 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
     switch (name) {
       case 'Home': return 'Feed';
       case 'Search': return 'Search';
-      case 'Messages': return 'Messages';
+      case 'Messages': return 'Msgs';
       case 'Notifications': return 'Alerts';
-      case 'Stories': return 'Stories';
+      case 'Stories': return 'Story';
       case 'AnonymousChat': return 'Anon';
       default: return '';
     }
@@ -205,9 +205,9 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       )}
       {icon}
       <Text style={{
-        fontSize: 10, fontWeight: focused ? '600' : '400',
-        color, letterSpacing: 0.2,
-      }}>{label}</Text>
+        fontSize: 9, fontWeight: focused ? '600' : '400',
+        color, letterSpacing: 0.3, textAlign: 'center',
+      }} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -227,7 +227,7 @@ const MainTabs = memo(function MainTabs() {
   const unreadNotificationCount = useAppStore(s => s.unreadNotificationCount);
   const tabBarVisible = useAppStore(s => s.tabBarVisible);
   const insets = useSafeAreaInsets();
-  const tabBarHeight = 50 + (insets.bottom || 0);
+  const tabBarHeight = 58 + (insets.bottom || 0);
 
   return (
     <Tab.Navigator

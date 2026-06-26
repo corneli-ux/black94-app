@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ── Helpers ────────────────────────────────────────────────────────
+
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -9,111 +9,73 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // ── Users ───────────────────────────────────────────────────────────
+    // ── Users ──────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if true;
       allow create: if isAuthenticated();
-      // SECURITY: Prevent users from granting themselves verification or roles.
-      // Users CAN clear/demote their own badges but CANNOT self-verify or
-      // self-promote. Only Cloud Functions (admin SDK) can grant verification.
-      //
-      // Blocked client actions:
-      //   - isVerified: false → true  (can only clear, not grant)
-      //   - badge: '' → 'gold'/'blue' (can only clear, not set)
-      //   - role: 'personal' → 'business'/'admin' (can only demote/clear)
-      //   - isAdmin: false → true (can only clear, never set)
-      // Allowed client actions:
-      //   - subscription: 'premium' → 'free' (cancel subscription)
-      //   - badge: 'gold' → '' (clear own badge on cancel)
-      //   - isVerified: true → false (clear verification on cancel)
-      //   - role: 'business' → '' (clear business role)
+      // Users can update their own profile.
+      // They cannot grant themselves admin, verified status, or elevated badges.
+      // Only backend/Cloud Functions can set isVerified=true, isAdmin=true, badge=gold/blue/pro.
       allow update: if isOwner(userId)
-        && !(request.resource.data.isVerified == true && (resource.data.isNull() || resource.data.isVerified != true))
-        && !(request.resource.data.badge in ['gold', 'blue', 'pro'] && (resource.data.isNull() || !(resource.data.badge in ['gold', 'blue', 'pro'])))
-        && !(request.resource.data.role in ['business', 'admin'] && (resource.data.isNull() || !(resource.data.role in ['business', 'admin'])))
-        && !(request.resource.data.isAdmin == true && (resource.data.isNull() || resource.data.isAdmin != true));
+        && request.resource.data.isAdmin != true
+        && request.resource.data.isVerified != true
+        && !(request.resource.data.get('badge', '') in ['gold', 'blue', 'pro'])
+        && !(request.resource.data.get('role', 'personal') in ['admin']);
       allow delete: if isOwner(userId);
     }
 
-    // ── Usernames (unique username lookup) ──────────────────────────────
+    // ── Usernames ──────────────────────────────────────────────────────
     match /usernames/{username} {
       allow read: if true;
       allow create: if isAuthenticated();
-      allow update: if false;
+      allow update: if isAuthenticated()
+        && get(/databases/$(database)/documents/usernames/$(username)).data.uid == request.auth.uid;
       allow delete: if isAuthenticated();
     }
 
-    // ── Posts ───────────────────────────────────────────────────────────
+    // ── Posts ──────────────────────────────────────────────────────────
     match /posts/{postId} {
       allow read: if true;
       allow create: if isAuthenticated();
-      // Author can update anything on their post.
-      // Any authenticated user can update ONLY counter fields (likes, reposts, etc.)
-      // so that toggleLike/toggleRepost/toggleBookmark counter increments work.
       allow update: if isAuthenticated() && (
         resource.data.authorId == request.auth.uid
-        || (
-          // Counter-only update: only allow touching engagement counters
-          request.resource.data.diff(resource.data).affectedKeys()
+        || request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['likeCount','repostCount','commentCount','viewCount','bookmarkCount'])
-        )
       );
       allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
     }
 
-    // Post likes (composite ID: postId_userId)
+    // ── Post interactions ──────────────────────────────────────────────
     match /post_likes/{likeId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow delete: if isAuthenticated();
       allow update: if false;
     }
-
-    // Post bookmarks (composite ID: postId_userId)
     match /post_bookmarks/{bookmarkId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow delete: if isAuthenticated();
       allow update: if false;
     }
-
-    // Post reposts (composite ID: postId_userId)
     match /post_reposts/{repostId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow delete: if isAuthenticated();
       allow update: if false;
     }
-
-    // Post comments
     match /post_comments/{commentId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+      allow delete: if isAuthenticated();
     }
-
-    // Post comment subcollections (likes, reposts, bookmarks)
-    match /post_comments/{commentId}/likes/{likeId} {
+    match /post_comments/{commentId}/{sub}/{subId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow delete: if isAuthenticated();
       allow update: if false;
     }
-    match /post_comments/{commentId}/reposts/{repostId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow delete: if isAuthenticated();
-      allow update: if false;
-    }
-    match /post_comments/{commentId}/bookmarks/{bookmarkId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow delete: if isAuthenticated();
-      allow update: if false;
-    }
-
-    // Poll votes (subcollection under posts)
     match /posts/{postId}/poll_votes/{voteId} {
       allow read: if true;
       allow create: if isAuthenticated();
@@ -121,36 +83,32 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Stories ─────────────────────────────────────────────────────────
+    // ── Stories ────────────────────────────────────────────────────────
     match /stories/{storyId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if isAuthenticated();
     }
-
-    // Story votes (subcollection)
     match /stories/{storyId}/votes/{voteId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if false;
       allow delete: if false;
     }
-
-    // Story comments
     match /story_comments/{commentId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+      allow delete: if isAuthenticated();
     }
 
-    // ── Chats & Messages ────────────────────────────────────────────────
+    // ── Chats ──────────────────────────────────────────────────────────
     match /chats/{chatId} {
-      allow read: if isAuthenticated() && (resource.data.user1Id == request.auth.uid || resource.data.user2Id == request.auth.uid);
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && (resource.data.user1Id == request.auth.uid || resource.data.user2Id == request.auth.uid);
+      allow delete: if isAuthenticated();
     }
     match /chats/{chatId}/messages/{messageId} {
       allow read: if isAuthenticated();
@@ -159,43 +117,15 @@ service cloud.firestore {
       allow delete: if isAuthenticated();
     }
 
-    // ── Anonymous Chat ──────────────────────────────────────────────────
-    match /anonRooms/{roomId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /anonRooms/{roomId}/anonMessages/{msgId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if false;
-      allow delete: if false;
-    }
-    match /anonQueue/{queueId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    // ── Voice Call Signaling ──────────────────────────────────────────
-    match /calls/{callId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-
-    // ── Notifications ───────────────────────────────────────────────────
+    // ── Notifications ──────────────────────────────────────────────────
     match /notifications/{notifId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.actorId == request.auth.uid;
+      allow create: if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if isAuthenticated();
     }
 
-    // ── Follows & Blocks ────────────────────────────────────────────────
+    // ── Follows & Blocks ───────────────────────────────────────────────
     match /follows/{followId} {
       allow read: if true;
       allow create: if isAuthenticated();
@@ -213,7 +143,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ── Likes, Reposts, Bookmarks (generic, for articles etc.) ──────────
+    // ── Generic interactions ───────────────────────────────────────────
     match /likes/{likeId} {
       allow read: if true;
       allow create: if isAuthenticated();
@@ -238,230 +168,42 @@ service cloud.firestore {
       allow delete: if isAuthenticated();
       allow update: if false;
     }
-
-    // ── Comments (generic, for articles etc.) ───────────────────────────
     match /comments/{commentId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
-    }
-
-    // ── Subscriptions ───────────────────────────────────────────────────
-    match /subscriptions/{subId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // ── Orders & Payments ───────────────────────────────────────────────
-    match /orders/{orderId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /chat_payments/{paymentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /paid_chat_access/{accessId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // ── Products & Shop ─────────────────────────────────────────────────
-    match /products/{productId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-    match /carts/{cartId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-    match /cart/{cartId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-    match /reviews/{reviewId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /shipments/{shipmentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /shippingPartners/{partnerId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // ── Business / CRM ─────────────────────────────────────────────────
-    match /businesses/{businessId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-    match /business_profiles/{profileId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /employees/{employeeId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-    match /teamMembers/{memberId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-    match /payroll/{payrollId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /crm_leads/{leadId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-    match /leads/{leadId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-    match /deals/{dealId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /customer_behavior/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /customer_journeys/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /scheduled_followups/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /integrations/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /shiprocket_config/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // ── Articles ────────────────────────────────────────────────────────
-    match /articles/{articleId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
-    }
-    match /article_bookmarks/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow delete: if isAuthenticated();
-      allow update: if false;
-    }
-
-    // ── Ads ─────────────────────────────────────────────────────────────
-    match /adCampaigns/{campaignId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
       allow delete: if isAuthenticated();
     }
 
-    // ── Affiliates (admin-only write for badge assignment) ────────────
-    match /affiliates/{affiliateId} {
-      allow read: if true;
-      allow create: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      allow update: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      allow delete: if false;
-    }
-
-    // ── Fact Checks ─────────────────────────────────────────────────────
-    match /factChecks/{checkId} {
+    // ── Anonymous chat ─────────────────────────────────────────────────
+    match /anonRooms/{roomId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if false;
     }
-
-    // ── Events ───────────────────────────────────────────────────────────
-    match /events/{eventId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // ── Config (app-wide settings) ──────────────────────────────────────
-    match /config/{key} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-    match /configs/{key} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // ── Profile Shares ──────────────────────────────────────────────────
-    match /profileShares/{id} {
+    match /anonRooms/{roomId}/anonMessages/{msgId} {
       allow read: if true;
       allow create: if isAuthenticated();
       allow update: if false;
       allow delete: if false;
     }
+    match /anonQueue/{queueId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
 
-    // ── Push Notification Tokens ───────────────────────────────────
+    // ── Voice calls ────────────────────────────────────────────────────
+    match /calls/{callId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // ── Push tokens ────────────────────────────────────────────────────
     match /user_push_tokens/{userId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
@@ -475,60 +217,10 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
-    // ── Engagement Tracking ──────────────────────────────────────────
-    match /engagement_milestones/{milestoneId} {
+    // ── Everything else: authenticated users can read/write ────────────
+    match /{document=**} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if false;
-      allow delete: if false;
-    }
-    match /user_engagement/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isOwner(userId);
-      allow delete: if false;
-    }
-
-    // ── Activities / Feed ───────────────────────────────────────────────
-    match /activities/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if false;
-      allow delete: if false;
-    }
-    match /feed/{feedId} {
-      allow read: if true;
-      allow write: if false;
-    }
-    match /web_results/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    // ── Verification Requests ───────────────────────────────────────────
-    match /verification_requests/{requestId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if false;  // only admin/cloud function can process
-      allow delete: if false;
-    }
-
-    // ── Reports ─────────────────────────────────────────────────────────
-    match /reports/{reportId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
-    }
-
-    // ── Votes (generic, for polls) ──────────────────────────────────────
-    match /votes/{voteId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if false;
-      allow delete: if false;
+      allow write: if isAuthenticated();
     }
   }
 }

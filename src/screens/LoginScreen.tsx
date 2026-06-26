@@ -46,32 +46,48 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
       <View style={s.inner}>
-        <View style={s.logoWrap}>
-          <View style={s.logoMark}><Text style={s.logoText}>94</Text></View>
+        {/* Logo */}
+        <View style={s.logoSection}>
+          <View style={s.logoBox}>
+            <Text style={s.logoNum}>94</Text>
+          </View>
           <Text style={s.appName}>Black94</Text>
+          <Text style={s.tagline}>The next-gen social platform</Text>
         </View>
-        <Text style={s.title}>Welcome back</Text>
-        <Text style={s.subtitle}>Sign in to continue to Black94.</Text>
-        <TouchableOpacity style={s.googleBtn} onPress={handleSignIn} disabled={busy} activeOpacity={0.85}>
-          {busy
-            ? <ActivityIndicator color={colors.bg} />
-            : <>
-                <View style={s.googleIconWrap}><Text style={s.googleG}>G</Text></View>
-                <Text style={s.googleBtnText}>Continue with Google</Text>
-              </>
-          }
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Signup' as never)} style={s.switchRow}>
-          <Text style={s.switchText}>New to Black94? </Text>
-          <Text style={s.switchLink}>Create account</Text>
-        </TouchableOpacity>
+
+        {/* Sign in */}
+        <View style={s.authSection}>
+          <TouchableOpacity style={s.googleBtn} onPress={handleSignIn} disabled={busy} activeOpacity={0.9}>
+            {busy
+              ? <ActivityIndicator color="#000" size="small" />
+              : <>
+                  <View style={s.gIcon}>
+                    <Text style={[s.gLetter, { color: '#4285F4' }]}>G</Text>
+                    <Text style={[s.gLetter, { color: '#EA4335', fontSize: 6, position: 'absolute', bottom: 0, right: 0 }]}>•</Text>
+                  </View>
+                  <Text style={s.googleBtnText}>Continue with Google</Text>
+                </>
+            }
+          </TouchableOpacity>
+
+          <View style={s.dividerRow}>
+            <View style={s.divider} />
+            <Text style={s.dividerText}>or</Text>
+            <View style={s.divider} />
+          </View>
+
+          <TouchableOpacity onPress={() => navigation.navigate('Signup' as never)} style={s.createBtn} activeOpacity={0.8}>
+            <Text style={s.createBtnText}>Create new account</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={s.legal}>
           <TouchableOpacity onPress={() => Linking.openURL('https://black94.web.app/privacy-policy.html')}>
             <Text style={s.legalText}>Privacy Policy</Text>
           </TouchableOpacity>
-          <Text style={s.legalDot}>·</Text>
+          <Text style={s.legalDot}> · </Text>
           <TouchableOpacity onPress={() => Linking.openURL('https://black94.web.app/terms-of-service.html')}>
             <Text style={s.legalText}>Terms of Service</Text>
           </TouchableOpacity>
@@ -82,35 +98,45 @@ export default function LoginScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  logoWrap: { alignItems: 'center', marginBottom: 48 },
-  logoMark: {
-    width: 64, height: 64, borderRadius: 18,
-    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+  root: { flex: 1, backgroundColor: '#000' },
+  inner: { flex: 1, paddingHorizontal: 28, justifyContent: 'space-between', paddingTop: 60, paddingBottom: 32 },
+
+  logoSection: { alignItems: 'center', paddingTop: 20 },
+  logoBox: {
+    width: 72, height: 72, borderRadius: 20,
+    backgroundColor: colors.accent,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4, shadowRadius: 20, elevation: 12,
   },
-  logoText: { color: colors.bg, fontSize: 26, fontWeight: '900', fontStyle: 'italic' },
-  appName: { fontSize: 22, fontWeight: '800', color: colors.white, letterSpacing: -0.5 },
-  title: { fontSize: 26, fontWeight: '800', color: colors.white, textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontSize: 15, color: colors.textSecondary, textAlign: 'center', marginBottom: 40 },
+  logoNum: { color: '#000', fontSize: 30, fontWeight: '900', fontStyle: 'italic', letterSpacing: -1 },
+  appName: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -1, marginBottom: 8 },
+  tagline: { fontSize: 14, color: 'rgba(255,255,255,0.4)', letterSpacing: 0.5 },
+
+  authSection: { gap: 12 },
   googleBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    width: '100%', maxWidth: 340, height: 54,
-    backgroundColor: colors.white, borderRadius: 14,
-    justifyContent: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    height: 56, backgroundColor: '#fff', borderRadius: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25, shadowRadius: 8, elevation: 6, marginBottom: 20,
+    shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
   },
-  googleIconWrap: {
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: '#4285F4', alignItems: 'center', justifyContent: 'center',
+  gIcon: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  gLetter: { fontSize: 16, fontWeight: '800' },
+  googleBtnText: { fontSize: 15, fontWeight: '700', color: '#111', letterSpacing: -0.2 },
+
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  divider: { flex: 1, height: 0.5, backgroundColor: 'rgba(255,255,255,0.1)' },
+  dividerText: { color: 'rgba(255,255,255,0.3)', fontSize: 12 },
+
+  createBtn: {
+    height: 56, borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
-  googleG: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  googleBtnText: { fontSize: 15, fontWeight: '700', color: '#1a1a1a' },
-  switchRow: { flexDirection: 'row', marginTop: 8, marginBottom: 40 },
-  switchText: { color: colors.textSecondary, fontSize: 14 },
-  switchLink: { color: colors.accent, fontWeight: '700', fontSize: 14 },
-  legal: { flexDirection: 'row', alignItems: 'center', gap: 12, position: 'absolute', bottom: 24 },
-  legalText: { color: colors.textMuted, fontSize: 12 },
-  legalDot: { color: colors.textMuted, fontSize: 12 },
+  createBtnText: { fontSize: 15, fontWeight: '600', color: '#fff', letterSpacing: -0.2 },
+
+  legal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 2 },
+  legalText: { color: 'rgba(255,255,255,0.25)', fontSize: 11 },
+  legalDot: { color: 'rgba(255,255,255,0.25)', fontSize: 11 },
 });
