@@ -334,7 +334,12 @@ function CustomDrawerContent({ navigation }: any) {
               <Text style={styles.drawerUserName}>{user.displayName}</Text>
               <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
             </View>
-            <Text style={styles.drawerUserHandle}>@{user.username}</Text>
+            {user.username && user.username.trim() !== ''
+              ? <Text style={styles.drawerUserHandle}>@{user.username}</Text>
+              : <TouchableOpacity onPress={() => navigation.navigate('UsernameSetup' as never)}>
+                  <Text style={[styles.drawerUserHandle, { color: colors.accent }]}>Tap to set username →</Text>
+                </TouchableOpacity>
+            }
           </View>
         </TouchableOpacity>
       )}

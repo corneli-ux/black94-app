@@ -39,8 +39,8 @@ export default function SignupScreen() {
       if (user) {
         setUser(user);
         setToken(user.id);
-        // If user has no username yet (new user), go to username setup
-        if (!user.username || user.username === user.id?.slice(0, 8)) {
+        // Empty username = new user, route to username setup
+        if (!user.username || user.username.trim() === '') {
           navigation.replace('UsernameSetup');
         }
         // else: AppNavigator handles routing to main app via isReady

@@ -486,7 +486,7 @@ export async function signInWithGoogle(idToken: string): Promise<User | null> {
     const returnUser: User = {
       id: fbUser.uid,
       email: existingData?.email || fbUser.email || '',
-      username: existingData?.username || username,
+      username: existingData?.username || '',  // empty for new users — UsernameSetupScreen will set it
       displayName: existingData?.displayName || userData.displayName,
       bio: existingData?.bio || '',
       // BUG FIX: Type-check profileImage — corrupted Firestore docs may store

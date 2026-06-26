@@ -190,6 +190,8 @@ export default function App() {
 
     (async () => {
       try {
+        // Step 0: Clear stale cache if Firebase project changed
+        await clearStaleProjectCache();
         // Step 1: Try to restore persisted auth from AsyncStorage
         const restored = await restoreAuth();
         const authInstance = auth();

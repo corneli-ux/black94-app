@@ -172,10 +172,18 @@ export default function EditProfileScreen({ navigation }: any) {
       usernameTimerRef.current = setTimeout(async () => {
         try {
           const snap = await firestore().collection('usernames').doc(value.toLowerCase()).get();
-          const exists = snap.exists;
-          setUsernameAvailable(!exists);
-        } catch {
-          setUsernameAvailable(false);
+          // doc.exists = true means someone owns this username
+          // doc.exists = false means it's available
+          const existingUid = snap.exists ? snap.data()?.uid : null;
+          const myUid = require('../lib/firebase').auth()?.currentUser?.uid;
+          // Available if: doesn't exist, OR exists but belongs to current user
+          const available = !snap.exists || existingUid === myUid;
+          setUsernameAvailable(available);
+        } catch (e: any) {
+          // On error (network, Firestore not ready), assume available rather than blocking
+          // user. The server-side rules will enforce uniqueness on save.
+          if (__DEV__) console.warn('[EditProfile] Username check error:', e?.message);
+          setUsernameAvailable(true);
         }
         setUsernameChecking(false);
       }, 400);
