@@ -13,7 +13,7 @@ jobs:
           python-version: '3.11'
       - name: Install deps
         run: pip install google-auth google-auth-httplib2 requests
-      - name: Force-register SHA-1
+      - name: Diagnose 409
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 << 'PYEOF'
@@ -32,25 +32,18 @@ jobs:
           h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
 
           r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=h)
-          apps = r.json().get('apps', [])
-          for app in apps:
-              aid = app['appId']
-              # Current SHAs
-              rs = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
-              existing = rs.json().get('shaCertificates', [])
-              have = any(s.get('shaHash','').upper().replace(':','') == SHA1 for s in existing)
-              print(f"::notice title=Before::app={aid} count={len(existing)} have_target={have}")
-              if not have:
-                  # ADD it
-                  add = requests.post(
-                      f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha',
-                      headers=h,
-                      json={'shaHash': SHA1, 'certType': 'SHA_1'})
-                  print(f"::notice title=AddResult::status={add.status_code} body={add.text[:120]}")
-              # Verify after
-              rs2 = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
-              after = rs2.json().get('shaCertificates', [])
-              print(f"::notice title=After::count={len(after)}")
-              for s in after:
-                  print(f"::notice title=SHA::{s.get('certType')}={s.get('shaHash')}")
+          aid = r.json()['apps'][0]['appId']
+          add = requests.post(
+              f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha',
+              headers=h, json={'shaHash': SHA1, 'certType': 'SHA_1'})
+          # Extract just the error MESSAGE (not the sha) to avoid masking
+          try:
+              err = add.json().get('error', {})
+              msg = err.get('message', '')
+              status = err.get('status', '')
+              # Replace the SHA so it doesn't get masked
+              safe_msg = msg.replace(SHA1, 'THE_SHA').replace(SHA1.lower(), 'THE_SHA')
+              print(f"::notice title=Error409::status={status} msg={safe_msg}")
+          except Exception as e:
+              print(f"::notice title=Error409::parse_fail={e}")
           PYEOF
