@@ -10,7 +10,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install google-auth google-auth-httplib2 requests
-      - name: Check bucket exists
+      - name: Deploy storage rules
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 << 'PYEOF'
@@ -20,11 +20,43 @@ jobs:
           import requests
           with open('/tmp/sa.json') as f: sa = json.load(f)
           PROJECT = sa['project_id']
+          BUCKET = f'{PROJECT}.firebasestorage.app'
           creds = service_account.Credentials.from_service_account_info(sa,
-              scopes=['https://www.googleapis.com/auth/cloud-platform'])
+              scopes=['https://www.googleapis.com/auth/cloud-platform','https://www.googleapis.com/auth/firebase'])
           creds.refresh(google.auth.transport.requests.Request())
-          h = {'Authorization': f'Bearer {creds.token}'}
-          for bucket in [f'{PROJECT}.firebasestorage.app', f'{PROJECT}.appspot.com']:
-              r = requests.get(f'https://storage.googleapis.com/storage/v1/b/{bucket}', headers=h)
-              print(f"::notice title=Bucket::{bucket} status={r.status_code} {'EXISTS' if r.ok else 'MISSING'}")
+          h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
+
+          with open('storage.rules') as f:
+              rules_content = f.read()
+
+          # 1. Create a ruleset
+          ruleset = {
+              'source': {
+                  'files': [{'name': 'storage.rules', 'content': rules_content}]
+              }
+          }
+          r = requests.post(
+              f'https://firebaserules.googleapis.com/v1/projects/{PROJECT}/rulesets',
+              headers=h, json=ruleset)
+          print(f"::notice title=CreateRuleset::status={r.status_code}")
+          if not r.ok:
+              print(f"::notice title=RulesetErr::{r.text[:200]}")
+          else:
+              ruleset_name = r.json()['name']
+              print(f"::notice title=RulesetName::{ruleset_name}")
+              # 2. Create/update release for the bucket
+              release_name = f'projects/{PROJECT}/releases/firebase.storage%2F{BUCKET}'
+              # Try update first
+              upd = requests.patch(
+                  f'https://firebaserules.googleapis.com/v1/projects/{PROJECT}/releases/firebase.storage/{BUCKET}',
+                  headers=h,
+                  json={'release': {'name': f'projects/{PROJECT}/releases/firebase.storage/{BUCKET}', 'rulesetName': ruleset_name}})
+              print(f"::notice title=UpdateRelease::status={upd.status_code}")
+              if not upd.ok:
+                  # Try create
+                  cr = requests.post(
+                      f'https://firebaserules.googleapis.com/v1/projects/{PROJECT}/releases',
+                      headers=h,
+                      json={'name': f'projects/{PROJECT}/releases/firebase.storage/{BUCKET}', 'rulesetName': ruleset_name})
+                  print(f"::notice title=CreateRelease::status={cr.status_code} body={cr.text[:150]}")
           PYEOF
