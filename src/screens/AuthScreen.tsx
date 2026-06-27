@@ -23,7 +23,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-  StatusBar, Platform, Alert, Linking, Image, Modal, Animated, Easing,
+  StatusBar, Platform, Alert, Linking, Image, Animated, Easing,
   Dimensions, TextInput, KeyboardAvoidingView, ScrollView, Keyboard,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +34,6 @@ import { signInWithGoogle, signUpWithEmailAuth, signInWithEmailAuth } from '../l
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Feather } from '@expo/vector-icons';
-import GoogleSignInWebView from '../components/GoogleSignInWebView';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -47,7 +46,6 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [showWebView, setShowWebView] = useState(false);
   const { setUser, setToken } = useAppStore();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -153,12 +151,15 @@ export default function AuthScreen() {
       await GoogleSignin.signIn();
 
       let idToken: string | null = null;
-      try { const t = await GoogleSignin.getTokens(); idToken = t.idToken; } catch (tokenErr: any) {
+      try {
+        const t = await GoogleSignin.getTokens();
+        idToken = t.idToken;
+      } catch (tokenErr: any) {
         console.warn('[Auth] getTokens failed:', tokenErr?.code, tokenErr?.message);
       }
       if (!idToken) {
-        console.log('[Auth] No idToken from native — opening WebView fallback');
-        setShowWebView(true);
+        Alert.alert('Sign In Failed', 'Could not complete Google sign-in. Please use email sign-in instead.');
+        setBusy(false);
         return;
       }
       await completeGoogleSignIn(idToken);
@@ -169,57 +170,29 @@ export default function AuthScreen() {
       }
 
       console.error('[Auth] Google sign-in error:', { code: e?.code, message: e?.message });
-
       const errCode = e?.code ? String(e.code) : '';
       const errMsg = (e?.message || '').slice(0, 180);
 
-      // DEVELOPER_ERROR, SIGN_IN_REQUIRED, INTERNAL_ERROR, or any token/config
-      // error → AUTOMATICALLY open the WebView fallback. No alert, no user
-      // interaction. The WebView uses PKCE + Firebase's pre-authorized handler
-      // and works WITHOUT any SHA-1 registration.
-      const shouldAutoFallback =
-        errCode === '10' ||
-        errCode === '8' ||
-        errCode === '5' ||
-        /DEVELOPER_ERROR|INTERNAL_ERROR|SIGN_IN_REQUIRED|INVALID_IDP_RESPONSE|INVALID_ID_TOKEN|operation-not-allowed|OPERATION_NOT_ALLOWED/i.test(errMsg);
-
-      if (shouldAutoFallback) {
-        console.log('[Auth] Auto-opening WebView fallback for error:', errCode || errMsg.slice(0, 60));
-        setShowWebView(true);
-        return;
-      }
-
-      // Network errors and other transient issues → show alert, don't fallback
-      let body = 'Please try email sign-in instead.';
-      if (errCode === '7' || /NETWORK_ERROR/i.test(errMsg)) {
+      // Native Google Sign-In uses Google Play Services (not a WebView), so it
+      // does NOT hit Google's disallowed_useragent block. If it still fails with
+      // DEVELOPER_ERROR, the SHA-1 isn't registered for this build's signing key.
+      // We do NOT fall back to an embedded WebView — Google blocks OAuth in
+      // WebViews (Error 403: disallowed_useragent). Email sign-in is the
+      // reliable alternative.
+      let body = 'Please use email sign-in instead.';
+      if (errCode === '10' || /DEVELOPER_ERROR/i.test(errMsg)) {
+        body = 'Google Sign-In is being configured. Please use email sign-in for now.';
+      } else if (errCode === '7' || /NETWORK_ERROR/i.test(errMsg)) {
         body = 'Network error. Please check your internet connection and try again.';
-      } else if (/INVALID_API_KEY/i.test(errMsg)) {
-        body = 'Firebase API key is invalid. Please contact support.';
+      } else if (errCode === '12500' || /SIGN_IN_FAILED/i.test(errMsg)) {
+        body = 'Google Play Services issue. Please use email sign-in instead.';
       } else if (errMsg) {
-        body = `Error: ${errMsg}`;
+        body = `${errMsg}\n\nPlease use email sign-in instead.`;
       }
       Alert.alert('Google Sign-In Failed', body);
       setBusy(false);
     }
   }, [busy, completeGoogleSignIn]);
-
-  // ── WebView fallback handlers ──
-  const handleWebViewToken = useCallback((idToken: string) => {
-    console.log('[Auth] WebView sign-in got token, completing...');
-    completeGoogleSignIn(idToken);
-  }, [completeGoogleSignIn]);
-
-  const handleWebViewError = useCallback((error: string) => {
-    console.error('[Auth] WebView sign-in error:', error);
-    setShowWebView(false);
-    setBusy(false);
-    Alert.alert('Sign In Failed', `Web sign-in failed: ${error}\n\nPlease try email sign-in instead.`);
-  }, []);
-
-  const handleWebViewCancel = useCallback(() => {
-    setShowWebView(false);
-    setBusy(false);
-  }, []);
 
   return (
     <SafeAreaView style={s.root} edges={['top', 'bottom']}>
@@ -397,22 +370,6 @@ export default function AuthScreen() {
       </KeyboardAvoidingView>
 
       {/* ── WebView fallback modal (for DEVELOPER_ERROR) ── */}
-      <Modal visible={showWebView} animationType="slide" onRequestClose={handleWebViewCancel}>
-        <SafeAreaView style={s.webViewContainer}>
-          <View style={s.webViewHeader}>
-            <TouchableOpacity onPress={handleWebViewCancel} style={s.webViewCloseBtn} hitSlop={12}>
-              <Feather name="x" size={22} color="#fff" />
-            </TouchableOpacity>
-            <Text style={s.webViewTitle}>Sign in with Google</Text>
-            <View style={{ width: 22 }} />
-          </View>
-          <GoogleSignInWebView
-            onToken={handleWebViewToken}
-            onError={handleWebViewError}
-            onCancel={handleWebViewCancel}
-          />
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -738,18 +695,4 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // ── WebView fallback modal ──
-  webViewContainer: { flex: 1, backgroundColor: '#000' },
-  webViewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  webViewCloseBtn: { padding: 4 },
-  webViewTitle: { fontSize: 16, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
 });
