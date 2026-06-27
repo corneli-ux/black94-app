@@ -120,10 +120,39 @@ def main() -> int:
         if r.ok:
             print(f"      SHA-1 added: HTTP {r.status_code}")
         elif r.status_code == 409:
-            print(f"      SHA-1 already exists (409 Conflict) — continuing")
+            # 409 can mean two very different things:
+            #  (a) already registered in THIS project (harmless), or
+            #  (b) registered in a DIFFERENT project for the same package+SHA.
+            # Case (b) is fatal: Google blocks the OAuth client here, so native
+            # Google Sign-In will throw DEVELOPER_ERROR. Distinguish them.
+            body = r.text
+            if "different project" in body.lower():
+                print("=" * 70)
+                print("FATAL: SHA-1 is registered in a DIFFERENT (old) Firebase project.")
+                print(f"  Package: com.black94.app")
+                print(f"  SHA-1:   {RELEASE_SHA1}")
+                print("  Google only allows this package+SHA in ONE project.")
+                print("  FIX: Remove this SHA-1 (or the whole com.black94.app app)")
+                print("       from the OLD black94 project (number 210565807767):")
+                print("       Firebase Console > old project > Project Settings >")
+                print("       Your apps > com.black94.app > delete the SHA fingerprint.")
+                print("  Native Google Sign-In will keep failing until this is done.")
+                print("=" * 70)
+                # Re-verify whether it's actually present here despite the 409
+                rc = requests.get(
+                    f"https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{app_id}/sha",
+                    headers=headers,
+                )
+                here = any(
+                    s.get("shaHash", "").upper().replace(":", "") == RELEASE_SHA1.upper().replace(":", "")
+                    for s in rc.json().get("shaCertificates", [])
+                )
+                if not here:
+                    print("  CONFIRMED: SHA-1 is NOT registered in memora-bond (count excludes it).")
+            else:
+                print(f"      SHA-1 already exists in THIS project (409) — OK")
         else:
             print(f"      WARNING: Add SHA-1 returned HTTP {r.status_code}: {r.text[:300]}")
-            # Continue anyway — the SHA-1 might already be there from a previous run
 
     # Wait for the SHA-1 to propagate to Google Cloud Console and for the
     # Android OAuth client (type 1) to be auto-created. This can take longer
