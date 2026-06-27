@@ -509,10 +509,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: colors.bgInput },
-  factCheckBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(42,127,255,0.12)', alignItems: 'center', justifyContent: 'center',
-  },
   replyingBar: {
     flexDirection: 'row',
     alignItems: 'center',
