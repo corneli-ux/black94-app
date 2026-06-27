@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "815007868471",
+    "project_id": "memora-bond",
+    "storage_bucket": "memora-bond.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:815007868471:android:c1af5baab977db4a3441b2",
+        "android_client_info": {
+          "package_name": "com.black94.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "815007868471-10t3bepb2kjqlqk7oihh7k3clmvrteab.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlvVHLKBFqjChsd8ctiMlYzAM17xz0Bxo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "815007868471-10t3bepb2kjqlqk7oihh7k3clmvrteab.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -30,9 +30,10 @@ import { WebView, WebViewNavigation } from 'react-native-webview';
 import { sha256 } from '../utils/crypto';
 import Constants from 'expo-constants';
 
-// Use the web client ID from app config (same one used for native Google Sign-In)
+// Use the web client ID from app config (same one used for native Google Sign-In).
+// This is the NEW memora-bond project (project number 815007868471).
 const WEB_CLIENT_ID = (Constants.expoConfig?.extra?.googleWebClientId as string)
-  || '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
+  || '815007868471-10t3bepb2kjqlqk7oihh7k3clmvrteab.apps.googleusercontent.com';
 
 // Firebase auth handler for the CURRENT project (memora-bond).
 // This URL is pre-authorized for every Firebase project that has the web SDK

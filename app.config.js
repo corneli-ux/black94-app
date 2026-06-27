@@ -22,8 +22,8 @@ try {
 module.exports = function () {
   // Validate critical config at build time — fail loudly rather than ship a
   // broken APK. These checks run during `expo prebuild` in CI.
-  const firebaseApiKey = process.env.FIREBASE_API_KEY || 'AIzaSyDOGRbI4V82VJ0KZND3v1ggfO5s3933-3w';
-  const googleWebClientId = process.env.GOOGLE_WEB_CLIENT_ID || '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
+  const firebaseApiKey = process.env.FIREBASE_API_KEY || 'AIzaSyBlvVHLKBFqjChsd8ctiMlYzAM17xz0Bxo';
+  const googleWebClientId = process.env.GOOGLE_WEB_CLIENT_ID || '815007868471-10t3bepb2kjqlqk7oihh7k3clmvrteab.apps.googleusercontent.com';
 
   if (!firebaseApiKey || !firebaseApiKey.startsWith('AIza')) {
     console.warn('[CONFIG] FIREBASE_API_KEY looks invalid - Google Sign-In will fail.');
@@ -36,7 +36,7 @@ module.exports = function () {
     expo: {
       name: 'Black94',
       slug: 'memora-bond',
-      version: '1.8.7',
+      version: '1.9.0',
       platforms: ['android', 'ios', 'web'],
       orientation: 'portrait',
       icon: './assets/icon.png',
@@ -60,7 +60,7 @@ module.exports = function () {
         edgeToEdgeEnabled: true,
         package: 'com.black94.app',
         googleServicesFile: './google-services.json',
-        versionCode: 17,
+        versionCode: 18,
         permissions: ['CAMERA', 'POST_NOTIFICATIONS'],
         softwareKeyboardLayoutMode: 'resize',
         splash: {
@@ -95,7 +95,7 @@ module.exports = function () {
           '@react-native-google-signin/google-signin',
           {
             iosUrlScheme:
-              'com.googleusercontent.apps.210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o',
+              'com.googleusercontent.apps.815007868471-10t3bepb2kjqlqk7oihh7k3clmvrteab',
           },
         ],
         [

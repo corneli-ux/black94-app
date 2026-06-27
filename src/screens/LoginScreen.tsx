@@ -11,7 +11,7 @@ import { useAppStore } from '../stores/app';
 import Constants from 'expo-constants';
 
 const WEB_CLIENT_ID = Constants.expoConfig?.extra?.googleWebClientId
-  || '210565807767-jtedotfd6hqn8cn31meuk2cfp2dkm88o.apps.googleusercontent.com';
+  || '815007868471-10t3bepb2kjqlqk7oihh7k3clmvrteab.apps.googleusercontent.com';
 
 export default function LoginScreen() {
   const { setUser, setToken } = useAppStore();

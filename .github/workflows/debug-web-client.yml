@@ -24,11 +24,14 @@ jobs:
           echo "project_prefix=$PREFIX" > /tmp/prefix.txt
           # Write to committed file
           echo "Web client project number prefix: $PREFIX" > WEBCLIENT_PREFIX.txt
-          echo "Old black94 was: 210565807767" >> WEBCLIENT_PREFIX.txt
+          echo "Old black94 project was: 210565807767" >> WEBCLIENT_PREFIX.txt
+          echo "New memora-bond project is: 815007868471" >> WEBCLIENT_PREFIX.txt
           if [ "$PREFIX" = "210565807767" ]; then
-            echo "STILL_OLD_BLACK94=true" >> WEBCLIENT_PREFIX.txt
+            echo "STILL_OLD_BLACK94=true (BAD - needs update)" >> WEBCLIENT_PREFIX.txt
+          elif [ "$PREFIX" = "815007868471" ]; then
+            echo "CORRECT_NEW_MEMORA_BOND=true" >> WEBCLIENT_PREFIX.txt
           else
-            echo "CORRECT_MEMORA_BOND=true" >> WEBCLIENT_PREFIX.txt
+            echo "UNKNOWN_PROJECT=true" >> WEBCLIENT_PREFIX.txt
           fi
       - name: Commit prefix
         run: |

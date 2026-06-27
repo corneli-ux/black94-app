@@ -175,6 +175,6 @@ jobs:
           export GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/fb_service_account.json
           firebase appdistribution:distribute \
             android/app/build/outputs/apk/release/*.apk \
-            --app "1:210565807767:android:4ad1db09a41334792373d2" \
+            --app "1:815007868471:android:c1af5baab977db4a3441b2" \
             --release-notes "Build ${{ github.run_number }} from ${{ github.sha }}"
           rm -f fb_service_account.json
