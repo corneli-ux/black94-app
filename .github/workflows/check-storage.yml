@@ -10,7 +10,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install google-auth google-auth-httplib2 requests
-      - name: Check storage bucket + rules
+      - name: Provision storage bucket
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 << 'PYEOF'
@@ -20,26 +20,31 @@ jobs:
           import requests
           with open('/tmp/sa.json') as f: sa = json.load(f)
           PROJECT = sa['project_id']
+          PROJECT_NUMBER = '815007868471'
           creds = service_account.Credentials.from_service_account_info(sa,
-              scopes=['https://www.googleapis.com/auth/cloud-platform','https://www.googleapis.com/auth/firebase'])
+              scopes=['https://www.googleapis.com/auth/cloud-platform','https://www.googleapis.com/auth/firebase','https://www.googleapis.com/auth/devstorage.full_control'])
           creds.refresh(google.auth.transport.requests.Request())
-          h = {'Authorization': f'Bearer {creds.token}'}
+          h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
 
-          # 1. List storage buckets for the project
-          r = requests.get(f'https://firebasestorage.googleapis.com/v1beta/projects/{PROJECT}/buckets', headers=h)
-          print(f"::notice title=BucketsAPI::status={r.status_code}")
-          if r.ok:
-              buckets = r.json().get('buckets', [])
-              print(f"::notice title=BucketCount::{len(buckets)}")
-              for b in buckets:
-                  print(f"::notice title=Bucket::{b.get('name','?')}")
-          else:
-              print(f"::notice title=BucketsError::{r.text[:200]}")
+          # Try to add/provision the default Firebase Storage bucket
+          # AddFirebase makes an existing GCS bucket accessible to Firebase
+          bucket_fb = f'{PROJECT}.firebasestorage.app'
+          bucket_gcs = f'{PROJECT}.appspot.com'
 
-          # 2. Check GCS bucket directly
-          bucket = f'{PROJECT}.firebasestorage.app'
-          r2 = requests.get(f'https://storage.googleapis.com/storage/v1/b/{bucket}', headers=h)
-          print(f"::notice title=GCSBucket::status={r2.status_code} bucket={bucket}")
-          if not r2.ok:
-              print(f"::notice title=GCSError::{r2.text[:150]}")
+          # First, try creating the GCS bucket directly
+          for bname in [bucket_fb, bucket_gcs]:
+              create = requests.post(
+                  f'https://storage.googleapis.com/storage/v1/b?project={PROJECT}',
+                  headers=h,
+                  json={'name': bname, 'location': 'US', 'storageClass': 'STANDARD'})
+              print(f"::notice title=CreateGCS::name={bname} status={create.status_code}")
+              if not create.ok:
+                  msg = create.text[:150].replace(bname, 'BUCKET')
+                  print(f"::notice title=CreateErr::{msg}")
+              else:
+                  # Link it to Firebase
+                  link = requests.post(
+                      f'https://firebasestorage.googleapis.com/v1beta/projects/{PROJECT}/buckets/{bname}:addFirebase',
+                      headers=h)
+                  print(f"::notice title=AddFirebase::name={bname} status={link.status_code}")
           PYEOF
