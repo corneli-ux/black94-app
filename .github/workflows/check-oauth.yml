@@ -1,0 +1,62 @@
+name: Check OAuth Clients
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install google-auth google-auth-httplib2 requests
+      - name: Register SHA-1 and verify
+        run: |
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
+          python3 << 'PYEOF'
+          import json
+          import google.auth.transport.requests
+          from google.oauth2 import service_account
+          import requests
+
+          with open('/tmp/sa.json') as f:
+              sa = json.load(f)
+          PROJECT = sa['project_id']
+          SHA1 = 'F53F0D14741D8F88177E49AAB82FD02BA2D6DDC4'
+          creds = service_account.Credentials.from_service_account_info(
+              sa, scopes=['https://www.googleapis.com/auth/cloud-platform','https://www.googleapis.com/auth/firebase'])
+          creds.refresh(google.auth.transport.requests.Request())
+          h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
+
+          r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=h)
+          aid = r.json()['apps'][0]['appId']
+
+          # Before
+          rs = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
+          before = rs.json().get('shaCertificates', [])
+          print(f"::notice title=Before::count={len(before)}")
+
+          # Add
+          add = requests.post(
+              f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha',
+              headers=h, json={'shaHash': SHA1, 'certType': 'SHA_1'})
+          if add.ok:
+              print(f"::notice title=AddResult::SUCCESS status={add.status_code}")
+          else:
+              try:
+                  err = add.json().get('error', {})
+                  msg = err.get('message','').replace(SHA1,'THE_SHA').replace(SHA1.lower(),'THE_SHA')
+                  print(f"::notice title=AddResult::status={err.get('status')} msg={msg}")
+              except:
+                  print(f"::notice title=AddResult::http={add.status_code}")
+
+          # After
+          rs2 = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
+          after = rs2.json().get('shaCertificates', [])
+          print(f"::notice title=After::count={len(after)}")
+          for s in after:
+              print(f"::notice title=SHA::{s.get('certType')}={s.get('shaHash')}")
+          PYEOF
