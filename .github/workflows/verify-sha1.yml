@@ -8,8 +8,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -19,7 +17,7 @@ jobs:
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 scripts/ensure_sha1_registered.py /tmp/sa.json 2>&1 | tee /tmp/out.txt
-          python3 << 'PYEOF' 2>&1 | tee /tmp/types.txt
+          python3 << 'PYEOF'
           import json
           try:
               with open('google-services.json') as f:
@@ -28,28 +26,14 @@ jobs:
               for client in gsf.get('client', []):
                   for oauth in client.get('oauth_client', []):
                       types_found.add(oauth.get('client_type'))
-              print("OAuth client types:", sorted(types_found))
-              print("Has type-1 Android client:", 1 in types_found)
-              print("Has type-3 Web client:", 3 in types_found)
+              has1 = 1 in types_found
+              has3 = 3 in types_found
+              # Emit as GitHub notice annotation (readable via check-runs API)
+              print(f"::notice title=ClientTypes::types={sorted(types_found)} android_type1={has1} web_type3={has3}")
           except Exception as e:
-              print("Error:", e)
+              print(f"::notice title=ClientTypes::error={e}")
           PYEOF
-      - name: Commit result
-        run: |
-          {
-            echo "# SHA-1 Verification"
-            echo "## Script output"
-            echo '```'
-            tail -25 /tmp/out.txt
-            echo '```'
-            echo "## Client types"
-            echo '```'
-            cat /tmp/types.txt
-            echo '```'
-          } > SHA1_VERIFY.md
-          git config user.email "ci@black94.app"
-          git config user.name "CI"
-          git pull origin main --no-edit || true
-          git add SHA1_VERIFY.md
-          git commit -m "verify: SHA-1 result [skip ci]" || true
-          git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/corneli-ux/black94-app.git main || true
+          # Also emit the key script result lines as notices
+          grep -i "registered\|SHA-1\|fingerprint\|VERIFIED\|WARNING\|SUCCESS\|ERROR" /tmp/out.txt | head -10 | while read line; do
+            echo "::notice title=SHA1::$line"
+          done
