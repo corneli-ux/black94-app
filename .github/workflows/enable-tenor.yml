@@ -1,0 +1,32 @@
+name: Enable Tenor API
+on:
+  workflow_dispatch:
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install google-auth google-auth-httplib2 requests
+      - name: Enable Tenor API
+        run: |
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
+          python3 << 'PYEOF'
+          import json
+          import google.auth.transport.requests
+          from google.oauth2 import service_account
+          import requests
+          with open('/tmp/sa.json') as f: sa = json.load(f)
+          PROJECT = sa['project_id']
+          creds = service_account.Credentials.from_service_account_info(sa,
+              scopes=['https://www.googleapis.com/auth/cloud-platform'])
+          creds.refresh(google.auth.transport.requests.Request())
+          h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
+          # Enable the Tenor API service
+          r = requests.post(
+              f'https://serviceusage.googleapis.com/v1/projects/{PROJECT}/services/tenor.googleapis.com:enable',
+              headers=h, json={})
+          print(f"::notice title=EnableTenor::status={r.status_code} body={r.text[:200]}")
+          PYEOF
