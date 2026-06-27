@@ -10,11 +10,11 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install google-auth google-auth-httplib2 requests
-      - name: Wait and verify via config
+      - name: Register and verify
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 << 'PYEOF'
-          import json, base64, time
+          import json, time
           import google.auth.transport.requests
           from google.oauth2 import service_account
           import requests
@@ -27,12 +27,22 @@ jobs:
           h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
           r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=h)
           aid = r.json()['apps'][0]['appId']
-          # poll the sha list up to 6 times over 60s
+          add = requests.post(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha',
+              headers=h, json={'shaHash': SHA1, 'certType': 'SHA_1'})
+          if add.ok:
+              print(f"::notice title=Add::SUCCESS {add.status_code}")
+          else:
+              err = add.json().get('error', {})
+              msg = err.get('message','').replace(SHA1,'NEWSHA')
+              print(f"::notice title=Add::{err.get('status')} {msg}")
+          # poll list
           for i in range(6):
               rs = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
               n = len(rs.json().get('shaCertificates', []))
-              print(f"::notice title=Poll{i}::sha_count={n}")
               if n > 0:
+                  print(f"::notice title=Verified::sha_count={n} REGISTERED")
                   break
               time.sleep(10)
+          else:
+              print(f"::notice title=Verified::sha_count=0 STILL_NOT_PERSISTING")
           PYEOF
