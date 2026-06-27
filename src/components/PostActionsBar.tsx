@@ -132,17 +132,12 @@ const PostActionsBar = React.memo(function PostActionsBar({
     setReposted(!wasReposted);
     setRepostCount(prev => Math.max(0, prev + (wasReposted ? -1 : 1)));
 
+    // Delegate the actual write to the parent (useFeed.handleRepost), which
+    // owns the single source of truth and the feed post list. Calling
+    // toggleRepost here too caused a DOUBLE write — the second call failed
+    // ("already reposted") and surfaced as a false error to the user.
     try {
-      const result: ToggleRepostResult = await toggleRepost(targetId, wasReposted);
-      if (!result.success) {
-        setReposted(wasReposted);
-        setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
-      } else {
-        onRepost?.(targetId, wasReposted);
-      }
-    } catch {
-      setReposted(wasReposted);
-      setRepostCount(prev => Math.max(0, prev + (wasReposted ? 1 : -1)));
+      onRepost?.(targetId, wasReposted);
     } finally {
       repostingRef.current = false;
     }

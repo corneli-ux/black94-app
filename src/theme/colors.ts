@@ -22,7 +22,7 @@ export const colors = {
   foreground: '#ffffff',
 
   // ── Borders — gold-tinted ultra-subtle ──
-  border: 'rgba(212,175,55,0.15)',
+  border: 'rgba(255,255,255,0.10)',
   borderLight: 'rgba(255,255,255,0.06)',
   separator: 'rgba(255,255,255,0.06)',
   input: 'rgba(255,255,255,0.08)',

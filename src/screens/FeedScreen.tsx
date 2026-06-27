@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: colors.surfaceLight,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     overflow: 'hidden',
   },
   quoteCardLine: {
@@ -1246,7 +1246,7 @@ const styles = StyleSheet.create({
   },
   quoteCardImage: {
     width: '100%',
-    height: 140,
+    height: 200,
     borderRadius: 10,
     marginTop: 6,
   },
