@@ -1072,10 +1072,10 @@ const styles = StyleSheet.create({
   postCard: {
     backgroundColor: colors.bg,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 14,
-    paddingTop: 13,
-    paddingBottom: 8,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
   },
   repostHeader: {
     flexDirection: 'row',
@@ -1142,7 +1142,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   caption: {
-    color: colors.text,
+    color: '#f0f0f0',
     fontSize: fs(15),
     lineHeight: vs(22),
     marginTop: scale(3),
