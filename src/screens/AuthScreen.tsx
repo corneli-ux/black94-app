@@ -197,27 +197,14 @@ export default function AuthScreen() {
     <SafeAreaView style={s.root} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      {/* ── Subtle gold radial glow at top ── */}
+      {/* ── Pure black with a whisper of depth at top ── */}
       <View style={s.glowLayer} pointerEvents="none">
         <LinearGradient
-          colors={['rgba(212,175,55,0.18)', 'rgba(212,175,55,0.05)', 'rgba(0,0,0,0)']}
-          locations={[0, 0.4, 1]}
+          colors={['rgba(255,255,255,0.04)', 'rgba(255,255,255,0.01)', 'rgba(0,0,0,0)']}
+          locations={[0, 0.5, 1]}
           style={s.glowOuter}
         />
-        <LinearGradient
-          colors={['rgba(212,175,55,0.25)', 'rgba(212,175,55,0)']}
-          locations={[0, 1]}
-          style={s.glowInner}
-        />
       </View>
-
-      {/* ── Deep vignette at bottom for richness ── */}
-      <LinearGradient
-        colors={['rgba(0,0,0,0)', 'rgba(10,8,2,0.6)', 'rgba(0,0,0,0.9)']}
-        locations={[0, 0.6, 1]}
-        style={s.bottomVignette}
-        pointerEvents="none"
-      />
 
       <KeyboardAvoidingView
         style={{ flex: 1, zIndex: 1 }}
@@ -472,8 +459,8 @@ const s = StyleSheet.create({
     marginTop: 8,
   },
   wordmarkImage: {
-    width: 260,
-    height: 74,
+    width: 280,
+    height: 80,
   },
 
   // ── Tagline ──
@@ -566,12 +553,12 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    height: 54,
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    height: 56,
+    borderRadius: 16,
+    paddingHorizontal: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.025)',
   },
   input: {
     flex: 1,
