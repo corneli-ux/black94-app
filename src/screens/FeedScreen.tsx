@@ -734,6 +734,7 @@ const storiesRowStyles = StyleSheet.create({
 
 export default function FeedScreen({ navigation }: any) {
   const setTabBarVisible = useAppStore(s => s.setTabBarVisible);
+  const unreadCount = useAppStore(s => s.unreadNotificationCount);
   const {
     posts,
     loading,
@@ -764,17 +765,17 @@ export default function FeedScreen({ navigation }: any) {
   // Current user's avatar for the header (replaces hamburger menu)
   const [myAvatar, setMyAvatar] = React.useState<string | undefined>(undefined);
   const [myName, setMyName] = React.useState<string | undefined>(undefined);
-  React.useEffect(() => {
+  const loadMyProfile = useCallback(async () => {
     const uid = auth()?.currentUser?.uid;
     if (!uid) return;
-    (async () => {
-      try {
-        const { getUserProfile } = await import('../lib/userCache');
-        const p = await getUserProfile(uid);
-        if (p) { setMyAvatar(p.profileImage); setMyName(p.displayName || p.username); }
-      } catch {}
-    })();
+    try {
+      const { getUserProfile, invalidateUserCache } = await import('../lib/userCache');
+      invalidateUserCache(uid);
+      const p = await getUserProfile(uid);
+      if (p) { setMyAvatar(p.profileImage); setMyName(p.displayName || p.username); }
+    } catch {}
   }, []);
+  React.useEffect(() => { loadMyProfile(); }, [loadMyProfile]);
   // Prevents skeleton from being stuck forever on slow networks.
   // Must be before the early return to comply with React hooks rules.
   const [forceLoaded, setForceLoaded] = React.useState(false);
@@ -788,8 +789,9 @@ export default function FeedScreen({ navigation }: any) {
   // Restore tab bar when screen focuses
   useFocusEffect(useCallback(() => {
     setTabBarVisible(true);
+    loadMyProfile();
     return () => {};
-  }, [setTabBarVisible]));
+  }, [setTabBarVisible, loadMyProfile]));
 
   const showSkeleton = loading && !forceLoaded;
 
@@ -896,6 +898,11 @@ export default function FeedScreen({ navigation }: any) {
               onPress={() => navigation.navigate('Notifications')}
             >
               <Feather name="bell" size={22} color={colors.textSecondary} />
+              {unreadCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -1029,6 +1036,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  notifBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: colors.bg,
+  },
+  notifBadgeText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: '800',
+  },
   headerCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   logoImage: { width: 130, height: 44, resizeMode: 'contain' },
 
