@@ -10,11 +10,11 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install google-auth google-auth-httplib2 requests
-      - name: Inspect POST response
+      - name: Wait and verify via config
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 << 'PYEOF'
-          import json
+          import json, base64, time
           import google.auth.transport.requests
           from google.oauth2 import service_account
           import requests
@@ -27,10 +27,12 @@ jobs:
           h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
           r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=h)
           aid = r.json()['apps'][0]['appId']
-          add = requests.post(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha',
-              headers=h, json={'shaHash': SHA1, 'certType': 'SHA_1'})
-          # Print the full response body (replace SHA to avoid masking)
-          body = add.text.replace(SHA1, 'NEWSHA').replace(SHA1.lower(), 'NEWSHA')
-          print(f"::notice title=PostStatus::{add.status_code}")
-          print(f"::notice title=PostBody::{body[:400]}")
+          # poll the sha list up to 6 times over 60s
+          for i in range(6):
+              rs = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
+              n = len(rs.json().get('shaCertificates', []))
+              print(f"::notice title=Poll{i}::sha_count={n}")
+              if n > 0:
+                  break
+              time.sleep(10)
           PYEOF
