@@ -8,7 +8,6 @@ import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context'
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
 import { CommentData, fetchPostComments, addPostComment, toggleCommentLike, toggleCommentRepost, toggleCommentBookmark, tsToMillis } from '../lib/api';
-import FactCheckBottomSheet from './FactCheckBottomSheet';
 import { useAppStore } from '../stores/app';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 import { auth, firestore } from '../lib/firebase';
@@ -33,7 +32,6 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
   const [likeMap, setLikeMap] = useState<Record<string, boolean>>({});
   const [repostMap, setRepostMap] = useState<Record<string, boolean>>({});
   const [bookmarkMap, setBookmarkMap] = useState<Record<string, boolean>>({});
-  const [factCheckVisible, setFactCheckVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
@@ -375,20 +373,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
             : <Feather name="send" size={18} color={text.trim() ? colors.primaryForeground : colors.textMuted} />
           }
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.factCheckBtn]}
-          onPress={() => setFactCheckVisible(true)}
-          hitSlop={8}
-          activeOpacity={0.7}
-        >
-          <AppIcon name={'verified-user'} size={20} color={colors.accent} />
-        </TouchableOpacity>
       </View>
-      <FactCheckBottomSheet
-        postId={postId}
-        visible={factCheckVisible}
-        onClose={() => setFactCheckVisible(false)}
-      />
     </KeyboardAvoidingView>
   );
 }
@@ -442,8 +427,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     marginLeft: -4,
-    maxWidth: 440,
-    justifyContent: 'space-between',
+    gap: 18,
   },
   actionIconWrap: {
     width: 34, height: 34, borderRadius: 17,

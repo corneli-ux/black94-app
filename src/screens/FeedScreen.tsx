@@ -536,7 +536,6 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               activeOpacity={0.7}
               onPress={() => navigation.navigate('PostDetail', { postId: post.quotePostId })}
             >
-              <View style={styles.quoteCardLine} />
               <View style={styles.quoteCardContent}>
                 <Text style={styles.quoteCardAuthor}>
                   {post.quoteAuthorDisplayName || post.quoteAuthorUsername || 'User'}
@@ -762,7 +761,20 @@ export default function FeedScreen({ navigation }: any) {
 
   const insets = useSafeAreaInsets();
 
-  // Timeout safety: if loading is still true after 15s, force-show feed
+  // Current user's avatar for the header (replaces hamburger menu)
+  const [myAvatar, setMyAvatar] = React.useState<string | undefined>(undefined);
+  const [myName, setMyName] = React.useState<string | undefined>(undefined);
+  React.useEffect(() => {
+    const uid = auth()?.currentUser?.uid;
+    if (!uid) return;
+    (async () => {
+      try {
+        const { getUserProfile } = await import('../lib/userCache');
+        const p = await getUserProfile(uid);
+        if (p) { setMyAvatar(p.profileImage); setMyName(p.displayName || p.username); }
+      } catch {}
+    })();
+  }, []);
   // Prevents skeleton from being stuck forever on slow networks.
   // Must be before the early return to comply with React hooks rules.
   const [forceLoaded, setForceLoaded] = React.useState(false);
@@ -805,8 +817,8 @@ export default function FeedScreen({ navigation }: any) {
         {/* Header with logo */}
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-              <AppIcon name="menu" size="lg" color={colors.text} />
+            <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.headerBtn}>
+              <Avatar uri={myAvatar} name={myName} size={32} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
@@ -873,8 +885,8 @@ export default function FeedScreen({ navigation }: any) {
       {headerVisible && (
         <SafeAreaView edges={['top']}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.headerBtn}>
-              <Feather name="menu" size={22} color={colors.text} />
+            <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.headerBtn}>
+              <Avatar uri={myAvatar} name={myName} size={32} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
@@ -1183,22 +1195,20 @@ const styles = StyleSheet.create({
 
   /* ── Quote repost card ── */
   quoteCard: {
-    flexDirection: 'row',
     marginTop: 10,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: colors.surfaceLight,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
   },
   quoteCardLine: {
-    width: 3,
-    backgroundColor: colors.accent,
-    borderRadius: 2,
+    width: 0,
+    height: 0,
   },
   quoteCardContent: {
     flex: 1,
-    padding: 10,
+    padding: 12,
     gap: 4,
   },
   quoteCardAuthor: {
