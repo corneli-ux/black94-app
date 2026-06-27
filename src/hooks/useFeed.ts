@@ -349,7 +349,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
           // Sort by engagement score: 3*likes + 2*reposts + comments
           scoredPosts.sort((a, b) => {
             const scoreA = (a.likeCount || 0) * 3 + (a.repostCount || 0) * 2 + (a.commentCount || 0);
-            const scoreB = (b.likeCount || 0) * 3 + (b.repostCount || 0) * 2 + (b.commentCount || 0);
+            const scoreB = (b.likeCount || 0) * 3 + (b.repostCount || 0) * 2 + (a.commentCount || 0);
             return scoreB - scoreA;
           });
 
@@ -503,6 +503,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
 
   // ── Pull-to-refresh ───────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
+    interactedPostIds.current.clear(); // FIX: prevent unbounded memory growth
     setRefreshing(true);
     setAllLoaded(false);
     lastDocRef.current = null;
@@ -518,6 +519,7 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
   // ── Tab switching ─────────────────────────────────────────────────────
   const handleTabChange = useCallback((tab: Tab) => {
     if (activeTab !== tab) {
+      interactedPostIds.current.clear(); // FIX: prevent unbounded memory growth on tab switch
       setActiveTab(tab);
       lastDocRef.current = null;
       setAllLoaded(false);
@@ -583,10 +585,10 @@ export function useFeed({ navigation }: UseFeedParams): UseFeedReturn {
             authorUsername: rd.authorUsername,
             authorDisplayName: rd.authorDisplayName,
             authorProfileImage: rd.authorProfileImage,
-            authorBadge: rd.authorBadge,
-            authorIsVerified: rd.authorIsVerified,
-            factCheckVerified: rd.factCheckVerified,
-            factCheckDebunked: rd.factCheckDebunked,
+            authorBadge: rd.authorBadge || '',
+            authorIsVerified: rd.authorIsVerified || false,
+            factCheckVerified: rd.factCheckVerified || 0,
+            factCheckDebunked: rd.factCheckDebunked || 0,
             caption: rd.caption,
             mediaUrls: parseMediaUrls(rd.mediaUrls),
             pollData: rd.pollData || undefined,
