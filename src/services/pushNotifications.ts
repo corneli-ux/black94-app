@@ -199,10 +199,18 @@ export async function requestNotificationPermissions(): Promise<boolean> {
  */
 async function registerPushToken(): Promise<string | null> {
   try {
-    // IMPORTANT: This must match the EAS project (@owner/slug).
-    // Using a wrong projectId causes tokens to be registered under a
-    // non-existent project, and Expo silently rejects push sends.
-    const projectId = '@corneli1/black94';
+    // The projectId MUST be the EAS project UUID (not @owner/slug).
+    // Pull it from the app config's extra.eas.projectId so it always matches
+    // the build. A wrong projectId makes Expo silently reject push sends.
+    let projectId: string | undefined;
+    try {
+      const Constants = (await import('expo-constants')).default;
+      projectId =
+        Constants?.expoConfig?.extra?.eas?.projectId ||
+        (Constants as any)?.easConfig?.projectId;
+    } catch {}
+    if (!projectId) projectId = '9dff44f7-2b2b-432d-a355-902a3d75e970';
+
     const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
 
     if (!token) {
@@ -420,8 +428,15 @@ export async function clearPushToken(): Promise<void> {
     const userId = auth()?.currentUser?.uid;
     if (!userId) return;
 
-    // Get current token
-    const projectId = '@corneli1/black94';
+    // Get current token (use the same EAS UUID as registration)
+    let projectId: string | undefined;
+    try {
+      const Constants = (await import('expo-constants')).default;
+      projectId =
+        Constants?.expoConfig?.extra?.eas?.projectId ||
+        (Constants as any)?.easConfig?.projectId;
+    } catch {}
+    if (!projectId) projectId = '9dff44f7-2b2b-432d-a355-902a3d75e970';
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     if (!tokenData.data) return;
 
