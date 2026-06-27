@@ -6,98 +6,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.PAT_TOKEN }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install google-auth google-auth-httplib2 requests PyNaCl
-      - name: Create app with new package + register SHA + update secret
+      - run: pip install google-auth google-auth-httplib2 requests
+      - name: Download google-services.json for new package
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 << 'PYEOF'
-          import json, time, base64
+          import json, base64
           import google.auth.transport.requests
           from google.oauth2 import service_account
           import requests
           with open('/tmp/sa.json') as f: sa = json.load(f)
           PROJECT = sa['project_id']
           NEW_PKG = 'com.black94.social'
-          SHA1 = 'FA9C5E1009650591642C0E44CC82370D1489202A'
           creds = service_account.Credentials.from_service_account_info(sa,
               scopes=['https://www.googleapis.com/auth/cloud-platform','https://www.googleapis.com/auth/firebase'])
           creds.refresh(google.auth.transport.requests.Request())
-          h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
-
-          # Check if new-package app already exists
+          h = {'Authorization': f'Bearer {creds.token}'}
           r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=h)
-          apps = r.json().get('apps', [])
           target = None
-          for app in apps:
+          for app in r.json().get('apps', []):
               if app.get('packageName') == NEW_PKG:
                   target = app['appId']
-          if not target:
-              # Create the new android app
-              create = requests.post(
-                  f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps',
-                  headers=h, json={'packageName': NEW_PKG, 'displayName': 'Black94'})
-              print(f"::notice title=CreateApp::status={create.status_code}")
-              # Wait for the long-running operation
-              time.sleep(15)
-              r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=h)
-              for app in r.json().get('apps', []):
-                  if app.get('packageName') == NEW_PKG:
-                      target = app['appId']
-          print(f"::notice title=AppId::{target}")
-
-          # Register SHA-1 (fresh package = no conflict)
-          add = requests.post(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{target}/sha',
-              headers=h, json={'shaHash': SHA1, 'certType': 'SHA_1'})
-          print(f"::notice title=AddSHA::status={add.status_code}")
-          time.sleep(8)
-          rs = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{target}/sha', headers=h)
-          n = len(rs.json().get('shaCertificates', []))
-          print(f"::notice title=SHACount::{n}")
-
-          # Download google-services.json for new app
           cfg = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{target}/config', headers=h)
-          gsf_content = base64.b64decode(cfg.json()['configFileContents']).decode()
+          content = base64.b64decode(cfg.json()['configFileContents']).decode()
           with open('google-services.json', 'w') as f:
-              f.write(gsf_content)
-          # Check for web client + type
-          gsf = json.loads(gsf_content)
+              f.write(content)
+          gsf = json.loads(content)
           types = set()
           for c in gsf.get('client', []):
-              for o in c.get('oauth_client', []):
-                  types.add(o.get('client_type'))
-          print(f"::notice title=NewConfig::pkg={NEW_PKG} oauth_types={sorted(types)}")
-
-          # Update GOOGLE_SERVICES_JSON secret
-          from nacl import encoding, public
-          TOKEN = '${{ secrets.PAT_TOKEN }}'
-          REPO = 'corneli-ux/black94-app'
-          req = __import__('urllib.request', fromlist=['request'])
-          import urllib.request
-          kreq = urllib.request.Request(f'https://api.github.com/repos/{REPO}/actions/secrets/public-key',
-              headers={'Authorization': f'token {TOKEN}'})
-          kd = json.loads(urllib.request.urlopen(kreq).read())
-          pk = public.PublicKey(kd['key'].encode(), encoding.Base64Encoder())
-          def setsecret(name, value):
-              enc = base64.b64encode(public.SealedBox(pk).encrypt(value.encode())).decode()
-              p = json.dumps({'encrypted_value': enc, 'key_id': kd['key_id']}).encode()
-              rq = urllib.request.Request(f'https://api.github.com/repos/{REPO}/actions/secrets/{name}',
-                  data=p, method='PUT', headers={'Authorization': f'token {TOKEN}', 'Content-Type':'application/json'})
-              print(f"  secret {name}: {urllib.request.urlopen(rq).status}")
-          setsecret('GOOGLE_SERVICES_JSON', base64.b64encode(gsf_content.encode()).decode())
-          # Extract + set web client id
-          for c in gsf.get('client', []):
-              for o in c.get('oauth_client', []):
-                  if o.get('client_type') == 3:
-                      setsecret('GOOGLE_WEB_CLIENT_ID', o['client_id'])
-                      print(f"::notice title=WebClient::{o['client_id'][:30]}")
-
-          # Commit the new google-services.json
+              for o in c.get('oauth_client', []): types.add(o.get('client_type'))
+          print(f"::notice title=Config::pkg={NEW_PKG} types={sorted(types)}")
           PYEOF
+      - name: Commit
+        run: |
           git config user.email "ci@black94.app"
           git config user.name "CI"
           git add google-services.json
-          git commit -m "feat: new google-services.json for com.black94.social [skip ci]" || true
-          git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/corneli-ux/black94-app.git HEAD:main || true
+          git commit -m "feat: google-services.json for com.black94.social" || echo "no change"
+          git push origin main || echo "push failed"

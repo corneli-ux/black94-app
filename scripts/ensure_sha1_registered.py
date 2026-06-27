@@ -15,7 +15,7 @@ Play Services rejects the APK at runtime.
 This script:
   1. Reads the service account JSON from disk
   2. Lists the Android apps in the Firebase project
-  3. Finds the app matching PACKAGE (com.black94.app)
+  3. Finds the app matching PACKAGE (com.black94.social)
   4. Lists existing SHA fingerprints on that app
   5. Adds RELEASE_SHA1 if not already present (idempotent)
   6. Re-downloads google-services.json (now with the SHA-1 baked in)
@@ -36,7 +36,7 @@ from google.oauth2 import service_account
 import google.auth.transport.requests
 
 PROJECT = "memora-bond"
-PACKAGE = "com.black94.app"
+PACKAGE = "com.black94.social"
 # SHA-1 of keystore/release.keystore (keyAlias: black94, storePass: black94release)
 # Verify with: keytool -list -v -keystore keystore/release.keystore -storepass black94release -alias black94
 RELEASE_SHA1 = "FA9C5E1009650591642C0E44CC82370D1489202A"
@@ -129,13 +129,13 @@ def main() -> int:
             if "different project" in body.lower():
                 print("=" * 70)
                 print("FATAL: SHA-1 is registered in a DIFFERENT (old) Firebase project.")
-                print(f"  Package: com.black94.app")
+                print(f"  Package: com.black94.social")
                 print(f"  SHA-1:   {RELEASE_SHA1}")
                 print("  Google only allows this package+SHA in ONE project.")
-                print("  FIX: Remove this SHA-1 (or the whole com.black94.app app)")
+                print("  FIX: Remove this SHA-1 (or the whole com.black94.social app)")
                 print("       from the OLD black94 project (number 210565807767):")
                 print("       Firebase Console > old project > Project Settings >")
-                print("       Your apps > com.black94.app > delete the SHA fingerprint.")
+                print("       Your apps > com.black94.social > delete the SHA fingerprint.")
                 print("  Native Google Sign-In will keep failing until this is done.")
                 print("=" * 70)
                 # Re-verify whether it's actually present here despite the 409

@@ -4,7 +4,7 @@ from google.oauth2 import service_account
 import requests
 
 PROJECT = 'memora-bond'
-PACKAGE = 'com.black94.app'
+PACKAGE = 'com.black94.social'
 SHA1 = 'FA9C5E1009650591642C0E44CC82370D1489202A'
 
 sa_path = sys.argv[1] if len(sys.argv) > 1 else '/tmp/sa.json'

@@ -50,7 +50,7 @@ module.exports = function () {
       },
       ios: {
         supportsTablet: true,
-        bundleIdentifier: 'com.black94.app',
+        bundleIdentifier: 'com.black94.social',
       },
       android: {
         adaptiveIcon: {
@@ -58,7 +58,7 @@ module.exports = function () {
           backgroundColor: '#000000',
         },
         edgeToEdgeEnabled: true,
-        package: 'com.black94.app',
+        package: 'com.black94.social',
         googleServicesFile: './google-services.json',
         versionCode: 19,
         permissions: ['CAMERA', 'POST_NOTIFICATIONS'],
