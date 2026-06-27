@@ -28,12 +28,14 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { Message } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { Avatar } from '../components/Avatar';
+import ChatImage from '../components/ChatImage';
 import { useChatRoom } from '../hooks/useChatRoom';
 import { AppIcon } from '../components/icons';
 
@@ -214,19 +216,12 @@ function ChatRoomContent({ route, navigation }: any) {
             activeOpacity={1}
             style={{ maxWidth: '80%' }}
           >
-            {/* Image message — no bubble wrapper, image only */}
+            {/* Image message — aspect-aware, no bubble wrapper */}
             {msgType === 'image' && safeImageSource(item.mediaUrl) ? (
-              <TouchableOpacity
-                activeOpacity={0.9}
+              <ChatImage
+                uri={typeof item.mediaUrl === 'string' ? item.mediaUrl : ''}
                 onPress={() => setFullscreenImage(typeof item.mediaUrl === 'string' ? item.mediaUrl : null)}
-              >
-                <Image
-                  source={safeImageSource(item.mediaUrl)}
-                  style={styles.bubbleImage}
-                  resizeMode="cover"
-                  onError={() => {/* silently degrade */}}
-                />
-              </TouchableOpacity>
+              />
             ) : null}
 
             {/* GIF message — no bubble wrapper, image only */}
@@ -433,7 +428,11 @@ function ChatRoomContent({ route, navigation }: any) {
         <View style={[styles.inputRow, { paddingBottom: Math.max(8, insets.bottom) }]}>
           <TouchableOpacity
             style={styles.inputActionBtn}
-            onPress={() => setShowAttachMenu(!showAttachMenu)}
+            onPress={() => {
+              const next = !showAttachMenu;
+              if (next) Keyboard.dismiss();
+              setShowAttachMenu(next);
+            }}
             activeOpacity={0.6}
           >
             <AppIcon name="add-circle-outline" size="lg" color={showAttachMenu ? colors.accent : colors.textMuted} />
