@@ -13,7 +13,7 @@ jobs:
           python-version: '3.11'
       - name: Install deps
         run: pip install google-auth google-auth-httplib2 requests
-      - name: Check OAuth clients and SHA
+      - name: Force-register SHA-1
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 << 'PYEOF'
@@ -25,28 +25,32 @@ jobs:
           with open('/tmp/sa.json') as f:
               sa = json.load(f)
           PROJECT = sa['project_id']
+          SHA1 = 'F53F0D14741D8F88177E49AAB82FD02BA2D6DDC4'
           creds = service_account.Credentials.from_service_account_info(
               sa, scopes=['https://www.googleapis.com/auth/cloud-platform','https://www.googleapis.com/auth/firebase'])
           creds.refresh(google.auth.transport.requests.Request())
-          h = {'Authorization': f'Bearer {creds.token}'}
+          h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
 
-          # 1. Firebase SHA fingerprints
           r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=h)
           apps = r.json().get('apps', [])
           for app in apps:
               aid = app['appId']
+              # Current SHAs
               rs = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
-              shas = rs.json().get('shaCertificates', [])
-              msg = f"app={aid} pkg={app.get('packageName')} sha_count={len(shas)}"
-              for s in shas:
-                  msg += f" | {s.get('certType')}={s.get('shaHash')[:16]}"
-              print(f"::notice title=FirebaseSHA::{msg}")
-
-          # 2. Identity Toolkit Google IdP config (web client)
-          r = requests.get(f'https://identitytoolkit.googleapis.com/admin/v2/projects/{PROJECT}/defaultSupportedIdpConfigs/google.com', headers=h)
-          if r.ok:
-              cfg = r.json()
-              print(f"::notice title=GoogleIdP::enabled={cfg.get('enabled')} clientId={cfg.get('clientId','NONE')[:40]}")
-          else:
-              print(f"::notice title=GoogleIdP::status={r.status_code} body={r.text[:100]}")
+              existing = rs.json().get('shaCertificates', [])
+              have = any(s.get('shaHash','').upper().replace(':','') == SHA1 for s in existing)
+              print(f"::notice title=Before::app={aid} count={len(existing)} have_target={have}")
+              if not have:
+                  # ADD it
+                  add = requests.post(
+                      f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha',
+                      headers=h,
+                      json={'shaHash': SHA1, 'certType': 'SHA_1'})
+                  print(f"::notice title=AddResult::status={add.status_code} body={add.text[:120]}")
+              # Verify after
+              rs2 = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
+              after = rs2.json().get('shaCertificates', [])
+              print(f"::notice title=After::count={len(after)}")
+              for s in after:
+                  print(f"::notice title=SHA::{s.get('certType')}={s.get('shaHash')}")
           PYEOF
