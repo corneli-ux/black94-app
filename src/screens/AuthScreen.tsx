@@ -146,7 +146,6 @@ export default function AuthScreen() {
       return;
     }
     setBusy(true);
-    let developerError = false;
     try {
       const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
       GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, scopes: ['profile', 'email'] });
@@ -158,60 +157,51 @@ export default function AuthScreen() {
         console.warn('[Auth] getTokens failed:', tokenErr?.code, tokenErr?.message);
       }
       if (!idToken) {
-        Alert.alert('Sign In Failed', 'Could not get authentication token from Google. Please try email sign-in.');
+        console.log('[Auth] No idToken from native — opening WebView fallback');
+        setShowWebView(true);
         return;
       }
       await completeGoogleSignIn(idToken);
     } catch (e: any) {
-      if (e?.code === '12501' || e?.code === 'SIGN_IN_CANCELLED') return;
+      if (e?.code === '12501' || e?.code === 'SIGN_IN_CANCELLED') {
+        setBusy(false);
+        return;
+      }
 
       console.error('[Auth] Google sign-in error:', { code: e?.code, message: e?.message });
 
       const errCode = e?.code ? String(e.code) : '';
       const errMsg = (e?.message || '').slice(0, 180);
-      let body = 'Please try email sign-in instead.';
-      let offerWebViewFallback = false;
 
-      if (errCode === '10' || /DEVELOPER_ERROR/i.test(errMsg)) {
-        developerError = true;
-        offerWebViewFallback = true;
-        body = 'Google Sign-In encountered a configuration error (DEVELOPER_ERROR).\n\n' +
-               'You can try the web sign-in fallback, or use email sign-in instead.';
-      } else if (errCode === '7' || /NETWORK_ERROR/i.test(errMsg)) {
+      // DEVELOPER_ERROR, SIGN_IN_REQUIRED, INTERNAL_ERROR, or any token/config
+      // error → AUTOMATICALLY open the WebView fallback. No alert, no user
+      // interaction. The WebView uses PKCE + Firebase's pre-authorized handler
+      // and works WITHOUT any SHA-1 registration.
+      const shouldAutoFallback =
+        errCode === '10' ||
+        errCode === '8' ||
+        errCode === '5' ||
+        /DEVELOPER_ERROR|INTERNAL_ERROR|SIGN_IN_REQUIRED|INVALID_IDP_RESPONSE|INVALID_ID_TOKEN|operation-not-allowed|OPERATION_NOT_ALLOWED/i.test(errMsg);
+
+      if (shouldAutoFallback) {
+        console.log('[Auth] Auto-opening WebView fallback for error:', errCode || errMsg.slice(0, 60));
+        setShowWebView(true);
+        return;
+      }
+
+      // Network errors and other transient issues → show alert, don't fallback
+      let body = 'Please try email sign-in instead.';
+      if (errCode === '7' || /NETWORK_ERROR/i.test(errMsg)) {
         body = 'Network error. Please check your internet connection and try again.';
-      } else if (errCode === '8' || /INTERNAL_ERROR/i.test(errMsg)) {
-        body = 'Google Play Services internal error. Please restart the app and try again.';
-      } else if (/INVALID_IDP_RESPONSE|INVALID_ID_TOKEN|operation-not-allowed|OPERATION_NOT_ALLOWED/i.test(errMsg)) {
-        body = 'Google Sign-In is not enabled for this Firebase project. Please use email sign-in.';
       } else if (/INVALID_API_KEY/i.test(errMsg)) {
         body = 'Firebase API key is invalid. Please contact support.';
       } else if (errMsg) {
         body = `Error: ${errMsg}`;
       }
-
-      if (offerWebViewFallback) {
-        Alert.alert(
-          'Google Sign-In Failed',
-          body,
-          [
-            { text: 'Use Email Instead', style: 'cancel' },
-            {
-              text: 'Try Web Sign-In',
-              onPress: () => {
-                setBusy(false);
-                setShowWebView(true);
-              },
-            },
-          ],
-          { cancelable: false },
-        );
-      } else {
-        Alert.alert('Google Sign-In Failed', body);
-      }
-    } finally {
-      if (!developerError && !showWebView) setBusy(false);
+      Alert.alert('Google Sign-In Failed', body);
+      setBusy(false);
     }
-  }, [busy, completeGoogleSignIn, showWebView]);
+  }, [busy, completeGoogleSignIn]);
 
   // ── WebView fallback handlers ──
   const handleWebViewToken = useCallback((idToken: string) => {
