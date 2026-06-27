@@ -132,7 +132,6 @@ export default function AuthScreen() {
       const errMsg = (e?.message || '').slice(0, 200);
       Alert.alert('Sign In Failed', errMsg || 'Please try again.');
     } finally {
-      setShowWebView(false);
       setBusy(false);
     }
   }, [routeAfterAuth]);

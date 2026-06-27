@@ -1,0 +1,45 @@
+name: Check Storage
+on:
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install google-auth google-auth-httplib2 requests
+      - name: Check storage bucket + rules
+        run: |
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
+          python3 << 'PYEOF'
+          import json
+          import google.auth.transport.requests
+          from google.oauth2 import service_account
+          import requests
+          with open('/tmp/sa.json') as f: sa = json.load(f)
+          PROJECT = sa['project_id']
+          creds = service_account.Credentials.from_service_account_info(sa,
+              scopes=['https://www.googleapis.com/auth/cloud-platform','https://www.googleapis.com/auth/firebase'])
+          creds.refresh(google.auth.transport.requests.Request())
+          h = {'Authorization': f'Bearer {creds.token}'}
+
+          # 1. List storage buckets for the project
+          r = requests.get(f'https://firebasestorage.googleapis.com/v1beta/projects/{PROJECT}/buckets', headers=h)
+          print(f"::notice title=BucketsAPI::status={r.status_code}")
+          if r.ok:
+              buckets = r.json().get('buckets', [])
+              print(f"::notice title=BucketCount::{len(buckets)}")
+              for b in buckets:
+                  print(f"::notice title=Bucket::{b.get('name','?')}")
+          else:
+              print(f"::notice title=BucketsError::{r.text[:200]}")
+
+          # 2. Check GCS bucket directly
+          bucket = f'{PROJECT}.firebasestorage.app'
+          r2 = requests.get(f'https://storage.googleapis.com/storage/v1/b/{bucket}', headers=h)
+          print(f"::notice title=GCSBucket::status={r2.status_code} bucket={bucket}")
+          if not r2.ok:
+              print(f"::notice title=GCSError::{r2.text[:150]}")
+          PYEOF
