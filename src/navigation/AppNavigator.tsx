@@ -10,6 +10,7 @@ import { signOutUser } from '../lib/api';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { AppIcon } from '../components/icons';
 import { Feather } from '@expo/vector-icons';
+import { AnimatedTabBar } from '../components/AnimatedTabBar';
 
 /* ── Dark Navigation Theme — prevents white flash on transitions ── */
 const DarkTheme = {
@@ -207,7 +208,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
       <Text style={{
         fontSize: 9, fontWeight: focused ? '600' : '400',
         color, letterSpacing: 0.3, textAlign: 'center',
-      }} numberOfLines={1}>{label}</Text>
+      }} numberLines={1}>{label}</Text>
     </View>
   );
 }
@@ -234,18 +235,7 @@ const MainTabs = memo(function MainTabs() {
       screenOptions={{
         lazy: true,
         headerShown: false,
-        tabBarStyle: tabBarVisible ? {
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: '#000000',
-          borderTopWidth: 0.5,
-          borderTopColor: 'rgba(212,175,55,0.15)',
-          height: tabBarHeight,
-          paddingBottom: insets.bottom || 0,
-          elevation: 0,
-        } : { display: 'none' },
+        tabBar: (props) => <AnimatedTabBar {...props} />,
         tabBarShowLabel: false,
         tabBarItemStyle: { paddingVertical: 6 },
         sceneStyle: { paddingBottom: tabBarVisible ? tabBarHeight : 0 },
