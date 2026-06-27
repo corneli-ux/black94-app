@@ -377,7 +377,7 @@ export default function AuthScreen() {
 function FeatureChip({ icon, label }: { icon: string; label: string }) {
   return (
     <View style={s.featureChip}>
-      <Feather name={icon as any} size={11} color={colors.accent} />
+      <Feather name={icon as any} size={11} color="rgba(255,255,255,0.6)" />
       <Text style={s.featureChipText}>{label}</Text>
     </View>
   );
@@ -497,14 +497,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(212,175,55,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.18)',
+    borderColor: 'rgba(255,255,255,0.10)',
   },
   featureChipText: {
     fontSize: 10.5,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.78)',
+    color: 'rgba(255,255,255,0.65)',
     letterSpacing: 0.3,
   },
 
@@ -531,12 +531,9 @@ const s = StyleSheet.create({
     borderRadius: 9,
   },
   tabActive: {
-    backgroundColor: colors.accent,
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
   },
   tabText: {
     fontSize: 13.5,
@@ -545,7 +542,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.2,
   },
   tabTextActive: {
-    color: '#000',
+    color: '#fff',
   },
 
   // Inputs
@@ -553,7 +550,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    height: 56,
+    height: 52,
     borderRadius: 16,
     paddingHorizontal: 18,
     borderWidth: 1,
@@ -567,23 +564,18 @@ const s = StyleSheet.create({
     paddingVertical: 0,
   },
 
-  // Primary button (gold)
+  // Primary button (clean white)
   primaryBtn: {
-    height: 54,
+    height: 50,
     borderRadius: 14,
-    backgroundColor: colors.accent,
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
   },
   primaryBtnText: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#000',
     letterSpacing: -0.2,
   },
@@ -607,25 +599,22 @@ const s = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Google button (white)
+  // Google button (outlined)
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    height: 54,
-    backgroundColor: '#fff',
+    height: 50,
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 14,
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
   googleBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111',
+    fontSize: 14.5,
+    fontWeight: '600',
+    color: '#fff',
     letterSpacing: -0.2,
   },
 
