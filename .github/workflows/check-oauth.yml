@@ -1,8 +1,6 @@
 name: Check OAuth Clients
-
 on:
   workflow_dispatch:
-
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -11,43 +9,42 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install deps
-        run: pip install google-auth google-auth-httplib2 requests
-      - name: Register NEW SHA-1
+      - run: pip install google-auth google-auth-httplib2 requests
+      - name: Confirm registration
         run: |
           printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           python3 << 'PYEOF'
-          import json
+          import json, time
           import google.auth.transport.requests
           from google.oauth2 import service_account
           import requests
-
-          with open('/tmp/sa.json') as f:
-              sa = json.load(f)
+          with open('/tmp/sa.json') as f: sa = json.load(f)
           PROJECT = sa['project_id']
           SHA1 = 'FA9C5E1009650591642C0E44CC82370D1489202A'
-          creds = service_account.Credentials.from_service_account_info(
-              sa, scopes=['https://www.googleapis.com/auth/cloud-platform','https://www.googleapis.com/auth/firebase'])
+          creds = service_account.Credentials.from_service_account_info(sa,
+              scopes=['https://www.googleapis.com/auth/cloud-platform','https://www.googleapis.com/auth/firebase'])
           creds.refresh(google.auth.transport.requests.Request())
           h = {'Authorization': f'Bearer {creds.token}', 'Content-Type': 'application/json'}
-
           r = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps', headers=h)
           aid = r.json()['apps'][0]['appId']
-
-          add = requests.post(
-              f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha',
+          time.sleep(3)
+          # Try add again - should now say exists in SAME project
+          add = requests.post(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha',
               headers=h, json={'shaHash': SHA1, 'certType': 'SHA_1'})
           if add.ok:
-              print(f"::notice title=Result::SUCCESS - new SHA-1 registered! status={add.status_code}")
+              print("::notice title=Confirm::Added again 200 (was not there) - checking list")
           else:
-              try:
-                  err = add.json().get('error', {})
-                  msg = err.get('message','').replace(SHA1,'NEW_SHA')
-                  print(f"::notice title=Result::status={err.get('status')} msg={msg}")
-              except:
-                  print(f"::notice title=Result::http={add.status_code}")
-
-          rs2 = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
-          after = rs2.json().get('shaCertificates', [])
-          print(f"::notice title=Count::{len(after)}")
+              err = add.json().get('error', {})
+              msg = err.get('message','').replace(SHA1,'NEW_SHA')
+              # If "different project" -> still conflict. If just exists -> registered HERE
+              if 'different project' in msg.lower():
+                  print(f"::notice title=Confirm::STILL_CONFLICT msg={msg}")
+              else:
+                  print(f"::notice title=Confirm::REGISTERED_HERE (409 same project) msg={msg}")
+          # Final list
+          rs = requests.get(f'https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/androidApps/{aid}/sha', headers=h)
+          shas = rs.json().get('shaCertificates', [])
+          print(f"::notice title=FinalCount::{len(shas)}")
+          for s in shas:
+              print(f"::notice title=Registered::{s.get('shaHash')}")
           PYEOF
