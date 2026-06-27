@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, AntDesign } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { timeAgo } from '../utils/timeAgo';
@@ -224,7 +224,7 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               });
             }}>
               <View style={styles.actionIconWrap}>
-                {repostMap[item2.id] ? <RepostIcon size={18} color={colors.accentGreen} /> : <RepostIcon size={18} color={colors.textSecondary} />}
+                {repostMap[item2.id] ? <RepostIcon size={18} color={colors.repost} /> : <RepostIcon size={18} color={colors.textSecondary} />}
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn} onPress={async () => {
@@ -235,12 +235,14 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
               });
             }}>
               <View style={styles.actionIconWrap}>
-                <AppIcon name={likeMap[item2.id] ? 'favorite' : 'favorite-border'} size="md" color={likeMap[item2.id] ? colors.like : colors.textSecondary} />
+                {likeMap[item2.id]
+                  ? <AntDesign name="heart" size={18} color={colors.like} />
+                  : <Feather name="heart" size={18} color={colors.textSecondary} />}
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.commentActionBtn} disabled>
               <View style={styles.actionIconWrap}>
-                <AppIcon name="trending-up" size="md" color={colors.textSecondary} />
+                <Feather name="bar-chart-2" size={18} color={colors.textSecondary} />
               </View>
             </TouchableOpacity>
             <View style={styles.actionPair}>
@@ -252,12 +254,14 @@ export default function PostCommentsScreen({ route, navigation }: PostCommentsSc
                 });
               }}>
                 <View style={styles.actionIconWrap}>
-                  <AppIcon name={bookmarkMap[item2.id] ? 'bookmark' : 'bookmark-border'} size="md" color={bookmarkMap[item2.id] ? colors.white : colors.textSecondary} />
+                  {bookmarkMap[item2.id]
+                    ? <AntDesign name="pushpin" size={18} color={colors.bookmark} />
+                    : <Feather name="bookmark" size={18} color={colors.textSecondary} />}
                 </View>
               </TouchableOpacity>
               <TouchableOpacity style={styles.commentActionBtn}>
                 <View style={styles.actionIconWrap}>
-                  <AppIcon name="share" size="md" color={colors.textSecondary} />
+                  <Feather name="share" size={18} color={colors.textSecondary} />
                 </View>
               </TouchableOpacity>
             </View>
