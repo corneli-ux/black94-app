@@ -82,15 +82,19 @@ function generateCodeVerifier(length: number = 128): string {
 
 /* ─── OAuth URL builder ──────────────────────────────────────────────────── */
 
-function buildAuthUrl(codeChallenge: string): string {
+function buildAuthUrl(nonce: string): string {
+  // Use the id_token implicit flow. Google returns the id_token directly in the
+  // redirect URL fragment (#id_token=...), so there is NO authorization-code
+  // exchange. This avoids the secretless-code-exchange problem where Google
+  // rejects the token POST for a web client that has no client secret.
+  // The nonce binds the token to this request (replay protection).
   const params = new URLSearchParams({
     client_id: WEB_CLIENT_ID,
     redirect_uri: FIREBASE_HANDLER,
-    response_type: 'code',
+    response_type: 'id_token',
     scope: 'openid profile email',
-    access_type: 'offline',
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
+    nonce: nonce,
+    prompt: 'select_account',
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
@@ -133,16 +137,15 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
   const [authUrl, setAuthUrl] = useState<string>('');
   const [isReady, setIsReady] = useState(false);
 
-  // Generate PKCE and build auth URL on mount
+  // Generate a nonce and build the auth URL on mount
   useEffect(() => {
     try {
-      const verifier = generateCodeVerifier(128);
-      const challenge = sha256(verifier);
-      codeVerifierRef.current = verifier;
-      setAuthUrl(buildAuthUrl(challenge));
+      const nonce = generateCodeVerifier(64);
+      codeVerifierRef.current = nonce;
+      setAuthUrl(buildAuthUrl(nonce));
       setIsReady(true);
     } catch (e: any) {
-      console.error('[GoogleSignInWebView] PKCE generation failed:', e);
+      console.error('[GoogleSignInWebView] Nonce generation failed:', e);
       onError('Failed to initialize sign-in');
     }
   }, [onError]);
@@ -188,28 +191,27 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
       if (url.startsWith(FIREBASE_HANDLER) && !handledRef.current) {
         handledRef.current = true;
 
-        // Extract auth code from URL
-        let code: string | null = null;
+        // id_token implicit flow: the token comes back in the URL FRAGMENT
+        // (after #), e.g. .../__/auth/handler#id_token=XXX&...
+        // No code exchange needed — extract the id_token directly.
+        let idToken: string | null = null;
         try {
-          const urlObj = new URL(url);
-          code = urlObj.searchParams.get('code');
+          const hashPart = url.split('#')[1] || '';
+          const params = new URLSearchParams(hashPart);
+          idToken = params.get('id_token');
+          // Some flows put it in the query string instead
+          if (!idToken) {
+            const urlObj = new URL(url);
+            idToken = urlObj.searchParams.get('id_token');
+          }
         } catch {
-          // URL parser may fail on custom schemes — use regex fallback
-          const match = url.match(/[?&]code=([^&#]+)/);
-          code = match ? match[1] : null;
+          const match = url.match(/[#&?]id_token=([^&]+)/);
+          idToken = match ? decodeURIComponent(match[1]) : null;
         }
 
-        if (code) {
-          if (__DEV__) console.log('[GoogleSignInWebView] Got auth code, exchanging for ID token...');
-          exchangeCodeForToken(code, codeVerifierRef.current)
-            .then((idToken) => {
-              if (__DEV__) console.log('[GoogleSignInWebView] Got ID token, completing sign-in');
-              onToken(idToken);
-            })
-            .catch((err) => {
-              console.error('[GoogleSignInWebView] Token exchange failed:', err);
-              onError(sanitizeErrorMessage(err.message));
-            });
+        if (idToken) {
+          if (__DEV__) console.log('[GoogleSignInWebView] Got id_token from redirect, completing sign-in');
+          onToken(idToken);
         } else {
           // Check for error in redirect
           let error: string | null = null;
@@ -221,7 +223,7 @@ export default function GoogleSignInWebView({ onToken, onError, onCancel }: Prop
             const match = url.match(/[?&]error_description=([^&#]+)/);
             error = match ? sanitizeErrorMessage(decodeURIComponent(match[1])) : null;
           }
-          onError(error || 'No authorization code received from Google');
+          onError(error || 'No ID token received from Google');
         }
 
         // Block navigation — don't load the Firebase handler page

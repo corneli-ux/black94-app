@@ -125,11 +125,11 @@ def main() -> int:
             print(f"      WARNING: Add SHA-1 returned HTTP {r.status_code}: {r.text[:300]}")
             # Continue anyway — the SHA-1 might already be there from a previous run
 
-    # Wait briefly for the SHA-1 to propagate to Google Cloud Console
-    # (usually instant, but the next config download occasionally lags)
-    if not already_registered:
-        print("      Waiting 5s for propagation...")
-        time.sleep(5)
+    # Wait for the SHA-1 to propagate to Google Cloud Console and for the
+    # Android OAuth client (type 1) to be auto-created. This can take longer
+    # than the registration call itself, so we always wait.
+    print("      Waiting 10s for SHA-1 propagation + OAuth client creation...")
+    time.sleep(10)
 
     # ── Step 4: Download a FRESH google-services.json ──
     print(f"[4/5] Downloading fresh google-services.json...")
