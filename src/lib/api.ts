@@ -884,7 +884,7 @@ export async function toggleLike(postId: string, currentlyLiked: boolean): Promi
       try { await postRef.update({ likeCount: firestore.FieldValue.increment(-1) }); } catch {}
       return false; // now unliked
     } else {
-      await likeRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
+      await likeRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() }, { merge: true });
       try { await postRef.update({ likeCount: firestore.FieldValue.increment(1) }); } catch {}
 
       // ── Notification: tell post author someone liked their post ──
@@ -929,7 +929,7 @@ export async function toggleBookmark(postId: string, currentlyBookmarked: boolea
       await bookmarkRef.delete();
       return false;
     } else {
-      await bookmarkRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
+      await bookmarkRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() }, { merge: true });
       return true;
     }
   } catch (e) {
@@ -993,7 +993,7 @@ export async function toggleRepost(postId: string, currentlyReposted: boolean): 
       try { await firestore().collection('posts').doc(repostPostId).delete(); } catch {}
       return { success: true, undone: true };
     } else {
-      await repostRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() });
+      await repostRef.set({ postId, userId, createdAt: firestore.FieldValue.serverTimestamp() }, { merge: true });
       try { await postRef.update({ repostCount: firestore.FieldValue.increment(1) }); } catch {}
 
       // ── Create a visible repost post in the posts collection ──
@@ -2387,7 +2387,7 @@ export async function toggleCommentLike(commentId: string, currentlyLiked: boole
       await likeRef.set({
         userId,
         likedAt: firestore.FieldValue.serverTimestamp(),
-      });
+      }, { merge: true });
       await firestore().collection('post_comments').doc(commentId).update({
         likeCount: firestore.FieldValue.increment(1),
       });
@@ -2428,7 +2428,7 @@ export async function toggleCommentRepost(commentId: string, currentlyReposted: 
       await repostRef.set({
         userId,
         repostedAt: firestore.FieldValue.serverTimestamp(),
-      });
+      }, { merge: true });
       await firestore().collection('post_comments').doc(commentId).update({
         repostCount: firestore.FieldValue.increment(1),
       });
@@ -2488,7 +2488,7 @@ export async function toggleCommentBookmark(commentId: string, currentlyBookmark
       await bookmarkRef.set({
         userId,
         bookmarkedAt: firestore.FieldValue.serverTimestamp(),
-      });
+      }, { merge: true });
       if (__DEV__) console.log(`[CommentBookmark] Added bookmark on comment ${commentId}`);
       return true;
     }

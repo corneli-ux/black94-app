@@ -282,6 +282,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   const [showHeart, setShowHeart] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [refreshedUrls, setRefreshedUrls] = useState<Record<string, string>>({});
+  const [qImgFailed, setQImgFailed] = useState(false);
   const refreshAttemptedRef = React.useRef(false);
   const lastTapRef = useRef(0);
 
@@ -545,18 +546,14 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
                     {post.quoteCaption}
                   </Text>
                 ) : null}
-                {post.quoteMediaUrls && post.quoteMediaUrls.length > 0 && (() => {
-                  const [qImgFailed, setQImgFailed] = React.useState(false);
-                  if (qImgFailed) return null;
-                  return (
-                    <Image
-                      source={{ uri: post.quoteMediaUrls![0] }}
-                      style={styles.quoteCardImage}
-                      resizeMode="cover"
-                      onError={() => setQImgFailed(true)}
-                    />
-                  );
-                })()}
+                {post.quoteMediaUrls && post.quoteMediaUrls.length > 0 && !qImgFailed && (
+                  <Image
+                    source={{ uri: post.quoteMediaUrls![0] }}
+                    style={styles.quoteCardImage}
+                    resizeMode="cover"
+                    onError={() => setQImgFailed(true)}
+                  />
+                )}
               </View>
             </TouchableOpacity>
           )}
