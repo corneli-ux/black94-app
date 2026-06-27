@@ -200,16 +200,24 @@ export default function AuthScreen() {
       {/* ── Subtle gold radial glow at top ── */}
       <View style={s.glowLayer} pointerEvents="none">
         <LinearGradient
-          colors={['rgba(212,175,55,0.16)', 'rgba(212,175,55,0.04)', 'rgba(0,0,0,0)']}
+          colors={['rgba(212,175,55,0.18)', 'rgba(212,175,55,0.05)', 'rgba(0,0,0,0)']}
           locations={[0, 0.4, 1]}
           style={s.glowOuter}
         />
         <LinearGradient
-          colors={['rgba(212,175,55,0.22)', 'rgba(212,175,55,0)']}
+          colors={['rgba(212,175,55,0.25)', 'rgba(212,175,55,0)']}
           locations={[0, 1]}
           style={s.glowInner}
         />
       </View>
+
+      {/* ── Deep vignette at bottom for richness ── */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(10,8,2,0.6)', 'rgba(0,0,0,0.9)']}
+        locations={[0, 0.6, 1]}
+        style={s.bottomVignette}
+        pointerEvents="none"
+      />
 
       <KeyboardAvoidingView
         style={{ flex: 1, zIndex: 1 }}
@@ -220,12 +228,13 @@ export default function AuthScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Logo + Wordmark ── */}
+          {/* ── Logo Wordmark ── */}
           <Animated.View style={[s.logoSection, makeEntrance(fadeLogo)]}>
-            <View style={s.logoMark}>
-              <Text style={s.logoMarkText}>94</Text>
-            </View>
-            <Text style={s.wordmark}>BLACK94</Text>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={s.wordmarkImage}
+              resizeMode="contain"
+            />
           </Animated.View>
 
           {/* ── Tagline ── */}
@@ -428,6 +437,11 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     zIndex: 0,
   },
+  bottomVignette: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    height: SCREEN_HEIGHT * 0.3,
+    zIndex: 0,
+  },
   glowOuter: {
     position: 'absolute',
     top: -SCREEN_HEIGHT * 0.1,
@@ -454,33 +468,12 @@ const s = StyleSheet.create({
   // ── Logo section ──
   logoSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    marginTop: 8,
   },
-  logoMark: {
-    width: 72, height: 72,
-    borderRadius: 20,
-    backgroundColor: colors.accent,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  logoMarkText: {
-    color: '#000',
-    fontSize: 30,
-    fontWeight: '900',
-    fontStyle: 'italic',
-    letterSpacing: -1.5,
-  },
-  wordmark: {
-    fontSize: 30,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: 8,
-    textAlign: 'center',
+  wordmarkImage: {
+    width: 260,
+    height: 74,
   },
 
   // ── Tagline ──

@@ -105,10 +105,10 @@ export default function FeedMedia({ uri, onRefreshUrl }: {
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 10,
-    borderRadius: 12,
+    marginTop: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#111',
+    backgroundColor: '#0a0a0a',
     borderWidth: 1,
     borderColor: colors.borderSubtle,
   },
