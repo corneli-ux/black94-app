@@ -39,7 +39,7 @@ PROJECT = "memora-bond"
 PACKAGE = "com.black94.app"
 # SHA-1 of keystore/release.keystore (keyAlias: black94, storePass: black94release)
 # Verify with: keytool -list -v -keystore keystore/release.keystore -storepass black94release -alias black94
-RELEASE_SHA1 = "F53F0D14741D8F88177E49AAB82FD02BA2D6DDC4"
+RELEASE_SHA1 = "FA9C5E1009650591642C0E44CC82370D1489202A"
 
 
 def main() -> int:

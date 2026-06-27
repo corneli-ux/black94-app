@@ -5,7 +5,7 @@ import requests
 
 PROJECT = 'memora-bond'
 PACKAGE = 'com.black94.app'
-SHA1 = 'F53F0D14741D8F88177E49AAB82FD02BA2D6DDC4'
+SHA1 = 'FA9C5E1009650591642C0E44CC82370D1489202A'
 
 sa_path = sys.argv[1] if len(sys.argv) > 1 else '/tmp/sa.json'
 with open(sa_path) as f:

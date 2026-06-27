@@ -27,7 +27,7 @@ new = """    signingConfigs {
         release {
             storeFile file('../release.keystore')
             storePassword 'black94release'
-            keyAlias 'black94'
+            keyAlias 'black94new'
             keyPassword 'black94release'
         }
     }"""
