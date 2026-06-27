@@ -1,0 +1,52 @@
+name: Verify SHA-1 Registration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install google-auth google-auth-httplib2 requests
+      - name: Register SHA-1 and verify
+        run: |
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
+          python3 scripts/ensure_sha1_registered.py /tmp/sa.json 2>&1 | tee /tmp/out.txt
+          echo "===RESULT==="
+          # Check if google-services.json now has BOTH type-1 and type-3 clients
+          python3 << 'PYEOF'
+          import json
+          try:
+              with open('google-services.json') as f:
+                  gsf = json.load(f)
+              types_found = set()
+              for client in gsf.get('client', []):
+                  for oauth in client.get('oauth_client', []):
+                      types_found.add(oauth.get('client_type'))
+                  # Check for android certs
+                  ci = client.get('client_info', {})
+                  print("Package:", ci.get('android_client_info', {}).get('package_name'))
+              print("OAuth client types in google-services.json:", sorted(types_found))
+              print("Has type-1 (Android):", 1 in types_found)
+              print("Has type-3 (Web):", 3 in types_found)
+          except Exception as e:
+              print("Error reading config:", e)
+          PYEOF
+      - name: Write result to repo
+        run: |
+          {
+            echo "# SHA-1 Verification Result"
+            echo '```'
+            cat /tmp/out.txt
+            echo '```'
+          } > SHA1_VERIFY.md
+          git config user.email "ci@black94.app"
+          git config user.name "CI"
+          git add SHA1_VERIFY.md
+          git diff --staged --quiet || git commit -m "verify: SHA-1 registration result"
+          git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/corneli-ux/black94-app.git HEAD:main || true
