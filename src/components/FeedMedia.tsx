@@ -33,8 +33,10 @@ export default function FeedMedia({ uri, onRefreshUrl }: {
     const { width, height } = e.nativeEvent.source;
     if (width && height) {
       const ratio = width / height;
-      // Clamp: min 0.5 (portrait), max 2 (very wide)
-      setAspectRatio(Math.min(Math.max(ratio, 0.5), 2));
+      // X-style framing: cap portrait so tall screenshots don't dominate the feed.
+      // Allow landscape up to 2:1, but clamp portrait to ~4:5 (0.8). Anything
+      // taller than that is shown in a 4:5 frame with cover crop, like X/Instagram.
+      setAspectRatio(Math.min(Math.max(ratio, 0.8), 2));
     }
     setLoaded(true);
     setFailed(false);
@@ -51,7 +53,9 @@ export default function FeedMedia({ uri, onRefreshUrl }: {
 
   if (!uri) return null;
 
-  const displayHeight = CARD_WIDTH / aspectRatio;
+  // Cap the maximum rendered height so a tall image never dominates the screen.
+  const MAX_MEDIA_HEIGHT = 520;
+  const displayHeight = Math.min(CARD_WIDTH / aspectRatio, MAX_MEDIA_HEIGHT);
 
   if (failed) {
     return (
