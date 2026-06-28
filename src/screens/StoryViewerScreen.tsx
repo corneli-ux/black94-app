@@ -6,16 +6,32 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Animated,
   PanResponder,
   StatusBar,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  withSpring,
+  withSequence,
+  withRepeat,
+  cancelAnimation,
+  runOnJS,
+  interpolate,
+  Extrapolation,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { colors } from '../theme/colors';
 import { timeAgo } from '../utils/timeAgo';
 import { AppIcon } from '../components/icons';
+import { spring, DURATIONS, EASINGS } from '../constants/animations';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const STORY_DURATION = 5000;
@@ -42,16 +58,36 @@ export default function StoryViewerScreen({ navigation, route }: any) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [isPaused, setIsPaused] = useState(false);
   const [selectedPollOption, setSelectedPollOption] = useState<string | null>(null);
-  const votingRef = useRef(false); // Prevents poll vote double-tap race
+  const votingRef = useRef(false);
   const [pollOptions, setPollOptions] = useState<StoryItem['pollOptions']>(undefined);
   const [userVote, setUserVote] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replySending, setReplySending] = useState(false);
 
-  const panResponderRef = useRef<any>(null);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const pausedProgressRef = useRef(0); // BUG FIX: Save progress value when pausing
   const currentUser = auth()?.currentUser;
 
-  // Load stories
+  // Reanimated-driven progress (0 → 1). We animate this directly with
+  // withTiming on the UI thread for a buttery fill instead of the old
+  // Animated.timing that ran on the JS thread.
+  const progressSV = useSharedValue(0);
+  // Pause scale — the whole story scales down slightly when held.
+  const storyScale = useSharedValue(1);
+  // Subtle pulse on the pause indicator.
+  const pausePulse = useSharedValue(0);
+
+  // Track the timestamp when the current story started playing so we can
+  // compute remaining time when resuming from a pause.
+  const startedAtRef = useRef<number>(0);
+  const remainingRef = useRef<number>(STORY_DURATION);
+  const animTokenRef = useRef(0); // bumps on every story switch to cancel old timers
+
+  // Stable ref to the latest goNext callback. Worklet completion handlers
+  // call this via runOnJS so they always invoke the freshest closure.
+  const goNextRef = useRef<() => void>(() => {});
+
+  /* ─────────────────────────────────────────────────────────────────────
+   * Story loading
+   * ───────────────────────────────────────────────────────────────────── */
   useEffect(() => {
     const loadStories = async () => {
       try {
@@ -65,16 +101,9 @@ export default function StoryViewerScreen({ navigation, route }: any) {
 
         if (storyIds && storyIds.length > 0) {
           allDocs = allDocs.filter((d) => storyIds.includes(d.id));
-          allDocs.sort((a, b) => {
-            const aIdx = storyIds.indexOf(a.id);
-            const bIdx = storyIds.indexOf(b.id);
-            return aIdx - bIdx;
-          });
+          allDocs.sort((a, b) => storyIds.indexOf(a.id) - storyIds.indexOf(b.id));
         } else if (storyGroupId) {
-          allDocs = allDocs.filter((d) => {
-            const data = d.data();
-            return data.authorId === storyGroupId;
-          });
+          allDocs = allDocs.filter((d) => d.data().authorId === storyGroupId);
         }
 
         const items: StoryItem[] = allDocs.map((d) => {
@@ -103,14 +132,15 @@ export default function StoryViewerScreen({ navigation, route }: any) {
     loadStories();
   }, [storyIds, storyGroupId]);
 
-  // Check if user already voted when story changes
+  /* ─────────────────────────────────────────────────────────────────────
+   * Poll-vote check on story change
+   * ───────────────────────────────────────────────────────────────────── */
   useEffect(() => {
     const currentStory = stories[currentIndex];
     if (currentStory && currentUser && currentStory.id) {
       setSelectedPollOption(null);
       setPollOptions(currentStory.pollOptions);
 
-      // Check if user already voted
       const checkVote = async () => {
         try {
           const voteDoc = await firestore()
@@ -122,7 +152,6 @@ export default function StoryViewerScreen({ navigation, route }: any) {
           if (voteDoc.exists) {
             const voteData = voteDoc.data();
             setUserVote(voteData.optionIndex ?? null);
-            // Highlight the selected option
             if (voteData.optionIndex != null) {
               const opts = currentStory.pollOptions;
               if (opts && opts.length > voteData.optionIndex) {
@@ -132,113 +161,218 @@ export default function StoryViewerScreen({ navigation, route }: any) {
           } else {
             setUserVote(null);
           }
-        } catch (e) {
-          if (__DEV__) console.warn('[StoryViewerScreen] Failed to check vote:', e);
+        } catch {
           setUserVote(null);
         }
       };
       checkVote();
     }
-  }, [currentIndex, stories]);
+  }, [currentIndex, stories, currentUser]);
 
-  // Ref for goNext to avoid double-fire from useEffect dependency changes
-  const goNextRef = useRef(goNext);
-  goNextRef.current = goNext;
+  /* ─────────────────────────────────────────────────────────────────────
+   * Progress bar animation — Reanimated 3, UI-thread smooth fill.
+   * Pauses cleanly by stopping the animation and remembering the
+   * remaining time, then resumes from that exact spot.
+   * ───────────────────────────────────────────────────────────────────── */
 
-  // Progress bar animation
+  // Stable JS-side advance handler. runOnJS requires a stable function
+  // reference — passing an inline arrow would capture a stale closure.
+  const handleProgressComplete = useCallback(() => {
+    goNextRef.current();
+  }, []);
+
   useEffect(() => {
     if (stories.length === 0) return;
+    const token = ++animTokenRef.current;
 
-    if (isPaused) {
-      // BUG FIX: Save current progress before pausing so we resume from the same spot
-      progressAnim.stopAnimation();
-      progressAnim.addListener(({ value }) => { pausedProgressRef.current = value; });
-      setTimeout(() => progressAnim.removeAllListeners(), 50);
-      return;
-    }
+    // Reset for new story.
+    progressSV.value = 0;
+    remainingRef.current = STORY_DURATION;
+    startedAtRef.current = Date.now();
 
-    // BUG FIX: Resume from saved progress on unpause, reset to 0 only for new stories
-    const startValue = pausedProgressRef.current > 0.01 ? pausedProgressRef.current : 0;
-    pausedProgressRef.current = 0;
-    progressAnim.setValue(startValue);
-    Animated.timing(progressAnim, {
-      toValue: 1,
-      duration: STORY_DURATION * (1 - startValue), // remaining time
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) {
-        goNextRef.current();
+    if (isPaused) return; // wait for unpause
+
+    progressSV.value = withTiming(1, {
+      duration: STORY_DURATION,
+      easing: EASINGS.decel,
+    }, (finished) => {
+      if (finished && token === animTokenRef.current) {
+        runOnJS(handleProgressComplete)();
       }
     });
 
     return () => {
-      progressAnim.stopAnimation();
+      cancelAnimation(progressSV);
     };
-  }, [currentIndex, stories.length, isPaused, progressAnim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, stories.length]);
 
-  // Pan responder for swipe dismiss
+  // Pause / resume handling.
+  useEffect(() => {
+    if (isPaused) {
+      // Snapshot current progress so we can resume from the same spot.
+      const elapsed = Date.now() - startedAtRef.current;
+      remainingRef.current = Math.max(0, remainingRef.current - elapsed);
+      cancelAnimation(progressSV);
+      // Pause feedback: scale down slightly + pulse the indicator.
+      storyScale.value = withSpring(0.97, spring.gentle);
+      pausePulse.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: DURATIONS.slow, easing: EASINGS.fade }),
+          withTiming(0.6, { duration: DURATIONS.slow, easing: EASINGS.fade }),
+        ),
+        -1,
+        true,
+      );
+    } else {
+      // Resume: animate the remaining duration from current progress.
+      const currentProgress = progressSV.value;
+      const remainingDuration = Math.max(
+        0,
+        remainingRef.current * (1 - currentProgress),
+      );
+      const token = ++animTokenRef.current;
+      startedAtRef.current = Date.now();
+      progressSV.value = withTiming(1, {
+        duration: remainingDuration || 1,
+        easing: EASINGS.decel,
+      }, (finished) => {
+        if (finished && token === animTokenRef.current) {
+          runOnJS(handleProgressComplete)();
+        }
+      });
+      storyScale.value = withSpring(1, spring.gentle);
+      pausePulse.value = 0;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPaused]);
+
+  /* ─────────────────────────────────────────────────────────────────────
+   * PanResponder for swipe-to-dismiss (down) and story navigation (left/right)
+   * ───────────────────────────────────────────────────────────────────── */
+  const panResponderRef = useRef<any>(null);
   useEffect(() => {
     panResponderRef.current = PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return gestureState.dy > 30 && Math.abs(gestureState.dx) < 50;
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > SCREEN_HEIGHT * 0.25) {
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 12 || g.dy > 20,
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > SCREEN_HEIGHT * 0.2 && Math.abs(g.dy) > Math.abs(g.dx)) {
           navigation.goBack();
+        } else if (g.dx < -SCREEN_WIDTH * 0.2) {
+          goNextRef.current();
+        } else if (g.dx > SCREEN_WIDTH * 0.2) {
+          goPrevRef.current();
         }
       },
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation]);
 
   const goNext = useCallback(() => {
     if (currentIndex < stories.length - 1) {
-      progressAnim.setValue(0);
+      progressSV.value = 0;
       setCurrentIndex((prev) => prev + 1);
     } else {
       navigation.goBack();
     }
-  }, [currentIndex, stories.length, navigation, progressAnim]);
+  }, [currentIndex, stories.length, navigation, progressSV]);
 
   const goPrev = useCallback(() => {
     if (currentIndex > 0) {
-      progressAnim.setValue(0);
+      progressSV.value = 0;
       setCurrentIndex((prev) => prev - 1);
     }
-  }, [currentIndex, progressAnim]);
+  }, [currentIndex, progressSV]);
 
-  const handleTapLeft = useCallback(() => {
-    goPrev();
-  }, [goPrev]);
+  // Keep the latest goNext/goPrev in a ref so the useEffect above picks them up.
+  goNextRef.current = goNext;
 
-  const handleTapRight = useCallback(() => {
-    goNext();
-  }, [goNext]);
+  const handleTapLeft = useCallback(() => goPrev(), [goPrev]);
+  const handleTapRight = useCallback(() => goNext(), [goNext]);
 
-  const handleLongPressStart = useCallback(() => {
-    setIsPaused(true);
-  }, []);
+  const handleLongPressStart = useCallback(() => setIsPaused(true), []);
+  const handleLongPressEnd = useCallback(() => setIsPaused(false), []);
 
-  const handleLongPressEnd = useCallback(() => {
-    setIsPaused(false);
-  }, []);
+  /* ─────────────────────────────────────────────────────────────────────
+   * Reply to story — sends a chat message or creates a chat if needed.
+   * Story replies go to the story author's DM thread.
+   * ───────────────────────────────────────────────────────────────────── */
+  const handleSendReply = useCallback(async () => {
+    if (!currentUser || !replyText.trim() || replySending) return;
+    const currentStory = stories[currentIndex];
+    if (!currentStory) return;
 
+    setReplySending(true);
+    const text = replyText.trim();
+    setReplyText('');
+
+    try {
+      // Find existing chat or create one.
+      const myUid = currentUser.uid;
+      const theirUid = currentStory.authorId;
+
+      const snap1 = await firestore().collection('chats').where('user1Id', '==', myUid).get();
+      let chatId = snap1.docs.find(d => d.data().user2Id === theirUid)?.id;
+      if (!chatId) {
+        const snap2 = await firestore().collection('chats').where('user2Id', '==', myUid).get();
+        chatId = snap2.docs.find(d => d.data().user1Id === theirUid)?.id;
+      }
+      if (!chatId) {
+        const ref = await firestore().collection('chats').add({
+          user1Id: myUid,
+          user2Id: theirUid,
+          lastMessage: text,
+          lastMessageTime: firestore.FieldValue.serverTimestamp(),
+          unreadUser1: 0,
+          unreadUser2: 1,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+        });
+        chatId = ref.id;
+      } else {
+        await firestore().collection('chats').doc(chatId).update({
+          lastMessage: text,
+          lastMessageTime: firestore.FieldValue.serverTimestamp(),
+          unreadUser2: firestore.FieldValue.increment(1),
+        });
+      }
+
+      await firestore().collection('chats').doc(chatId).collection('messages').add({
+        text,
+        senderId: myUid,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        type: 'text',
+        storyReply: currentStory.id,
+      });
+
+      // Brief haptic-like scale punch on the input as confirmation.
+      replyScale.value = withSequence(
+        withSpring(0.96, spring.snappy),
+        withSpring(1, spring.bouncy),
+      );
+    } catch (e) {
+      if (__DEV__) console.warn('[StoryViewerScreen] reply failed:', e);
+    } finally {
+      setReplySending(false);
+    }
+  }, [currentUser, replyText, replySending, stories, currentIndex]);
+
+  const replyScale = useSharedValue(1);
+
+  /* ─────────────────────────────────────────────────────────────────────
+   * Poll vote handler
+   * ───────────────────────────────────────────────────────────────────── */
   const handlePollVote = useCallback((optionId: string) => {
-    // Guard against double-tap race: use a ref instead of state to avoid
-    // stale closure issues when two taps fire before re-render.
     if (votingRef.current || selectedPollOption || !currentUser) return;
     votingRef.current = true;
 
     const currentStory = stories[currentIndex];
     if (!currentStory) { votingRef.current = false; return; }
 
-    // Find the option index
     const optionIndex = currentStory.pollOptions?.findIndex(o => o.id === optionId) ?? -1;
     if (optionIndex < 0) { votingRef.current = false; return; }
 
-    // Save vote to Firestore
     const doVote = async () => {
       try {
-        // Save the vote
         await firestore()
           .collection('stories')
           .doc(currentStory.id)
@@ -249,7 +383,6 @@ export default function StoryViewerScreen({ navigation, route }: any) {
             votedAt: firestore.FieldValue.serverTimestamp(),
           });
 
-        // Increment vote count on the story doc
         const pollOpts = [...(currentStory.pollOptions || [])];
         if (pollOpts[optionIndex]) {
           pollOpts[optionIndex] = {
@@ -261,16 +394,13 @@ export default function StoryViewerScreen({ navigation, route }: any) {
         await firestore()
           .collection('stories')
           .doc(currentStory.id)
-          .update({
-            pollOptions: pollOpts,
-          });
+          .update({ pollOptions: pollOpts });
 
-        // Update local state
         setSelectedPollOption(optionId);
         setUserVote(optionIndex);
         setPollOptions(pollOpts);
       } catch (e) {
-        console.error('[StoryViewerScreen] Vote failed:', e);
+        if (__DEV__) console.warn('[StoryViewerScreen] Vote failed:', e);
       } finally {
         votingRef.current = false;
       }
@@ -279,10 +409,11 @@ export default function StoryViewerScreen({ navigation, route }: any) {
     doVote();
   }, [selectedPollOption, currentUser, currentIndex, stories]);
 
-  const handleClose = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
+  const handleClose = useCallback(() => navigation.goBack(), [navigation]);
 
+  /* ─────────────────────────────────────────────────────────────────────
+   * Render
+   * ───────────────────────────────────────────────────────────────────── */
   const currentStory = stories[currentIndex];
 
   if (!currentStory) {
@@ -296,68 +427,71 @@ export default function StoryViewerScreen({ navigation, route }: any) {
   const isTextStory = currentStory.format === 'text';
   const isPollStory = currentStory.format === 'poll' && currentStory.pollOptions;
   const isImageStory = !isTextStory && !isPollStory && currentStory.mediaUrl;
-
-  const progressBars = stories.map((_, i) => i);
-
   const totalVotes = pollOptions?.reduce((sum, o) => sum + o.votes, 0) ?? 0;
+
+  // Animated styles
+  const storyAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: storyScale.value }],
+  }));
+
+  const pauseIndicatorStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(pausePulse.value, [0, 1], [0, 1], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(pausePulse.value, [0, 1], [0.9, 1.05], Extrapolation.CLAMP) }],
+  }));
+
+  // Build progress bars: each completed bar = 1, current = progressSV, future = 0.
+  const renderProgressBar = (_: any, i: number) => {
+    const isPast = i < currentIndex;
+    const isCurrent = i === currentIndex;
+    return (
+      <View key={i} style={styles.progressTrack}>
+        <ProgressFill
+          isPast={isPast}
+          isCurrent={isCurrent}
+          progress={progressSV}
+        />
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container} {...(panResponderRef.current?.panHandlers ?? {})}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Background */}
-      {isTextStory ? (
-        <View style={[styles.gradientBg, { backgroundColor: getGradientColor(currentStory.mediaUrl) }]}>
-          {currentStory.content ? (
-            <Text style={[styles.textStoryContent, currentStory.fontSize ? { fontSize: currentStory.fontSize } : undefined]}>{currentStory.content}</Text>
-          ) : null}
-        </View>
-      ) : isImageStory ? (
-        <Image
-          source={{ uri: currentStory.mediaUrl }}
-          style={styles.imageBg}
-          resizeMode="cover"
-        />
-      ) : (
-        <View style={[styles.gradientBg, { backgroundColor: colors.bg }]} />
-      )}
+      {/* Background wrapped in a scale-animated view for the long-press pause effect */}
+      <Animated.View style={[StyleSheet.absoluteFillObject, storyAnimatedStyle]}>
+        {isTextStory ? (
+          <View style={[styles.gradientBg, { backgroundColor: getGradientColor(currentStory.mediaUrl) }]}>
+            {currentStory.content ? (
+              <Text style={[styles.textStoryContent, currentStory.fontSize ? { fontSize: currentStory.fontSize } : undefined]}>
+                {currentStory.content}
+              </Text>
+            ) : null}
+          </View>
+        ) : isImageStory ? (
+          <Image
+            source={{ uri: currentStory.mediaUrl }}
+            style={styles.imageBg}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.gradientBg, { backgroundColor: colors.bg }]} />
+        )}
+      </Animated.View>
 
-      {/* Dark overlay */}
-      {!isTextStory && (
-        <View style={styles.darkOverlay} />
-      )}
+      {/* Dark overlay for readability of UI on top of images */}
+      {!isTextStory && <View style={styles.darkOverlay} />}
 
       {/* Progress Bars */}
       <View style={styles.progressContainer}>
-        {progressBars.map((_, i) => (
-          <View key={i} style={styles.progressTrack}>
-            {i < currentIndex ? (
-              <View style={[styles.progressFill, styles.progressComplete]} />
-            ) : i === currentIndex ? (
-              <Animated.View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: progressAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0%', '100%'],
-                    }),
-                  },
-                ]}
-              />
-            ) : null}
-          </View>
-        ))}
+        {stories.map((_, i) => renderProgressBar(_, i))}
       </View>
 
       {/* Author Bar */}
       <View style={styles.authorBar}>
         <View style={styles.authorInfo}>
           {currentStory.authorProfileImage ? (
-            <Image
-              source={{ uri: currentStory.authorProfileImage }}
-              style={styles.authorAvatar}
-            />
+            <Image source={{ uri: currentStory.authorProfileImage }} style={styles.authorAvatar} />
           ) : (
             <View style={[styles.authorAvatar, styles.authorAvatarFallback]}>
               <Text style={styles.authorAvatarFallbackText}>
@@ -378,30 +512,30 @@ export default function StoryViewerScreen({ navigation, route }: any) {
           </View>
         </View>
         <View style={styles.authorMeta}>
-          <Text style={styles.storyTime}>
-            {timeAgo(currentStory.createdAt)}
-          </Text>
+          <Text style={styles.storyTime}>{timeAgo(currentStory.createdAt)}</Text>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.7}>
             <AppIcon name="close" size="lg" color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Content / Tap Zones */}
+      {/* Content / Tap Zones (with long-press to pause) */}
       {!isTextStory && !isPollStory && (
         <View style={styles.tapZoneContainer}>
           <TouchableOpacity
             style={styles.tapZone}
             onPress={handleTapLeft}
             activeOpacity={1}
-            onPressIn={handleLongPressStart}
+            delayLongPress={200}
+            onLongPress={handleLongPressStart}
             onPressOut={handleLongPressEnd}
           />
           <TouchableOpacity
             style={styles.tapZone}
             onPress={handleTapRight}
             activeOpacity={1}
-            onPressIn={handleLongPressStart}
+            delayLongPress={200}
+            onLongPress={handleLongPressStart}
             onPressOut={handleLongPressEnd}
           />
         </View>
@@ -413,8 +547,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
           <Text style={styles.pollQuestion}>{currentStory.content}</Text>
           {pollOptions.map((option) => {
             const isSelected = selectedPollOption === option.id;
-            const votePercent =
-              totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0;
+            const votePercent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0;
             const hasVoted = !!selectedPollOption;
 
             return (
@@ -430,27 +563,13 @@ export default function StoryViewerScreen({ navigation, route }: any) {
                 disabled={hasVoted}
               >
                 {hasVoted && (
-                  <View
-                    style={[
-                      styles.pollOptionFill,
-                      {
-                        width: `${votePercent}%`,
-                      },
-                    ]}
-                  />
+                  <View style={[styles.pollOptionFill, { width: `${votePercent}%` }]} />
                 )}
                 <View style={styles.pollOptionContent}>
-                  <Text
-                    style={[
-                      styles.pollOptionText,
-                      hasVoted && isSelected && styles.pollOptionTextSelected,
-                    ]}
-                  >
+                  <Text style={[styles.pollOptionText, hasVoted && isSelected && styles.pollOptionTextSelected]}>
                     {option.text}
                   </Text>
-                  {hasVoted && (
-                    <Text style={styles.pollVotePercent}>{votePercent}%</Text>
-                  )}
+                  {hasVoted && <Text style={styles.pollVotePercent}>{votePercent}%</Text>}
                 </View>
               </TouchableOpacity>
             );
@@ -459,19 +578,61 @@ export default function StoryViewerScreen({ navigation, route }: any) {
         </View>
       )}
 
-      {/* Swipe up hint */}
-      <View style={styles.swipeHintContainer}>
-        <Text style={styles.swipeHint}>Swipe down to dismiss</Text>
-      </View>
-
-      {/* Pause indicator */}
-      {isPaused && (
-        <View style={styles.pauseIndicator}>
-          <Text style={styles.pauseText}>⏸ Paused</Text>
-        </View>
+      {/* Reply bar — only on non-text stories. Story replies go to the
+          author's DM thread (see handleSendReply). */}
+      {!isTextStory && !isPollStory && currentUser?.uid !== currentStory.authorId && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.replyContainerWrap}
+          pointerEvents="box-none"
+        >
+          <Animated.View style={[styles.replyContainer, { transform: [{ scale: replyScale }] }]}>
+            <TextInput
+              style={styles.replyInput}
+              placeholder={`Reply to ${currentStory.authorDisplayName || currentStory.authorUsername || 'story'}…`}
+              placeholderTextColor={colors.textMuted}
+              value={replyText}
+              onChangeText={setReplyText}
+              onFocus={() => setIsPaused(true)}
+              onBlur={() => setIsPaused(false)}
+              returnKeyType="send"
+              onSubmitEditing={handleSendReply}
+            />
+            <TouchableOpacity
+              style={[styles.replySendBtn, !replyText.trim() && styles.replySendBtnDisabled]}
+              onPress={handleSendReply}
+              disabled={!replyText.trim() || replySending}
+            >
+              <AppIcon name="send" size="sm" color={replyText.trim() ? colors.text : colors.textMuted} />
+            </TouchableOpacity>
+          </Animated.View>
+        </KeyboardAvoidingView>
       )}
+
+      {/* Pause indicator (animated) */}
+      <Animated.View style={[styles.pauseIndicator, pauseIndicatorStyle]} pointerEvents="none">
+        <View style={styles.pauseChip}>
+          <Text style={styles.pauseText}>Paused</Text>
+        </View>
+      </Animated.View>
     </View>
   );
+}
+
+/* ── ProgressFill — animated via the shared progressSV value ──────────── */
+function ProgressFill({
+  isPast, isCurrent, progress,
+}: { isPast: boolean; isCurrent: boolean; progress: SharedValue<number>; }) {
+  const style = useAnimatedStyle(() => {
+    let pct: number;
+    if (isPast) pct = 1;
+    else if (isCurrent) pct = progress.value;
+    else pct = 0;
+    return {
+      width: `${pct * 100}%`,
+    };
+  });
+  return <Animated.View style={[styles.progressFill, style]} />;
 }
 
 function getGradientColor(mediaUrl: string): string {
@@ -544,9 +705,6 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: colors.white,
     borderRadius: 1.25,
-  },
-  progressComplete: {
-    width: '100%',
   },
   authorBar: {
     position: 'absolute',
@@ -628,10 +786,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  closeButtonText: {
-    fontSize: 14,
-    color: colors.white,
-  },
   tapZoneContainer: {
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
@@ -701,17 +855,44 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
-  swipeHintContainer: {
+  replyContainerWrap: {
     position: 'absolute',
-    bottom: 40,
+    bottom: 0,
     left: 0,
     right: 0,
-    alignItems: 'center',
-    zIndex: 15,
+    zIndex: 18,
   },
-  swipeHint: {
-    fontSize: 12,
-    color: colors.borderWhite40,
+  replyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 12,
+    marginBottom: 32,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.borderSubtleAlt,
+    gap: 8,
+  },
+  replyInput: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxHeight: 80,
+  },
+  replySendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  replySendBtnDisabled: {
+    backgroundColor: colors.surfaceLight,
   },
   pauseIndicator: {
     position: 'absolute',
@@ -721,8 +902,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 25,
   },
+  pauseChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderSubtleAlt,
+  },
   pauseText: {
-    fontSize: 16,
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.text,
   },
 });

@@ -5,8 +5,11 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withSpring, withSequence, useSharedValue } from 'react-native-reanimated';
 import { colors } from '../theme/colors';
+import { spring } from '../constants/animations';
+import { AnimatedPressableScale } from '../components/AnimatedPressableScale';
+import { PullToRefresh } from '../components/PullToRefresh';
 import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive';
 import { votePostPoll, Post, PostPollData, tsToMillis } from '../lib/api';
 import * as ExpoLinking from 'expo-linking';
@@ -404,8 +407,26 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               const caption = post.caption ? `\n\n"${post.caption.slice(0, 120)}${post.caption.length > 120 ? '...' : ''}` : '';
               Alert.alert('Share', '', [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Copy Link', onPress: async () => { try { await Share.share({ message: `${author} posted on Black94${caption}\n\n${webUrl}`, url: deepLink }); } catch {} },
-                { text: 'Send via DM', onPress: () => { navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages', params: { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername } } }); },
+                {
+                  text: 'Copy Link',
+                  onPress: async () => {
+                    try {
+                      await Share.share({ message: `${author} posted on Black94${caption}\n\n${webUrl}`, url: deepLink });
+                    } catch {}
+                  },
+                },
+                {
+                  text: 'Send via DM',
+                  onPress: () => {
+                    navigation.navigate('Drawer', {
+                      screen: 'MainTabs',
+                      params: {
+                        screen: 'Messages',
+                        params: { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername },
+                      },
+                    });
+                  },
+                },
               ]);
             }}
             navigation={navigation}
@@ -491,6 +512,53 @@ const storiesRowStyles = StyleSheet.create({
   label: { color: colors.textSecondary, fontSize: fs(11), marginTop: 4, textAlign: 'center' },
 });
 
+/* ── FAB — Create Post floating action button ───────────────────────────────
+ * Animated press: scales down + the plus icon rotates 45° so it momentarily
+ * becomes an "x" hint, signalling that the compose sheet can be dismissed.
+ */
+const Fab = React.memo(function Fab({ bottom, onPress }: { bottom: number; onPress: () => void; }) {
+  const rotate = useSharedValue(0);
+  const scale = useSharedValue(1);
+
+  const handlePress = useCallback(() => {
+    rotate.value = withSequence(
+      withSpring(0.25, spring.bouncy),  // ~45° peek
+      withSpring(0, spring.snappy),
+    );
+    scale.value = withSequence(
+      withSpring(0.88, spring.snappy),
+      withSpring(1, spring.bouncy),
+    );
+    onPress();
+  }, [onPress, rotate, scale]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotate.value}turn` }, { scale: scale.value }],
+  }));
+
+  return (
+    <View
+      style={[
+        styles.fab,
+        { bottom },
+      ]}
+    >
+      <AnimatedPressableScale
+        scale={0.9}
+        springConfig={spring.bouncy}
+        onPress={handlePress}
+        style={styles.fabInner}
+        hitSlop={8}
+        activeOpacity={0.95}
+      >
+        <Animated.View style={iconStyle}>
+          <Feather name="plus" size={26} color={colors.primaryForeground} />
+        </Animated.View>
+      </AnimatedPressableScale>
+    </View>
+  );
+});
+
 /* ── FeedScreen ───────────────────────────────────────────────────────────── */
 
 export default function FeedScreen({ navigation }: any) {
@@ -528,34 +596,63 @@ export default function FeedScreen({ navigation }: any) {
 
   const showSkeleton = loading && !forceLoaded;
 
-  // ── State for header visibility (controlled by scroll) ────────────────────
-  const [headerVisible, setHeaderVisible] = React.useState(true);
-
-  // ── IMPROVED SMOOTH SCROLL HANDLER ──────────────────────────────────────
+  // ── Coordinated header + tab bar hide/show (spring physics) ─────────────
+  // Driven by a single shared value so the header and tab bar move as one
+  // system. `headerTranslateY` is animated via withSpring on the UI thread,
+  // so it stays smooth even when JS is busy.
+  const headerVisibleSV = useSharedValue(1);
+  // Pull-to-refresh progress (0–1) for the custom indicator. Updated on
+  // the UI thread by the scroll handler below.
+  const pullProgressSV = useSharedValue(0);
   const lastScrollY = useRef(0);
+  const showHideTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const setHeaderVisible = useCallback((visible: boolean) => {
+    headerVisibleSV.value = visible ? 1 : 0;
+    setTabBarVisible(visible);
+  }, [headerVisibleSV, setTabBarVisible]);
+
   const handleFeedScroll = useCallback((e: any) => {
     const currentY = e.nativeEvent.contentOffset.y;
+
+    // ── Pull-to-refresh progress ──
+    // When at the top and pulling down, currentY goes negative on iOS and
+    // stays 0 on Android (the OS handles the bounce). We map the negative
+    // offset to a 0–1 progress for the custom indicator.
+    if (currentY <= 0) {
+      pullProgressSV.value = Math.min(1, Math.abs(currentY) / 80);
+    } else {
+      pullProgressSV.value = 0;
+    }
+
     const scrollingDown = currentY > lastScrollY.current + 8;
+    const scrollingUp = currentY < lastScrollY.current - 8;
 
     if (scrollingDown && currentY > 60) {
-      setTabBarVisible(false);
       setHeaderVisible(false);
-    } else if (currentY < 20) {
-      setTabBarVisible(true);
+      // Auto-reveal if user stops scrolling for a beat — feels alive.
+      if (showHideTimerRef.current) clearTimeout(showHideTimerRef.current);
+      showHideTimerRef.current = setTimeout(() => setHeaderVisible(true), 1400);
+    } else if (scrollingUp || currentY < 20) {
+      if (showHideTimerRef.current) clearTimeout(showHideTimerRef.current);
       setHeaderVisible(true);
     }
 
     lastScrollY.current = currentY;
-  }, [setTabBarVisible]);
+  }, [setHeaderVisible, pullProgressSV]);
+
+  // Cleanup the auto-reveal timer on unmount
+  useEffect(() => () => {
+    if (showHideTimerRef.current) clearTimeout(showHideTimerRef.current);
+  }, []);
 
   // ── Smooth animated style for top header ────────────────────────────────
+  // Uses the SAME spring config as AnimatedTabBar so they move in lockstep.
   const headerAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateY: withTiming(headerVisible ? 0 : -120, { duration: 220 }) },
-      ],
-      opacity: withTiming(headerVisible ? 1 : 0, { duration: 180 }),
-    };
+    const visible = headerVisibleSV.value;
+    const translateY = withSpring(visible ? 0 : -130, spring.gentle);
+    const opacity = withSpring(visible ? 1 : 0, spring.gentle);
+    return { transform: [{ translateY }], opacity };
   });
 
   if (showSkeleton) {
@@ -626,7 +723,7 @@ export default function FeedScreen({ navigation }: any) {
             </View>
             <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('Notifications')}>
               <Feather name="bell" size={22} color={colors.textSecondary} />
-              {unreadCount > 0 && (
+              {typeof unreadCount === 'number' && isFinite(unreadCount) && unreadCount > 0 && (
                 <View style={styles.notifBadge}>
                   <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
                 </View>
@@ -651,7 +748,13 @@ export default function FeedScreen({ navigation }: any) {
         ref={flatListRef}
         data={displayPosts}
         keyExtractor={item => item.id}
-        ListHeaderComponent={(activeTab === 'For You' || activeTab === 'Black94') ? <StoriesRow navigation={navigation} /> : null}
+        ListHeaderComponent={
+          <View>
+            {/* Custom spring-driven pull-to-refresh indicator */}
+            <PullToRefresh refreshing={refreshing} pullProgress={pullProgressSV} />
+            {(activeTab === 'For You' || activeTab === 'Black94') ? <StoriesRow navigation={navigation} /> : null}
+          </View>
+        }
         renderItem={({ item }) => (
           <PostCard
             post={item}
@@ -664,7 +767,7 @@ export default function FeedScreen({ navigation }: any) {
             navigation={navigation}
           />
         )}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} progressViewOffset={0} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="transparent" colors={['transparent']} progressViewOffset={0} />}
         onScroll={handleFeedScroll}
         scrollEventThrottle={16}
         nestedScrollEnabled={true}
@@ -684,10 +787,9 @@ export default function FeedScreen({ navigation }: any) {
         contentContainerStyle={{ paddingBottom: fabBottom + 72 }}
       />
 
-      {/* FAB */}
-      <TouchableOpacity style={[styles.fab, { bottom: fabBottom }]} onPress={() => navigation.navigate('CreatePost')} activeOpacity={0.8}>
-        <Feather name="plus" size={24} color={colors.primaryForeground} />
-      </TouchableOpacity>
+      {/* FAB — animated press scale + rotate via AnimatedPressableScale wrapper.
+          The inner plus icon also rotates 90° on press for extra playfulness. */}
+      <Fab bottom={fabBottom} onPress={() => navigation.navigate('CreatePost')} />
 
       {/* Edit post modal */}
       <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
@@ -786,6 +888,7 @@ const styles = StyleSheet.create({
   loadMoreIndicator: { paddingVertical: 20, alignItems: 'center' },
 
   fab: { position: 'absolute', right: 16, width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', elevation: 12, shadowColor: colors.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8, zIndex: 999 },
+  fabInner: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
 
   emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.bgSubtle, alignItems: 'center', justifyContent: 'center' },
   emptyWrap: { alignItems: 'center', paddingTop: 80 },

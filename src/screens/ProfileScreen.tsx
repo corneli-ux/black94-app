@@ -3,8 +3,19 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Ref
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withSequence,
+  interpolateColor,
+  FadeInDown,
+} from 'react-native-reanimated';
 import { AppIcon, RepostIcon } from '../components/icons';
 import PostActionsBar from '../components/PostActionsBar';
+import { FollowButton } from '../components/FollowButton';
+import { AnimatedPressableScale } from '../components/AnimatedPressableScale';
+import { spring } from '../constants/animations';
 import { colors } from '../theme/colors';
 import { fetchUserProfile, toggleFollow, checkFollowing, getUserDmPermission, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
 import { usePostInteractions } from '../hooks/usePostInteractions';
@@ -365,6 +376,93 @@ function MediaGrid({ posts, navigation }: { posts: Post[]; navigation: any }) {
     </View>
   );
 }
+
+/* ── Animated stat — count + label, scales slightly when value changes ──── */
+function ProfileStat({
+  count, label, onPress,
+}: { count: number; label: string; onPress?: () => void; }) {
+  const scale = useSharedValue(1);
+
+  // Bump the count when it changes.
+  useEffect(() => {
+    scale.value = withSequence(
+      withSpring(1.12, spring.bouncy),
+      withSpring(1, spring.snappy),
+    );
+  }, [count, scale]);
+
+  const numStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const inner = (
+    <View style={statStyles.wrap}>
+      <Animated.Text style={[statStyles.num, numStyle]}>{formatCount(count)}</Animated.Text>
+      <Text style={statStyles.label}>{label}</Text>
+    </View>
+  );
+
+  if (!onPress) return inner;
+  return <TouchableOpacity onPress={onPress} activeOpacity={0.7}>{inner}</TouchableOpacity>;
+}
+
+const statStyles = StyleSheet.create({
+  wrap: { alignItems: 'center', gap: 2 },
+  num: { color: colors.text, fontWeight: '800', fontSize: 16 },
+  label: { color: colors.textMuted, fontSize: 12, fontWeight: '500' },
+});
+
+/* ── Animated tab pill — color cross-fades between inactive and active ──── */
+function ProfileTabPill({
+  label, active, onPress,
+}: { label: string; active: boolean; onPress: () => void; }) {
+  const state = useSharedValue(active ? 1 : 0);
+
+  useEffect(() => {
+    state.value = withSpring(active ? 1 : 0, spring.snappy);
+  }, [active, state]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      state.value,
+      [0, 1],
+      ['transparent', colors.text],
+    ),
+    borderColor: interpolateColor(
+      state.value,
+      [0, 1],
+      [colors.border, colors.text],
+    ),
+  }));
+
+  const textStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(state.value, [0, 1], [colors.textSecondary, colors.bg]),
+  }));
+
+  return (
+    <AnimatedPressableScale
+      scale={0.96}
+      springConfig={spring.snappy}
+      onPress={onPress}
+      style={[tabStyles.pill, pillStyle]}
+    >
+      <Animated.Text style={[tabStyles.pillText, textStyle]}>{label}</Animated.Text>
+    </AnimatedPressableScale>
+  );
+}
+
+const tabStyles = StyleSheet.create({
+  pill: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  pillText: {
+    fontWeight: '600',
+    fontSize: 13,
+  },
+});
 
 export default function ProfileScreen({ route, navigation }: any) {
   const currentUser = auth()?.currentUser;
@@ -764,8 +862,8 @@ export default function ProfileScreen({ route, navigation }: any) {
         </View>
       ) : null}
 
-      {/* Profile card */}
-      <View style={styles.profileCard}>
+      {/* Profile card — gentle fade + slide-down on enter */}
+      <Animated.View style={styles.profileCard} entering={FadeInDown.delay(80).springify().damping(20).stiffness(200)}>
         <View style={styles.profileCardLeft}>
           <Avatar
             uri={user?.profileImage}
@@ -783,28 +881,27 @@ export default function ProfileScreen({ route, navigation }: any) {
           <Text style={styles.handle} numberOfLines={1}>@{user?.username}</Text>
           <View style={styles.actionBtns}>
             {isOwnProfile ? (
-              <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')}>
+              <AnimatedPressableScale
+                scale={0.96}
+                springConfig={spring.snappy}
+                style={styles.editProfileBtn}
+                onPress={() => navigation.navigate('EditProfile')}
+              >
                 <Text style={styles.editProfileBtnText}>Edit profile</Text>
-              </TouchableOpacity>
+              </AnimatedPressableScale>
             ) : (
               <>
-                <TouchableOpacity
-                  style={[styles.followBtn, following && styles.followingBtn]}
+                <FollowButton
+                  following={following}
                   onPress={handleFollow}
-                  disabled={followLoading}
-                >
-                  {followLoading ? (
-                    <ActivityIndicator size="small" color={following ? colors.text : colors.bg} />
-                  ) : (
-                    <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
-                      {following ? 'Following' : 'Follow'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.messageBtn}
+                  loading={followLoading}
+                />
+                <AnimatedPressableScale
+                  scale={0.96}
+                  springConfig={spring.snappy}
                   onPress={handleMessage}
                   disabled={messaging}
+                  style={styles.messageBtn}
                 >
                   {messaging ? (
                     <ActivityIndicator size="small" color={colors.white} />
@@ -812,12 +909,12 @@ export default function ProfileScreen({ route, navigation }: any) {
                     <Feather name="message-circle" size={15} color={colors.white} />
                   )}
                   <Text style={styles.messageBtnText}>Message</Text>
-                </TouchableOpacity>
+                </AnimatedPressableScale>
               </>
             )}
           </View>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Bio */}
       {user?.bio ? (
@@ -826,33 +923,36 @@ export default function ProfileScreen({ route, navigation }: any) {
         </View>
       ) : null}
 
-      {/* Stats */}
-      <View style={styles.statsRow}>
-        <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'following' } as never)}>
-          <Text style={styles.statText}>
-            <Text style={styles.statNum}>{formatCount(followingCount)}</Text>{' Following'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'followers' } as never)}>
-          <Text style={styles.statText}>
-            <Text style={styles.statNum}>{formatCount(followersCount)}</Text>{' Followers'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* Stats — Posts + Following + Followers, with a subtle bump animation
+          on count change. Layout uses even spacing for visual balance. */}
+      <Animated.View style={styles.statsRow} entering={FadeInDown.delay(160).springify().damping(20).stiffness(200)}>
+        <ProfileStat count={posts.length} label="Posts" />
+        <ProfileStat
+          count={followingCount}
+          label="Following"
+          onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'following' } as never)}
+        />
+        <ProfileStat
+          count={followersCount}
+          label="Followers"
+          onPress={() => navigation.navigate('Followers' as never, { targetUserId, mode: 'followers' } as never)}
+        />
+      </Animated.View>
 
       {/* Ad Banner — only show if an active campaign exists */}
 
       {/* Separator between ad and tabs */}
 
-      {/* Tabs — horizontal pill/chip style */}
+      {/* Tabs — horizontal pill/chip style with animated active state */}
       <View style={styles.tabBarContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBarScroll}>
           {tabs.map(t => (
-            <TouchableOpacity key={t} style={[styles.tabPill, tab === t && styles.tabPillActive]} onPress={() => setTab(t)}>
-              <Text style={[styles.tabPillText, tab === t && styles.tabPillTextActive]}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </Text>
-            </TouchableOpacity>
+            <ProfileTabPill
+              key={t}
+              label={t.charAt(0).toUpperCase() + t.slice(1)}
+              active={tab === t}
+              onPress={() => setTab(t)}
+            />
           ))}
         </ScrollView>
       </View>
@@ -948,9 +1048,7 @@ const styles = StyleSheet.create({
   displayName: { color: colors.text, fontSize: 17, fontWeight: '700', lineHeight: 22 },
   handle: { color: colors.textMuted, fontSize: 13 },
   bio: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, marginTop: 2 },
-  statsRow: { flexDirection: 'row', gap: 20, marginTop: 12, paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)' },
-  statText: { color: colors.textMuted, fontSize: 14 },
-  statNum: { color: colors.text, fontWeight: '800', fontSize: 15.5 },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)' },
   /* Tab bar: horizontal scrollable pills */
   tabBarContainer: {
     backgroundColor: colors.bg,
@@ -961,28 +1059,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
-  },
-  tabPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tabPillActive: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
-  },
-  tabPillText: {
-    color: colors.textSecondary,
-    fontWeight: '500',
-    fontSize: 13,
-  },
-  tabPillTextActive: {
-    color: colors.bg,
-    fontWeight: '700',
-    fontSize: 13,
   },
   /* ── Profile Ad Banner ── */
 
