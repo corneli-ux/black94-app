@@ -5,8 +5,9 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withSpring, useSharedValue } from 'react-native-reanimated';
 import { colors } from '../theme/colors';
+import { spring } from '../constants/animations';
 import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive';
 import { votePostPoll, Post, PostPollData, tsToMillis } from '../lib/api';
 import * as ExpoLinking from 'expo-linking';
@@ -528,34 +529,50 @@ export default function FeedScreen({ navigation }: any) {
 
   const showSkeleton = loading && !forceLoaded;
 
-  // ── State for header visibility (controlled by scroll) ────────────────────
-  const [headerVisible, setHeaderVisible] = React.useState(true);
-
-  // ── IMPROVED SMOOTH SCROLL HANDLER ──────────────────────────────────────
+  // ── Coordinated header + tab bar hide/show (spring physics) ─────────────
+  // Driven by a single shared value so the header and tab bar move as one
+  // system. `headerTranslateY` is animated via withSpring on the UI thread,
+  // so it stays smooth even when JS is busy.
+  const headerVisibleSV = useSharedValue(1);
   const lastScrollY = useRef(0);
+  const showHideTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const setHeaderVisible = useCallback((visible: boolean) => {
+    headerVisibleSV.value = visible ? 1 : 0;
+    setTabBarVisible(visible);
+  }, [headerVisibleSV, setTabBarVisible]);
+
   const handleFeedScroll = useCallback((e: any) => {
     const currentY = e.nativeEvent.contentOffset.y;
     const scrollingDown = currentY > lastScrollY.current + 8;
+    const scrollingUp = currentY < lastScrollY.current - 8;
 
     if (scrollingDown && currentY > 60) {
-      setTabBarVisible(false);
       setHeaderVisible(false);
-    } else if (currentY < 20) {
-      setTabBarVisible(true);
+      // Auto-reveal if user stops scrolling for a beat — feels alive.
+      if (showHideTimerRef.current) clearTimeout(showHideTimerRef.current);
+      showHideTimerRef.current = setTimeout(() => setHeaderVisible(true), 1400);
+    } else if (scrollingUp || currentY < 20) {
+      if (showHideTimerRef.current) clearTimeout(showHideTimerRef.current);
       setHeaderVisible(true);
     }
 
     lastScrollY.current = currentY;
-  }, [setTabBarVisible]);
+  }, [setHeaderVisible]);
+
+  // Cleanup the auto-reveal timer on unmount
+  useEffect(() => () => {
+    if (showHideTimerRef.current) clearTimeout(showHideTimerRef.current);
+  }, []);
 
   // ── Smooth animated style for top header ────────────────────────────────
+  // Uses the SAME spring config as AnimatedTabBar so they move in lockstep.
   const headerAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateY: withTiming(headerVisible ? 0 : -120, { duration: 220 }) },
-      ],
-      opacity: withTiming(headerVisible ? 1 : 0, { duration: 180 }),
-    };
+    const visible = headerVisibleSV.value;
+    const translateY = withSpring(visible ? 0 : -130, spring.gentle);
+    const opacity = withSpring(visible ? 1 : 0, spring.gentle);
+    const scale = withSpring(visible ? 1 : 0.97, spring.gentle);
+    return { transform: [{ translateY }, { scale }], opacity };
   });
 
   if (showSkeleton) {
