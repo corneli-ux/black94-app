@@ -1,5 +1,5 @@
 import { colors } from '../theme/colors';
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, Alert, ScrollView,
   Platform, StyleSheet, KeyboardAvoidingView, ActivityIndicator, Dimensions,
@@ -7,6 +7,15 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withSequence,
+  interpolateColor,
+  FadeIn,
+  Layout,
+} from 'react-native-reanimated';
 
 import { useAppStore } from '../stores/app';
 import { createPost } from '../lib/api';
@@ -15,6 +24,8 @@ import { auth, firestore } from '../lib/firebase';
 import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { AppIcon } from '../components/icons';
 import { Feather } from '@expo/vector-icons';
+import { AnimatedPressableScale } from '../components/AnimatedPressableScale';
+import { spring } from '../constants/animations';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -42,6 +53,76 @@ const COLORS = {
 // ── Poll types ────────────────────────────────────────────────────────────
 interface PollOption { id: string; text: string; }
 interface PollData { question: string; options: PollOption[]; duration: number; }
+
+// ── Animated character counter ────────────────────────────────────────────
+// Smoothly cross-fades the color from muted → accent (near limit) → red
+// (over limit), and bumps the digits on every keystroke for tactile feel.
+function AnimatedCharCounter({ count, max }: { count: number; max: number }) {
+  const ratio = count / max;
+  const state = useSharedValue(ratio < 0.9 ? 0 : ratio < 1 ? 1 : 2);
+
+  useEffect(() => {
+    state.value = withSpring(ratio < 0.9 ? 0 : ratio < 1 ? 1 : 2, spring.snappy);
+  }, [ratio, state]);
+
+  const bump = useSharedValue(1);
+  useEffect(() => {
+    bump.value = withSequence(
+      withSpring(1.12, spring.bouncy),
+      withSpring(1, spring.snappy),
+    );
+  }, [count, bump]);
+
+  const style = useAnimatedStyle(() => ({
+    color: interpolateColor(
+      state.value,
+      [0, 1, 2],
+      [COLORS.textMuted, COLORS.amber, COLORS.red],
+    ),
+    transform: [{ scale: bump.value }],
+  }));
+
+  return (
+    <Animated.Text style={[styles.charCount, style]}>
+      {count}/{max}
+    </Animated.Text>
+  );
+}
+
+// ── Post button with spring color transition when it becomes enabled ──────
+function PostButton({
+  enabled, posting, onPress,
+}: { enabled: boolean; posting: boolean; onPress: () => void; }) {
+  const state = useSharedValue(enabled ? 1 : 0);
+  useEffect(() => {
+    state.value = withSpring(enabled ? 1 : 0, spring.snappy);
+  }, [enabled, state]);
+
+  const containerStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(state.value, [0, 1], [colors.surfaceLight, COLORS.accent]),
+    borderColor: interpolateColor(state.value, [0, 1], [colors.borderSubtleAlt, COLORS.accent]),
+  }));
+
+  const textStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(state.value, [0, 1], [COLORS.textMuted, colors.primaryForeground]),
+  }));
+
+  return (
+    <AnimatedPressableScale
+      scale={0.94}
+      springConfig={spring.snappy}
+      onPress={onPress}
+      disabled={!enabled || posting}
+      style={[styles.postButton, containerStyle]}
+    >
+      {posting ? (
+        <ActivityIndicator size="small" color={COLORS.white} />
+      ) : (
+        <Animated.Text style={[styles.postButtonText, textStyle]}>Post</Animated.Text>
+      )}
+    </AnimatedPressableScale>
+  );
+}
 
 // ── Per-image upload status ───────────────────────────────────────────────
 
@@ -491,18 +572,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
             <AppIcon name="close" size="lg" color={COLORS.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>New Post</Text>
-          <TouchableOpacity
-            style={[styles.postButton, canPost && styles.postButtonActive]}
-            onPress={handlePost}
-            disabled={!canPost}
-            activeOpacity={0.7}
-          >
-            {posting ? (
-              <ActivityIndicator size="small" color={COLORS.white} />
-            ) : (
-              <Text style={[styles.postButtonText, canPost && styles.postButtonTextActive]}>Post</Text>
-            )}
-          </TouchableOpacity>
+          <PostButton enabled={canPost} posting={posting} onPress={handlePost} />
         </View>
 
         <ScrollView
@@ -551,10 +621,8 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
             </View>
           )}
 
-          {/* Character count */}
-          <Text style={[styles.charCount, captionLength > MAX_CAPTION_LENGTH * 0.9 && styles.charCountWarn]}>
-            {captionLength}/{MAX_CAPTION_LENGTH}
-          </Text>
+          {/* Character count — animated color cross-fade + scale bump */}
+          <AnimatedCharCounter count={captionLength} max={MAX_CAPTION_LENGTH} />
 
           {/* Media preview grid */}
           {mediaCount > 0 && (
@@ -563,7 +631,12 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                 const status = imageStatuses[i] || 'idle';
                 const progress = imageProgress[i] || 0;
                 return (
-                  <View key={`img-${i}`} style={styles.mediaCard}>
+                  <Animated.View
+                    key={`img-${i}`}
+                    style={styles.mediaCard}
+                    entering={FadeIn.springify().damping(16).stiffness(240)}
+                    layout={Layout.springify().damping(20).stiffness(200)}
+                  >
                     <Image source={{ uri }} style={styles.mediaThumb} resizeMode="cover" />
 
                     {/* Upload overlay — shows during upload, success, or failure */}
@@ -594,11 +667,16 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                         <AppIcon name="close" size="sm" color={COLORS.white} />
                       </TouchableOpacity>
                     )}
-                  </View>
+                  </Animated.View>
                 );
               })}
               {selectedGifUrls.map((uri, i) => (
-                <View key={`gif-${i}`} style={styles.mediaCard}>
+                <Animated.View
+                  key={`gif-${i}`}
+                  style={styles.mediaCard}
+                  entering={FadeIn.springify().damping(16).stiffness(240)}
+                  layout={Layout.springify().damping(20).stiffness(200)}
+                >
                   <Image source={{ uri }} style={styles.mediaThumb} resizeMode="cover" />
                   <View style={styles.gifBadge}>
                     <Text style={styles.gifBadgeText}>GIF</Text>
@@ -612,7 +690,7 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
                       <AppIcon name="close" size="sm" color={COLORS.white} />
                     </TouchableOpacity>
                   )}
-                </View>
+                </Animated.View>
               ))}
               {!posting && mediaCount < MAX_IMAGES && (
                 <TouchableOpacity style={styles.addMediaCard} onPress={handleAddImages} activeOpacity={0.7}>
@@ -642,10 +720,15 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               </View>
               <Text style={styles.pollQuestionText}>{pollData.question || 'Untitled poll'}</Text>
               {pollData.options.map((opt, i) => (
-                <View key={opt.id} style={styles.pollOptionItem}>
+                <Animated.View
+                  key={opt.id}
+                  style={styles.pollOptionItem}
+                  entering={FadeIn.springify().damping(16).stiffness(240)}
+                  layout={Layout.springify().damping(20).stiffness(200)}
+                >
                   <View style={styles.pollOptionDot}><Text style={styles.pollOptionIndex}>{i + 1}</Text></View>
                   <Text style={styles.pollOptionText}>{opt.text}</Text>
-                </View>
+                </Animated.View>
               ))}
               <Text style={styles.pollDurationText}>{pollData.duration}h duration</Text>
             </View>
@@ -657,11 +740,16 @@ const CreatePostScreen: React.FC = ({ route }: any) => {
               <Text style={styles.pollCreatorTitle}>Create Poll</Text>
               <TextInput style={styles.pollInput} value={pollQuestion} onChangeText={setPollQuestion} placeholder="Ask a question..." placeholderTextColor={COLORS.textMuted} maxLength={120} />
               {pollData?.options.map((opt, i) => (
-                <View key={opt.id} style={styles.pollOptionRow}>
+                <Animated.View
+                  key={opt.id}
+                  style={styles.pollOptionRow}
+                  entering={FadeIn.springify().damping(16).stiffness(240)}
+                  layout={Layout.springify().damping(20).stiffness(200)}
+                >
                   <Text style={styles.pollOptionNumber}>{i + 1}.</Text>
                   <Text style={styles.pollOptionLabel}>{opt.text}</Text>
                   <TouchableOpacity onPress={() => removePollOption(opt.id)} hitSlop={8}><AppIcon name="cancel" size="md" color={colors.like} /></TouchableOpacity>
-                </View>
+                </Animated.View>
               ))}
               <View style={styles.pollAddRow}>
                 <TextInput style={styles.pollAddInput} value={pollOptionText} onChangeText={setPollOptionText} placeholder="Add option..." placeholderTextColor={COLORS.textMuted} maxLength={40} onSubmitEditing={addPollOption} />
@@ -922,18 +1010,12 @@ const styles = StyleSheet.create({
     minWidth: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.white25,
-  },
-  postButtonActive: {
-    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: colors.borderSubtleAlt,
   },
   postButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.white50,
-  },
-  postButtonTextActive: {
-    color: COLORS.bg,
   },
   scroll: {
     flex: 1,
@@ -1007,9 +1089,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     lineHeight: 18,
-  },
-  charCountWarn: {
-    color: COLORS.red,
   },
   mediaGrid: {
     flexDirection: 'row',
