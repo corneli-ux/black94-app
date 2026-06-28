@@ -238,7 +238,9 @@ const MainTabs = memo(function MainTabs() {
         tabBar: (props) => <AnimatedTabBar {...props} />,
         tabBarShowLabel: false,
         tabBarItemStyle: { paddingVertical: 6 },
-        sceneStyle: { paddingBottom: tabBarVisible ? tabBarHeight : 0 },
+        // FIX: Remove fixed scene padding. The AnimatedTabBar handles its own space.
+        // This prevents the black gap when the tab bar slides away.
+        sceneStyle: { paddingBottom: 0 },
       }}
     >
       <Tab.Screen name="Home" component={FeedScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon name="Home" focused={focused} /> }} />
@@ -351,7 +353,7 @@ function CustomDrawerContent({ navigation }: any) {
               <VerifiedBadge badge={user.badge} isVerified={user.isVerified} />
             </View>
             {user.username && user.username.trim() !== ''
-              ? <Text style={styles.drawerUserHandle}>@{user.username}</Text>
+              ? <Text style={[styles.drawerUserHandle, { color: colors.accent }]}>Tap to set username →</Text>
               : <TouchableOpacity onPress={() => navigation.navigate('UsernameSetup' as never)}>
                   <Text style={[styles.drawerUserHandle, { color: colors.accent }]}>Tap to set username →</Text>
                 </TouchableOpacity>
