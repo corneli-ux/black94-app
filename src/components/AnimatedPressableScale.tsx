@@ -1,27 +1,24 @@
 /**
  * AnimatedPressableScale — a TouchableOpacity replacement that scales
- * down slightly on press using spring physics. Use for any tappable
- * that should feel premium (buttons, FABs, list items).
+ * down slightly on press using spring physics.
+ *
+ * Uses Animated.createAnimatedComponent(TouchableOpacity) which is the
+ * official Reanimated pattern for animating a pressable. Safe in
+ * Reanimated 4 + New Architecture.
  *
  * Props:
- *   - scale (default 0.94): how much to shrink on press
+ *   - scale (default 0.94): how much to shrink on press. Pass 1 to disable.
  *   - springConfig (default spring.snappy): physics to use
  *   - ...all TouchableOpacity props
- *
- * Usage:
- *   <AnimatedPressableScale onPress={...} style={...}>
- *     <Text>Tap me</Text>
- *   </AnimatedPressableScale>
  */
 
-import React, { useRef } from 'react';
+import React from 'react';
 import { TouchableOpacity, TouchableOpacityProps } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
-  interpolate,
 } from 'react-native-reanimated';
 import { spring, DURATIONS } from '../constants/animations';
 import type { WithSpringConfig } from 'react-native-reanimated';
@@ -29,6 +26,7 @@ import type { WithSpringConfig } from 'react-native-reanimated';
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 export interface AnimatedPressableScaleProps extends TouchableOpacityProps {
+  /** 0.94 = shrink to 94% on press. Pass 1 to disable the scale effect. */
   scale?: number;
   springConfig?: WithSpringConfig;
   /** If true, animate a slight opacity dip on press as well. */
@@ -46,15 +44,22 @@ export function AnimatedPressableScale({
   children,
   ...rest
 }: AnimatedPressableScaleProps) {
+  // 0 = idle, 1 = pressed. Driven to a spring target inside useAnimatedStyle.
   const pressed = useSharedValue(0);
 
   const animatedStyle = useAnimatedStyle(() => {
-    const s = withSpring(pressed.value ? scale : 1, springConfig);
+    // When scale === 1 we skip the transform entirely so we don't render
+    // an identity transform that could conflict with caller-provided styles.
+    if (scale >= 1 && !dimOnPress) {
+      return {};
+    }
+    const target = pressed.value ? scale : 1;
+    const s = withSpring(target, springConfig);
     const opacity = dimOnPress
       ? withTiming(pressed.value ? 0.7 : 1, { duration: DURATIONS.quick })
       : 1;
     return {
-      transform: [{ scale: interpolate(s, [scale, 1], [scale, 1]) }],
+      transform: [{ scale: s }],
       opacity,
     };
   });

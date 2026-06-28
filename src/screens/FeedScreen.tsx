@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, withSpring, withSequence, useSharedValue, FadeInDown, interpolate, Extrapolation } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withSpring, withSequence, useSharedValue } from 'react-native-reanimated';
 import { colors } from '../theme/colors';
 import { spring } from '../constants/animations';
 import { AnimatedPressableScale } from '../components/AnimatedPressableScale';
@@ -275,10 +275,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   };
 
   return (
-    <Animated.View
-      style={styles.postCard}
-      entering={FadeInDown.springify().damping(20).stiffness(200)}
-    >
+    <View style={styles.postCard}>
       {showHeart && (
         <View style={styles.heartOverlay} pointerEvents="none">
           <AppIcon name="favorite" size={96} color={colors.like} />
@@ -436,7 +433,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           />
         </TouchableOpacity>
       </View>
-    </Animated.View>
+    </View>
   );
 });
 
@@ -540,10 +537,10 @@ const Fab = React.memo(function Fab({ bottom, onPress }: { bottom: number; onPre
   }));
 
   return (
-    <Animated.View
+    <View
       style={[
         styles.fab,
-        { bottom, transform: [{ scale }] },
+        { bottom },
       ]}
     >
       <AnimatedPressableScale
@@ -558,7 +555,7 @@ const Fab = React.memo(function Fab({ bottom, onPress }: { bottom: number; onPre
           <Feather name="plus" size={26} color={colors.primaryForeground} />
         </Animated.View>
       </AnimatedPressableScale>
-    </Animated.View>
+    </View>
   );
 });
 
@@ -655,8 +652,7 @@ export default function FeedScreen({ navigation }: any) {
     const visible = headerVisibleSV.value;
     const translateY = withSpring(visible ? 0 : -130, spring.gentle);
     const opacity = withSpring(visible ? 1 : 0, spring.gentle);
-    const scale = withSpring(visible ? 1 : 0.97, spring.gentle);
-    return { transform: [{ translateY }, { scale }], opacity };
+    return { transform: [{ translateY }], opacity };
   });
 
   if (showSkeleton) {
@@ -727,7 +723,7 @@ export default function FeedScreen({ navigation }: any) {
             </View>
             <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('Notifications')}>
               <Feather name="bell" size={22} color={colors.textSecondary} />
-              {unreadCount > 0 && (
+              {typeof unreadCount === 'number' && isFinite(unreadCount) && unreadCount > 0 && (
                 <View style={styles.notifBadge}>
                   <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
                 </View>

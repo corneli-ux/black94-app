@@ -23,6 +23,7 @@ import Animated, {
   runOnJS,
   interpolate,
   Extrapolation,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { firestore } from '../lib/firebase';
 import { tsToMillis } from '../lib/api';
@@ -79,6 +80,10 @@ export default function StoryViewerScreen({ navigation, route }: any) {
   const startedAtRef = useRef<number>(0);
   const remainingRef = useRef<number>(STORY_DURATION);
   const animTokenRef = useRef(0); // bumps on every story switch to cancel old timers
+
+  // Stable ref to the latest goNext callback. Worklet completion handlers
+  // call this via runOnJS so they always invoke the freshest closure.
+  const goNextRef = useRef<() => void>(() => {});
 
   /* ─────────────────────────────────────────────────────────────────────
    * Story loading
@@ -169,8 +174,12 @@ export default function StoryViewerScreen({ navigation, route }: any) {
    * Pauses cleanly by stopping the animation and remembering the
    * remaining time, then resumes from that exact spot.
    * ───────────────────────────────────────────────────────────────────── */
-  const goNextRef = useRef<() => void>(() => {});
-  goNextRef.current = () => {};
+
+  // Stable JS-side advance handler. runOnJS requires a stable function
+  // reference — passing an inline arrow would capture a stale closure.
+  const handleProgressComplete = useCallback(() => {
+    goNextRef.current();
+  }, []);
 
   useEffect(() => {
     if (stories.length === 0) return;
@@ -188,7 +197,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
       easing: EASINGS.decel,
     }, (finished) => {
       if (finished && token === animTokenRef.current) {
-        runOnJS(() => goNextRef.current())();
+        runOnJS(handleProgressComplete)();
       }
     });
 
@@ -229,7 +238,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
         easing: EASINGS.decel,
       }, (finished) => {
         if (finished && token === animTokenRef.current) {
-          runOnJS(() => goNextRef.current())();
+          runOnJS(handleProgressComplete)();
         }
       });
       storyScale.value = withSpring(1, spring.gentle);
@@ -613,7 +622,7 @@ export default function StoryViewerScreen({ navigation, route }: any) {
 /* ── ProgressFill — animated via the shared progressSV value ──────────── */
 function ProgressFill({
   isPast, isCurrent, progress,
-}: { isPast: boolean; isCurrent: boolean; progress: ReturnType<typeof useSharedValue<number>>; }) {
+}: { isPast: boolean; isCurrent: boolean; progress: SharedValue<number>; }) {
   const style = useAnimatedStyle(() => {
     let pct: number;
     if (isPast) pct = 1;

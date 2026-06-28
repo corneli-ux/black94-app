@@ -64,7 +64,11 @@ export const DURATIONS = {
   reveal: 420,   // empty state, hero enter
 } as const;
 
-/* ── Easings ────────────────────────────────────────────────────────────── */
+/* ── Easings ──────────────────────────────────────────────────────────────
+ * Pre-built easing functions for use with withTiming's `easing` config.
+ * These are passed as config values (not captured in worklet closures),
+ * so Reanimated handles serialization internally.
+ */
 
 export const EASINGS = {
   /** Default ease for fade/scale enter. */

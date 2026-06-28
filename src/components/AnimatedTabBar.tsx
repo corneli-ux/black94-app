@@ -4,8 +4,6 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
   withTiming,
-  interpolate,
-  Extrapolation,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
@@ -29,18 +27,13 @@ export function AnimatedTabBar(props: any) {
       tabBarVisible ? 0 : tabBarHeight,
       spring.gentle,
     );
-    // Slight scale + opacity dip while hidden for extra polish.
-    const scale = withSpring(tabBarVisible ? 1 : 0.96, spring.gentle);
+    // Slight opacity dip while hidden for extra polish.
     const opacity = withTiming(tabBarVisible ? 1 : 0, {
       duration: DURATIONS.fast,
     });
 
     return {
-      transform: [
-        { translateY },
-        // Scale around the bottom so the bar slides down instead of growing.
-        { scale: interpolate(scale, [0.96, 1], [0.96, 1], Extrapolation.CLAMP) },
-      ],
+      transform: [{ translateY }],
       opacity,
     };
   });

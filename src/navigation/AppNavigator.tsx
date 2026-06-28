@@ -214,8 +214,12 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
 }
 
 function TabBarBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  const label = count > 9 ? '9+' : String(count);
+  // Defensive: if count is not a valid number (eg. a stale function got
+  // stored by an older buggy code path), coerce to 0 so we never render
+  // garbage or crash React's <Text> with a non-string child.
+  const safeCount = typeof count === 'number' && isFinite(count) ? count : 0;
+  if (safeCount <= 0) return null;
+  const label = safeCount > 9 ? '9+' : String(safeCount);
   return (
     <View style={styles.tabBadge}>
       <Text style={styles.tabBadgeText}>{label}</Text>

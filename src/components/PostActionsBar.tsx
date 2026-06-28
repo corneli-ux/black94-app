@@ -82,14 +82,9 @@ function LikeButton({
     transform: [{ scale: scale.value }],
   }));
 
-  // Burst ring behind the heart.
+  // Burst ring behind the heart. Static layout lives in the style prop;
+  // only the animated values (transform, opacity) live in useAnimatedStyle.
   const burstStyle = useAnimatedStyle(() => ({
-    position: 'absolute' as const,
-    width: sz + 16,
-    height: sz + 16,
-    borderRadius: (sz + 16) / 2,
-    borderWidth: 2,
-    borderColor: colors.like,
     transform: [{ scale: interpolate(burst.value, [0, 1], [0.6, 1.6], Extrapolation.CLAMP) }],
     opacity: burstOpacity.value * interpolate(burst.value, [0, 1], [0.9, 0], Extrapolation.CLAMP),
   }));
@@ -98,7 +93,14 @@ function LikeButton({
     <View style={styles.btn}>
       <AnimatedPressableScale scale={1} onPress={handlePress} hitSlop={8} style={styles.btnInner}>
         <View style={styles.iconWrap}>
-          <Animated.View pointerEvents="none" style={burstStyle} />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.burstRing,
+              { width: sz + 16, height: sz + 16, borderRadius: (sz + 16) / 2 },
+              burstStyle,
+            ]}
+          />
           <Animated.View style={iconStyle}>
             {liked
               ? <AntDesign name="heart" size={sz} color={colors.like} />
@@ -430,6 +432,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 24,
     height: 24,
+  },
+  burstRing: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderColor: colors.like,
   },
   count: {
     color: colors.textSecondary,

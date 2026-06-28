@@ -10,7 +10,6 @@ import Animated, {
   interpolateColor,
   FadeIn,
   FadeInDown,
-  FadeInScale,
 } from 'react-native-reanimated';
 import { colors } from '../theme/colors';
 import { firestore } from '../lib/firebase';
@@ -139,18 +138,15 @@ function SectionHeader({ label }: { label: string }) {
 /* ── Mark all read button with success flash ──────────────────────────── */
 function MarkAllButton({ onPress, disabled }: { onPress: () => void; disabled: boolean }) {
   const flash = useSharedValue(0);
-  const label = useSharedValue(0); // 0 = "Mark all read", 1 = "All caught up"
 
   const handlePress = useCallback(() => {
     onPress();
-    // Flash green + briefly swap label, then settle back.
+    // Flash green + scale punch to confirm the action landed.
     flash.value = withSequence(
       withSpring(1, spring.bouncy),
       withSpring(0, spring.gentle),
     );
-    label.value = 1;
-    setTimeout(() => { label.value = withSpring(0, spring.gentle); }, 1800);
-  }, [onPress, flash, label]);
+  }, [onPress, flash]);
 
   const style = useAnimatedStyle(() => ({
     color: interpolateColor(flash.value, [0, 1], [colors.accent, colors.accentGreen]),
@@ -349,7 +345,7 @@ export default function NotificationsScreen({ navigation }: any) {
           ListEmptyComponent={
             <Animated.View
               style={styles.emptyWrap}
-              entering={FadeInScale.springify().damping(20).stiffness(200)}
+              entering={FadeIn.springify().damping(20).stiffness(200)}
             >
               <View style={styles.emptyIcon}>
                 <Feather name="bell" size={28} color={colors.textSecondary} />
