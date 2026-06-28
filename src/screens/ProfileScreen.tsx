@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppIcon, RepostIcon } from '../components/icons';
 import PostActionsBar from '../components/PostActionsBar';
+import { FollowButton } from '../components/FollowButton';
 import { colors } from '../theme/colors';
 import { fetchUserProfile, toggleFollow, checkFollowing, getUserDmPermission, Post, User, tsToMillis, parseMediaUrls } from '../lib/api';
 import { usePostInteractions } from '../hooks/usePostInteractions';
@@ -788,19 +789,11 @@ export default function ProfileScreen({ route, navigation }: any) {
               </TouchableOpacity>
             ) : (
               <>
-                <TouchableOpacity
-                  style={[styles.followBtn, following && styles.followingBtn]}
+                <FollowButton
+                  following={following}
                   onPress={handleFollow}
-                  disabled={followLoading}
-                >
-                  {followLoading ? (
-                    <ActivityIndicator size="small" color={following ? colors.text : colors.bg} />
-                  ) : (
-                    <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
-                      {following ? 'Following' : 'Follow'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                  loading={followLoading}
+                />
                 <TouchableOpacity
                   style={styles.messageBtn}
                   onPress={handleMessage}
