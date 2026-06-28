@@ -3,13 +3,14 @@ import { View, StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../stores/app';
-import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
 
 /**
- * Beautiful smooth animated tab bar.
- * Slides up/down with reanimated when tabBarVisible changes.
+ * Clean animated tab bar wrapper.
+ * Only handles smooth slide up/down animation based on tabBarVisible store.
+ * Renders the default tab bar content inside.
  */
-export function AnimatedTabBar(props: BottomTabBarProps) {
+export function AnimatedTabBar(props: any) {
   const tabBarVisible = useAppStore((s) => s.tabBarVisible);
   const insets = useSafeAreaInsets();
 
@@ -38,47 +39,7 @@ export function AnimatedTabBar(props: BottomTabBarProps) {
         animatedStyle,
       ]}
     >
-      {/* Render the default tab bar content */}
-      <View style={styles.inner}>
-        {props.state.routes.map((route, index) => {
-          const { options } = props.descriptors[route.key];
-          const label =
-            options.tabBarLabel !== undefined
-              ? options.tabBarLabel
-              : options.title !== undefined
-              ? options.title
-              : route.name;
-
-          const isFocused = props.state.index === index;
-
-          const onPress = () => {
-            const event = props.navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-
-            if (!isFocused && !event.defaultPrevented) {
-              props.navigation.navigate(route.name);
-            }
-          };
-
-          return (
-            <View
-              key={route.key}
-              style={styles.tabItem}
-              onTouchEnd={onPress}
-            >
-              {options.tabBarIcon &&
-                options.tabBarIcon({
-                  focused: isFocused,
-                  color: isFocused ? '#D4AF37' : 'rgba(255,255,255,0.35)',
-                  size: 22,
-                })}
-            </View>
-          );
-        })}
-      </View>
+      <BottomTabBar {...props} />
     </Animated.View>
   );
 }
@@ -93,16 +54,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(212,175,55,0.15)',
     overflow: 'hidden',
-  },
-  inner: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
