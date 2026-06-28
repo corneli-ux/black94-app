@@ -406,8 +406,26 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               const caption = post.caption ? `\n\n"${post.caption.slice(0, 120)}${post.caption.length > 120 ? '...' : ''}` : '';
               Alert.alert('Share', '', [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Copy Link', onPress: async () => { try { await Share.share({ message: `${author} posted on Black94${caption}\n\n${webUrl}`, url: deepLink }); } catch {} },
-                { text: 'Send via DM', onPress: () => { navigation.navigate('Drawer', { screen: 'MainTabs', params: { screen: 'Messages', params: { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername } } }); },
+                {
+                  text: 'Copy Link',
+                  onPress: async () => {
+                    try {
+                      await Share.share({ message: `${author} posted on Black94${caption}\n\n${webUrl}`, url: deepLink });
+                    } catch {}
+                  },
+                },
+                {
+                  text: 'Send via DM',
+                  onPress: () => {
+                    navigation.navigate('Drawer', {
+                      screen: 'MainTabs',
+                      params: {
+                        screen: 'Messages',
+                        params: { sharePostId: interactionId, shareCaption: post.caption, shareAuthor: post.authorUsername },
+                      },
+                    });
+                  },
+                },
               ]);
             }}
             navigation={navigation}
