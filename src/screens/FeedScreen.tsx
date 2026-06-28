@@ -74,7 +74,7 @@ function HighlightedCaption({ text, style, navigation }: { text: string; style: 
             </Text>
           );
         }
-        return <Text key={i}>{part}</Text>;
+        return <Text key={i}>{part}</Text>
       })}
     </Text>
   );
@@ -154,8 +154,8 @@ function InlinePoll({ post }: { post: Post }) {
     <View style={styles.pollCard}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <Text style={styles.pollQuestion}>{localPoll.question}</Text>
-        {pollExpired && <Text style={styles.pollExpiredText}>Poll ended</Text>}
-      </View>
+        {pollExpired && <Text style={styles.pollExpiredText}>Poll ended</Text>
+      )}
       {localPoll.options.map((option) => {
         const votePercent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0;
         const isSelected = voted && localPoll.options.some(o => o.id === option.id && o.votes > 0);
@@ -182,7 +182,7 @@ function InlinePoll({ post }: { post: Post }) {
                 {option.text}
               </Text>
               {voted && (
-                <Text style={styles.pollOptionPercent}>{votePercent}%</Text>
+                <Text style={styles.pollOptionPercent}>{votePercent}</Text>
               )}
             </View>
           </TouchableOpacity>
@@ -224,6 +224,15 @@ function MultiImageCarousel({ mediaUrls, refreshedUrls, onMediaError }: {
             />
           </View>
         ))}
+      >
+        {mediaUrls.map((url, i) => (
+          <View key={i} style={{ width: SCREEN_W }}>
+            <FeedMedia
+              uri={refreshedUrls[url] || url}
+              onRefreshUrl={() => onMediaError(url)}
+            />
+          </View>
+        ))}
       </ScrollView>
       {/* Page dots */}
       {mediaUrls.length > 1 && (
@@ -235,7 +244,7 @@ function MultiImageCarousel({ mediaUrls, refreshedUrls, onMediaError }: {
                 carouselStyles.dot,
                 i === currentIndex && carouselStyles.dotActive,
               ]}
-            />
+            >
           ))}
         </View>
       )}
@@ -245,25 +254,11 @@ function MultiImageCarousel({ mediaUrls, refreshedUrls, onMediaError }: {
 
 const carouselStyles = StyleSheet.create({
   dotsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 5,
-    position: 'absolute',
-    bottom: 12,
-    left: 0,
-    right: 0,
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5,
+    position: 'absolute', bottom: 12, left: 0, right: 0,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.borderWhite40,
-  },
-  dotActive: {
-    backgroundColor: colors.white,
-    width: 18,
-  },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.borderWhite40 },
+  dotActive: { backgroundColor: colors.white, width: 18 },
 });
 
 /* ── PostCard ─────────────────────────────────────────────────────────────── */
@@ -570,7 +565,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
               const webUrl = `https://black94.app/post/${interactionId}`;
               const deepLink = ExpoLinking.createURL('post', { postId: interactionId });
               const author = `@${post.authorUsername || 'user'}`;
-              const caption = post.caption ? `\n\n"${post.caption.slice(0, 120)}${post.caption.length > 120 ? '...' : ''}"` : '';
+              const caption = post.caption ? `\n\n"${post.caption.slice(0, 120)}${post.caption.length > 120 ? '...' : ''}` : '';
               Alert.alert('Share', '', [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -630,14 +625,13 @@ const StoriesRow = React.memo(function StoriesRow({ navigation }: { navigation: 
           const aid = d.authorId || '';
           if (aid === currentUser?.uid) continue;
           if (seen.has(aid)) continue;
-          seen.add(aid);
           result.push({
             authorId: aid,
             authorUsername: d.authorUsername || '',
             authorDisplayName: d.authorDisplayName || '',
             authorProfileImage: d.authorProfileImage || null,
           });
-        }
+        });
         setBubbles(result);
       } catch {}
     })();
@@ -710,8 +704,7 @@ const storiesRowStyles = StyleSheet.create({
     width: STORY_CIRCLE_SIZE + STORY_RING_PAD * 2 + 2,
     height: STORY_CIRCLE_SIZE + STORY_RING_PAD * 2 + 2,
     borderRadius: (STORY_CIRCLE_SIZE + STORY_RING_PAD * 2 + 2) / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   avatarContainer: {
     borderRadius: STORY_CIRCLE_SIZE / 2,
@@ -792,22 +785,22 @@ export default function FeedScreen({ navigation }: any) {
 
   const showSkeleton = loading && !forceLoaded;
 
-  // Tab bar auto-hide on scroll
+  // ── IMPROVED: Reliable scroll hide for tab bar + header ─────────────────
   const lastScrollY = useRef(0);
-  const scrollDirection = useRef<'up' | 'down'>('up');
-  const [headerVisible, setHeaderVisible] = React.useState(true);
   const handleFeedScroll = useCallback((e: any) => {
-    const y = e.nativeEvent.contentOffset.y;
-    const diff = y - lastScrollY.current;
-    if (Math.abs(diff) < 6) return;
-    const dir = diff > 0 ? 'down' : 'up';
-    if (dir !== scrollDirection.current) {
-      scrollDirection.current = dir;
-      const show = dir === 'up' || y < 80;
-      setTabBarVisible(show);
-      setHeaderVisible(show);
+    const currentY = e.nativeEvent.contentOffset.y;
+    const scrollingDown = currentY > lastScrollY.current + 8;
+
+    if (scrollingDown && currentY > 60) {
+      setTabBarVisible(false);
+      // Also hide top header if you want full immersion
+      // setHeaderVisible(false);
+    } else if (currentY < 20) {
+      setTabBarVisible(true);
+      // setHeaderVisible(true);
     }
-    lastScrollY.current = y;
+
+    lastScrollY.current = currentY;
   }, [setTabBarVisible]);
 
   if (showSkeleton) {
@@ -823,7 +816,7 @@ export default function FeedScreen({ navigation }: any) {
               <Image source={require('../../assets/logo.png')} style={styles.logoImage} />
             </View>
             <TouchableOpacity
-  style={styles.headerBtn}
+              style={styles.headerBtn}
               onPress={() => navigation.navigate('Notifications')}
             >
               <Feather name="bell" size={22} color={colors.textSecondary} />
@@ -915,9 +908,10 @@ export default function FeedScreen({ navigation }: any) {
           >
             <Text style={[styles.tabText, activeTab === tab ? styles.tabTextActive : styles.tabTextInactive]}>
               {tab}
-            </Text>
-            {activeTab === tab && <View style={styles.tabUnderline} />}
-          </TouchableOpacity>
+              </Text>
+              {activeTab === tab && <View style={styles.tabUnderline} />}
+            </TouchableOpacity>
+          </View>
         ))}
       </View>
 
