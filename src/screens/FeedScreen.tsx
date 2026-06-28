@@ -5,9 +5,10 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, withSpring, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withSpring, withSequence, useSharedValue } from 'react-native-reanimated';
 import { colors } from '../theme/colors';
 import { spring } from '../constants/animations';
+import { AnimatedPressableScale } from '../components/AnimatedPressableScale';
 import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive';
 import { votePostPoll, Post, PostPollData, tsToMillis } from '../lib/api';
 import * as ExpoLinking from 'expo-linking';
@@ -492,6 +493,53 @@ const storiesRowStyles = StyleSheet.create({
   label: { color: colors.textSecondary, fontSize: fs(11), marginTop: 4, textAlign: 'center' },
 });
 
+/* ── FAB — Create Post floating action button ───────────────────────────────
+ * Animated press: scales down + the plus icon rotates 45° so it momentarily
+ * becomes an "x" hint, signalling that the compose sheet can be dismissed.
+ */
+const Fab = React.memo(function Fab({ bottom, onPress }: { bottom: number; onPress: () => void; }) {
+  const rotate = useSharedValue(0);
+  const scale = useSharedValue(1);
+
+  const handlePress = useCallback(() => {
+    rotate.value = withSequence(
+      withSpring(0.25, spring.bouncy),  // ~45° peek
+      withSpring(0, spring.snappy),
+    );
+    scale.value = withSequence(
+      withSpring(0.88, spring.snappy),
+      withSpring(1, spring.bouncy),
+    );
+    onPress();
+  }, [onPress, rotate, scale]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotate.value}turn` }, { scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.fab,
+        { bottom, transform: [{ scale }] },
+      ]}
+    >
+      <AnimatedPressableScale
+        scale={0.9}
+        springConfig={spring.bouncy}
+        onPress={handlePress}
+        style={styles.fabInner}
+        hitSlop={8}
+        activeOpacity={0.95}
+      >
+        <Animated.View style={iconStyle}>
+          <Feather name="plus" size={26} color={colors.primaryForeground} />
+        </Animated.View>
+      </AnimatedPressableScale>
+    </Animated.View>
+  );
+});
+
 /* ── FeedScreen ───────────────────────────────────────────────────────────── */
 
 export default function FeedScreen({ navigation }: any) {
@@ -701,10 +749,9 @@ export default function FeedScreen({ navigation }: any) {
         contentContainerStyle={{ paddingBottom: fabBottom + 72 }}
       />
 
-      {/* FAB */}
-      <TouchableOpacity style={[styles.fab, { bottom: fabBottom }]} onPress={() => navigation.navigate('CreatePost')} activeOpacity={0.8}>
-        <Feather name="plus" size={24} color={colors.primaryForeground} />
-      </TouchableOpacity>
+      {/* FAB — animated press scale + rotate via AnimatedPressableScale wrapper.
+          The inner plus icon also rotates 90° on press for extra playfulness. */}
+      <Fab bottom={fabBottom} onPress={() => navigation.navigate('CreatePost')} />
 
       {/* Edit post modal */}
       <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
@@ -803,6 +850,7 @@ const styles = StyleSheet.create({
   loadMoreIndicator: { paddingVertical: 20, alignItems: 'center' },
 
   fab: { position: 'absolute', right: 16, width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', elevation: 12, shadowColor: colors.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8, zIndex: 999 },
+  fabInner: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
 
   emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.bgSubtle, alignItems: 'center', justifyContent: 'center' },
   emptyWrap: { alignItems: 'center', paddingTop: 80 },

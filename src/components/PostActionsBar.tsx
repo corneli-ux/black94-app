@@ -1,21 +1,37 @@
 /**
  * PostActionsBar — self-contained post action buttons.
- * 
+ *
  * Contract with api.ts:
  *  toggleLike:     throws on error, returns true=liked / false=unliked
- *  toggleBookmark: throws on error, returns true=bookmarked / false=unbookmarked  
+ *  toggleBookmark: throws on error, returns true=bookmarked / false=unbookmarked
  *  toggleRepost:   returns { success, undone }
- * 
+ *
  * Pattern: optimistic update → API call → revert ONLY on throw/exception
+ *
+ * Animation: Like / Repost / Bookmark use spring-based scale + color
+ * transitions driven by shared values on the UI thread. Like also fires
+ * a small heart burst on the like-tap (not un-like). All physics come
+ * from src/constants/animations.ts so the feel is consistent app-wide.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Share } from 'react-native';
+import { View, Text, StyleSheet, Alert, Share } from 'react-native';
 import { Feather, AntDesign } from '@expo/vector-icons';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  withSequence,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 import { colors } from '../theme/colors';
 import { RepostIcon } from './icons';
-import { toggleLike, toggleRepost, toggleBookmark, ToggleRepostResult } from '../lib/api';
+import { toggleLike, toggleRepost, toggleBookmark } from '../lib/api';
 import { auth } from '../lib/firebase';
+import { spring, DURATIONS } from '../constants/animations';
+import { AnimatedPressableScale } from './AnimatedPressableScale';
 
 function formatCount(n: number | undefined): string {
   if (!n) return '';
@@ -27,6 +43,153 @@ function formatCount(n: number | undefined): string {
 function getUid(): string | null {
   try { return auth()?.currentUser?.uid || null; } catch { return null; }
 }
+
+/* ── Like button with spring scale + heart burst ─────────────────────────── */
+function LikeButton({
+  liked, count, sz, onPress,
+}: { liked: boolean; count: number | undefined; sz: number; onPress: () => void; }) {
+  const scale = useSharedValue(1);
+  const burst = useSharedValue(0); // 0 → 1 fires the burst
+  const burstOpacity = useSharedValue(0);
+
+  const triggerBurst = useCallback(() => {
+    'worklet';
+    // Re-arm then play.
+    burst.value = 0;
+    burstOpacity.value = 1;
+    burst.value = withSequence(
+      withSpring(1, spring.bouncy),
+      withTiming(0, { duration: DURATIONS.normal }, () => {
+        burstOpacity.value = 0;
+      }),
+    );
+  }, [burst, burstOpacity]);
+
+  const handlePress = useCallback(() => {
+    // Bounce the heart on tap, regardless of like/unlike direction.
+    scale.value = withSequence(
+      withSpring(1.35, spring.bouncy),
+      withSpring(1, spring.snappy),
+    );
+    if (!liked) {
+      // Fire burst only on like, not un-like.
+      triggerBurst();
+    }
+    onPress();
+  }, [liked, onPress, scale, triggerBurst]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  // Burst ring behind the heart.
+  const burstStyle = useAnimatedStyle(() => ({
+    position: 'absolute' as const,
+    width: sz + 16,
+    height: sz + 16,
+    borderRadius: (sz + 16) / 2,
+    borderWidth: 2,
+    borderColor: colors.like,
+    transform: [{ scale: interpolate(burst.value, [0, 1], [0.6, 1.6], Extrapolation.CLAMP) }],
+    opacity: burstOpacity.value * interpolate(burst.value, [0, 1], [0.9, 0], Extrapolation.CLAMP),
+  }));
+
+  return (
+    <View style={styles.btn}>
+      <AnimatedPressableScale scale={1} onPress={handlePress} hitSlop={8} style={styles.btnInner}>
+        <View style={styles.iconWrap}>
+          <Animated.View pointerEvents="none" style={burstStyle} />
+          <Animated.View style={iconStyle}>
+            {liked
+              ? <AntDesign name="heart" size={sz} color={colors.like} />
+              : <Feather name="heart" size={sz} color={colors.textSecondary} />
+            }
+          </Animated.View>
+        </View>
+        {count ? (
+          <Text style={[styles.count, liked && { color: colors.like }]}>{formatCount(count)}</Text>
+        ) : null}
+      </AnimatedPressableScale>
+    </View>
+  );
+}
+
+/* ── Repost button with rotation + scale on success ──────────────────────── */
+function RepostButton({
+  reposted, count, sz, onPress,
+}: { reposted: boolean; count: number | undefined; sz: number; onPress: () => void; }) {
+  const rotate = useSharedValue(0);
+  const scale = useSharedValue(1);
+
+  const handlePress = useCallback(() => {
+    // Quick rotation + scale punch on every press for feedback.
+    rotate.value = withSequence(
+      withTiming(-360, { duration: DURATIONS.normal }),
+      withSpring(0, spring.snappy),
+    );
+    scale.value = withSequence(
+      withSpring(1.2, spring.bouncy),
+      withSpring(1, spring.snappy),
+    );
+    onPress();
+  }, [onPress, rotate, scale]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [
+      { rotate: `${rotate.value}deg` },
+      { scale: scale.value },
+    ],
+  }));
+
+  return (
+    <View style={styles.btn}>
+      <AnimatedPressableScale scale={1} onPress={handlePress} hitSlop={8} style={styles.btnInner}>
+        <View style={styles.iconWrap}>
+          <Animated.View style={iconStyle}>
+            <RepostIcon size={sz} color={reposted ? colors.repost : colors.textSecondary} />
+          </Animated.View>
+        </View>
+        {count ? (
+          <Text style={[styles.count, reposted && { color: colors.repost }]}>{formatCount(count)}</Text>
+        ) : null}
+      </AnimatedPressableScale>
+    </View>
+  );
+}
+
+/* ── Bookmark button with scale punch on toggle ──────────────────────────── */
+function BookmarkButton({
+  bookmarked, sz, onPress,
+}: { bookmarked: boolean; sz: number; onPress: () => void; }) {
+  const scale = useSharedValue(1);
+
+  const handlePress = useCallback(() => {
+    scale.value = withSequence(
+      withSpring(1.25, spring.bouncy),
+      withSpring(1, spring.snappy),
+    );
+    onPress();
+  }, [onPress, scale]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <View style={styles.btn}>
+      <AnimatedPressableScale scale={1} onPress={handlePress} hitSlop={8} style={styles.btnInner}>
+        <Animated.View style={iconStyle}>
+          {bookmarked
+            ? <AntDesign name="pushpin" size={sz} color={colors.bookmark} />
+            : <Feather name="bookmark" size={sz} color={colors.textSecondary} />
+          }
+        </Animated.View>
+      </AnimatedPressableScale>
+    </View>
+  );
+}
+
+/* ── Plain comment / share button (just scale feedback) ─────────────────── */
 
 export interface PostActionsBarProps {
   post: {
@@ -132,10 +295,6 @@ const PostActionsBar = React.memo(function PostActionsBar({
     setReposted(!wasReposted);
     setRepostCount(prev => Math.max(0, prev + (wasReposted ? -1 : 1)));
 
-    // Delegate the actual write to the parent (useFeed.handleRepost), which
-    // owns the single source of truth and the feed post list. Calling
-    // toggleRepost here too caused a DOUBLE write — the second call failed
-    // ("already reposted") and surfaced as a false error to the user.
     try {
       onRepost?.(targetId, wasReposted);
     } finally {
@@ -213,29 +372,16 @@ const PostActionsBar = React.memo(function PostActionsBar({
   return (
     <View style={styles.row}>
       {/* Comment */}
-      <TouchableOpacity style={styles.btn} onPress={handleCommentPress} hitSlop={8}>
+      <AnimatedPressableScale style={styles.btn} onPress={handleCommentPress} hitSlop={8}>
         <Feather name="message-circle" size={sz} color={colors.textSecondary} />
         {post.commentCount ? <Text style={styles.count}>{formatCount(post.commentCount)}</Text> : null}
-      </TouchableOpacity>
+      </AnimatedPressableScale>
 
       {/* Repost */}
-      <TouchableOpacity style={styles.btn} onPress={handleRepostPress} hitSlop={8}>
-        <RepostIcon size={repostSz} color={reposted ? colors.repost : colors.textSecondary} />
-        {repostCount ? (
-          <Text style={[styles.count, reposted && { color: colors.repost }]}>{formatCount(repostCount)}</Text>
-        ) : null}
-      </TouchableOpacity>
+      <RepostButton reposted={reposted} count={repostCount} sz={repostSz} onPress={handleRepostPress} />
 
       {/* Like */}
-      <TouchableOpacity style={styles.btn} onPress={handleLikePress} hitSlop={8}>
-        {liked
-          ? <AntDesign name="heart" size={sz} color={colors.like} />
-          : <Feather name="heart" size={sz} color={colors.textSecondary} />
-        }
-        {likeCount ? (
-          <Text style={[styles.count, liked && { color: colors.like }]}>{formatCount(likeCount)}</Text>
-        ) : null}
-      </TouchableOpacity>
+      <LikeButton liked={liked} count={likeCount} sz={sz} onPress={handleLikePress} />
 
       {/* Views */}
       <View style={styles.btn}>
@@ -245,15 +391,10 @@ const PostActionsBar = React.memo(function PostActionsBar({
 
       {/* Bookmark + Share */}
       <View style={styles.endGroup}>
-        <TouchableOpacity style={styles.btn} onPress={handleBookmarkPress} hitSlop={8}>
-          {bookmarked
-            ? <AntDesign name="pushpin" size={sz} color={colors.bookmark} />
-            : <Feather name="bookmark" size={sz} color={colors.textSecondary} />
-          }
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.btn} onPress={handleSharePress} hitSlop={8}>
+        <BookmarkButton bookmarked={bookmarked} sz={sz} onPress={handleBookmarkPress} />
+        <AnimatedPressableScale style={styles.btn} onPress={handleSharePress} hitSlop={8}>
           <Feather name="share" size={sz} color={colors.textSecondary} />
-        </TouchableOpacity>
+        </AnimatedPressableScale>
       </View>
     </View>
   );
@@ -277,6 +418,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 2,
     minWidth: 34,
+  },
+  btnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  iconWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
   },
   count: {
     color: colors.textSecondary,
