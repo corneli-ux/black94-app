@@ -1,7 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, LayoutChangeEvent } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  FadeIn,
+  FadeInDown,
+} from 'react-native-reanimated';
 import { colors } from '../theme/colors';
 import { searchWeb, WebSearchResult } from '../lib/websearch';
 import { Linking } from 'react-native';
@@ -11,6 +18,8 @@ import { Avatar, VerifiedBadge } from '../components/Avatar';
 import { useAppStore } from '../stores/app';
 import { enrichAuthorProfiles } from '../utils/enrichAuthorProfiles';
 import { AppIcon } from '../components/icons';
+import { AnimatedPressableScale } from '../components/AnimatedPressableScale';
+import { spring } from '../constants/animations';
 
 export default function SearchScreen({ route, navigation }: any) {
   const [query, setQuery] = useState('');
@@ -247,17 +256,8 @@ export default function SearchScreen({ route, navigation }: any) {
       {/* Content */}
       {searched ? (
         <View style={styles.resultsWrap}>
-          {/* People / Posts tabs */}
-          <View style={styles.searchTabs}>
-            {(['people', 'posts', 'web'] as const).map(t => (
-              <TouchableOpacity key={t} style={styles.searchTab} onPress={() => setTab(t)}>
-                <Text style={[styles.searchTabText, tab === t && styles.searchTabTextActive]}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </Text>
-                {tab === t && <View style={styles.searchTabIndicator} />}
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* People / Posts / Web tabs — animated sliding indicator */}
+          <SearchTabBar tab={tab} onChange={setTab} />
 
           {loading ? (
             <View style={{ paddingTop: 40, alignItems: 'center' }}>
@@ -267,7 +267,13 @@ export default function SearchScreen({ route, navigation }: any) {
             <FlatList
               data={users}
               keyExtractor={(item) => `user-${item.id}`}
-              renderItem={renderUserItem}
+              renderItem={({ item, index }) => (
+                <Animated.View
+                  entering={FadeInDown.delay(Math.min(index * 40, 240)).springify().damping(20).stiffness(200)}
+                >
+                  {renderUserItem({ item })}
+                </Animated.View>
+              )}
               ListEmptyComponent={
                 <View style={styles.emptyResults}>
                   <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No users found</Text>
@@ -279,16 +285,20 @@ export default function SearchScreen({ route, navigation }: any) {
             <FlatList
               data={webResults}
               keyExtractor={(item, index) => `web-${index}`}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.webResultRow}
-                  onPress={() => Linking.openURL(item.url)}
-                  activeOpacity={0.7}
+              renderItem={({ item, index }) => (
+                <Animated.View
+                  entering={FadeInDown.delay(Math.min(index * 40, 240)).springify().damping(20).stiffness(200)}
                 >
-                  <Text style={styles.webResultName} numberOfLines={2}>{item.name}</Text>
-                  <Text style={styles.webResultHost} numberOfLines={1}>{item.hostName}</Text>
-                  <Text style={styles.webResultSnippet} numberOfLines={2}>{item.snippet}</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.webResultRow}
+                    onPress={() => Linking.openURL(item.url)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.webResultName} numberOfLines={2}>{item.name}</Text>
+                    <Text style={styles.webResultHost} numberOfLines={1}>{item.hostName}</Text>
+                    <Text style={styles.webResultSnippet} numberOfLines={2}>{item.snippet}</Text>
+                  </TouchableOpacity>
+                </Animated.View>
               )}
               ListEmptyComponent={
                 <View style={styles.emptyResults}>
@@ -301,7 +311,13 @@ export default function SearchScreen({ route, navigation }: any) {
             <FlatList
               data={posts}
               keyExtractor={(item) => `post-${item.id}`}
-              renderItem={renderPostItem}
+              renderItem={({ item, index }) => (
+                <Animated.View
+                  entering={FadeInDown.delay(Math.min(index * 40, 240)).springify().damping(20).stiffness(200)}
+                >
+                  {renderPostItem({ item })}
+                </Animated.View>
+              )}
               ListEmptyComponent={
                 <View style={styles.emptyResults}>
                   <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No posts found</Text>
@@ -322,36 +338,102 @@ export default function SearchScreen({ route, navigation }: any) {
               </TouchableOpacity>
             </View>
             {searchHistory.map((term, i) => (
-              <TouchableOpacity
+              <Animated.View
                 key={i}
-                style={styles.historyItem}
-                onPress={() => {
-                  setQuery(term);
-                }}
-                activeOpacity={0.7}
+                entering={FadeIn.delay(i * 30).springify().damping(20).stiffness(200)}
               >
-                <AppIcon name="schedule" size="md" color={colors.textMuted} />
-                <Text style={styles.historyText}>{term}</Text>
                 <TouchableOpacity
-                  onPress={() => removeHistoryItem(term)}
-                  hitSlop={8}
+                  style={styles.historyItem}
+                  onPress={() => {
+                    setQuery(term);
+                  }}
+                  activeOpacity={0.7}
                 >
-                  <AppIcon name="close" size={16} color={colors.textMuted} />
+                  <AppIcon name="schedule" size="md" color={colors.textMuted} />
+                  <Text style={styles.historyText}>{term}</Text>
+                  <TouchableOpacity
+                    onPress={() => removeHistoryItem(term)}
+                    hitSlop={8}
+                  >
+                    <AppIcon name="close" size={16} color={colors.textMuted} />
+                  </TouchableOpacity>
                 </TouchableOpacity>
-              </TouchableOpacity>
+              </Animated.View>
             ))}
           </View>
         ) : (
-          <View style={styles.emptyState}>
+          <Animated.View
+            style={styles.emptyState}
+            entering={FadeIn.springify().damping(20).stiffness(200)}
+          >
             <View style={styles.emptyIcon}>
               <AppIcon name="search" size="3xl" color={colors.textTertiary} />
             </View>
             <Text style={styles.emptyTitle}>Search for people and posts</Text>
             <Text style={styles.emptySubtitle}>Find users, posts, and topics across Black94.</Text>
-          </View>
+          </Animated.View>
         )
       )}
     </KeyboardAvoidingView>
+  );
+}
+
+/* ── SearchTabBar — animated sliding indicator under the active tab ──── */
+function SearchTabBar({
+  tab, onChange,
+}: { tab: 'people' | 'posts' | 'web'; onChange: (t: 'people' | 'posts' | 'web') => void; }) {
+  const tabs: Array<'people' | 'posts' | 'web'> = ['people', 'posts', 'web'];
+  // Layout measurements for each tab so the indicator can slide.
+  const [layouts, setLayouts] = useState<Array<{ x: number; width: number }>>([]);
+  const indicatorX = useSharedValue(0);
+  const indicatorW = useSharedValue(0);
+
+  const handleLayout = useCallback((i: number) => (e: LayoutChangeEvent) => {
+    setLayouts(prev => {
+      const next = [...prev];
+      next[i] = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width };
+      // Initialize indicator position once we know the active tab's layout.
+      if (i === tabs.indexOf(tab) && next[i]) {
+        indicatorX.value = withSpring(next[i].x, spring.snappy);
+        indicatorW.value = withSpring(next[i].width, spring.snappy);
+      }
+      return next;
+    });
+  }, [tab, indicatorX, indicatorW]);
+
+  // Slide the indicator when the active tab changes.
+  useEffect(() => {
+    const idx = tabs.indexOf(tab);
+    if (layouts[idx]) {
+      indicatorX.value = withSpring(layouts[idx].x, spring.snappy);
+      indicatorW.value = withSpring(layouts[idx].width, spring.snappy);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, layouts]);
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: indicatorX.value }],
+    width: indicatorW.value,
+  }));
+
+  return (
+    <View style={styles.searchTabs}>
+      {tabs.map(t => (
+        <AnimatedPressableScale
+          key={t}
+          scale={0.96}
+          springConfig={spring.snappy}
+          onLayout={handleLayout(tabs.indexOf(t))}
+          onPress={() => onChange(t)}
+          style={styles.searchTab}
+        >
+          <Text style={[styles.searchTabText, tab === t && styles.searchTabTextActive]}>
+            {t.charAt(0).toUpperCase() + t.slice(1)}
+          </Text>
+        </AnimatedPressableScale>
+      ))}
+      <Animated.View style={[styles.searchTabIndicator, indicatorStyle]} pointerEvents="none" />
+    </View>
   );
 }
 
@@ -392,10 +474,9 @@ const styles = StyleSheet.create({
   searchTabIndicator: {
     position: 'absolute' as const,
     bottom: 0,
-    left: 24,
-    right: 24,
-    height: 1,
-    borderRadius: 0.5,
+    left: 0,
+    height: 2,
+    borderRadius: 1,
     backgroundColor: colors.white,
   },
   /* Results */
