@@ -5,10 +5,11 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, withSpring, withSequence, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withSpring, withSequence, useSharedValue, FadeInDown, interpolate, Extrapolation } from 'react-native-reanimated';
 import { colors } from '../theme/colors';
 import { spring } from '../constants/animations';
 import { AnimatedPressableScale } from '../components/AnimatedPressableScale';
+import { PullToRefresh } from '../components/PullToRefresh';
 import { scale, verticalScale as vs, fontScale as fs } from '../theme/responsive';
 import { votePostPoll, Post, PostPollData, tsToMillis } from '../lib/api';
 import * as ExpoLinking from 'expo-linking';
@@ -274,7 +275,10 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
   };
 
   return (
-    <View style={styles.postCard}>
+    <Animated.View
+      style={styles.postCard}
+      entering={FadeInDown.springify().damping(20).stiffness(200)}
+    >
       {showHeart && (
         <View style={styles.heartOverlay} pointerEvents="none">
           <AppIcon name="favorite" size={96} color={colors.like} />
@@ -432,7 +436,7 @@ const PostCard = React.memo(function PostCard({ post, onLike, onBookmark, onDele
           />
         </TouchableOpacity>
       </View>
-    </View>
+    </Animated.View>
   );
 });
 
@@ -600,6 +604,9 @@ export default function FeedScreen({ navigation }: any) {
   // system. `headerTranslateY` is animated via withSpring on the UI thread,
   // so it stays smooth even when JS is busy.
   const headerVisibleSV = useSharedValue(1);
+  // Pull-to-refresh progress (0–1) for the custom indicator. Updated on
+  // the UI thread by the scroll handler below.
+  const pullProgressSV = useSharedValue(0);
   const lastScrollY = useRef(0);
   const showHideTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -610,6 +617,17 @@ export default function FeedScreen({ navigation }: any) {
 
   const handleFeedScroll = useCallback((e: any) => {
     const currentY = e.nativeEvent.contentOffset.y;
+
+    // ── Pull-to-refresh progress ──
+    // When at the top and pulling down, currentY goes negative on iOS and
+    // stays 0 on Android (the OS handles the bounce). We map the negative
+    // offset to a 0–1 progress for the custom indicator.
+    if (currentY <= 0) {
+      pullProgressSV.value = Math.min(1, Math.abs(currentY) / 80);
+    } else {
+      pullProgressSV.value = 0;
+    }
+
     const scrollingDown = currentY > lastScrollY.current + 8;
     const scrollingUp = currentY < lastScrollY.current - 8;
 
@@ -624,7 +642,7 @@ export default function FeedScreen({ navigation }: any) {
     }
 
     lastScrollY.current = currentY;
-  }, [setHeaderVisible]);
+  }, [setHeaderVisible, pullProgressSV]);
 
   // Cleanup the auto-reveal timer on unmount
   useEffect(() => () => {
@@ -734,7 +752,13 @@ export default function FeedScreen({ navigation }: any) {
         ref={flatListRef}
         data={displayPosts}
         keyExtractor={item => item.id}
-        ListHeaderComponent={(activeTab === 'For You' || activeTab === 'Black94') ? <StoriesRow navigation={navigation} /> : null}
+        ListHeaderComponent={
+          <View>
+            {/* Custom spring-driven pull-to-refresh indicator */}
+            <PullToRefresh refreshing={refreshing} pullProgress={pullProgressSV} />
+            {(activeTab === 'For You' || activeTab === 'Black94') ? <StoriesRow navigation={navigation} /> : null}
+          </View>
+        }
         renderItem={({ item }) => (
           <PostCard
             post={item}
@@ -747,7 +771,7 @@ export default function FeedScreen({ navigation }: any) {
             navigation={navigation}
           />
         )}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} progressViewOffset={0} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="transparent" colors={['transparent']} progressViewOffset={0} />}
         onScroll={handleFeedScroll}
         scrollEventThrottle={16}
         nestedScrollEnabled={true}
