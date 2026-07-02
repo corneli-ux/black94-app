@@ -36,7 +36,7 @@ module.exports = function () {
     expo: {
       name: 'Black94',
       slug: 'memora-bond',
-      version: '1.9.1',
+      version: '1.9.2',
       platforms: ['android', 'ios', 'web'],
       orientation: 'portrait',
       icon: './assets/icon.png',
@@ -60,7 +60,7 @@ module.exports = function () {
         edgeToEdgeEnabled: true,
         package: 'com.black94.social',
         googleServicesFile: './google-services.json',
-        versionCode: 19,
+        versionCode: 20,
         permissions: ['CAMERA', 'POST_NOTIFICATIONS'],
         softwareKeyboardLayoutMode: 'resize',
         splash: {

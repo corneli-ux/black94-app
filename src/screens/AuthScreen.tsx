@@ -1,24 +1,12 @@
 /**
  * AuthScreen — Black94 sign-in (Redesigned).
  *
- * DESIGN PHILOSOPHY
- * ─────────────────
- * Pure black canvas with a subtle gold radial glow that draws the eye to
- * the wordmark. Modern editorial typography — large, confident, spaced.
- * Three feature chips surface the brand promise (E2E encryption, no ads,
- * your data stays yours) above the primary action.
- *
  * AUTH STRATEGY
  * ─────────────
- * Primary: Email/password — works on ANY Firebase project with email auth
- *          enabled. No OAuth web client, no SHA-1, no DEVELOPER_ERROR.
- *          This is the reliable path that always works.
- * Secondary: Google Sign-In — only shown when WEB_CLIENT_ID is configured.
- *            Uses native Google Sign-In with WebView fallback for
- *            DEVELOPER_ERROR (PKCE + Firebase's pre-authorized handler).
- *
- * The Sign In / Create Account tab toggle lets users switch between
- * modes without leaving the screen.
+ * Email/password only. Google Sign-In was removed because the release
+ * keystore SHA-1 is registered in multiple Firebase projects, causing
+ * DEVELOPER_ERROR on every attempt. Email/password works on any Firebase
+ * project with email auth enabled — no SHA-1, no OAuth web client.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -29,16 +17,12 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Constants from 'expo-constants';
-import { signInWithGoogle, signUpWithEmailAuth, signInWithEmailAuth } from '../lib/api';
+import { signUpWithEmailAuth, signInWithEmailAuth } from '../lib/api';
 import { useAppStore } from '../stores/app';
 import { colors } from '../theme/colors';
 import { Feather } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Web client ID — empty string means Google Sign-In is hidden (email-only mode).
-const WEB_CLIENT_ID = (Constants.expoConfig?.extra?.googleWebClientId as string) || '';
 
 export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
@@ -121,77 +105,6 @@ export default function AuthScreen() {
       setBusy(false);
     }
   }, [busy, email, password, name, mode, routeAfterAuth]);
-
-  // ── Google auth (secondary, with WebView fallback) ──
-  const completeGoogleSignIn = useCallback(async (idToken: string) => {
-    try {
-      const user = await signInWithGoogle(idToken);
-      if (user) routeAfterAuth(user);
-    } catch (e: any) {
-      console.error('[Auth] Google sign-in completion error:', e?.code, e?.message);
-      const errMsg = (e?.message || '').slice(0, 200);
-      Alert.alert('Sign In Failed', errMsg || 'Please try again.');
-    } finally {
-      setBusy(false);
-    }
-  }, [routeAfterAuth]);
-
-  const handleGoogle = useCallback(async () => {
-    if (busy) return;
-    if (!WEB_CLIENT_ID) {
-      Alert.alert('Google Sign-In unavailable', 'Please use email sign-in instead.');
-      return;
-    }
-    setBusy(true);
-    try {
-      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
-      GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, scopes: ['profile', 'email'] });
-      if (Platform.OS === 'android') await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      await GoogleSignin.signIn();
-
-      let idToken: string | null = null;
-      try {
-        const t = await GoogleSignin.getTokens();
-        idToken = t.idToken;
-      } catch (tokenErr: any) {
-        console.warn('[Auth] getTokens failed:', tokenErr?.code, tokenErr?.message);
-      }
-      if (!idToken) {
-        Alert.alert('Sign In Failed', 'Could not complete Google sign-in. Please use email sign-in instead.');
-        setBusy(false);
-        return;
-      }
-      await completeGoogleSignIn(idToken);
-    } catch (e: any) {
-      if (e?.code === '12501' || e?.code === 'SIGN_IN_CANCELLED') {
-        setBusy(false);
-        return;
-      }
-
-      console.error('[Auth] Google sign-in error:', { code: e?.code, message: e?.message });
-      const errCode = e?.code ? String(e.code) : '';
-      const errMsg = (e?.message || '').slice(0, 180);
-
-      // Native Google Sign-In uses Google Play Services (not a WebView), so it
-      // does NOT hit Google's disallowed_useragent block. If it still fails with
-      // DEVELOPER_ERROR, the SHA-1 isn't registered for this build's signing key.
-      // We do NOT fall back to an embedded WebView — Google blocks OAuth in
-      // WebViews (Error 403: disallowed_useragent). Email sign-in is the
-      // reliable alternative.
-      let body = 'Please use email sign-in instead.';
-      if (errCode === '10' || /DEVELOPER_ERROR/i.test(errMsg)) {
-        body = 'Google Sign-In is being configured. Please use email sign-in for now.';
-      } else if (errCode === '7' || /NETWORK_ERROR/i.test(errMsg)) {
-        body = 'Network error. Please check your internet connection and try again.';
-      } else if (errCode === '12500' || /SIGN_IN_FAILED/i.test(errMsg)) {
-        body = 'Google Play Services issue. Please use email sign-in instead.';
-      } else if (errMsg) {
-        body = `${errMsg}\n\nPlease use email sign-in instead.`;
-      }
-      Alert.alert('Google Sign-In Failed', body);
-      setBusy(false);
-    }
-  }, [busy, completeGoogleSignIn]);
 
   return (
     <SafeAreaView style={s.root} edges={['top', 'bottom']}>
@@ -321,26 +234,6 @@ export default function AuthScreen() {
                   </Text>
               }
             </TouchableOpacity>
-
-            {/* Google Sign-In (only if WEB_CLIENT_ID is configured) */}
-            {WEB_CLIENT_ID ? (
-              <>
-                <View style={s.orRow}>
-                  <View style={s.orLine} />
-                  <Text style={s.orText}>OR</Text>
-                  <View style={s.orLine} />
-                </View>
-                <TouchableOpacity
-                  style={s.googleBtn}
-                  onPress={handleGoogle}
-                  disabled={busy}
-                  activeOpacity={0.92}
-                >
-                  <GoogleGLogo size={22} />
-                  <Text style={s.googleBtnText}>Continue with Google</Text>
-                </TouchableOpacity>
-              </>
-            ) : null}
           </Animated.View>
 
           {/* ── Legal notice ── */}
@@ -379,33 +272,6 @@ function FeatureChip({ icon, label }: { icon: string; label: string }) {
     <View style={s.featureChip}>
       <Feather name={icon as any} size={11} color="rgba(255,255,255,0.6)" />
       <Text style={s.featureChipText}>{label}</Text>
-    </View>
-  );
-}
-
-/** Official Google "G" logo rendered as a 4-color ring with a white core.
- *  Avoids bundling an extra PNG asset while staying brand-accurate. */
-function GoogleGLogo({ size = 22 }: { size?: number }) {
-  const half = size / 2;
-  const core = size * 0.66;
-  return (
-    <View style={[s.gLogoWrap, { width: size, height: size, borderRadius: half }]}>
-      <View style={[s.gHalf, { top: 0, left: 0, width: '50%', height: '50%', backgroundColor: '#4285F4', borderTopLeftRadius: half }]} />
-      <View style={[s.gHalf, { top: 0, right: 0, width: '50%', height: '50%', backgroundColor: '#EA4335', borderTopRightRadius: half }]} />
-      <View style={[s.gHalf, { bottom: 0, left: 0, width: '50%', height: '50%', backgroundColor: '#34A853', borderBottomLeftRadius: half }]} />
-      <View style={[s.gHalf, { bottom: 0, right: 0, width: '50%', height: '50%', backgroundColor: '#FBBC05', borderBottomRightRadius: half }]} />
-      <View style={[s.gCore, {
-        width: core, height: core, borderRadius: core / 2,
-        top: (size - core) / 2, left: (size - core) / 2,
-      }]}>
-        <Text style={{
-          fontSize: size * 0.46,
-          fontWeight: '900',
-          color: '#4285F4',
-          fontStyle: 'italic',
-          marginTop: -size * 0.02,
-        }}>G</Text>
-      </View>
     </View>
   );
 }
@@ -580,44 +446,6 @@ const s = StyleSheet.create({
     letterSpacing: -0.2,
   },
 
-  // OR divider
-  orRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginVertical: 6,
-  },
-  orLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  orText: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.32)',
-    letterSpacing: 2,
-    fontWeight: '600',
-  },
-
-  // Google button (outlined)
-  googleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    height: 50,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-  googleBtnText: {
-    fontSize: 14.5,
-    fontWeight: '600',
-    color: '#fff',
-    letterSpacing: -0.2,
-  },
-
   // Legal
   legalNotice: {
     fontSize: 11.5,
@@ -644,23 +472,5 @@ const s = StyleSheet.create({
     fontSize: 10.5,
     color: 'rgba(255,255,255,0.25)',
     letterSpacing: 0.3,
-  },
-
-  // ── Google "G" logo ──
-  gLogoWrap: {
-    position: 'relative',
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gHalf: {
-    position: 'absolute',
-  },
-  gCore: {
-    position: 'absolute',
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
